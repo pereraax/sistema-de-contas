@@ -1,0 +1,27 @@
+🚀 DEPLOY RÁPIDO - CLOUDFLARE PAGES
+
+1. CRIAR CONTA:
+   https://dash.cloudflare.com/sign-up
+
+2. CONECTAR GITHUB:
+   - Pages → Create a project
+   - Connect to Git → GitHub
+   - Selecionar: pereraax/plenipay
+
+3. CONFIGURAR BUILD:
+   Framework: Next.js (auto-detect)
+   Build command: npm run build
+   Output directory: .next
+   Node version: 18.x ou 20.x
+
+4. VARIÁVEIS DE AMBIENTE:
+   (Adicionar todas do arquivo VALORES-VARIAVEIS-AMBIENTE.md)
+   IMPORTANTE: Atualizar NEXT_PUBLIC_SITE_URL e NEXT_PUBLIC_APP_URL 
+   com a URL do Cloudflare após primeiro deploy
+
+5. DEPLOY:
+   Save and Deploy → Aguardar 5-10 minutos
+
+✅ PRONTO! URL será: https://seu-projeto.pages.dev
+
+📄 Guia completo: DEPLOY-CLOUDFLARE.md
