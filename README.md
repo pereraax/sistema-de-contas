@@ -1,73 +1,73 @@
-# Sistema de Contas - Controle Financeiro Pessoal
+# 💰 PLENIPAY - Sistema de Contas
 
-Sistema web completo de controle financeiro pessoal e de dívidas com design estilo Apple.
+Sistema completo de controle financeiro pessoal e de dívidas.
 
-## Tecnologias
+## 🚀 Tecnologias
 
-- Next.js 14 (App Router)
-- TypeScript
-- TailwindCSS
-- Supabase (Banco de dados, Autenticação, Storage)
-- Recharts (Gráficos)
-- Lucide React (Ícones)
+- **Next.js 14** - Framework React
+- **TypeScript** - Tipagem estática
+- **Tailwind CSS** - Estilização
+- **Supabase** - Banco de dados e autenticação
+- **Asaas** - Pagamentos
+- **WhatsApp API** - Integração via API Fácil
 
-## Configuração
+## 📦 Instalação
 
-1. Instale as dependências:
 ```bash
 npm install
 ```
 
+## 🔧 Configuração
+
+1. Copie `.env.example` para `.env.local`
 2. Configure as variáveis de ambiente:
-```bash
-cp .env.local.example .env.local
-```
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `ASAAS_API_KEY`
+   - `APIFACIL_INSTANCE_ID`
+   - `APIFACIL_TOKEN`
 
-Preencha o arquivo `.env.local` com suas credenciais do Supabase:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+## 🏃 Desenvolvimento
 
-3. Execute o projeto:
 ```bash
 npm run dev
 ```
 
-## Estrutura do Banco de Dados
+Acesse: http://localhost:3000
 
-Execute o arquivo `supabase-schema.sql` no SQL Editor do Supabase, ou copie e cole o conteúdo diretamente.
+## 🏗️ Build
 
-O script cria:
-- Tabela `users` para armazenar usuários/envolvidos
-- Tabela `registros` para armazenar todos os registros financeiros
-- Tabela `emprestimos` para armazenar empréstimos feitos
-- Índices para otimização de consultas
-- Políticas RLS básicas (permitindo todas as operações)
-
-**Importante:** Se você já tem tabelas criadas, execute este SQL para atualizar o limite de valores:
-
-```sql
-ALTER TABLE registros ALTER COLUMN valor TYPE NUMERIC(20, 2);
-ALTER TABLE emprestimos ALTER COLUMN valor TYPE NUMERIC(20, 2);
+```bash
+npm run build
+npm start
 ```
 
-## Configuração do Storage (Supabase)
+## 📝 Scripts Disponíveis
 
-Para habilitar o upload de documentos/imagens nos empréstimos:
+- `npm run dev` - Inicia servidor de desenvolvimento
+- `npm run build` - Cria build de produção
+- `npm start` - Inicia servidor de produção
+- `npm run lint` - Executa linter
 
-1. No painel do Supabase, vá em **Storage**
-2. Clique em **Create a new bucket**
-3. Nome do bucket: `emprestimos`
-4. Marque como **Public bucket** (para acesso público aos arquivos)
-5. Clique em **Create bucket**
+## 🌐 Deploy
 
-O sistema está configurado para fazer upload de arquivos até 10MB (PNG, JPG, PDF).
+### Hostinger
 
-## Funcionalidades
+1. Faça upload dos arquivos (exceto `node_modules` e `.next`)
+2. Instale dependências: `npm install`
+3. Configure variáveis de ambiente
+4. Faça build: `npm run build`
+5. Inicie servidor: `npm start` ou use PM2
 
-- ✅ Home com formulário de lançamentos
-- ✅ Todos os Registros com cards e filtros
-- ✅ Dívidas com progresso e estatísticas
-- ✅ Calendário mensal
-- ✅ Dashboard com gráficos em tempo real
-- ✅ Design responsivo (desktop e mobile)
+### PM2 (Recomendado)
 
+```bash
+npm install -g pm2
+pm2 start npm --name "sistema-contas" -- start
+pm2 save
+```
+
+## 📄 Licença
+
+Privado - Todos os direitos reservados

@@ -1,0 +1,32 @@
+#!/bin/bash
+
+echo "🔗 Reconfigurando projeto no Vercel..."
+echo ""
+echo "📋 INSTRUÇÕES:"
+echo ""
+echo "1. O Vercel vai perguntar: 'Link to existing project?'"
+echo "   → Digite: Y (para usar projeto existente)"
+echo "   → OU: N (para criar novo projeto)"
+echo ""
+echo "2. Se escolher Y, escolha o projeto da lista:"
+echo "   → Procure por: plenipay, contacomerciaal ou sistema-de-contas"
+echo ""
+echo "3. Se escolher N, digite o nome do projeto:"
+echo "   → Exemplo: plenipay"
+echo ""
+echo "4. Quando perguntar sobre diretório, apenas pressione Enter"
+echo ""
+echo "5. Quando perguntar sobre build settings, apenas pressione Enter"
+echo ""
+echo "🚀 Iniciando..."
+echo ""
+
+cd "/Users/charllestabordas/Documents/SISTEMA DE CONTAS"
+vercel link
+
+echo ""
+echo "✅ Projeto linkado!"
+echo ""
+echo "📝 Agora faça o deploy:"
+echo "   vercel --prod"
+echo ""

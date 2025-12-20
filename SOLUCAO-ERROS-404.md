@@ -131,3 +131,5 @@ O servidor está funcionando corretamente. O problema é **cache do navegador**.
 
 **O código não foi quebrado** - o último commit foi seguro e necessário para o Vercel.
 
+
+

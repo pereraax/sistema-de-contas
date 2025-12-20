@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       }
     ]
     
-    const resultados = []
+    const resultados: Array<{ formato: string; status?: number; success?: boolean; response?: any; error?: string }> = []
     
     for (const formato of formatos) {
       try {
@@ -126,6 +126,8 @@ export async function GET() {
     },
   })
 }
+
+
 
 
 

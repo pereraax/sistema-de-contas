@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import './animations.css'
 import './globals.css'
 import ThemeProvider from '@/components/ThemeProvider'
 import ChatWidget from '@/components/ChatWidget'
@@ -30,8 +31,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="pt-BR">
-      <body>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <ThemeProvider>
           <MenuProvider>
             <VisitorTrackingWrapper />

@@ -112,3 +112,5 @@ Agora, quando você enviar uma imagem pelo WhatsApp:
 
 
 
+
+

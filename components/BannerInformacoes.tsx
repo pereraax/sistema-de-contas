@@ -1,192 +1,214 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { X, ChevronLeft, ChevronRight, Lightbulb, Info, TrendingUp, DollarSign } from 'lucide-react'
 
-interface Banner {
+interface BannerItem {
   id: string
-  imagem_url: string
-  ordem: number
-  ativo: boolean
-  tempo_transicao: number
+  titulo: string
+  descricao: string
+  tipo: 'info' | 'dica' | 'promocao'
+  cor: 'blue' | 'green' | 'orange' | 'purple'
+}
+
+const banners: BannerItem[] = [
+  {
+    id: '1',
+    titulo: 'Dica de Economia',
+    descricao: 'Registre todas as suas despesas diárias para ter um controle financeiro mais preciso e identificar onde você pode economizar.',
+    tipo: 'dica',
+    cor: 'green'
+  },
+  {
+    id: '2',
+    titulo: 'Organize suas Dívidas',
+    descricao: 'Use a seção de Dívidas para acompanhar o progresso de pagamento e nunca mais perder uma data de vencimento.',
+    tipo: 'info',
+    cor: 'blue'
+  },
+  {
+    id: '3',
+    titulo: 'Acompanhe seu Saldo',
+    descricao: 'O dashboard mostra em tempo real seu saldo atual, total recebido e gasto. Monitore sua saúde financeira!',
+    tipo: 'dica',
+    cor: 'purple'
+  },
+  {
+    id: '4',
+    titulo: 'Use o Calendário',
+    descricao: 'Visualize todos os seus registros financeiros no calendário mensal e planeje melhor seus gastos futuros.',
+    tipo: 'info',
+    cor: 'orange'
+  }
+]
+
+const cores = {
+  blue: {
+    bg: 'bg-blue-50 dark:bg-blue-900/20',
+    border: 'border-blue-200 dark:border-blue-800/30',
+    icon: 'text-blue-600 dark:text-blue-400',
+    iconBg: 'bg-blue-100 dark:bg-blue-900/30',
+    text: 'text-blue-900 dark:text-blue-100'
+  },
+  green: {
+    bg: 'bg-green-50 dark:bg-green-900/20',
+    border: 'border-green-200 dark:border-green-800/30',
+    icon: 'text-green-600 dark:text-green-400',
+    iconBg: 'bg-green-100 dark:bg-green-900/30',
+    text: 'text-green-900 dark:text-green-100'
+  },
+  orange: {
+    bg: 'bg-orange-50 dark:bg-orange-900/20',
+    border: 'border-orange-200 dark:border-orange-800/30',
+    icon: 'text-orange-600 dark:text-orange-400',
+    iconBg: 'bg-orange-100 dark:bg-orange-900/30',
+    text: 'text-orange-900 dark:text-orange-100'
+  },
+  purple: {
+    bg: 'bg-purple-50 dark:bg-purple-900/20',
+    border: 'border-purple-200 dark:border-purple-800/30',
+    icon: 'text-purple-600 dark:text-purple-400',
+    iconBg: 'bg-purple-100 dark:bg-purple-900/30',
+    text: 'text-purple-900 dark:text-purple-100'
+  }
+}
+
+const icones = {
+  info: Info,
+  dica: Lightbulb,
+  promocao: TrendingUp
 }
 
 export default function BannerInformacoes() {
-  const [banners, setBanners] = useState<Banner[]>([])
   const [bannerAtual, setBannerAtual] = useState(0)
-  const [tempoTransicao, setTempoTransicao] = useState(5)
-  const [loading, setLoading] = useState(true)
-  const [touchStart, setTouchStart] = useState<number | null>(null)
-  const [touchEnd, setTouchEnd] = useState<number | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const [bannersVisiveis, setBannersVisiveis] = useState<BannerItem[]>([])
+  const [bannerFechado, setBannerFechado] = useState<string[]>([])
 
-  const mudarBanner = (newIndex: number | ((prev: number) => number)) => {
-    setBannerAtual(newIndex)
-  }
-
-  const carregarBanners = useCallback(async () => {
-    try {
-      console.log('🔄 [BannerInformacoes] Iniciando carregamento de banners...')
-      const response = await fetch('/api/banners', {
-        cache: 'no-store', // Garantir que sempre busca dados atualizados
-        headers: {
-          'Cache-Control': 'no-cache'
-        }
-      })
-      
-      console.log('📡 [BannerInformacoes] Resposta da API:', response.status, response.statusText)
-      
-      if (response.ok) {
-        const data = await response.json()
-        const bannersAtivos = data.banners || []
-        console.log('✅ [BannerInformacoes] Banners carregados:', bannersAtivos.length, bannersAtivos)
-        setBanners(bannersAtivos)
-        // Usar tempo do primeiro banner como padrão, se disponível
-        if (bannersAtivos.length > 0) {
-          setTempoTransicao(bannersAtivos[0].tempo_transicao || 5)
-          console.log('⏱️ [BannerInformacoes] Tempo de transição configurado:', bannersAtivos[0].tempo_transicao || 5)
-        } else {
-          console.warn('⚠️ [BannerInformacoes] Nenhum banner ativo encontrado')
-        }
-      } else {
-        const errorText = await response.text()
-        console.error('❌ [BannerInformacoes] Erro na resposta da API:', response.status, errorText)
-      }
-    } catch (error) {
-      console.error('❌ [BannerInformacoes] Erro ao carregar banners:', error)
-    } finally {
-      setLoading(false)
-      console.log('🏁 [BannerInformacoes] Carregamento finalizado. Loading:', false)
+  useEffect(() => {
+    // Carregar banners fechados do localStorage
+    const fechados = localStorage.getItem('bannersFechados')
+    if (fechados) {
+      setBannerFechado(JSON.parse(fechados))
     }
   }, [])
 
   useEffect(() => {
-    carregarBanners()
+    // Filtrar banners que não foram fechados
+    const visiveis = banners.filter(b => !bannerFechado.includes(b.id))
+    setBannersVisiveis(visiveis)
     
-    // Timeout de segurança: garantir que loading seja false após 5 segundos
-    const timeout = setTimeout(() => {
-      setLoading(false)
-    }, 5000)
-    
-    return () => clearTimeout(timeout)
-  }, [carregarBanners])
-
-  useEffect(() => {
-    if (banners.length <= 1) return
-
-    // Configurar transição automática usando o tempo do banner atual
-    const tempoAtual = banners[bannerAtual]?.tempo_transicao || tempoTransicao
-    const interval = setInterval(() => {
-      setBannerAtual((prev) => (prev + 1) % banners.length)
-    }, tempoAtual * 1000)
-
-    return () => clearInterval(interval)
-  }, [banners, bannerAtual, tempoTransicao])
-
-  // Funções para swipe
-  const minSwipeDistance = 50
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null)
-    setTouchStart(e.targetTouches[0].clientX)
-  }
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX)
-  }
-
-  const onTouchEnd = () => {
-    if (!touchStart || !touchEnd || banners.length <= 1) return
-    
-    const distance = touchStart - touchEnd
-    const isLeftSwipe = distance > minSwipeDistance
-    const isRightSwipe = distance < -minSwipeDistance
-
-    if (isLeftSwipe) {
-      mudarBanner((bannerAtual + 1) % banners.length)
+    // Se o banner atual foi fechado, ir para o próximo
+    if (visiveis.length > 0 && !visiveis.find(b => b.id === banners[bannerAtual]?.id)) {
+      setBannerAtual(0)
     }
-    if (isRightSwipe) {
-      mudarBanner((bannerAtual - 1 + banners.length) % banners.length)
+  }, [bannerFechado, bannerAtual])
+
+  const fecharBanner = (id: string) => {
+    const novosFechados = [...bannerFechado, id]
+    setBannerFechado(novosFechados)
+    localStorage.setItem('bannersFechados', JSON.stringify(novosFechados))
+    
+    // Se fechou o banner atual, ir para o próximo
+    if (bannersVisiveis.length > 1) {
+      const proximoIndex = (bannerAtual + 1) % bannersVisiveis.length
+      setBannerAtual(proximoIndex)
     }
   }
 
-  // Debug: sempre logar o estado
-  console.log('🎨 [BannerInformacoes] Renderizando. Loading:', loading, 'Banners:', banners.length)
+  const proximoBanner = () => {
+    if (bannersVisiveis.length > 0) {
+      setBannerAtual((bannerAtual + 1) % bannersVisiveis.length)
+    }
+  }
 
-  // Não renderizar nada se não houver banners (após carregar)
-  if (!loading && banners.length === 0) {
-    console.log('🚫 [BannerInformacoes] Não renderizando: nenhum banner encontrado')
+  const bannerAnterior = () => {
+    if (bannersVisiveis.length > 0) {
+      setBannerAtual((bannerAtual - 1 + bannersVisiveis.length) % bannersVisiveis.length)
+    }
+
+  }
+
+  if (bannersVisiveis.length === 0) {
     return null
   }
 
-  // Mostrar loading apenas se ainda estiver carregando
-  if (loading) {
-    console.log('⏳ [BannerInformacoes] Mostrando loading...')
-    return (
-      <div className="w-full flex justify-center">
-        <div 
-          className="rounded-2xl shadow-lg relative overflow-hidden w-full bg-brand-midnight/50 animate-pulse"
-          style={{ 
-            aspectRatio: '8/3', // 1920x720 = 2.666... ≈ 8/3
-            maxWidth: '1920px',
-            maxHeight: '720px',
-            minHeight: '120px'
-          }}
-        />
-      </div>
-    )
-  }
-
-  console.log('✅ [BannerInformacoes] Renderizando banner com', banners.length, 'banners')
+  const banner = bannersVisiveis[bannerAtual]
+  const cor = cores[banner.cor]
+  const Icone = icones[banner.tipo]
 
   return (
-    <div className="w-full flex justify-center" style={{ marginBottom: 0, paddingBottom: 0, marginTop: 0 }}>
+    <div className="mb-6">
       <div 
-        ref={containerRef}
-        className="rounded-2xl shadow-lg relative overflow-hidden w-full bg-brand-midnight/50"
+        className={`${cor.bg} border-2 ${cor.border} rounded-2xl shadow-lg relative overflow-hidden animate-fade-in w-full`}
         style={{ 
-          aspectRatio: '8/3', // 1920x720 = 2.666... ≈ 8/3
-          maxWidth: '1920px',
-          maxHeight: '720px'
+          height: '300px'
         }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
       >
-        {/* Container de banners com animação de slide */}
-        <div 
-          className="flex h-full transition-transform duration-500 ease-in-out"
-          style={{
-            transform: banners.length > 0 ? `translateX(-${bannerAtual * (100 / banners.length)}%)` : 'translateX(0%)',
-            width: `${Math.max(banners.length, 1) * 100}%`
-          }}
+        {/* Botão de fechar */}
+        <button
+          onClick={() => fecharBanner(banner.id)}
+          className="absolute top-4 right-4 p-2 hover:bg-white/50 dark:hover:bg-white/20 rounded-lg transition-smooth z-10"
+          aria-label="Fechar banner"
         >
-          {banners.map((banner, index) => {
-            const bannerWidth = banners.length > 0 ? 100 / banners.length : 100
-            return (
-              <div
-                key={banner.id}
-                className="h-full flex-shrink-0 relative"
-                style={{
-                  width: `${bannerWidth}%`,
-                  minWidth: `${bannerWidth}%`,
-                  maxWidth: `${bannerWidth}%`
-                }}
-              >
-              <img
-                src={banner.imagem_url}
-                alt={`Banner ${index + 1}`}
-                style={{ 
-                  objectFit: 'cover',
-                  objectPosition: 'center',
-                  display: 'block',
-                  width: '100%',
-                  height: '100%'
-                }}
-              />
-              </div>
-            )
-          })}
+          <X size={20} className={cor.icon} />
+        </button>
+
+        {/* Conteúdo do banner */}
+        <div className="flex items-center justify-center h-full p-8 pr-16">
+          <div className="flex items-center gap-6 w-full">
+            {/* Ícone */}
+            <div className={`${cor.iconBg} p-6 rounded-xl flex-shrink-0`}>
+              <Icone size={48} className={cor.icon} strokeWidth={2} />
+            </div>
+
+            {/* Texto */}
+            <div className="flex-1 min-w-0">
+              <h3 className={`text-2xl font-display font-bold ${cor.text} mb-3`}>
+                {banner.titulo}
+              </h3>
+              <p className={`text-base ${cor.text}/80 leading-relaxed`}>
+                {banner.descricao}
+              </p>
+            </div>
+          </div>
         </div>
+
+        {/* Navegação (se houver mais de um banner) */}
+        {bannersVisiveis.length > 1 && (
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center justify-center gap-2">
+            <button
+              onClick={bannerAnterior}
+              className="p-2 hover:bg-white/50 dark:hover:bg-white/20 rounded-lg transition-smooth"
+              aria-label="Banner anterior"
+            >
+              <ChevronLeft size={20} className={cor.icon} />
+            </button>
+            
+            {/* Indicadores */}
+            <div className="flex gap-2">
+              {bannersVisiveis.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setBannerAtual(index)}
+                  className={`h-2 rounded-full transition-smooth ${
+                    index === bannerAtual
+                      ? `w-8 ${cor.icon} bg-current`
+                      : 'w-2 bg-white/50 dark:bg-white/30'
+                  }`}
+                  aria-label={`Ir para banner ${index + 1}`}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={proximoBanner}
+              className="p-2 hover:bg-white/50 dark:hover:bg-white/20 rounded-lg transition-smooth"
+              aria-label="Próximo banner"
+            >
+              <ChevronRight size={20} className={cor.icon} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

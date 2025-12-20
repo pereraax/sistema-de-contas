@@ -45,7 +45,7 @@ function LoginContent() {
 
   // Mostrar mensagem da URL se existir (vindo do cadastro)
   useEffect(() => {
-    const mensagem = searchParams.get('mensagem')
+    const mensagem = searchParams?.get('mensagem')
     if (mensagem) {
       createNotification(mensagem, 'info')
       // Remover parâmetro da URL para não mostrar novamente
@@ -170,7 +170,7 @@ function LoginContent() {
       console.log('📧 Email confirmado?', !!data.user.email_confirmed_at)
       
       // Se veio do callback de confirmação, garantir que o estado está atualizado
-      const emailConfirmed = searchParams.get('emailConfirmed')
+      const emailConfirmed = searchParams?.get('emailConfirmed')
       if (emailConfirmed === 'true') {
         console.log('✅ Login após confirmação de email - estado deve estar atualizado')
       }

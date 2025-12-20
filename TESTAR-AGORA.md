@@ -123,3 +123,5 @@ http://localhost:3000/api/whatsapp/apifacil/diagnostico-completo
 
 
 
+
+

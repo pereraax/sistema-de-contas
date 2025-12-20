@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 function CheckoutContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const plano = searchParams.get('plano') as 'basico' | 'premium' | 'anual' | null
+  const plano = searchParams?.get('plano') as 'basico' | 'premium' | 'anual' | null
 
   const [loading, setLoading] = useState(false)
   const [userProfile, setUserProfile] = useState<any>(null)

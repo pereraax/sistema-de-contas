@@ -96,3 +96,5 @@ Isso funciona, mas não é automático. Para automatizar, precisa de uma IA conf
 
 
 
+
+

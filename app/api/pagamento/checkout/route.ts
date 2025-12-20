@@ -365,9 +365,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Para PIX, precisamos buscar o pagamento gerado para obter o QR code
-    let paymentUrl = null
-    let pixQrCode = null
-    let pixCopyPaste = null
+    let paymentUrl: string | null = null
+    let pixQrCode: string | null = null
+    let pixCopyPaste: string | null = null
 
     if (metodoPagamento === 'PIX') {
       console.log('💳 Processando pagamento PIX para assinatura:', subscription.id)
@@ -449,7 +449,7 @@ export async function POST(request: NextRequest) {
           }
           
           // URL de pagamento (invoiceUrl)
-          paymentUrl = pagamentoDetalhes.invoiceUrl || pagamentoDetalhes.invoiceNumber
+          paymentUrl = pagamentoDetalhes.invoiceUrl || pagamentoDetalhes.invoiceNumber || null
         } else {
           console.log('⚠️ Nenhum pagamento encontrado ainda, tentando novamente...')
           // Tentar mais uma vez após mais tempo
@@ -459,7 +459,7 @@ export async function POST(request: NextRequest) {
           if (pagamentosRetry && pagamentosRetry.length > 0) {
             const pagamentoDetalhes = await buscarPagamentoAsaas(pagamentosRetry[0].id)
             pixCopyPaste = pagamentoDetalhes.pixCopiaECola || pagamentoDetalhes.pixCopyPaste
-            paymentUrl = pagamentoDetalhes.invoiceUrl
+            paymentUrl = pagamentoDetalhes.invoiceUrl || null
             
             // Tentar buscar QR code novamente
             try {

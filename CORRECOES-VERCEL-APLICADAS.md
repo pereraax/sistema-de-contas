@@ -99,3 +99,5 @@ Corrige erros de 'Dynamic server usage' no Vercel durante o build.
 
 Com essas informações, posso fazer correções mais específicas! 🎯
 
+
+

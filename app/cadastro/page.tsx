@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'
 function CadastroContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const plano = (searchParams.get('plano') as 'teste' | 'basico' | 'premium') || 'teste'
+  const plano = (searchParams?.get('plano') as 'teste' | 'basico' | 'premium') || 'teste'
   
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)

@@ -1112,8 +1112,8 @@ export async function POST(request: NextRequest) {
       obterEstatisticas()
     ])
 
-    const dividas = dividasResult?.data || []
-    const registros = registrosResult?.data || []
+    const dividas: any[] = dividasResult?.data || []
+    const registros: any[] = registrosResult?.data || []
     const estatisticas = estatisticasResult || {}
 
     // Calcular gastos da semana
@@ -1184,22 +1184,22 @@ export async function POST(request: NextRequest) {
           /\b(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*(?:reais?|r\$|de)?\b/i
         ]
         
-        let valorMatch = null
+        let valorMatch: RegExpMatchArray | null = null
         for (const pattern of valorPatterns) {
           valorMatch = respostaIA.content.match(pattern)
           if (valorMatch) break
         }
         
         if (valorMatch) {
-          const valorStr = valorMatch[1] || valorMatch[0]
+          const valorStr: string = String(valorMatch[1] || valorMatch[0] || '')
           const valor = parseFloat(valorStr.replace(/\./g, '').replace(',', '.'))
           
           if (!isNaN(valor) && valor > 0 && valor < 10000000) {
             // Detectar tipo
-            const tipoMatch = respostaIA.content.match(/(entrada|receita|recebido|recebeu|gasto|despesa|sa[ií]da|divida|d[ií]vida|pago|paguei)/i)
+            const tipoMatch: RegExpMatchArray | null = respostaIA.content.match(/(entrada|receita|recebido|recebeu|gasto|despesa|sa[ií]da|divida|d[ií]vida|pago|paguei)/i)
             const tipo = tipoMatch ? (
-              /(entrada|receita|recebido|recebeu)/i.test(tipoMatch[1]) ? 'entrada' :
-              /(divida|d[ií]vida)/i.test(tipoMatch[1]) ? 'divida' : 'saida'
+              /(entrada|receita|recebido|recebeu)/i.test(tipoMatch[1] || '') ? 'entrada' :
+              /(divida|d[ií]vida)/i.test(tipoMatch[1] || '') ? 'divida' : 'saida'
             ) : 'entrada' // Default para entrada se não especificado
             
             // Extrair descrição - múltiplos padrões
@@ -1246,7 +1246,7 @@ export async function POST(request: NextRequest) {
       pendente: totalPendente
     })
     let resposta = ''
-    let actionData = null
+    let actionData: any = null
     let pendingAction: any = null
 
     // CRÍTICO: Verificar permissões ANTES de processar qualquer comando de registro
@@ -1582,7 +1582,7 @@ export async function POST(request: NextRequest) {
           /\b(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*(?:reais?|r\$|de)?\b/i
         ]
         
-        let valorMatch = null
+        let valorMatch: RegExpMatchArray | null = null
         for (const pattern of valorPatterns) {
           valorMatch = resposta.match(pattern)
           if (valorMatch) break
@@ -1594,10 +1594,10 @@ export async function POST(request: NextRequest) {
           
           if (!isNaN(valor) && valor > 0 && valor < 10000000) {
             // Detectar tipo
-            const tipoMatch = resposta.match(/(entrada|receita|recebido|recebeu|gasto|despesa|sa[ií]da|divida|d[ií]vida|pago|paguei)/i)
+            const tipoMatch: RegExpMatchArray | null = resposta.match(/(entrada|receita|recebido|recebeu|gasto|despesa|sa[ií]da|divida|d[ií]vida|pago|paguei)/i)
             const tipo = tipoMatch ? (
-              /(entrada|receita|recebido|recebeu)/i.test(tipoMatch[1]) ? 'entrada' :
-              /(divida|d[ií]vida)/i.test(tipoMatch[1]) ? 'divida' : 'saida'
+              /(entrada|receita|recebido|recebeu)/i.test(tipoMatch[1] || '') ? 'entrada' :
+              /(divida|d[ií]vida)/i.test(tipoMatch[1] || '') ? 'divida' : 'saida'
             ) : 'entrada'
             
             // Extrair descrição - múltiplos padrões

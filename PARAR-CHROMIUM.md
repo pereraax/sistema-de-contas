@@ -71,3 +71,5 @@ O WhatsApp Web.js foi **desabilitado** para não abrir Chromium automaticamente.
 
 
 
+
+

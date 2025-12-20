@@ -15,6 +15,14 @@ const supabaseAdmin = supabaseServiceKey
     })
   : null
 
+// GET handler para evitar erro durante build
+export async function GET() {
+  return NextResponse.json(
+    { error: 'Método não permitido. Use POST.' },
+    { status: 405 }
+  )
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json()

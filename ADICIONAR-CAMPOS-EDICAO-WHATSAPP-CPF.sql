@@ -20,3 +20,5 @@ CREATE INDEX IF NOT EXISTS idx_profiles_cpf_editado ON profiles(cpf_editado);
 
 
 
+
+

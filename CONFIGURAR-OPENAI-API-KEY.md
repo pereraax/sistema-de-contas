@@ -100,3 +100,5 @@ A OpenAI cobra por uso da API:
 
 
 
+
+

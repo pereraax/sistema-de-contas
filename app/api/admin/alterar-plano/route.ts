@@ -63,8 +63,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Calcular datas se for plano pago
-    let dataInicio = null
-    let dataFim = null
+    let dataInicio: Date | null = null
+    let dataFim: Date | null = null
     let status = planoStatus || 'trial'
 
     console.log('📅 [API] Calculando datas e status...')

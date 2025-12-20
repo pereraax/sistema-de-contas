@@ -521,7 +521,7 @@ async function processarComando(mensagem: string) {
     /(\d+[.,]?\d*)(?!.*[.,]\d)/i, // Último número encontrado
   ]
   
-  let valorMatch = null
+  let valorMatch: RegExpMatchArray | null = null
   for (const pattern of valorPatterns) {
     valorMatch = msgLower.match(pattern)
     if (valorMatch) break

@@ -13,7 +13,7 @@ export async function GET() {
     const configured = isApifacilConfigured()
     
     // Verificar status da instância
-    let instanceStatus = null
+    let instanceStatus: { success: boolean; connected?: boolean; error?: string } | null = null
     if (configured) {
       instanceStatus = await checkInstanceStatus()
     }
@@ -96,6 +96,8 @@ export async function GET() {
     }, { status: 500 })
   }
 }
+
+
 
 
 

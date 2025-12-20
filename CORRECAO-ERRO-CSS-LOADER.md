@@ -121,3 +121,5 @@ As correções aplicadas devem resolver o problema, mas se persistir, pode ser n
 - Ajustar configurações específicas do Vercel
 - Dividir o `globals.css` em arquivos menores
 
+
+

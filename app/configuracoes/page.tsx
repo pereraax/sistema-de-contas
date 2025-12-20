@@ -13,7 +13,7 @@ export const revalidate = 60
 export default async function ConfiguracoesPage({
   searchParams,
 }: {
-  searchParams: { tab?: string }
+  searchParams: { tab?: string } | null
 }) {
 
   return (
@@ -42,7 +42,7 @@ export default async function ConfiguracoesPage({
             </div>
           </div>
 
-          <ConfiguracoesView tabAtivo={searchParams.tab || 'perfil'} />
+          <ConfiguracoesView tabAtivo={searchParams?.tab || 'perfil'} />
         </div>
       </main>
     </div>
