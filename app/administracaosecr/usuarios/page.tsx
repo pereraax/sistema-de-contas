@@ -3,6 +3,8 @@ import UsuariosLista from '@/components/admin/UsuariosLista'
 import { Suspense } from 'react'
 import { Loader2 } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 async function UsuariosContent() {
   const resultado = await obterTodosUsuarios()
   
