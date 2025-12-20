@@ -1,0 +1,28 @@
+[build]
+  # Comando de build explícito para garantir que o .next seja criado
+  # O plugin @netlify/plugin-nextjs processa depois
+  command = "npm ci && npm run build"
+  
+  # Base directory
+  base = "."
+  
+  # IMPORTANTE: Não especificar publish directory aqui
+  # O plugin @netlify/plugin-nextjs gerencia isso automaticamente
+
+[build.environment]
+  # Versão do Node.js
+  NODE_VERSION = "20"
+  
+  # Variáveis de ambiente para o build
+  NODE_ENV = "production"
+  
+  # Configurações para dependências opcionais
+  # Garantir que dependências nativas não quebrem o build
+  npm_config_build_from_source = "false"
+  npm_config_optional = "true"
+  npm_config_legacy_peer_deps = "true"
+
+# Plugin Next.js do Netlify
+# Processa o build do Next.js e gerencia publish directory e funções serverless
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
