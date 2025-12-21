@@ -100,9 +100,16 @@ const nextConfig = {
   // Todas as páginas serão renderizadas dinamicamente
   output: 'standalone',
   
-  // Ignorar páginas problemáticas durante build (evitar erro de prerendering)
-  async generateBuildId() {
+  // Desabilitar geração automática de páginas de erro estáticas
+  // Isso evita que o Next.js tente fazer prerendering de /500, /404, etc.
+  generateBuildId: async () => {
     return 'build-' + Date.now()
+  },
+  
+  // Ignorar erros de prerendering durante build
+  onDemandEntries: {
+    maxInactiveAge: 25 * 1000,
+    pagesBufferLength: 2,
   },
   
   webpack: (config, { isServer }) => {
