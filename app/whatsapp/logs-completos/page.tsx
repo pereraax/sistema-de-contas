@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react'
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 interface WebhookLog {
   timestamp: string
   method: string

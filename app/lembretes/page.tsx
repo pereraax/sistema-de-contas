@@ -10,6 +10,9 @@ import Logo from '@/components/Logo'
 import { Loader2, Clock, CheckCircle2, XCircle, Calendar, Trash2, Search, Filter, AlertCircle, Sparkles, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { format, isPast, isToday, isTomorrow, addDays } from 'date-fns'
+
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 import { ptBR } from 'date-fns/locale/pt-BR'
 
 interface Lembrete {
