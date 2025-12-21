@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 
+export const dynamic = 'force-dynamic'
+
 interface SendLog {
   timestamp: string
   phoneNumber: string
@@ -267,6 +269,7 @@ export default function SendLogsPage() {
     </div>
   )
 }
+
 
 
 

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 
+export const dynamic = 'force-dynamic'
+
 interface WebhookLog {
   timestamp: string
   method: string
@@ -153,6 +155,7 @@ export default function WebhookLogsPage() {
     </div>
   )
 }
+
 
 
 
