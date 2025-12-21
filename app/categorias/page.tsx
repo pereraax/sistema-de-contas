@@ -5,6 +5,9 @@ import UserProfileMenu from '@/components/UserProfileMenu'
 import Logo from '@/components/Logo'
 import GerenciarCategoriasView from '@/components/GerenciarCategoriasView'
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 export default function CategoriasPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-brand-midnight">
@@ -38,6 +41,8 @@ export default function CategoriasPage() {
     </div>
   )
 }
+
+
 
 
 

@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { MessageCircle, CheckCircle, XCircle, Loader2, Phone, Key } from 'lucide-react'
 import { createNotification } from '@/components/NotificationBell'
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 export default function WhatsAppPairingPage() {
   const [apiUrl, setApiUrl] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -406,6 +409,8 @@ export default function WhatsAppPairingPage() {
     </div>
   )
 }
+
+
 
 
 
