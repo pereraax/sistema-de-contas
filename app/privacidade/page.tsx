@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import { ArrowLeft, Shield } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 export const metadata = {
   title: 'Política de Privacidade - PLENIPAY',
   description: 'Política de privacidade e proteção de dados da plataforma PLENIPAY',
@@ -189,6 +192,7 @@ export default function PrivacidadePage() {
     </div>
   )
 }
+
 
 
 

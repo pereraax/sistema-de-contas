@@ -2,6 +2,9 @@ import Link from 'next/link'
 import { ArrowLeft, FileText } from 'lucide-react'
 import Logo from '@/components/Logo'
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 export const metadata = {
   title: 'Termos de Uso - PLENIPAY',
   description: 'Termos e condições de uso da plataforma PLENIPAY',
@@ -181,6 +184,7 @@ export default function TermosPage() {
     </div>
   )
 }
+
 
 
 
