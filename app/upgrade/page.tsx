@@ -9,9 +9,6 @@ import Logo from '@/components/Logo'
 import { createClient } from '@/lib/supabase/client'
 import { createNotification } from '@/components/NotificationBell'
 
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
-
 const planos = [
   {
     id: 'gratuito' as const,

@@ -8,6 +8,11 @@ import { MenuProvider } from '@/components/MobileMenu'
 import MobileMenu from '@/components/MobileMenu'
 import VisitorTrackingWrapper from '@/components/VisitorTrackingWrapper'
 
+// Forçar renderização dinâmica em todas as páginas
+// Isso evita erro de prerendering com Context Providers
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 export const metadata: Metadata = {
   title: 'PLENIPAY - Sistema de Contas - Controle Financeiro',
   description: 'Sistema completo de controle financeiro pessoal e de dívidas',

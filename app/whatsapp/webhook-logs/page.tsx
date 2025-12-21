@@ -2,10 +2,6 @@
 
 import { useEffect, useState } from 'react'
 
-// Forçar renderização dinâmica - desabilita prerendering completamente
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
-
 interface WebhookLog {
   timestamp: string
   method: string

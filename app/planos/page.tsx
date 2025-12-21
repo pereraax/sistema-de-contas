@@ -8,9 +8,6 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { createNotification } from '@/components/NotificationBell'
 
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
-
 const planos = [
   {
     id: 'teste' as const,
