@@ -1,0 +1,51 @@
+ARQUIVOS PARA ENVIAR NA HOSTINGER
+==================================
+
+✅ ENVIAR:
+----------
+app/
+components/
+lib/
+hooks/
+public/
+pages/ (se existir)
+types/ (se existir)
+scripts/ (se existir)
+package.json
+package-lock.json
+next.config.js
+tailwind.config.js
+tsconfig.json
+postcss.config.js (se existir)
+.nvmrc
+server.js (se existir)
+vercel.json (opcional)
+README.md (opcional)
+
+❌ NÃO ENVIAR:
+--------------
+node_modules/
+.next/
+.git/
+.env.local
+.env.development.local
+.cache/
+.turbo/
+*.log
+.DS_Store
+deploy-essencial/
+deploy-essencial-1/
+whatsapp_auth_webjs/
+
+INSTRUÇÕES:
+-----------
+1. Selecione todos os arquivos/pastas da lista ✅
+2. Comprima em ZIP
+3. Faça upload na Hostinger
+4. Extraia o ZIP
+5. Execute: npm install
+6. Configure variáveis de ambiente
+7. Execute: npm run build
+8. Inicie servidor (PM2 ou Node.js App)
+
+

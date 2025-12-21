@@ -99,3 +99,5 @@ Se preferir usar apenas Gemini (que você já tem configurado), pode remover/com
 
 
 
+
+

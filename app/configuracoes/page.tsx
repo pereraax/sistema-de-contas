@@ -5,8 +5,7 @@ import NotificationBell from '@/components/NotificationBell'
 import UserProfileMenu from '@/components/UserProfileMenu'
 import Logo from '@/components/Logo'
 
-// Otimizar: cache de 60 segundos (configurações mudam pouco)
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
 
 // Middleware já verifica autenticação, não precisa verificar novamente aqui
 

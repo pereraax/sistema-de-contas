@@ -1,0 +1,30 @@
+===========================================
+  ARQUIVOS PRONTOS PARA HOSTINGER
+===========================================
+
+✅ ESTA PASTA CONTÉM APENAS OS ARQUIVOS NECESSÁRIOS!
+
+PASSO A PASSO RÁPIDO:
+---------------------
+
+1. COMPRIMIR ESTA PASTA:
+   - Clique com botão direito em "HOSTINGER-UPLOAD"
+   - Selecione "Comprimir"
+
+2. UPLOAD NA HOSTINGER:
+   - Acesse: hpanel.hostinger.com
+   - Files → File Manager → public_html
+   - Upload → Selecione o ZIP
+   - Extrair o ZIP
+
+3. TERMINAL SSH:
+   cd public_html
+   npm install
+   npm run build
+   pm2 start npm --name "sistema-contas" -- start
+
+4. CONFIGURAR VARIÁVEIS:
+   nano .env.production
+   (Cole as variáveis e salve)
+
+PRONTO! 🚀

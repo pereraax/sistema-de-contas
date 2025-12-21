@@ -1,0 +1,50 @@
+import Sidebar from '@/components/Sidebar'
+import { MenuButton } from '@/components/MobileMenu'
+import ConfiguracoesView from '@/components/ConfiguracoesView'
+import NotificationBell from '@/components/NotificationBell'
+import UserProfileMenu from '@/components/UserProfileMenu'
+import Logo from '@/components/Logo'
+
+// Otimizar: cache de 60 segundos (configurações mudam pouco)
+export const revalidate = 60
+
+// Middleware já verifica autenticação, não precisa verificar novamente aqui
+
+export default async function ConfiguracoesPage({
+  searchParams,
+}: {
+  searchParams: { tab?: string } | null
+}) {
+
+  return (
+    <div className="min-h-screen bg-brand-clean dark:bg-brand-midnight overflow-hidden">
+      <Sidebar />
+      <main className="lg:ml-64 p-3 sm:p-4 lg:p-8 dark:bg-brand-midnight pt-6 lg:pt-4 overflow-y-auto h-screen">
+        <div className="max-w-7xl mx-auto">
+          {/* Logotipo centralizado acima do header */}
+          <div className="flex justify-center mb-2 lg:hidden">
+            <div className="w-40 sm:w-52">
+              <Logo />
+            </div>
+          </div>
+
+          {/* Header com notificações */}
+          <div className="flex items-center justify-between gap-4 mb-4 sm:mb-6">
+            <div className="flex items-center gap-3">
+              <MenuButton />
+              <h1 className="text-2xl sm:text-3xl font-display font-bold text-brand-midnight dark:text-brand-clean leading-none">
+                Configurações
+              </h1>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <NotificationBell />
+              <UserProfileMenu />
+            </div>
+          </div>
+
+          <ConfiguracoesView tabAtivo={searchParams?.tab || 'perfil'} />
+        </div>
+      </main>
+    </div>
+  )
+}

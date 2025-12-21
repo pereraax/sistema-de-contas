@@ -1,0 +1,35 @@
+===========================================
+COMANDO PARA CONECTAR SSH
+===========================================
+
+1. Abra Terminal no Mac:
+   Cmd + Espaço → Digite "Terminal" → Enter
+
+2. Execute este comando:
+   ssh u596588143@185.239.210.34 -p 65002
+
+3. Digite a senha quando pedir
+   (A senha não aparece enquanto você digita - é normal!)
+
+4. Pronto! Você está conectado!
+
+===========================================
+SUAS CREDENCIAIS:
+===========================================
+IP: 185.239.210.34
+Porta: 65002
+Usuário: u596588143
+Senha: [Veja no painel Hostinger → SSH Access → Alterar]
+
+===========================================
+SE DER ERRO:
+===========================================
+- "Permission denied" = Senha incorreta
+  → Gere nova senha no painel Hostinger
+
+- "Connection refused" = Porta errada ou SSH desabilitado
+  → Verifique porta e configurações
+
+===========================================
+
+

@@ -1,0 +1,58 @@
+===========================================
+CORRIGIR ERRO DE BUILD NO SERVIDOR
+===========================================
+
+Execute estes comandos NO SSH:
+
+===========================================
+1. IR PARA PASTA DO PROJETO
+===========================================
+
+cd /var/www/plenipay
+
+===========================================
+2. ATUALIZAR CÓDIGO (se necessário)
+===========================================
+
+# Se você fez alterações localmente, precisa enviar para o servidor
+# Ou editar diretamente no servidor:
+
+nano app/minhas-metas/page.tsx
+
+# Certifique-se que tem apenas:
+# export const dynamic = 'force-dynamic'
+# (SEM a linha export const revalidate = 60)
+
+===========================================
+3. FAZER BUILD NOVAMENTE
+===========================================
+
+npm run build
+
+# Deve completar sem erros de "Dynamic server usage"
+
+===========================================
+4. REINICIAR APLICAÇÃO
+===========================================
+
+pm2 restart sistema-contas
+
+===========================================
+5. VERIFICAR LOGS
+===========================================
+
+pm2 logs sistema-contas --lines 30
+
+# Verifique se não há erros
+
+===========================================
+6. TESTAR APLICAÇÃO
+===========================================
+
+# Testar localmente
+curl http://localhost:3000
+
+# Testar no navegador
+# http://31.97.27.20
+
+===========================================

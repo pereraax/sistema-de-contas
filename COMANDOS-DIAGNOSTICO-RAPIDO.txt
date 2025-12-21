@@ -1,0 +1,88 @@
+===========================================
+COMANDOS DE DIAGNÓSTICO RÁPIDO
+===========================================
+
+Execute estes comandos NO SSH e me envie os resultados:
+
+===========================================
+1. VERIFICAR PM2
+===========================================
+
+pm2 status
+pm2 list
+
+===========================================
+2. TESTAR APLICAÇÃO LOCAL
+===========================================
+
+curl http://localhost:3000
+
+# Deve retornar HTML da aplicação
+
+===========================================
+3. VERIFICAR CONFIGURAÇÃO NGINX
+===========================================
+
+cat /etc/nginx/sites-available/plenipay
+
+# Verifique se tem location /_next/static
+
+===========================================
+4. VERIFICAR STATUS NGINX
+===========================================
+
+systemctl status nginx
+
+# Deve estar "active (running)"
+
+===========================================
+5. VERIFICAR LOGS NGINX
+===========================================
+
+tail -50 /var/log/nginx/error.log
+
+# Procure por erros!
+
+===========================================
+6. VERIFICAR LOGS APLICAÇÃO
+===========================================
+
+pm2 logs sistema-contas --lines 50
+
+# Procure por erros!
+
+===========================================
+7. TESTAR ARQUIVOS ESTÁTICOS
+===========================================
+
+ls -la /var/www/plenipay/.next/static/chunks
+curl -I http://localhost:3000/_next/static/chunks/main-app.js
+
+===========================================
+8. VERIFICAR PORTA 3000
+===========================================
+
+netstat -tlnp | grep 3000
+
+# Deve mostrar que está escutando
+
+===========================================
+9. VERIFICAR DNS
+===========================================
+
+nslookup plenipay.com
+dig plenipay.com
+
+# Verifique para onde está apontando
+
+===========================================
+10. REINICIAR TUDO (SE NECESSÁRIO)
+===========================================
+
+cd /var/www/plenipay
+pm2 restart sistema-contas
+systemctl restart nginx
+
+===========================================
+
+

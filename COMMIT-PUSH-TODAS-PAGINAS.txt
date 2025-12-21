@@ -1,0 +1,77 @@
+===========================================
+COMANDOS PARA COMMIT E PUSH - TODAS AS PÁGINAS
+===========================================
+
+Execute estes comandos NO TERMINAL DO MAC:
+
+===========================================
+1. IR PARA O DIRETÓRIO
+===========================================
+
+cd "/Users/charllestabordas/Documents/SISTEMA DE CONTAS"
+
+===========================================
+2. ADICIONAR TODOS OS ARQUIVOS CORRIGIDOS
+===========================================
+
+git add app/dashboard/page.tsx \
+        app/upgrade/page.tsx \
+        app/whatsapp-webjs-connect/page.tsx \
+        app/whatsapp-pairing/page.tsx \
+        app/whatsapp-evolution/page.tsx \
+        app/whatsapp-connect/page.tsx \
+        app/planos/page.tsx \
+        app/lembretes/page.tsx \
+        app/categorias/page.tsx \
+        app/whatsapp/logs-completos/page.tsx \
+        app/privacidade/page.tsx \
+        app/termos/page.tsx \
+        app/suporte/page.tsx \
+        app/whatsapp/webhook-logs/page.tsx \
+        app/whatsapp/send-logs/page.tsx
+
+===========================================
+3. FAZER COMMIT
+===========================================
+
+git commit -m "fix: adicionar force-dynamic e runtime nodejs em todas as páginas para evitar erro de prerendering"
+
+===========================================
+4. FAZER PUSH
+===========================================
+
+git push origin main
+
+===========================================
+5. AGUARDAR DEPLOY NO RENDER
+===========================================
+
+Render vai detectar o push e fazer novo deploy automaticamente!
+
+Aguarde 5-10 minutos e verifique no Render.
+
+===========================================
+PÁGINAS CORRIGIDAS (15 TOTAL):
+===========================================
+
+✅ app/dashboard/page.tsx
+✅ app/upgrade/page.tsx
+✅ app/whatsapp-webjs-connect/page.tsx
+✅ app/whatsapp-pairing/page.tsx
+✅ app/whatsapp-evolution/page.tsx
+✅ app/whatsapp-connect/page.tsx
+✅ app/planos/page.tsx
+✅ app/lembretes/page.tsx
+✅ app/categorias/page.tsx
+✅ app/whatsapp/logs-completos/page.tsx
+✅ app/privacidade/page.tsx
+✅ app/termos/page.tsx
+✅ app/suporte/page.tsx
+✅ app/whatsapp/webhook-logs/page.tsx
+✅ app/whatsapp/send-logs/page.tsx
+
+Todas agora têm:
+- export const dynamic = 'force-dynamic'
+- export const runtime = 'nodejs'
+
+===========================================

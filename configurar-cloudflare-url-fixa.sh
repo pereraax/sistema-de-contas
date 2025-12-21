@@ -179,3 +179,5 @@ echo "🛑 Para parar: pkill -f cloudflared"
 
 
 
+
+

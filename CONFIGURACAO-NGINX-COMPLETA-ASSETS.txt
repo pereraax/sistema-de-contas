@@ -1,0 +1,62 @@
+===========================================
+CONFIGURAÇÃO NGINX COMPLETA (COM ASSETS)
+===========================================
+
+Cole esta configuração em:
+/etc/nginx/sites-available/plenipay
+
+===========================================
+
+server {
+    listen 80;
+    server_name plenipay.com www.plenipay.com 31.97.27.20;
+
+    # Arquivos estáticos do Next.js
+    location /_next/static {
+        alias /var/www/plenipay/.next/static;
+        expires 365d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Arquivos da pasta public (imagens, etc)
+    location ~* \.(jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot|css|js)$ {
+        root /var/www/plenipay/public;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+
+    # Proxy para aplicação Next.js
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+===========================================
+COMANDOS PARA APLICAR:
+===========================================
+
+nano /etc/nginx/sites-available/plenipay
+# (Cole configuração acima e salve: Ctrl+X, Y, Enter)
+
+nginx -t
+systemctl restart nginx
+
+# Verificar se arquivos estáticos existem
+ls -la /var/www/plenipay/.next/static
+
+# Se não existir, fazer build
+cd /var/www/plenipay
+npm run build
+pm2 restart sistema-contas
+
+===========================================
+
+

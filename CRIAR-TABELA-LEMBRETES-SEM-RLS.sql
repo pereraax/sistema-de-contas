@@ -41,3 +41,5 @@ COMMENT ON COLUMN lembretes.whatsapp_phone IS 'Número do WhatsApp que criou o l
 
 
 
+
+

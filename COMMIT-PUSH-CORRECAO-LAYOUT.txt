@@ -1,0 +1,81 @@
+===========================================
+COMANDOS PARA COMMIT E PUSH - CORREÇÃO LAYOUT
+===========================================
+
+Execute estes comandos NO TERMINAL DO MAC:
+
+===========================================
+1. IR PARA O DIRETÓRIO
+===========================================
+
+cd "/Users/charllestabordas/Documents/SISTEMA DE CONTAS"
+
+===========================================
+2. ADICIONAR TODOS OS ARQUIVOS CORRIGIDOS
+===========================================
+
+git add app/layout.tsx \
+        app/whatsapp-pairing/page.tsx \
+        app/whatsapp/webhook-logs/page.tsx \
+        app/whatsapp/send-logs/page.tsx \
+        app/upgrade/page.tsx \
+        app/whatsapp-webjs-connect/page.tsx \
+        app/whatsapp-evolution/page.tsx \
+        app/whatsapp-connect/page.tsx \
+        app/planos/page.tsx \
+        app/lembretes/page.tsx \
+        app/whatsapp/logs-completos/page.tsx
+
+===========================================
+3. FAZER COMMIT
+===========================================
+
+git commit -m "fix: adicionar force-dynamic e runtime nodejs em cada página individual (layout.tsx não funciona)"
+
+===========================================
+4. FAZER PUSH
+===========================================
+
+git push origin main
+
+===========================================
+5. AGUARDAR DEPLOY NO RENDER
+===========================================
+
+Render vai detectar o push e fazer novo deploy automaticamente!
+
+Aguarde 5-10 minutos e verifique no Render.
+
+===========================================
+O QUE FOI CORRIGIDO:
+===========================================
+
+❌ REMOVIDO do layout.tsx (não funciona lá)
+✅ ADICIONADO em cada página individual:
+
+1. app/whatsapp-pairing/page.tsx
+2. app/whatsapp/webhook-logs/page.tsx
+3. app/whatsapp/send-logs/page.tsx
+4. app/upgrade/page.tsx
+5. app/whatsapp-webjs-connect/page.tsx
+6. app/whatsapp-evolution/page.tsx
+7. app/whatsapp-connect/page.tsx
+8. app/planos/page.tsx
+9. app/lembretes/page.tsx
+10. app/whatsapp/logs-completos/page.tsx
+
+Todas agora têm:
+- export const dynamic = 'force-dynamic'
+- export const runtime = 'nodejs'
+
+===========================================
+IMPORTANTE:
+===========================================
+
+No Next.js, as configurações `export const dynamic` e 
+`export const runtime` NÃO se aplicam automaticamente a 
+todas as páginas quando colocadas no layout.tsx.
+
+Elas precisam estar EM CADA PÁGINA INDIVIDUAL!
+
+===========================================

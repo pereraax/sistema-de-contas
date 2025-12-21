@@ -1,0 +1,55 @@
+===========================================
+COMANDOS PARA ENCONTRAR CAMINHO DO PROJETO
+===========================================
+
+Execute estes comandos NO SSH, um por vez:
+
+===========================================
+1. PROCURAR next.config.js
+===========================================
+
+find /home -name "next.config.js" 2>/dev/null
+
+# Anote o caminho completo que aparecer!
+
+===========================================
+2. PROCURAR PASTA .next
+===========================================
+
+find /home -name ".next" -type d 2>/dev/null
+
+===========================================
+3. VERIFICAR ONDE PM2 ESTÁ RODANDO
+===========================================
+
+pm2 list
+pm2 info sistema-contas
+
+# O comando pm2 info vai mostrar o caminho!
+
+===========================================
+4. VERIFICAR PROCESSOS NODE
+===========================================
+
+ps aux | grep node
+
+# Procure pelo caminho na saída!
+
+===========================================
+5. PROCURAR package.json
+===========================================
+
+find /home -name "package.json" 2>/dev/null | grep -v node_modules
+
+===========================================
+DEPOIS DE ENCONTRAR:
+===========================================
+
+# Substitua CAMINHO_ENCONTRADO pelo caminho real
+cd CAMINHO_ENCONTRADO
+ls -la
+ls -la .next/static
+
+===========================================
+
+

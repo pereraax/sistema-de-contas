@@ -1,0 +1,31 @@
+COMANDO PARA CONECTAR SSH:
+==========================
+
+ssh u596588143@185.239.210.34 -p 65002
+
+OU
+
+ssh u596588143@ssh.hostinger.com -p 65002
+
+
+DEPOIS DE CONECTAR, EXECUTE:
+============================
+
+cd public_html
+npm install
+nano .env.production
+# (Cole variáveis e salve: Ctrl+X, Y, Enter)
+npm run build
+npm install -g pm2
+pm2 start npm --name "sistema-contas" -- start
+pm2 save
+pm2 status
+
+
+IMPORTANTE:
+===========
+- Clique em "Alterar" na tela SSH para ver/definir senha
+- A senha não aparece enquanto você digita (é normal!)
+- Se não tiver Node.js 20, configure no painel Hostinger
+
+

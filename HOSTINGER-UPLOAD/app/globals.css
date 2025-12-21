@@ -1,0 +1,245 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+  /* Cores customizadas como variáveis CSS */
+  --color-primary: #00C2FF;
+  --color-primary-dark: #0099CC;
+  --color-primary-darker: #007A99;
+  --color-dark-bg: #1a1a1a;
+  --color-dark-border: #2a2a2a;
+  --color-dark-text: #0D1B2A;
+  --color-light-bg: #E6F7FF;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Garantir background branco por padrão para evitar tela preta durante carregamento */
+body {
+  background-color: #ffffff;
+  color: #0D1B2A;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Aplicar tema escuro apenas quando a classe dark estiver presente */
+html.dark body {
+  background-color: #0D1B2A;
+  color: #ffffff;
+}
+
+html, body {
+  height: 100%;
+  min-height: 100vh;
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+  transition: background-color 0.3s ease;
+  margin: 0;
+  padding: 0;
+}
+
+/* Dark mode styles */
+.dark body {
+  background-color: #0D1B2A !important;
+  color: #E6E6E6;
+}
+
+.dark .min-h-screen {
+  background-color: #0D1B2A !important;
+}
+
+/* CORES CUSTOMIZADAS - Classes diretas (compatíveis com PostCSS/Tailwind) */
+/* Removidos seletores de atributo [class*="..."] que causavam problemas no Cloudflare */
+/* As classes diretas abaixo fazem o mesmo trabalho de forma mais compatível */
+.bg-\[#1a1a1a\] { background-color: #1a1a1a !important; }
+.bg-\[#2a2a2a\] { background-color: #2a2a2a !important; }
+.bg-\[#00C2FF\] { background-color: #00C2FF !important; }
+.bg-\[#0099CC\] { background-color: #0099CC !important; }
+.bg-\[#007A99\] { background-color: #007A99 !important; }
+.bg-\[#0D1B2A\] { background-color: #0D1B2A !important; }
+.bg-\[#E6F7FF\] { background-color: #E6F7FF !important; }
+.bg-\[#25D366\] { background-color: #25D366 !important; }
+.bg-\[#20BA5A\] { background-color: #20BA5A !important; }
+.bg-\[#00B8E6\] { background-color: #00B8E6 !important; }
+.text-\[#00C2FF\] { color: #00C2FF !important; }
+.text-\[#0D1B2A\] { color: #0D1B2A !important; }
+.border-\[#00C2FF\] { border-color: #00C2FF !important; }
+.border-\[#2a2a2a\] { border-color: #2a2a2a !important; }
+.from-\[#00C2FF\] { --tw-gradient-from: #00C2FF var(--tw-gradient-from-position, 0%); --tw-gradient-to: rgb(0 194 255 / 0) var(--tw-gradient-to-position, 100%); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+.to-\[#0099CC\] { --tw-gradient-to: #0099CC var(--tw-gradient-to-position, 100%); }
+.shadow-\[#00C2FF\] { box-shadow: 0 0 0 1px rgba(0, 194, 255, 0.1); }
+.hover\:bg-\[#0099CC\]:hover { background-color: #0099CC !important; }
+.hover\:bg-\[#007A99\]:hover { background-color: #007A99 !important; }
+.hover\:bg-\[#20BA5A\]:hover { background-color: #20BA5A !important; }
+.hover\:bg-\[#00B8E6\]:hover { background-color: #00B8E6 !important; }
+.hover\:shadow-\[#00C2FF\]\/30:hover { box-shadow: 0 10px 15px -3px rgba(0, 194, 255, 0.3), 0 4px 6px -2px rgba(0, 194, 255, 0.3) !important; }
+
+/* Remover outline amarelo padrão do navegador em todos os campos de formulário */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+}
+
+/* Garantir que não haja ring ou outline em campos focados */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Fonte moderna para títulos com font-display - permite bold quando necessário */
+.font-display {
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-weight: 300; /* Leve por padrão, mas pode ser sobrescrito */
+}
+
+/* Permitir font-bold com font-display para títulos em negrito */
+.font-display.font-bold,
+.font-bold.font-display {
+  font-weight: 700 !important; /* Negrito quando explicitamente solicitado */
+}
+
+.font-display.font-semibold,
+.font-semibold.font-display {
+  font-weight: 600 !important; /* Semi-negrito quando explicitamente solicitado */
+}
+
+.font-display.font-medium,
+.font-medium.font-display {
+  font-weight: 500 !important; /* Médio quando explicitamente solicitado */
+}
+
+/* Títulos h1, h2, h3 com font-display - permitir bold quando necessário */
+h1.font-display,
+h2.font-display,
+h3.font-display,
+h4.font-display,
+h5.font-display,
+h6.font-display {
+  font-weight: 300; /* Leve por padrão, mas pode ser sobrescrito com font-bold */
+}
+
+/* Elementos com text-2xl, text-3xl, etc. com font-display - permitir bold quando necessário */
+.text-xl.font-display,
+.text-2xl.font-display,
+.text-3xl.font-display,
+.text-4xl.font-display,
+.text-5xl.font-display,
+.text-6xl.font-display {
+  font-weight: 300; /* Leve por padrão, mas pode ser sobrescrito com font-bold */
+}
+
+/* Animações e utilities foram movidas para arquivos separados */
+
+/* Utilities - mantidas aqui para compatibilidade com @tailwind utilities */
+@layer utilities {
+  /* Text utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .transition-smooth {
+    transition: all 300ms ease-in-out;
+  }
+  
+  /* Glass backdrop */
+  .glass-backdrop {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0, 0, 0, 0.3) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    z-index: 9998 !important;
+  }
+}
+
+/* Esconder barra de rolagem mas manter funcionalidade */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
+/* Esconder todas as barras de rolagem globalmente */
+* {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+*::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
+/* Garantir que elementos com overflow ainda possam rolar */
+html, body {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+
+/* Scrollbar customizado para notificações */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  display: block;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 183, 255, 0.3);
+  border-radius: 10px;
+  transition: background 0.3s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 183, 255, 0.5);
+}
+
+/* Animações foram movidas para app/animations.css */

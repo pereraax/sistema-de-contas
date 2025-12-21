@@ -148,3 +148,5 @@ Isso resolve o erro e permite usar a Evolution API sem banco de dados!
 
 
 
+
+

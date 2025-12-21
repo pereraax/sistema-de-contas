@@ -7,8 +7,7 @@ import Logo from '@/components/Logo'
 import { obterRegistros, obterUsuarios } from '@/lib/actions'
 import { Suspense } from 'react'
 
-// Otimizar: cache de 30 segundos (dados mudam mais frequentemente)
-export const revalidate = 30
+export const dynamic = 'force-dynamic'
 
 // Middleware já verifica autenticação, não precisa verificar novamente aqui
 

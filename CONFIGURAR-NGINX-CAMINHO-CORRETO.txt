@@ -1,0 +1,88 @@
+===========================================
+CONFIGURAR NGINX - CAMINHO CORRETO
+===========================================
+
+Caminho encontrado: /var/www/plenipay
+
+===========================================
+1. EDITAR CONFIGURAÇÃO NGINX
+===========================================
+
+nano /etc/nginx/sites-available/plenipay
+
+# Cole a configuração abaixo (substitua tudo)
+# Salvar: Ctrl+X, Y, Enter
+
+===========================================
+CONFIGURAÇÃO NGINX (COLE ISSO):
+===========================================
+
+server {
+    listen 80;
+    server_name plenipay.com www.plenipay.com 31.97.27.20;
+
+    # Arquivos estáticos do Next.js
+    location /_next/static {
+        alias /var/www/plenipay/.next/static;
+        expires 365d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Arquivos da pasta public (imagens, etc)
+    location ~* \.(jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot|css|js)$ {
+        root /var/www/plenipay/public;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+
+    # Proxy para aplicação Next.js
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+===========================================
+2. TESTAR CONFIGURAÇÃO
+===========================================
+
+nginx -t
+
+# Deve aparecer: "syntax is ok" e "test is successful"
+
+===========================================
+3. REINICIAR NGINX
+===========================================
+
+systemctl restart nginx
+
+===========================================
+4. VERIFICAR STATUS
+===========================================
+
+systemctl status nginx
+
+# Deve aparecer "active (running)"
+
+===========================================
+5. TESTAR NO NAVEGADOR
+===========================================
+
+# Limpar cache do navegador:
+# - Ctrl+Shift+Delete
+# - OU abrir em janela anônima
+
+# Acessar: http://31.97.27.20
+
+# Deve aparecer com CSS e imagens agora!
+
+===========================================
+
+

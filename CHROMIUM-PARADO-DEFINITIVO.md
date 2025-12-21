@@ -77,3 +77,5 @@ O Chromium está completamente bloqueado. Todas as funções que poderiam abrir 
 
 
 
+
+

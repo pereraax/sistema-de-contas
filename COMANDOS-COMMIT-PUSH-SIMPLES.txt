@@ -1,0 +1,69 @@
+===========================================
+COMANDOS PARA COMMIT E PUSH - COPIE E COLE
+===========================================
+
+Execute estes comandos NO TERMINAL DO MAC:
+
+===========================================
+1. ABRIR TERMINAL
+===========================================
+
+No Mac:
+- Pressione: Cmd + Espaço
+- Digite: Terminal
+- Pressione Enter
+
+===========================================
+2. IR PARA O DIRETÓRIO
+===========================================
+
+Cole este comando no Terminal:
+
+cd "/Users/charllestabordas/Documents/SISTEMA DE CONTAS"
+
+Pressione Enter
+
+===========================================
+3. ADICIONAR ARQUIVOS CORRIGIDOS
+===========================================
+
+Cole este comando:
+
+git add app/whatsapp/webhook-logs/page.tsx app/whatsapp/send-logs/page.tsx
+
+Pressione Enter
+
+===========================================
+4. FAZER COMMIT
+===========================================
+
+Cole este comando:
+
+git commit -m "fix: adicionar force-dynamic nas páginas whatsapp para evitar erro de prerendering"
+
+Pressione Enter
+
+===========================================
+5. FAZER PUSH
+===========================================
+
+Cole este comando:
+
+git push origin main
+
+Pressione Enter
+
+Se pedir usuário/senha:
+- Use seu usuário do GitHub
+- Use um token de acesso (não a senha)
+
+===========================================
+6. PRONTO!
+===========================================
+
+Render vai detectar o push e fazer novo deploy automaticamente!
+
+Aguarde 5-10 minutos e verifique no Render.
+
+===========================================
+

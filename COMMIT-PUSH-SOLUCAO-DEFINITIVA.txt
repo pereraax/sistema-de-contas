@@ -1,0 +1,78 @@
+===========================================
+COMANDOS PARA COMMIT E PUSH - SOLUÇÃO DEFINITIVA
+===========================================
+
+Execute estes comandos NO TERMINAL DO MAC:
+
+===========================================
+1. IR PARA O DIRETÓRIO
+===========================================
+
+cd "/Users/charllestabordas/Documents/SISTEMA DE CONTAS"
+
+===========================================
+2. ADICIONAR TODOS OS ARQUIVOS CORRIGIDOS
+===========================================
+
+git add app/layout.tsx \
+        app/whatsapp-pairing/page.tsx \
+        app/whatsapp-webjs-connect/page.tsx \
+        app/whatsapp-evolution/page.tsx \
+        app/whatsapp-connect/page.tsx \
+        app/upgrade/page.tsx \
+        app/planos/page.tsx \
+        app/lembretes/page.tsx \
+        app/whatsapp/logs-completos/page.tsx \
+        app/whatsapp/webhook-logs/page.tsx \
+        app/whatsapp/send-logs/page.tsx
+
+===========================================
+3. FAZER COMMIT
+===========================================
+
+git commit -m "fix: adicionar force-dynamic no layout raiz para evitar erro de prerendering com Context Providers"
+
+===========================================
+4. FAZER PUSH
+===========================================
+
+git push origin main
+
+===========================================
+5. AGUARDAR DEPLOY NO RENDER
+===========================================
+
+Render vai detectar o push e fazer novo deploy automaticamente!
+
+Aguarde 5-10 minutos e verifique no Render.
+
+===========================================
+O QUE FOI CORRIGIDO:
+===========================================
+
+✅ app/layout.tsx
+   → ADICIONADO: export const dynamic = 'force-dynamic'
+   → ADICIONADO: export const runtime = 'nodejs'
+
+✅ Removidas exportações incorretas de:
+   → app/whatsapp-pairing/page.tsx
+   → app/whatsapp-webjs-connect/page.tsx
+   → app/whatsapp-evolution/page.tsx
+   → app/whatsapp-connect/page.tsx
+   → app/upgrade/page.tsx
+   → app/planos/page.tsx
+   → app/lembretes/page.tsx
+   → app/whatsapp/logs-completos/page.tsx
+   → app/whatsapp/webhook-logs/page.tsx
+   → app/whatsapp/send-logs/page.tsx
+
+===========================================
+POR QUE ISSO RESOLVE:
+===========================================
+
+1. Layout é Server Component → Pode usar export const dynamic
+2. Layout envolve todas as páginas → Força todas a serem dinâmicas
+3. Context Providers no layout → Não tentam ser usados durante prerendering
+4. Client Components não precisam de exportações → O layout já força dynamic
+
+===========================================

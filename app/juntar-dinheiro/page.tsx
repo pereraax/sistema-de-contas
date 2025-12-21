@@ -9,8 +9,7 @@ import JuntarDinheiroView from '@/components/JuntarDinheiroView'
 import { obterMetasCofrinho } from '@/lib/actions'
 import { redirect } from 'next/navigation'
 
-// Otimizar: cache de 60 segundos (metas mudam pouco frequentemente)
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
 
 async function JuntarDinheiroContent({ metaId }: { metaId?: string }) {
   try {

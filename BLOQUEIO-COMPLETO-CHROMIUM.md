@@ -65,3 +65,5 @@ O Chromium está completamente bloqueado. As funções retornam imediatamente se
 
 
 
+
+

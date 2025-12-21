@@ -1,0 +1,40 @@
+===========================================
+COMANDOS PARA COMMIT E PUSH - NOVA CORREÇÃO
+===========================================
+
+Execute estes comandos NO TERMINAL DO MAC:
+
+===========================================
+1. IR PARA O DIRETÓRIO
+===========================================
+
+cd "/Users/charllestabordas/Documents/SISTEMA DE CONTAS"
+
+===========================================
+2. ADICIONAR ARQUIVOS MODIFICADOS
+===========================================
+
+git add app/whatsapp/webhook-logs/page.tsx app/whatsapp/send-logs/page.tsx
+
+===========================================
+3. FAZER COMMIT
+===========================================
+
+git commit -m "fix: adicionar runtime nodejs para evitar erro de prerendering nas páginas whatsapp"
+
+===========================================
+4. FAZER PUSH
+===========================================
+
+git push origin main
+
+===========================================
+5. AGUARDAR DEPLOY NO RENDER
+===========================================
+
+Render vai detectar o push e fazer novo deploy automaticamente!
+
+Aguarde 5-10 minutos e verifique no Render.
+
+===========================================
+

@@ -1,8 +1,5 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
-
 import Link from 'next/link'
 import { ArrowLeft, MessageCircle, Mail, HelpCircle, Book, MessageSquare, Clock } from 'lucide-react'
 import { useState } from 'react'

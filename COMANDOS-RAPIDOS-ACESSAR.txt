@@ -1,0 +1,52 @@
+===========================================
+COMANDOS PARA ACESSAR E EDITAR
+===========================================
+
+1. CONECTAR SSH:
+----------------
+ssh root@31.97.27.20
+
+(Digite a senha quando pedir)
+
+
+2. IR PARA PASTA DO PROJETO:
+----------------------------
+cd /var/www/plenipay
+
+
+3. EDITAR ARQUIVO:
+------------------
+nano .env.production
+
+
+4. NO NANO - ADICIONAR NO FINAL:
+---------------------------------
+APIFACIL_INSTANCE_ID=seu_id_apifacil
+APIFACIL_TOKEN=seu_token_apifacil
+
+(Substitua pelos valores reais!)
+
+
+5. SALVAR:
+----------
+Ctrl+X → Y → Enter
+
+
+6. VERIFICAR:
+-------------
+cat .env.production | tail -3
+
+
+7. FAZER BUILD:
+--------------
+npm run build
+
+
+===========================================
+VARIÁVEIS PARA ADICIONAR:
+===========================================
+
+APIFACIL_INSTANCE_ID=seu_id_apifacil
+APIFACIL_TOKEN=seu_token_apifacil
+
+===========================================

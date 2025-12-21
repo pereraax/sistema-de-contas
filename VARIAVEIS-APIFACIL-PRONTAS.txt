@@ -1,0 +1,43 @@
+===========================================
+VARIÁVEIS APIFACIL PARA ADICIONAR
+===========================================
+
+Adicione estas linhas no final do arquivo .env.production:
+
+APIFACIL_INSTANCE_ID=seu_id_apifacil
+APIFACIL_TOKEN=seu_token_apifacil
+
+===========================================
+INSTRUÇÕES:
+===========================================
+
+1. Execute: cd /var/www/plenipay
+2. Execute: nano .env.production
+3. Navegue até o final (seta para baixo)
+4. Pressione Enter para nova linha
+5. Cole as variáveis acima (substitua pelos valores reais)
+6. Salve: Ctrl+X, depois Y, depois Enter
+
+===========================================
+COMANDOS RÁPIDOS:
+===========================================
+
+cd /var/www/plenipay
+nano .env.production
+
+# No nano, adicione no final:
+APIFACIL_INSTANCE_ID=seu_id_apifacil
+APIFACIL_TOKEN=seu_token_apifacil
+
+# Salvar: Ctrl+X, Y, Enter
+
+# Depois:
+npm run build
+npm install -g pm2
+pm2 start npm --name "sistema-contas" -- start
+pm2 save
+pm2 status
+
+===========================================
+
+

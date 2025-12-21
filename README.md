@@ -21,8 +21,8 @@ npm install
 
 1. Copie `.env.example` para `.env.local`
 2. Configure as variáveis de ambiente:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `ASAAS_API_KEY`
    - `APIFACIL_INSTANCE_ID`

@@ -1,0 +1,42 @@
+===========================================
+COMANDOS PM2 - REINICIAR APLICAÇÃO
+===========================================
+
+# Reiniciar aplicação específica (pelo nome)
+pm2 restart sistema-contas
+
+# Reiniciar TODAS as aplicações
+pm2 restart all
+
+# Reiniciar aplicação pelo ID
+pm2 restart 0
+
+# Recarregar aplicação (zero downtime)
+pm2 reload sistema-contas
+
+# Parar e depois iniciar
+pm2 stop sistema-contas
+pm2 start sistema-contas
+
+===========================================
+OUTROS COMANDOS ÚTEIS:
+===========================================
+
+# Ver status de todas aplicações
+pm2 status
+
+# Ver logs em tempo real
+pm2 logs sistema-contas
+
+# Ver últimas 50 linhas de logs
+pm2 logs sistema-contas --lines 50
+
+# Ver informações detalhadas
+pm2 show sistema-contas
+
+# Salvar configuração atual
+pm2 save
+
+===========================================
+
+

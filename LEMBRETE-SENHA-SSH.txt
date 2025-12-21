@@ -1,0 +1,28 @@
+===========================================
+COMO VER/DEFINIR SENHA SSH HOSTINGER
+===========================================
+
+A senha NÃO aparece na tela por segurança!
+
+PASSO A PASSO:
+--------------
+1. Na tela SSH da Hostinger
+2. Procure por "Senha"
+3. Clique no botão "Alterar" (ao lado de "Senha")
+4. A senha será mostrada ou você pode definir uma
+5. ANOTE A SENHA!
+
+IMPORTANTE:
+-----------
+- A senha não aparece na tela principal
+- Você PRECISA clicar em "Alterar" para ver
+- ANOTE a senha assim que vê-la
+- Use essa senha para conectar SSH
+
+COMANDO PARA CONECTAR:
+----------------------
+ssh u596588143@185.239.210.34 -p 65002
+
+Depois digite a senha que você anotou.
+
+

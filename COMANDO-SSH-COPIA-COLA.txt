@@ -1,0 +1,20 @@
+COMANDO SSH - COPIE E COLE NO TERMINAL
+=======================================
+
+ssh u596588143@185.239.210.34 -p 65002
+
+=======================================
+
+INSTRUÇÕES:
+1. Abra Terminal no Mac (Cmd+Espaço → Terminal)
+2. Cole o comando acima
+3. Pressione Enter
+4. Digite "yes" quando perguntar
+5. Digite a senha (não aparece na tela - normal!)
+6. Pressione Enter
+
+CREDENCIAIS:
+- IP: 185.239.210.34
+- Porta: 65002
+- Usuário: u596588143
+- Senha: (clique em "Alterar" na tela da Hostinger)
