@@ -104,8 +104,11 @@ const nextConfig = {
   // Todas as páginas serão renderizadas dinamicamente
   output: 'standalone',
   
-  // Desabilitar geração automática de páginas de erro estáticas
-  // Isso evita que o Next.js tente fazer prerendering de /500, /404, etc.
+  // Desabilitar exportação estática - não tentar exportar HTML estático
+  // Isso evita erro ao tentar renomear arquivos de export que não existem
+  trailingSlash: false,
+  
+  // Gerar build ID único para evitar cache
   generateBuildId: async () => {
     return 'build-' + Date.now()
   },
