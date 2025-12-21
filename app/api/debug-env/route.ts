@@ -4,16 +4,22 @@ import path from 'path'
 
 export async function GET(request: NextRequest) {
   try {
-    // Ler arquivo .env.local diretamente
+    // Em produção (Render/Vercel), não tentar ler .env.local
+    // As variáveis vêm de process.env diretamente
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER || process.env.VERCEL
+    
+    // Ler arquivo .env.local diretamente (apenas em desenvolvimento)
     const envPath = path.join(process.cwd(), '.env.local')
     let envFileContent = ''
     let envFileExists = false
     
-    try {
-      envFileContent = fs.readFileSync(envPath, 'utf8')
-      envFileExists = true
-    } catch (error: any) {
-      envFileExists = false
+    if (!isProduction) {
+      try {
+        envFileContent = fs.readFileSync(envPath, 'utf8')
+        envFileExists = true
+      } catch (error: any) {
+        envFileExists = false
+      }
     }
     
     // Extrair ASAAS_API_KEY do arquivo

@@ -8,10 +8,10 @@ const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/ap
 function getAsaasApiKey(): string {
   let apiKey = process.env.ASAAS_API_KEY
 
-  // No ambiente de produção (Vercel), não tentar ler .env.local
+  // No ambiente de produção (Render/Vercel), não tentar ler .env.local
   // pois ele não existe lá - as variáveis estão em process.env
-  const nodeEnv = process.env.NODE_ENV || ''
-  if (!apiKey && nodeEnv !== 'production') {
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER || process.env.VERCEL
+  if (!apiKey && !isProduction) {
     try {
       const fs = require('fs')
       const path = require('path')
@@ -23,10 +23,9 @@ function getAsaasApiKey(): string {
         console.log('✅ [lib/asaas] API Key carregada diretamente do arquivo .env.local')
       }
     } catch (fileError: any) {
-      // Ignorar erro no build - em produção as variáveis vêm de process.env
-      // Verificar NODE_ENV de forma segura para evitar erro de tipo
-      const nodeEnv = process.env.NODE_ENV || ''
-      if (nodeEnv !== 'production') {
+      // Ignorar erro em produção - arquivo não existe
+      // Em desenvolvimento, apenas logar se não for erro de arquivo não encontrado
+      if (!isProduction && fileError.code !== 'ENOENT') {
         console.error('❌ [lib/asaas] Erro ao ler .env.local:', fileError.message)
       }
     }

@@ -15,8 +15,8 @@ export async function POST(request: NextRequest) {
     // Vamos tentar ler diretamente do arquivo como fallback
     let apiKey = process.env.ASAAS_API_KEY
     
-    // Se não encontrou no process.env, tentar ler do arquivo diretamente
-    if (!apiKey) {
+    // Se não encontrou no process.env, tentar ler do arquivo diretamente (apenas em desenvolvimento)
+    if (!apiKey && process.env.NODE_ENV !== 'production' && !process.env.RENDER && !process.env.VERCEL) {
       try {
         const fs = require('fs')
         const path = require('path')
@@ -28,7 +28,10 @@ export async function POST(request: NextRequest) {
           console.log('✅ API Key carregada diretamente do arquivo .env.local')
         }
       } catch (fileError: any) {
-        console.error('❌ Erro ao ler .env.local:', fileError.message)
+        // Ignorar erro em produção - arquivo não existe
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('❌ Erro ao ler .env.local:', fileError.message)
+        }
       }
     }
     
