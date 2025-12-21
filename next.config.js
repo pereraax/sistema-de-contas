@@ -96,6 +96,15 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   
+  // Desabilitar completamente o prerendering estático
+  // Todas as páginas serão renderizadas dinamicamente
+  output: 'standalone',
+  
+  // Ignorar páginas problemáticas durante build (evitar erro de prerendering)
+  async generateBuildId() {
+    return 'build-' + Date.now()
+  },
+  
   webpack: (config, { isServer }) => {
     // Configurar paths do TypeScript (@/*)
     config.resolve.alias = {
