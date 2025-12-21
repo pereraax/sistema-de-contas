@@ -13,6 +13,10 @@ const nextConfig = {
   experimental: {
     // Desabilitar otimização de CSS para evitar erros no Vercel
     optimizeCss: false,
+    // Desabilitar otimizações que podem causar prerendering
+    serverActions: {
+      bodySizeLimit: '2mb',
+    },
   },
   
   // Headers de segurança (apenas em produção)
