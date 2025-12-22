@@ -102,7 +102,7 @@ const nextConfig = {
   
   // Desabilitar completamente o prerendering estático
   // Todas as páginas serão renderizadas dinamicamente
-  output: 'standalone',
+  // output: 'standalone', // Desabilitado temporariamente para Render
   
   // Desabilitar exportação estática - não tentar exportar HTML estático
   // Isso evita erro ao tentar renomear arquivos de export que não existem

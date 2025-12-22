@@ -3,8 +3,9 @@ const { parse } = require('url')
 const next = require('next')
 
 const dev = process.env.NODE_ENV !== 'production'
-const hostname = 'localhost'
-const port = process.env.PORT || 3000
+// IMPORTANTE: Escutar em 0.0.0.0 para aceitar conexões externas (Render)
+const hostname = process.env.RENDER ? '0.0.0.0' : 'localhost'
+const port = parseInt(process.env.PORT || '3000', 10)
 
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()
@@ -19,9 +20,11 @@ app.prepare().then(() => {
       res.statusCode = 500
       res.end('internal server error')
     }
-  }).listen(port, async (err) => {
+  }).listen(port, hostname, async (err) => {
     if (err) throw err
     console.log(`> Ready on http://${hostname}:${port}`)
+    console.log(`> Environment: ${process.env.NODE_ENV || 'development'}`)
+    console.log(`> PORT: ${port}`)
     
     // Iniciar keep-alive do apifacil.dev automaticamente
     try {
