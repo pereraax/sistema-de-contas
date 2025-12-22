@@ -26,7 +26,7 @@ app.prepare().then(() => {
     console.log(`> Environment: ${process.env.NODE_ENV || 'development'}`)
     console.log(`> PORT: ${port}`)
     
-    // Iniciar keep-alive do apifacil.dev automaticamente
+    // Iniciar keep-alive do apifacil.dev automaticamente (opcional, não bloqueia se falhar)
     try {
       const { startKeepAlive, isApifacilConfigured } = require('./lib/whatsapp-apifacil')
       
@@ -38,8 +38,8 @@ app.prepare().then(() => {
         console.log('ℹ️ [Apifacil] Keep-alive não iniciado - configure APIFACIL_INSTANCE_ID e APIFACIL_TOKEN')
       }
     } catch (error) {
-      console.error('⚠️ [Apifacil] Erro ao iniciar keep-alive:', error.message)
-      // Não bloquear o servidor se houver erro
+      // Não bloquear o servidor se houver erro - apenas logar
+      console.log('ℹ️ [Apifacil] Keep-alive não disponível:', error.message)
     }
   })
 })
