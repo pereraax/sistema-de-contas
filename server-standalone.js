@@ -49,19 +49,5 @@ server.on('exit', (code) => {
   }
 })
 
-// Aguardar alguns segundos e iniciar keep-alive do apifacil
-setTimeout(() => {
-  try {
-    const { startKeepAlive, isApifacilConfigured } = require('./lib/whatsapp-apifacil')
-    
-    if (isApifacilConfigured()) {
-      startKeepAlive(5)
-      console.log('✅ [Apifacil] Keep-alive iniciado automaticamente (verificando a cada 5 minutos)')
-    } else {
-      console.log('ℹ️ [Apifacil] Keep-alive não iniciado - configure APIFACIL_INSTANCE_ID e APIFACIL_TOKEN')
-    }
-  } catch (error) {
-    console.error('⚠️ [Apifacil] Erro ao iniciar keep-alive:', error.message)
-    // Não bloquear o servidor se houver erro
-  }
-}, 5000)
+// Nota: O keep-alive do Apifacil deve ser iniciado dentro das rotas da API
+// quando necessário, não aqui no servidor standalone
