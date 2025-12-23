@@ -93,6 +93,7 @@ module.exports = {
       animation: {
         'fade-in': 'fadeIn 0.3s ease-in-out',
         'slide-up': 'slideUp 0.3s ease-out',
+        'gradient-move': 'gradientMove 15s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -102,6 +103,12 @@ module.exports = {
         slideUp: {
           '0%': { transform: 'translateY(10px)', opacity: '0' },
           '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        gradientMove: {
+          '0%, 100%': { transform: 'translate(0, 0) scale(1)' },
+          '25%': { transform: 'translate(10%, -10%) scale(1.1)' },
+          '50%': { transform: 'translate(-5%, 5%) scale(0.95)' },
+          '75%': { transform: 'translate(-10%, 10%) scale(1.05)' },
         },
       },
     },

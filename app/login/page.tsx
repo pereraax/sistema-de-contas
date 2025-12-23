@@ -267,13 +267,59 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#00C2FF] via-[#0099CC] to-[#007A99] relative overflow-hidden animate-gradient flex">
-      {/* Fundo dinâmico com animação */}
+    <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-700 relative overflow-hidden flex">
+      {/* Fundo animado com gradiente desfocado */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] bg-gradient-to-br from-white/20 via-white/5 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDuration: '4s' }}></div>
-        <div className="absolute top-1/2 -right-1/2 w-[200%] h-[200%] bg-gradient-to-br from-white/15 via-white/5 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s', animationDuration: '5s' }}></div>
-        <div className="absolute -bottom-1/2 left-1/2 w-[200%] h-[200%] bg-gradient-to-br from-white/10 via-white/5 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '3s', animationDuration: '6s' }}></div>
+        {/* Gradiente 1 - Azul claro */}
+        <div 
+          className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] bg-gradient-to-br from-blue-300/60 via-blue-400/40 to-blue-500/30 rounded-full blur-3xl animate-gradient-move"
+          style={{
+            animationDuration: '15s',
+          }}
+        ></div>
+        {/* Gradiente 2 - Azul médio */}
+        <div 
+          className="absolute top-1/2 -right-1/2 w-[200%] h-[200%] bg-gradient-to-br from-blue-500/50 via-blue-600/35 to-blue-700/25 rounded-full blur-3xl"
+          style={{
+            animation: 'gradientMove 18s ease-in-out infinite reverse',
+            animationDelay: '2s',
+          }}
+        ></div>
+        {/* Gradiente 3 - Azul escuro */}
+        <div 
+          className="absolute -bottom-1/2 left-1/2 w-[200%] h-[200%] bg-gradient-to-br from-blue-600/40 via-blue-700/30 to-blue-800/20 rounded-full blur-3xl"
+          style={{
+            animation: 'gradientMove 20s ease-in-out infinite',
+            animationDelay: '4s',
+          }}
+        ></div>
+        {/* Gradiente 4 - Azul claro adicional */}
+        <div 
+          className="absolute top-1/4 left-1/4 w-[150%] h-[150%] bg-gradient-to-br from-blue-200/50 via-blue-300/30 to-blue-400/20 rounded-full blur-3xl"
+          style={{
+            animation: 'gradientMove 12s ease-in-out infinite',
+            animationDelay: '1s',
+          }}
+        ></div>
       </div>
+      
+      {/* Estilos de animação global */}
+      <style jsx global>{`
+        @keyframes gradientMove {
+          0%, 100% {
+            transform: translate(0, 0) scale(1);
+          }
+          25% {
+            transform: translate(10%, -10%) scale(1.1);
+          }
+          50% {
+            transform: translate(-5%, 5%) scale(0.95);
+          }
+          75% {
+            transform: translate(-10%, 10%) scale(1.05);
+          }
+        }
+      `}</style>
 
       {/* Lado Esquerdo - Popup do Formulário */}
       <div className="relative z-10 w-full md:w-1/2 flex items-center justify-center p-4 md:p-6 overflow-y-auto">
