@@ -170,44 +170,44 @@ export default function LandingPage() {
       <section className="bg-white pt-8 sm:pt-10 md:pt-12 pb-6 sm:pb-10 md:pb-12 relative overflow-hidden">
         {/* Cofrinhos e WhatsApp flutuantes na frente - quantidade reduzida */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
-          {/* Cofrinho 1 - Superior esquerdo */}
+          {/* Cofrinho 1 - Superior esquerdo (mais espalhado) */}
           <Image
             src="/cofrinho.png"
             alt=""
             width={80}
             height={80}
-            className="absolute top-20 left-12 md:top-28 md:left-20 opacity-40 md:opacity-50 animate-float-1"
+            className="absolute top-10 left-4 md:top-16 md:left-8 lg:top-20 lg:left-12 opacity-40 md:opacity-50 animate-float-1"
             style={{ width: '50px', height: 'auto' }}
             unoptimized
           />
-          {/* Cofrinho 2 - Inferior direito */}
+          {/* Cofrinho 2 - Inferior direito (mais espalhado) */}
           <Image
             src="/cofrinho.png"
             alt=""
             width={80}
             height={80}
-            className="absolute bottom-24 right-16 md:bottom-32 md:right-24 opacity-45 md:opacity-55 animate-float-2"
+            className="absolute bottom-16 right-4 md:bottom-24 md:right-8 lg:bottom-32 lg:right-16 opacity-45 md:opacity-55 animate-float-2"
             style={{ width: '55px', height: 'auto' }}
             unoptimized
           />
-          {/* WhatsApp - Centro direito */}
+          {/* WhatsApp - Superior direito (mais espalhado) */}
           <Image
             src="/wpp azul.png"
             alt=""
             width={80}
             height={80}
-            className="absolute top-1/2 right-12 md:top-1/2 md:right-20 opacity-40 md:opacity-50 animate-float-3"
-            style={{ width: '60px', height: 'auto', transform: 'translateY(-50%)' }}
+            className="absolute top-32 right-4 md:top-40 md:right-8 lg:top-48 lg:right-16 opacity-40 md:opacity-50 animate-float-3"
+            style={{ width: '60px', height: 'auto' }}
             unoptimized
           />
-          {/* WhatsApp - Inferior centro */}
+          {/* WhatsApp - Inferior esquerdo (mais espalhado) */}
           <Image
             src="/wpp azul.png"
             alt=""
             width={80}
             height={80}
-            className="absolute bottom-28 left-1/2 md:bottom-36 md:left-1/2 opacity-35 md:opacity-45 animate-float-1"
-            style={{ width: '55px', height: 'auto', transform: 'translateX(-50%)' }}
+            className="absolute bottom-20 left-4 md:bottom-28 md:left-8 lg:bottom-36 lg:left-16 opacity-35 md:opacity-45 animate-float-1"
+            style={{ width: '55px', height: 'auto' }}
             unoptimized
           />
         </div>
