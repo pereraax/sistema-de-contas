@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       remetente: body.phoneNumber || '553194467805',
       mensagem: body.message || 'teste',
       tipo_envio: 'MENSAGEM_RECEBIDA',
-      instancia_id: 1041,
+      instancia_id: 1069,
       ...body,
     }
     
