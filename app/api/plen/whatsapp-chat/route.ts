@@ -1865,13 +1865,13 @@ export async function POST(request: NextRequest) {
     
     if (isBoasVindas) {
       return NextResponse.json({
-        response: `👋 Olá! Sou o assistente PLEN, seu assistente financeiro pessoal!\n\n💼 Posso ajudar você a:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n\n💡 Exemplos práticos:\n• "gastei 30 reais de ônibus"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais"\n\nComo posso ajudar você hoje? 😊`,
+        response: `👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n• "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n• "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n• "gastei 30 reais de ônibus hoje"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais do cliente"\n• "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯\n\nComo posso ajudar você hoje? 🤗`,
       })
     }
 
     // Resposta padrão para mensagens não reconhecidas
     return NextResponse.json({
-      response: `🤔 Não entendi muito bem. Deixe-me ajudar!\n\n📋 Você pode:\n\n📝 Registrar gastos, entradas ou dívidas:\n• "paguei 50 reais no mercado"\n• "recebi 1000 reais"\n• "tenho uma dívida de 200 reais"\n\n📊 Consultar suas informações:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n\n💡 Digite "oi" para ver todos os comandos disponíveis!`,
+      response: `🤔 Ops, não entendi muito bem o que você quis dizer. Mas não se preocupe, vou te ajudar! 😊\n\n📋 Você pode me pedir para:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n\n💡 Dica: Você pode falar de forma natural, como se estivesse conversando comigo! Por exemplo:\n• "gastei 30 reais de ônibus"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais"\n\nDigite "oi" para ver todas as opções disponíveis! 😊`,
     })
   } catch (error: any) {
     console.error('❌ [PLEN WhatsApp] ==========================================')
