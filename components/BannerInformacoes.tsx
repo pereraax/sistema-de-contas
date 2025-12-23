@@ -172,25 +172,25 @@ export default function BannerInformacoes() {
 
         {/* Navegação (se houver mais de um banner) */}
         {bannersVisiveis.length > 1 && (
-          <div className="absolute bottom-3 sm:bottom-4 left-1/2 transform -translate-x-1/2 flex items-center justify-center gap-1.5 sm:gap-2">
+          <div className="absolute bottom-3 sm:bottom-4 left-1/2 transform -translate-x-1/2 flex items-center justify-center gap-2 sm:gap-3">
             <button
               onClick={bannerAnterior}
-              className="p-1.5 sm:p-2 hover:bg-white/50 dark:hover:bg-white/20 rounded-lg transition-smooth"
+              className="p-1.5 sm:p-2 hover:bg-white/50 dark:hover:bg-white/20 rounded-lg transition-smooth flex items-center justify-center"
               aria-label="Banner anterior"
             >
               <ChevronLeft size={18} className={cor.icon} />
             </button>
             
             {/* Indicadores */}
-            <div className="flex gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               {bannersVisiveis.map((_, index) => (
                 <button
                   key={index}
                   onClick={() => setBannerAtual(index)}
-                  className={`h-1.5 sm:h-2 rounded-full transition-smooth ${
+                  className={`h-2 sm:h-2.5 rounded-full transition-smooth flex-shrink-0 ${
                     index === bannerAtual
                       ? `w-6 sm:w-8 ${cor.icon} bg-current`
-                      : 'w-1.5 sm:w-2 bg-white/50 dark:bg-white/30'
+                      : 'w-2 sm:w-2.5 bg-white/50 dark:bg-white/30'
                   }`}
                   aria-label={`Ir para banner ${index + 1}`}
                 />
@@ -199,7 +199,7 @@ export default function BannerInformacoes() {
 
             <button
               onClick={proximoBanner}
-              className="p-1.5 sm:p-2 hover:bg-white/50 dark:hover:bg-white/20 rounded-lg transition-smooth"
+              className="p-1.5 sm:p-2 hover:bg-white/50 dark:hover:bg-white/20 rounded-lg transition-smooth flex items-center justify-center"
               aria-label="Próximo banner"
             >
               <ChevronRight size={18} className={cor.icon} />
