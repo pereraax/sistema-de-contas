@@ -258,7 +258,7 @@ export default function UpgradePage() {
                   <button
                     onClick={() => handleSelecionarPlano(plano.id)}
                     disabled={loadingCheckout === plano.id}
-                    className={`w-full text-center py-3 ${plano.corBotao} ${plano.corTextoBotao} rounded-xl font-bold transition-all duration-300 ${
+                    className={`w-full text-center py-3 text-sm sm:text-base ${plano.corBotao} ${plano.corTextoBotao} rounded-xl font-bold transition-all duration-300 ${
                       plano.destacado
                         ? 'shadow-lg hover:shadow-xl transform hover:scale-105'
                         : 'shadow-lg'
