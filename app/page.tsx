@@ -227,13 +227,13 @@ export default function LandingPage() {
                 Gerencie suas finanças pessoais, dívidas e empréstimos de forma inteligente e organizada. 
                 <span className="text-[#00C2FF] font-semibold"> Tudo em um só lugar</span>, com design moderno e intuitivo.
               </p>
-              <div className="flex justify-center md:justify-start mt-4 sm:mt-6">
+              <div className="flex justify-center mt-4 sm:mt-6">
                 <a
                   href="#planos"
-                  className="inline-flex items-center justify-center gap-2.5 w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 text-base sm:text-lg bg-gradient-to-r from-[#00C2FF] to-[#0099CC] text-white rounded-xl sm:rounded-2xl font-bold hover:shadow-xl hover:shadow-[#00C2FF]/30 transition-all duration-300 transform hover:scale-105"
+                  className="inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 sm:py-3.5 text-base sm:text-lg bg-gradient-to-r from-[#00C2FF] to-[#0099CC] text-white rounded-xl font-bold hover:shadow-xl hover:shadow-[#00C2FF]/30 transition-all duration-300 transform hover:scale-105 whitespace-nowrap"
                 >
                   Testar Agora Grátis
-                  <ArrowRight size={20} className="sm:w-6 sm:h-6" strokeWidth={2.5} />
+                  <ArrowRight size={18} className="sm:w-5 sm:h-5" strokeWidth={2.5} />
                 </a>
               </div>
             </div>
