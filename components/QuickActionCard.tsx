@@ -135,10 +135,10 @@ export default function QuickActionCard({
             <Icon size={24} className={`sm:w-7 sm:h-7 ${isDisabled ? 'opacity-50' : ''} text-brand-aqua dark:text-brand-aqua`} strokeWidth={2} />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className={`text-base sm:text-lg md:text-xl font-display font-bold mb-1.5 sm:mb-2 ${isDisabled ? 'text-brand-midnight/50 dark:text-brand-clean/50' : 'text-brand-midnight dark:text-brand-clean'}`}>
+            <h3 className={`text-base sm:text-lg md:text-xl font-display font-bold mb-2 sm:mb-2.5 ${isDisabled ? 'text-brand-midnight/50 dark:text-brand-clean/50' : 'text-brand-midnight dark:text-brand-clean'}`}>
               {title}
             </h3>
-            <p className={`text-xs sm:text-sm leading-relaxed ${isDisabled ? 'text-brand-midnight/40 dark:text-brand-clean/40' : 'text-brand-midnight/70 dark:text-brand-clean/70'}`}>
+            <p className={`text-xs sm:text-sm leading-relaxed mb-3 sm:mb-4 ${isDisabled ? 'text-brand-midnight/40 dark:text-brand-clean/40' : 'text-brand-midnight/70 dark:text-brand-clean/70'}`}>
               {description}
             </p>
           </div>
