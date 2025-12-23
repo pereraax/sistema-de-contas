@@ -132,7 +132,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 max-w-7xl flex items-center justify-between">
           <Link href="/" className="flex items-center flex-shrink-0 ml-2 sm:ml-3 md:ml-4">
             <Image 
-              src="/logo-azul-novo.png" 
+              src="/2 cores.png" 
               alt="PLENIPAY" 
               width={200}
               height={50}

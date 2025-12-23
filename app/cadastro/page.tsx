@@ -257,7 +257,7 @@ function CadastroContent() {
             <div className="mb-4 text-center">
               <div className="flex justify-center mb-3">
                 <Image 
-                  src="/logo-azul-novo.png" 
+                  src="/logo azul.png" 
                   alt="PLENIPAY" 
                   width={140}
                   height={32}

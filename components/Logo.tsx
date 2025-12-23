@@ -28,8 +28,8 @@ export default function Logo() {
     return () => observer.disconnect()
   }, [])
 
-  // Usar novo logo azul em ambos os modos
-  const logoSrc = '/logo-azul-novo.png'
+  // Usar logo azul no modo claro e logo de 2 cores no modo escuro
+  const logoSrc = isDarkMode ? '/2 cores.png' : '/logo azul.png'
 
   if (imageError) {
     // Fallback: mostrar texto do logo se a imagem não carregar
