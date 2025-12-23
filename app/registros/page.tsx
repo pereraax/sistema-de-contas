@@ -60,7 +60,7 @@ export default async function RegistrosPage({
           <div className="flex items-center justify-between gap-4 mb-4 sm:mb-6">
             <div className="flex items-center gap-3">
               <MenuButton />
-              <h1 className="text-2xl sm:text-3xl font-display font-bold text-brand-midnight dark:text-brand-clean leading-none">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-display font-bold text-brand-midnight dark:text-brand-clean leading-none">
                 Todos os Registros
               </h1>
             </div>
