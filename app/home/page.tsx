@@ -64,7 +64,7 @@ export default async function HomePage() {
           </div>
 
           {/* Banner e Dicas - Lado a lado */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 sm:mb-8 lg:mb-0">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 sm:mb-10 lg:mb-0">
             {/* Coluna Esquerda - Banner */}
             <div className="lg:col-span-2">
               <BannerInformacoes />
@@ -79,8 +79,8 @@ export default async function HomePage() {
           {/* Conteúdo Principal - SEMPRE VISÍVEL, mas desabilitado se email não confirmado */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ marginTop: '-220px' }}>
             {/* Coluna Esquerda - Ações Rápidas */}
-            <div className="lg:col-span-2 space-y-5 sm:space-y-6 md:space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+            <div className="lg:col-span-2 space-y-6 sm:space-y-8 md:space-y-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
                 <QuickActionCard
                   title="NOVO REGISTRO"
                   description="Registre qualquer entrada, saída ou dívida de forma rápida e organizada."
@@ -96,7 +96,7 @@ export default async function HomePage() {
                   type="salario"
                 />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
                 <QuickActionCard
                   title="EMPRÉSTIMO"
                   description="Registre todos os empréstimos feitos para pessoas, com documentos e informações completas."

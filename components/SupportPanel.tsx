@@ -58,7 +58,7 @@ export default function SupportPanel() {
   // const alert: { title: string; content: string; color: string } | null = null
 
   return (
-    <div className="space-y-4 sm:space-y-6 mb-6 sm:mb-8 lg:mb-0" data-support-panel>
+    <div className="space-y-4 sm:space-y-6 mb-8 sm:mb-10 lg:mb-0" data-support-panel>
       {/* Alertas - só mostra se houver dívidas pendentes */}
       {/* TODO: Implementar alertas quando necessário */}
 
