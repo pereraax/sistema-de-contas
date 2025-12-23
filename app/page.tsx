@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, Target, FolderTree, BarChart3, CheckCircle2, Star, ChevronDown, Users, TrendingUp, Calendar, FileText, MessageCircle, Smartphone, ChevronLeft, ChevronRight, Bot, Monitor, Sparkles, DollarSign } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import AnimateOnScroll from '@/components/AnimateOnScroll'
 
 export default function LandingPage() {
   const router = useRouter()
@@ -262,7 +263,8 @@ export default function LandingPage() {
         <div className="container mx-auto px-3 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
             {/* Card 1: Metas Financeiras */}
-            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-gray-100">
+            <AnimateOnScroll delay={0} direction="up">
+              <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-gray-100">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#E6F7FF] rounded-xl flex items-center justify-center mb-3 sm:mb-4 mx-auto">
                 <Target size={20} className="text-[#00C2FF] sm:w-6 sm:h-6" />
               </div>
@@ -303,10 +305,12 @@ export default function LandingPage() {
                   unoptimized
                 />
               </div>
-            </div>
+              </div>
+            </AnimateOnScroll>
 
             {/* Card 2: Categorias */}
-            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-gray-100">
+            <AnimateOnScroll delay={150} direction="up">
+              <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-gray-100">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#E6F7FF] rounded-xl flex items-center justify-center mb-3 sm:mb-4 mx-auto">
                 <FolderTree size={20} className="text-[#00C2FF] sm:w-6 sm:h-6" />
               </div>
@@ -347,7 +351,8 @@ export default function LandingPage() {
                   unoptimized
                 />
               </div>
-            </div>
+              </div>
+            </AnimateOnScroll>
           </div>
         </div>
       </section>
@@ -357,7 +362,8 @@ export default function LandingPage() {
         <div className="container mx-auto px-3 sm:px-6 lg:px-8 max-w-6xl">
           <div className="grid md:grid-cols-2 gap-4 md:gap-6 items-center">
             {/* Imagem do Celular à Esquerda */}
-            <div className="relative order-2 md:order-1">
+            <AnimateOnScroll delay={0} direction="right">
+              <div className="relative order-2 md:order-1">
               <div className="relative flex justify-center items-center">
                 <Image
                   src="/WhatsApp Image 2025-12-12 at 22.20.47-portrait.png"
@@ -369,10 +375,12 @@ export default function LandingPage() {
                   unoptimized
                 />
               </div>
-            </div>
+              </div>
+            </AnimateOnScroll>
 
             {/* Texto Explicativo à Direita */}
-            <div className="order-1 md:order-2 text-center">
+            <AnimateOnScroll delay={200} direction="left">
+              <div className="order-1 md:order-2 text-center">
               <div className="inline-block px-2.5 sm:px-3 py-1 sm:py-1.5 bg-[#E6F7FF] border border-[#00C2FF] rounded-full mb-3 sm:mb-4">
                 <span className="text-[#00C2FF] font-semibold text-[10px] sm:text-xs">FUNCIONALIDADES DO WHATSAPP</span>
               </div>
@@ -453,7 +461,8 @@ export default function LandingPage() {
                   <ArrowRight size={20} className="sm:w-6 sm:h-6" strokeWidth={2.5} />
                 </a>
               </div>
-            </div>
+              </div>
+            </AnimateOnScroll>
           </div>
         </div>
       </section>
@@ -461,13 +470,16 @@ export default function LandingPage() {
       {/* Seção O PLEN é para você que */}
       <section className="bg-white py-6 sm:py-8 md:py-10">
         <div className="container mx-auto px-3 sm:px-6 lg:px-8">
-          <h2 className="text-lg sm:text-xl md:text-2xl font-display font-bold text-[#0D1B2A] text-center mb-4 sm:mb-6 md:mb-8">
-            O <span className="text-[#00C2FF]">PLEN</span> é para você que:
-          </h2>
+          <AnimateOnScroll delay={0} direction="up">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-display font-bold text-[#0D1B2A] text-center mb-4 sm:mb-6 md:mb-8">
+              O <span className="text-[#00C2FF]">PLEN</span> é para você que:
+            </h2>
+          </AnimateOnScroll>
           
           <div className="grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-10 max-w-4xl mx-auto">
             {/* Bloco 1 */}
-            <div className="relative text-center">
+            <AnimateOnScroll delay={100} direction="up">
+              <div className="relative text-center">
               <div className="flex flex-col items-center mb-4 sm:mb-5">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md mb-3 sm:mb-4">
                   1
@@ -486,10 +498,12 @@ export default function LandingPage() {
                 <div className="mx-2 w-1.5 h-1.5 rounded-full bg-[#00C2FF]/50 blur-[1px]"></div>
                 <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
               </div>
-            </div>
+              </div>
+            </AnimateOnScroll>
 
             {/* Bloco 2 */}
-            <div className="relative text-center">
+            <AnimateOnScroll delay={200} direction="up">
+              <div className="relative text-center">
               <div className="flex flex-col items-center mb-4 sm:mb-5">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md mb-3 sm:mb-4">
                   2
@@ -508,10 +522,12 @@ export default function LandingPage() {
                 <div className="mx-2 w-1.5 h-1.5 rounded-full bg-[#00C2FF]/50 blur-[1px]"></div>
                 <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
               </div>
-            </div>
+              </div>
+            </AnimateOnScroll>
 
             {/* Bloco 3 */}
-            <div className="relative text-center">
+            <AnimateOnScroll delay={300} direction="up">
+              <div className="relative text-center">
               <div className="flex flex-col items-center mb-4 sm:mb-5">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md mb-3 sm:mb-4">
                   3
@@ -530,10 +546,12 @@ export default function LandingPage() {
                 <div className="mx-2 w-1.5 h-1.5 rounded-full bg-[#00C2FF]/50 blur-[1px]"></div>
                 <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
               </div>
-            </div>
+              </div>
+            </AnimateOnScroll>
 
             {/* Bloco 4 */}
-            <div className="relative text-center">
+            <AnimateOnScroll delay={400} direction="up">
+              <div className="relative text-center">
               <div className="flex flex-col items-center mb-4 sm:mb-5">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md mb-3 sm:mb-4">
                   4
@@ -552,7 +570,8 @@ export default function LandingPage() {
                 <div className="mx-2 w-1.5 h-1.5 rounded-full bg-[#00C2FF]/50 blur-[1px]"></div>
                 <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
               </div>
-            </div>
+              </div>
+            </AnimateOnScroll>
           </div>
         </div>
       </section>
@@ -960,17 +979,20 @@ export default function LandingPage() {
       {/* Planos */}
               <section id="planos" className="bg-white py-6 sm:py-8 md:py-12 scroll-mt-20">
         <div className="container mx-auto px-3 sm:px-6 lg:px-8">
-                  <div className="text-center mb-6 sm:mb-8">
-                    <h2 className="text-xl sm:text-2xl md:text-3xl font-display font-bold text-[#0D1B2A] mb-2 sm:mb-3">
-              Escolha o <span className="text-[#00C2FF]">Plano Ideal</span> para Você
-            </h2>
+                  <AnimateOnScroll delay={0} direction="up">
+                    <div className="text-center mb-6 sm:mb-8">
+                      <h2 className="text-xl sm:text-2xl md:text-3xl font-display font-bold text-[#0D1B2A] mb-2 sm:mb-3">
+                Escolha o <span className="text-[#00C2FF]">Plano Ideal</span> para Você
+              </h2>
             <p className="text-sm sm:text-base md:text-lg text-gray-600 max-w-2xl mx-auto px-2">
               Planos que se adaptam às suas necessidades. Comece grátis e evolua conforme cresce.
             </p>
-          </div>
+                    </div>
+                  </AnimateOnScroll>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 max-w-7xl mx-auto items-start">
             {/* Plano Gratuito */}
-            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-lg border-2 border-gray-200 transform hover:scale-105 transition-all duration-300">
+            <AnimateOnScroll delay={0} direction="up">
+              <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-lg border-2 border-gray-200 transform hover:scale-105 transition-all duration-300">
               <div className="bg-gray-100 text-[#0D1B2A] rounded-xl py-1.5 sm:py-2 px-2 sm:px-3 mb-3 sm:mb-4 text-center">
                 <h3 className="text-base sm:text-lg font-bold">Plano Gratuito</h3>
               </div>
@@ -1008,10 +1030,12 @@ export default function LandingPage() {
               >
                 Começar Grátis
               </button>
-            </div>
+              </div>
+            </AnimateOnScroll>
 
             {/* Plano Básico */}
-            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border-2 border-gray-200 transform hover:scale-105 transition-all duration-300">
+            <AnimateOnScroll delay={150} direction="up">
+              <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border-2 border-gray-200 transform hover:scale-105 transition-all duration-300">
               <div className="bg-[#00C2FF] text-white rounded-xl py-1.5 sm:py-2 px-2 sm:px-3 mb-3 sm:mb-4 text-center">
                 <h3 className="text-base sm:text-lg font-bold">Plano Básico</h3>
               </div>
@@ -1062,10 +1086,12 @@ export default function LandingPage() {
               >
                 Assinar Agora
               </button>
-            </div>
+              </div>
+            </AnimateOnScroll>
 
             {/* Plano Premium - Destacado */}
-            <div className="bg-gradient-to-br from-[#00C2FF] to-[#0099CC] rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 shadow-xl border-2 border-white relative transform scale-[1.02] hover:scale-[1.03] transition-all duration-300 z-10">
+            <AnimateOnScroll delay={300} direction="up">
+              <div className="bg-gradient-to-br from-[#00C2FF] to-[#0099CC] rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 shadow-xl border-2 border-white relative transform scale-[1.02] hover:scale-[1.03] transition-all duration-300 z-10">
               <div className="absolute -top-2 sm:-top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-[#0D1B2A] text-[10px] sm:text-xs font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded-full shadow-lg flex items-center gap-1 sm:gap-1.5">
                 <Sparkles size={12} className="text-[#0D1B2A] sm:w-3.5 sm:h-3.5" />
                 <span>MAIS POPULAR</span>
@@ -1120,10 +1146,12 @@ export default function LandingPage() {
               >
                 Assinar Agora
               </button>
-            </div>
+              </div>
+            </AnimateOnScroll>
 
             {/* Plano Anual - Destacado */}
-            <div className="bg-gradient-to-br from-[#0D1B2A] via-[#1B263B] to-[#0D1B2A] rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 shadow-xl border-2 border-white relative transform scale-[1.02] hover:scale-[1.03] transition-all duration-300 z-10">
+            <AnimateOnScroll delay={450} direction="up">
+              <div className="bg-gradient-to-br from-[#0D1B2A] via-[#1B263B] to-[#0D1B2A] rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 shadow-xl border-2 border-white relative transform scale-[1.02] hover:scale-[1.03] transition-all duration-300 z-10">
               <div className="absolute -top-2 sm:-top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-[#0D1B2A] text-[10px] sm:text-xs font-bold px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 rounded-full shadow-md flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
                 <DollarSign size={12} className="text-[#0D1B2A] flex-shrink-0 sm:w-3.5 sm:h-3.5" />
                 <span className="leading-tight">Economia: R$ 120</span>
@@ -1169,7 +1197,8 @@ export default function LandingPage() {
               >
                 Assinar Anual
               </button>
-            </div>
+              </div>
+            </AnimateOnScroll>
           </div>
         </div>
       </section>
