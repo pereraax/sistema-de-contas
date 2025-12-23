@@ -54,3 +54,4 @@ CREATE TRIGGER update_whatsapp_config_updated_at
 
 
 
+

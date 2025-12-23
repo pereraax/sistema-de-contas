@@ -59,3 +59,4 @@ echo "   • ./iniciar-tudo.sh (temporário)"
 
 
 
+

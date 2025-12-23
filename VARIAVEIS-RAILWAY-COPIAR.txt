@@ -1,0 +1,84 @@
+===========================================
+VARIÁVEIS DE AMBIENTE PARA RAILWAY
+===========================================
+
+Copie estas variáveis do seu .env.local e adicione no Railway:
+
+===========================================
+VARIÁVEIS SUPABASE:
+===========================================
+
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+===========================================
+VARIÁVEIS ASAAS:
+===========================================
+
+ASAAS_API_KEY=
+ASAAS_API_URL=https://sandbox.asaas.com/api/v3
+
+===========================================
+VARIÁVEIS DE URL:
+===========================================
+
+NEXT_PUBLIC_SITE_URL=https://seu-projeto.up.railway.app
+NEXT_PUBLIC_APP_URL=https://seu-projeto.up.railway.app
+
+(Substitua "seu-projeto" pela URL que o Railway gerar)
+
+===========================================
+VARIÁVEIS APIFACIL (se usar):
+===========================================
+
+APIFACIL_INSTANCE_ID=
+APIFACIL_TOKEN=
+APIFACIL_WEBHOOK_URL=
+
+===========================================
+VARIÁVEIS DE IA (se usar):
+===========================================
+
+OPENAI_API_KEY=
+GROQ_API_KEY=
+GEMINI_API_KEY=
+
+===========================================
+VARIÁVEIS DE EMAIL (se usar):
+===========================================
+
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_FROM=
+
+===========================================
+VARIÁVEIS ADICIONAIS:
+===========================================
+
+NODE_ENV=production
+
+===========================================
+COMO ADICIONAR NO RAILWAY:
+===========================================
+
+1. No projeto Railway, clique em "Variables"
+2. Clique em "New Variable"
+3. Adicione cada variável:
+   - Name: NOME_DA_VARIAVEL
+   - Value: valor_da_variavel
+4. Ou use "Raw Editor" para colar todas de uma vez
+
+===========================================
+IMPORTANTE:
+===========================================
+
+- NÃO adicione espaços antes ou depois do =
+- NÃO adicione aspas nos valores
+- Use os valores EXATOS do seu .env.local
+- Após adicionar, Railway reinicia automaticamente
+
+===========================================
+

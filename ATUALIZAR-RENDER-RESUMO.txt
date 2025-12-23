@@ -1,0 +1,66 @@
+===========================================
+COMO ATUALIZAR PLATAFORMA NO RENDER
+===========================================
+
+MÉTODO: Deploy Automático (Recomendado)
+
+===========================================
+PASSO A PASSO:
+===========================================
+
+1. Fazer alterações no código localmente
+
+2. Adicionar ao git:
+   git add .
+
+3. Commit:
+   git commit -m "Descrição das alterações"
+
+4. Push:
+   git push
+
+5. Render detecta automaticamente e faz deploy!
+
+===========================================
+TEMPO:
+===========================================
+
+- Build: 2-5 minutos
+- Deploy: 1-2 minutos
+- Total: ~3-7 minutos
+
+===========================================
+VERIFICAR:
+===========================================
+
+1. Acesse: https://dashboard.render.com
+2. Clique em sistema-de-contas-1
+3. Vá em "Events" ou "Logs"
+4. Veja o progresso do deploy
+
+===========================================
+STATUS:
+===========================================
+
+🟡 Building - Compilando
+🟡 Deploying - Fazendo deploy
+🟢 Live - Funcionando
+🔴 Failed - Erro (verifique logs)
+
+===========================================
+COMANDOS RÁPIDOS:
+===========================================
+
+git add .
+git commit -m "feat: Sua descrição"
+git push
+
+===========================================
+IMPORTANTE:
+===========================================
+
+- Render faz deploy AUTOMÁTICO ao detectar push
+- Não precisa fazer nada manual no Render
+- Apenas git push e aguarde!
+
+===========================================

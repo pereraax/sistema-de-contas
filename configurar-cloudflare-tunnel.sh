@@ -94,3 +94,4 @@ echo "📊 Para ver os logs: tail -f cloudflare-tunnel.log"
 
 
 
+

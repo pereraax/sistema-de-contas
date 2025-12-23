@@ -23,3 +23,4 @@ echo "📱 Se não apareceu, verifique se o servidor está rodando: npm run dev"
 
 
 
+

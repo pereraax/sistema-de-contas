@@ -57,3 +57,4 @@ COMMENT ON TABLE whatsapp_sessions IS 'Armazena sessões ativas de usuários aut
 
 
 
+

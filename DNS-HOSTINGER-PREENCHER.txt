@@ -1,0 +1,34 @@
+===========================================
+COMO PREENCHER DNS NA HOSTINGER
+===========================================
+
+OPÇÃO ESCOLHIDA: A (já está selecionado)
+
+===========================================
+CAMPOS PARA PREENCHER:
+===========================================
+
+Tipo: A
+Nome: @
+Valor: 216.24.57.1
+TTL: 3600 (ou padrão)
+
+===========================================
+PASSO A PASSO:
+===========================================
+
+1. Tipo: A (já selecionado)
+2. Nome: Digite @ (ou deixe em branco)
+3. Valor: Digite 216.24.57.1
+4. TTL: Deixe padrão ou digite 3600
+5. Clique em "Salvar" ou "Adicionar"
+
+===========================================
+IMPORTANTE:
+===========================================
+
+- Se já existir registro A para @, edite ou delete antes
+- Aguarde 15-30 minutos após salvar
+- Volte ao Render e clique em "Verify"
+
+===========================================

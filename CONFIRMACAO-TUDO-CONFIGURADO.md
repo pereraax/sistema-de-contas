@@ -78,3 +78,4 @@ Mas por enquanto, **OpenAI já está funcionando!** 🎉
 
 
 
+

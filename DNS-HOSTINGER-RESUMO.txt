@@ -1,0 +1,47 @@
+===========================================
+CONFIGURAR DNS NA HOSTINGER - RESUMO
+===========================================
+
+DOMÍNIO: plenipay.com
+
+===========================================
+OPÇÃO 1 (RECOMENDADA):
+===========================================
+
+Tipo: ANAME ou ALIAS
+Nome: @ (ou deixe em branco)
+Valor: sistema-de-contas-1.onrender.com
+TTL: 3600
+
+===========================================
+OPÇÃO 2 (ALTERNATIVA):
+===========================================
+
+Tipo: A
+Nome: @ (ou deixe em branco)
+Valor: 216.24.57.1
+TTL: 3600
+
+===========================================
+PASSO A PASSO:
+===========================================
+
+1. Acesse: https://www.hostinger.com.br
+2. Login → Domínios → plenipay.com
+3. Zona DNS (ou Gerenciar DNS)
+4. Adicionar Registro
+5. Escolha: ANAME/ALIAS (Opção 1) ou A (Opção 2)
+6. Preencha conforme acima
+7. Salve
+8. Aguarde 15-30 minutos
+9. Volte ao Render e clique em "Verify"
+
+===========================================
+IMPORTANTE:
+===========================================
+
+- Se já existir registro A para @, edite ou delete antes
+- DNS pode levar até 48 horas (geralmente 15-30 min)
+- Verifique em: https://www.whatsmydns.net/
+
+===========================================
