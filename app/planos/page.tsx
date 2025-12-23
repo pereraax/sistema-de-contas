@@ -200,7 +200,7 @@ export default function PlanosPage() {
       {/* Header */}
       <header className="bg-[#00C2FF] border-b border-[#0099CC] sticky top-0 z-50">
         <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 max-w-7xl flex items-center justify-between">
-          <Link href="/" className="flex items-center flex-shrink-0">
+          <Link href="/" className="flex items-center flex-shrink-0 ml-2 sm:ml-3 md:ml-4">
             <Image 
               src="/logo branca.png" 
               alt="PLENIPAY" 

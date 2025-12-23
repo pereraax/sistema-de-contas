@@ -129,7 +129,7 @@ export default function LandingPage() {
       {/* Header */}
       <header className="bg-[#1a1a1a] border-b border-[#2a2a2a] sticky top-0 z-50">
         <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 max-w-7xl flex items-center justify-between">
-          <Link href="/" className="flex items-center flex-shrink-0">
+          <Link href="/" className="flex items-center flex-shrink-0 ml-2 sm:ml-3 md:ml-4">
             <Image 
               src="/2 cores.png" 
               alt="PLENIPAY" 
