@@ -102,9 +102,9 @@ export default function ReceitasDespesasDonut() {
           {periodoTexto}
         </p>
       </div>
-      <div className="flex flex-col md:flex-row items-center justify-center gap-8">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-start md:justify-center gap-8">
         {/* Gráfico de Donut */}
-        <div className="relative w-[300px] h-[300px]">
+        <div className="relative w-[300px] h-[300px] mx-auto md:mx-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -149,10 +149,10 @@ export default function ReceitasDespesasDonut() {
         </div>
         
         {/* Legenda */}
-        <div className="space-y-4">
+        <div className="space-y-4 w-full md:w-auto">
           <div className="flex items-center gap-3">
-            <div className="w-4 h-4 rounded-full bg-green-500"></div>
-            <div>
+            <div className="w-4 h-4 rounded-full bg-green-500 flex-shrink-0"></div>
+            <div className="text-left">
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Receitas</p>
               <p className="text-lg font-bold text-green-600 dark:text-green-400">
                 {new Intl.NumberFormat('pt-BR', {
@@ -164,8 +164,8 @@ export default function ReceitasDespesasDonut() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-4 h-4 rounded-full bg-red-500"></div>
-            <div>
+            <div className="w-4 h-4 rounded-full bg-red-500 flex-shrink-0"></div>
+            <div className="text-left">
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Despesas</p>
               <p className="text-lg font-bold text-red-600 dark:text-red-400">
                 {new Intl.NumberFormat('pt-BR', {
