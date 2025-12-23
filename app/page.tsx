@@ -451,23 +451,23 @@ export default function LandingPage() {
             O <span className="text-[#00C2FF]">PLEN</span> é para você que:
           </h2>
           
-          <div className="grid md:grid-cols-2 gap-4 sm:gap-6 md:gap-8 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-10 max-w-4xl mx-auto">
             {/* Bloco 1 */}
-            <div className="relative">
-              <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
-                <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-base sm:text-lg shadow-md">
+            <div className="relative text-center">
+              <div className="flex flex-col items-center mb-4 sm:mb-5">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md mb-3 sm:mb-4">
                   1
                 </div>
-                <div className="flex-1 pt-1">
-                  <h3 className="text-sm sm:text-base md:text-lg font-display font-bold text-[#0D1B2A] mb-1">
+                <div className="w-full">
+                  <h3 className="text-base sm:text-lg md:text-xl font-display font-bold text-[#0D1B2A] mb-2">
                     O dinheiro simplesmente some
                   </h3>
-                  <p className="text-gray-600 leading-relaxed text-xs sm:text-sm">
+                  <p className="text-gray-600 leading-relaxed text-sm sm:text-base">
                     Você trabalha, recebe... e continua no vermelho.
                   </p>
                 </div>
               </div>
-              <div className="ml-12 mt-4 relative flex items-center">
+              <div className="mt-5 sm:mt-6 relative flex items-center justify-center max-w-xs mx-auto">
                 <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
                 <div className="mx-2 w-1.5 h-1.5 rounded-full bg-[#00C2FF]/50 blur-[1px]"></div>
                 <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
@@ -475,21 +475,21 @@ export default function LandingPage() {
             </div>
 
             {/* Bloco 2 */}
-            <div className="relative">
-              <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
-                <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-base sm:text-lg shadow-md">
+            <div className="relative text-center">
+              <div className="flex flex-col items-center mb-4 sm:mb-5">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md mb-3 sm:mb-4">
                   2
                 </div>
-                <div className="flex-1 pt-1">
-                  <h3 className="text-sm sm:text-base md:text-lg font-display font-bold text-[#0D1B2A] mb-1">
+                <div className="w-full">
+                  <h3 className="text-base sm:text-lg md:text-xl font-display font-bold text-[#0D1B2A] mb-2">
                     Não sabe onde gastou
                   </h3>
-                  <p className="text-gray-600 leading-relaxed text-xs sm:text-sm">
+                  <p className="text-gray-600 leading-relaxed text-sm sm:text-base">
                     Perde o controle dos gastos e não consegue economizar.
                   </p>
                 </div>
               </div>
-              <div className="ml-10 sm:ml-12 mt-3 sm:mt-4 relative flex items-center">
+              <div className="mt-5 sm:mt-6 relative flex items-center justify-center max-w-xs mx-auto">
                 <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
                 <div className="mx-2 w-1.5 h-1.5 rounded-full bg-[#00C2FF]/50 blur-[1px]"></div>
                 <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
@@ -497,21 +497,21 @@ export default function LandingPage() {
             </div>
 
             {/* Bloco 3 */}
-            <div className="relative">
-              <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
-                <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-base sm:text-lg shadow-md">
+            <div className="relative text-center">
+              <div className="flex flex-col items-center mb-4 sm:mb-5">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md mb-3 sm:mb-4">
                   3
                 </div>
-                <div className="flex-1 pt-1">
-                  <h3 className="text-sm sm:text-base md:text-lg font-display font-bold text-[#0D1B2A] mb-1">
+                <div className="w-full">
+                  <h3 className="text-base sm:text-lg md:text-xl font-display font-bold text-[#0D1B2A] mb-2">
                     Quer simplificar sua vida
                   </h3>
-                  <p className="text-gray-600 leading-relaxed text-xs sm:text-sm">
+                  <p className="text-gray-600 leading-relaxed text-sm sm:text-base">
                     Busca uma forma prática e rápida de controlar suas finanças.
                   </p>
                 </div>
               </div>
-              <div className="ml-10 sm:ml-12 mt-3 sm:mt-4 relative flex items-center">
+              <div className="mt-5 sm:mt-6 relative flex items-center justify-center max-w-xs mx-auto">
                 <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
                 <div className="mx-2 w-1.5 h-1.5 rounded-full bg-[#00C2FF]/50 blur-[1px]"></div>
                 <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
@@ -519,21 +519,21 @@ export default function LandingPage() {
             </div>
 
             {/* Bloco 4 */}
-            <div className="relative">
-              <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
-                <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-base sm:text-lg shadow-md">
+            <div className="relative text-center">
+              <div className="flex flex-col items-center mb-4 sm:mb-5">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md mb-3 sm:mb-4">
                   4
                 </div>
-                <div className="flex-1 pt-1">
-                  <h3 className="text-sm sm:text-base md:text-lg font-display font-bold text-[#0D1B2A] mb-1">
+                <div className="w-full">
+                  <h3 className="text-base sm:text-lg md:text-xl font-display font-bold text-[#0D1B2A] mb-2">
                     Quer ter controle total
                   </h3>
-                  <p className="text-gray-600 leading-relaxed text-xs sm:text-sm">
+                  <p className="text-gray-600 leading-relaxed text-sm sm:text-base">
                     Deseja acompanhar receitas, despesas e metas em um só lugar.
                   </p>
                 </div>
               </div>
-              <div className="ml-10 sm:ml-12 mt-3 sm:mt-4 relative flex items-center">
+              <div className="mt-5 sm:mt-6 relative flex items-center justify-center max-w-xs mx-auto">
                 <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
                 <div className="mx-2 w-1.5 h-1.5 rounded-full bg-[#00C2FF]/50 blur-[1px]"></div>
                 <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
