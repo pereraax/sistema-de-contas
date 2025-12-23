@@ -70,10 +70,15 @@ export default async function HomePage() {
               <BannerInformacoes />
             </div>
 
-            {/* Coluna Direita - Suporte e Dicas */}
-            <div className="lg:col-span-1">
+            {/* Coluna Direita - Suporte e Dicas (Desktop) */}
+            <div className="hidden lg:block lg:col-span-1">
               <SupportPanel />
             </div>
+          </div>
+
+          {/* SupportPanel no Mobile - ANTES dos cards de registro */}
+          <div className="lg:hidden mb-6 sm:mb-8">
+            <SupportPanel />
           </div>
 
           {/* Conteúdo Principal - SEMPRE VISÍVEL, mas desabilitado se email não confirmado */}
@@ -114,8 +119,9 @@ export default async function HomePage() {
               </div>
             </div>
 
-            {/* Coluna Direita - Vazia (já tem o SupportPanel acima) */}
-            <div className="lg:col-span-1">
+            {/* Coluna Direita - SupportPanel (Desktop) */}
+            <div className="hidden lg:block lg:col-span-1">
+              <SupportPanel />
             </div>
           </div>
         </div>
