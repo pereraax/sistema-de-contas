@@ -562,7 +562,7 @@ export default function ChatWidget() {
             setIsOpen(true)
             setIsMinimized(false)
           }}
-          className="fixed bottom-6 right-6 z-[70] w-14 h-14 bg-brand-aqua text-brand-midnight rounded-full shadow-2xl hover:shadow-3xl hover:scale-110 transition-all duration-300 flex items-center justify-center group animate-bounce-subtle"
+          className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 z-[70] w-14 h-14 bg-brand-aqua text-brand-midnight rounded-full shadow-2xl hover:shadow-3xl hover:scale-110 transition-all duration-300 flex items-center justify-center group animate-bounce-subtle"
           aria-label="Abrir chat de suporte"
         >
           <MessageCircle size={24} className="group-hover:scale-110 transition-transform" />
