@@ -267,38 +267,38 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-700 relative overflow-hidden flex">
-      {/* Fundo animado com gradiente desfocado */}
+    <div className="min-h-screen bg-gradient-to-br from-blue-300 via-blue-500 to-blue-800 relative overflow-hidden flex">
+      {/* Fundo animado com gradiente desfocado - apenas azul claro e azul escuro */}
       <div className="absolute inset-0 overflow-hidden">
-        {/* Gradiente 1 - Azul claro */}
+        {/* Gradiente 1 - Azul claro (canto superior direito) */}
         <div 
-          className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] bg-gradient-to-br from-blue-300/60 via-blue-400/40 to-blue-500/30 rounded-full blur-3xl animate-gradient-move"
+          className="absolute -top-1/3 -right-1/3 w-[180%] h-[180%] bg-gradient-to-br from-blue-200/70 via-blue-300/50 to-blue-400/40 rounded-full blur-3xl"
           style={{
-            animationDuration: '15s',
+            animation: 'gradientMove 16s ease-in-out infinite',
           }}
         ></div>
-        {/* Gradiente 2 - Azul médio */}
+        {/* Gradiente 2 - Azul escuro (canto inferior esquerdo) */}
         <div 
-          className="absolute top-1/2 -right-1/2 w-[200%] h-[200%] bg-gradient-to-br from-blue-500/50 via-blue-600/35 to-blue-700/25 rounded-full blur-3xl"
+          className="absolute -bottom-1/3 -left-1/3 w-[180%] h-[180%] bg-gradient-to-br from-blue-700/60 via-blue-800/45 to-blue-900/35 rounded-full blur-3xl"
           style={{
             animation: 'gradientMove 18s ease-in-out infinite reverse',
             animationDelay: '2s',
           }}
         ></div>
-        {/* Gradiente 3 - Azul escuro */}
+        {/* Gradiente 3 - Azul claro (centro superior) */}
         <div 
-          className="absolute -bottom-1/2 left-1/2 w-[200%] h-[200%] bg-gradient-to-br from-blue-600/40 via-blue-700/30 to-blue-800/20 rounded-full blur-3xl"
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[160%] h-[160%] bg-gradient-to-br from-blue-200/55 via-blue-300/40 to-blue-400/30 rounded-full blur-3xl"
           style={{
-            animation: 'gradientMove 20s ease-in-out infinite',
-            animationDelay: '4s',
+            animation: 'gradientMove 14s ease-in-out infinite',
+            animationDelay: '1s',
           }}
         ></div>
-        {/* Gradiente 4 - Azul claro adicional */}
+        {/* Gradiente 4 - Azul escuro (centro inferior) */}
         <div 
-          className="absolute top-1/4 left-1/4 w-[150%] h-[150%] bg-gradient-to-br from-blue-200/50 via-blue-300/30 to-blue-400/20 rounded-full blur-3xl"
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[160%] h-[160%] bg-gradient-to-br from-blue-700/50 via-blue-800/35 to-blue-900/25 rounded-full blur-3xl"
           style={{
-            animation: 'gradientMove 12s ease-in-out infinite',
-            animationDelay: '1s',
+            animation: 'gradientMove 20s ease-in-out infinite reverse',
+            animationDelay: '3s',
           }}
         ></div>
       </div>
@@ -307,16 +307,16 @@ function LoginContent() {
       <style jsx global>{`
         @keyframes gradientMove {
           0%, 100% {
-            transform: translate(0, 0) scale(1);
+            transform: translate(0, 0) scale(1) rotate(0deg);
           }
           25% {
-            transform: translate(10%, -10%) scale(1.1);
+            transform: translate(15%, -15%) scale(1.15) rotate(5deg);
           }
           50% {
-            transform: translate(-5%, 5%) scale(0.95);
+            transform: translate(-10%, 10%) scale(0.9) rotate(-5deg);
           }
           75% {
-            transform: translate(-10%, 10%) scale(1.05);
+            transform: translate(-15%, 15%) scale(1.1) rotate(3deg);
           }
         }
       `}</style>
