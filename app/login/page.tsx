@@ -20,6 +20,7 @@ function LoginContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [showModalLoginConcluido, setShowModalLoginConcluido] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     senha: '',
@@ -42,6 +43,29 @@ function LoginContent() {
     
     return () => observer.disconnect()
   }, [])
+
+  // Carregar estado do "Lembrar-me" do localStorage
+  useEffect(() => {
+    const savedRememberMe = localStorage.getItem('rememberMe') === 'true'
+    setRememberMe(savedRememberMe)
+    
+    if (savedRememberMe) {
+      const savedEmail = localStorage.getItem('savedEmail')
+      if (savedEmail) {
+        setFormData(prev => ({ ...prev, email: savedEmail }))
+      }
+    }
+  }, [])
+
+  // Salvar estado do "Lembrar-me" no localStorage
+  useEffect(() => {
+    if (rememberMe) {
+      localStorage.setItem('rememberMe', 'true')
+    } else {
+      localStorage.removeItem('rememberMe')
+      localStorage.removeItem('savedEmail')
+    }
+  }, [rememberMe])
 
   // Mostrar mensagem da URL se existir (vindo do cadastro)
   useEffect(() => {
@@ -178,6 +202,13 @@ function LoginContent() {
       console.log('✅ Login bem-sucedido!')
       console.log('👤 User ID:', data.user.id)
       console.log('🔐 Session:', data.session ? 'existe' : 'não existe')
+      
+      // Salvar email se "Lembrar-me" estiver marcado
+      if (rememberMe) {
+        localStorage.setItem('savedEmail', formData.email)
+      } else {
+        localStorage.removeItem('savedEmail')
+      }
       
       if (!data.session) {
         console.error('❌ Nenhuma sessão retornada!')
@@ -397,9 +428,36 @@ function LoginContent() {
               </div>
 
               <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-xs text-gray-600">
-                  <input type="checkbox" className="rounded border-gray-300 text-[#00C2FF] focus:ring-[#00C2FF]" />
-                  <span>Lembrar-me</span>
+                <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer group">
+                  <div className="relative">
+                    <input 
+                      type="checkbox" 
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="sr-only"
+                      id="remember-me"
+                    />
+                    <div className={`w-4 h-4 border-2 rounded transition-all duration-200 flex items-center justify-center ${
+                      rememberMe 
+                        ? 'bg-[#00C2FF] border-[#00C2FF] shadow-sm' 
+                        : 'border-gray-300 group-hover:border-[#00C2FF]'
+                    }`}>
+                      {rememberMe && (
+                        <svg 
+                          className="w-3 h-3 text-white" 
+                          fill="none" 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth="3" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path d="M5 13l4 4L19 7"></path>
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                  <span className="select-none group-hover:text-[#00C2FF] transition-colors">Lembrar-me</span>
                 </label>
                 <Link href="#" className="text-xs text-[#00C2FF] hover:underline font-medium">
                   Esqueceu a senha?
