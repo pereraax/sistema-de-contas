@@ -290,7 +290,7 @@ function LoginContent() {
             <div className="mb-6 text-center">
               <div className="flex justify-center mb-4">
                 <Image 
-                  src={isDarkMode ? "/2 cores.png" : "/logo azul.png"} 
+                  src="/logo azul.png" 
                   alt="PLENIPAY" 
                   width={140}
                   height={32}
