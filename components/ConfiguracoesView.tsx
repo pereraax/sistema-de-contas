@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@/lib/types'
 import { obterUsuarios, criarUsuario, resetarTodosRegistros } from '@/lib/actions'
-import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown, Download, Smartphone, Share2, ArrowRight } from 'lucide-react'
+import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown, Download, Smartphone, Share2, ArrowRight, Lightbulb } from 'lucide-react'
 import { createNotification } from './NotificationBell'
 import { atualizarSenha, reenviarEmailConfirmacao, signOut, limparBypassEmailConfirmacao } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/client'
@@ -1818,106 +1818,106 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
       )}
 
       {tabAtivo === 'baixar' && (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6 pb-24 sm:pb-28">
           <div>
-            <h2 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean mb-2">
+            <h2 className="text-lg sm:text-xl font-display font-bold text-brand-midnight dark:text-brand-clean mb-1.5 sm:mb-2">
               Baixar Plataforma
             </h2>
-            <p className="text-sm text-brand-midnight/70 dark:text-brand-clean/70 mb-6">
+            <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70 mb-4 sm:mb-6">
               Adicione o PLENIPAY à tela inicial do seu iPhone para acesso rápido e fácil.
             </p>
           </div>
 
           {/* Tutorial para iPhone */}
-          <div className="bg-white dark:bg-brand-royal/30 rounded-xl p-6 space-y-6 border border-gray-200 dark:border-brand-aqua/20 shadow-sm">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg flex-shrink-0">
-                <Smartphone size={24} className="text-brand-aqua" />
+          <div className="bg-white dark:bg-brand-royal/30 rounded-xl p-4 sm:p-6 border border-gray-200 dark:border-brand-aqua/20 shadow-sm">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="p-2 sm:p-3 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg flex-shrink-0">
+                <Smartphone size={20} className="sm:w-6 sm:h-6 text-brand-aqua" />
               </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-brand-midnight dark:text-brand-clean mb-4">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base sm:text-lg font-semibold text-brand-midnight dark:text-brand-clean mb-3 sm:mb-4">
                   Como adicionar à Tela Inicial no iPhone
                 </h3>
                 
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {/* Passo 1 */}
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-sm">
+                  <div className="flex gap-3 sm:gap-4">
+                    <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-xs sm:text-sm">
                       1
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-0.5 sm:mb-1">
                         Abra o Safari no seu iPhone
                       </p>
-                      <p className="text-sm text-brand-midnight/70 dark:text-brand-clean/70">
+                      <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70 leading-relaxed">
                         Acesse a plataforma PLENIPAY através do navegador Safari.
                       </p>
                     </div>
                   </div>
 
                   {/* Passo 2 */}
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-sm">
+                  <div className="flex gap-3 sm:gap-4">
+                    <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-xs sm:text-sm">
                       2
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-0.5 sm:mb-1">
                         Toque no botão de Compartilhar
                       </p>
-                      <p className="text-sm text-brand-midnight/70 dark:text-brand-clean/70 mb-2">
-                        Localize e toque no ícone de compartilhar na parte inferior da tela.
+                      <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70 leading-relaxed mb-1.5 sm:mb-2">
+                        Localize e toque no ícone de compartilhar na parte inferior da tela.{' '}
+                        <span className="inline-flex items-center gap-1 text-brand-aqua font-medium">
+                          <Share2 size={14} className="sm:w-4 sm:h-4" />
+                          <span className="text-xs">Ícone de Compartilhar</span>
+                        </span>
                       </p>
-                      <div className="flex items-center gap-2 text-brand-aqua">
-                        <Share2 size={18} />
-                        <span className="text-xs font-medium">Ícone de Compartilhar</span>
-                      </div>
                     </div>
                   </div>
 
                   {/* Passo 3 */}
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-sm">
+                  <div className="flex gap-3 sm:gap-4">
+                    <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-xs sm:text-sm">
                       3
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-0.5 sm:mb-1">
                         Selecione "Adicionar à Tela de Início"
                       </p>
-                      <p className="text-sm text-brand-midnight/70 dark:text-brand-clean/70 mb-2">
-                        Role a lista de opções e toque em "Adicionar à Tela de Início".
+                      <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70 leading-relaxed mb-1.5 sm:mb-2">
+                        Role a lista de opções e toque em "Adicionar à Tela de Início".{' '}
+                        <span className="inline-flex items-center gap-1 text-brand-aqua font-medium">
+                          <ArrowRight size={14} className="sm:w-4 sm:h-4" />
+                          <span className="text-xs">Adicionar à Tela de Início</span>
+                        </span>
                       </p>
-                      <div className="flex items-center gap-2 text-brand-aqua">
-                        <ArrowRight size={18} />
-                        <span className="text-xs font-medium">Adicionar à Tela de Início</span>
-                      </div>
                     </div>
                   </div>
 
                   {/* Passo 4 */}
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-sm">
+                  <div className="flex gap-3 sm:gap-4">
+                    <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-xs sm:text-sm">
                       4
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-0.5 sm:mb-1">
                         Personalize o nome (opcional)
                       </p>
-                      <p className="text-sm text-brand-midnight/70 dark:text-brand-clean/70">
+                      <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70 leading-relaxed">
                         Você pode editar o nome do ícone antes de adicionar. O nome padrão será "PLENIPAY".
                       </p>
                     </div>
                   </div>
 
                   {/* Passo 5 */}
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-sm">
+                  <div className="flex gap-3 sm:gap-4">
+                    <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-xs sm:text-sm">
                       5
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-0.5 sm:mb-1">
                         Toque em "Adicionar"
                       </p>
-                      <p className="text-sm text-brand-midnight/70 dark:text-brand-clean/70">
+                      <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70 leading-relaxed">
                         Confirme a ação tocando no botão "Adicionar" no canto superior direito.
                       </p>
                     </div>
@@ -1925,16 +1925,16 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                 </div>
 
                 {/* Dica */}
-                <div className="mt-6 p-4 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg border border-brand-aqua/30">
-                  <div className="flex items-start gap-3">
-                    <div className="p-1.5 bg-brand-aqua/20 rounded">
-                      <Lightbulb size={18} className="text-brand-aqua" />
+                <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg border border-brand-aqua/30">
+                  <div className="flex items-start gap-2.5 sm:gap-3">
+                    <div className="p-1 sm:p-1.5 bg-brand-aqua/20 rounded flex-shrink-0">
+                      <Lightbulb size={16} className="sm:w-[18px] sm:h-[18px] text-brand-aqua" />
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-0.5 sm:mb-1">
                         Dica
                       </p>
-                      <p className="text-xs text-brand-midnight/70 dark:text-brand-clean/70">
+                      <p className="text-xs text-brand-midnight/70 dark:text-brand-clean/70 leading-relaxed">
                         Após adicionar, o ícone do PLENIPAY aparecerá na sua tela inicial. Toque nele para acessar a plataforma rapidamente, como um app nativo!
                       </p>
                     </div>
