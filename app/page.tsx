@@ -1004,7 +1004,7 @@ export default function LandingPage() {
               </div>
               <button
                 onClick={() => handleSelecionarPlano('teste')}
-                className="block w-full text-center py-2 sm:py-3 text-xs sm:text-sm bg-gray-100 hover:bg-gray-200 text-[#0D1B2A] rounded-xl font-bold transition-all duration-300"
+                className="block w-full text-center py-3 text-sm sm:text-base bg-gray-100 hover:bg-gray-200 text-[#0D1B2A] rounded-xl font-bold transition-all duration-300"
               >
                 Começar Grátis
               </button>
@@ -1058,7 +1058,7 @@ export default function LandingPage() {
               </div>
               <button
                 onClick={() => handleSelecionarPlano('basico')}
-                className="block w-full text-center py-2 sm:py-3 text-xs sm:text-sm bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl font-bold transition-all duration-300 shadow-lg"
+                className="block w-full text-center py-3 text-sm sm:text-base bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl font-bold transition-all duration-300 shadow-lg"
               >
                 Assinar Agora
               </button>
@@ -1116,7 +1116,7 @@ export default function LandingPage() {
               </div>
               <button
                 onClick={() => handleSelecionarPlano('premium')}
-                className="block w-full text-center py-3 bg-white hover:bg-gray-100 text-[#00C2FF] rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                className="block w-full text-center py-3 text-sm sm:text-base bg-white hover:bg-gray-100 text-[#00C2FF] rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
               >
                 Assinar Agora
               </button>
@@ -1165,7 +1165,7 @@ export default function LandingPage() {
               </div>
               <button
                 onClick={() => handleSelecionarPlano('anual')}
-                className="block w-full text-center py-3 bg-white hover:bg-gray-100 text-[#0D1B2A] rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                className="block w-full text-center py-3 text-sm sm:text-base bg-white hover:bg-gray-100 text-[#0D1B2A] rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
               >
                 Assinar Anual
               </button>
