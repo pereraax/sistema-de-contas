@@ -122,23 +122,23 @@ export default function QuickActionCard({
 
   return (
     <>
-      <div className={`bg-brand-white dark:bg-brand-royal rounded-2xl p-6 shadow-lg border border-brand-clean dark:border-white/10 hover:shadow-xl transition-smooth animate-slide-up ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+      <div className={`bg-brand-white dark:bg-brand-royal rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-brand-clean dark:border-white/10 hover:shadow-xl transition-smooth animate-slide-up ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
         {isDisabled && (
-          <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+          <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
             <p className="text-xs text-orange-800 dark:text-orange-200">
               ⚠️ Confirme seu email em Configurações → Perfil para usar esta funcionalidade.
             </p>
           </div>
         )}
-        <div className="flex items-start gap-4 mb-4">
-          <div className="p-3 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-xl">
-            <Icon size={28} className={`${isDisabled ? 'opacity-50' : ''} text-brand-aqua dark:text-brand-aqua`} strokeWidth={2} />
+        <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-5">
+          <div className="p-2.5 sm:p-3 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg sm:rounded-xl flex-shrink-0">
+            <Icon size={24} className={`sm:w-7 sm:h-7 ${isDisabled ? 'opacity-50' : ''} text-brand-aqua dark:text-brand-aqua`} strokeWidth={2} />
           </div>
-          <div className="flex-1">
-            <h3 className={`text-xl font-display font-bold mb-2 ${isDisabled ? 'text-brand-midnight/50 dark:text-brand-clean/50' : 'text-brand-midnight dark:text-brand-clean'}`}>
+          <div className="flex-1 min-w-0">
+            <h3 className={`text-base sm:text-lg md:text-xl font-display font-bold mb-1.5 sm:mb-2 ${isDisabled ? 'text-brand-midnight/50 dark:text-brand-clean/50' : 'text-brand-midnight dark:text-brand-clean'}`}>
               {title}
             </h3>
-            <p className={`text-sm leading-relaxed ${isDisabled ? 'text-brand-midnight/40 dark:text-brand-clean/40' : 'text-brand-midnight/70 dark:text-brand-clean/70'}`}>
+            <p className={`text-xs sm:text-sm leading-relaxed ${isDisabled ? 'text-brand-midnight/40 dark:text-brand-clean/40' : 'text-brand-midnight/70 dark:text-brand-clean/70'}`}>
               {description}
             </p>
           </div>
@@ -146,13 +146,13 @@ export default function QuickActionCard({
         <button
           onClick={handleClick}
           disabled={isDisabled}
-          className={`w-full px-6 py-3 bg-brand-aqua dark:bg-brand-aqua text-brand-midnight dark:text-brand-midnight rounded-xl font-bold transition-smooth shadow-md flex items-center justify-center gap-2 ${
+          className={`w-full px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-aqua dark:bg-brand-aqua text-brand-midnight dark:text-brand-midnight rounded-lg sm:rounded-xl font-bold transition-smooth shadow-md flex items-center justify-center gap-2 text-sm sm:text-base ${
             isDisabled 
               ? 'opacity-50 cursor-not-allowed' 
               : 'hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 hover:shadow-lg'
           }`}
         >
-          <Plus size={20} strokeWidth={2.5} />
+          <Plus size={18} className="sm:w-5 sm:h-5" strokeWidth={2.5} />
           {buttonText}
         </button>
       </div>

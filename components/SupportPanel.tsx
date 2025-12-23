@@ -58,31 +58,31 @@ export default function SupportPanel() {
   // const alert: { title: string; content: string; color: string } | null = null
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 sm:space-y-6">
       {/* Alertas - só mostra se houver dívidas pendentes */}
       {/* TODO: Implementar alertas quando necessário */}
 
       {/* Dicas */}
-      <div className="bg-brand-white dark:bg-brand-royal rounded-2xl p-4 shadow-lg border border-brand-clean dark:border-white/10">
-        <h3 className="font-display font-bold text-brand-midnight dark:text-brand-clean mb-3 flex items-center gap-2">
-          <Lightbulb size={20} className="text-yellow-600 dark:text-yellow-400" />
+      <div className="bg-brand-white dark:bg-brand-royal rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-lg border border-brand-clean dark:border-white/10">
+        <h3 className="font-display font-bold text-base sm:text-lg text-brand-midnight dark:text-brand-clean mb-3 sm:mb-4 flex items-center gap-2">
+          <Lightbulb size={18} className="sm:w-5 sm:h-5 text-yellow-600 dark:text-yellow-400" />
           Dicas e Suporte
         </h3>
-        <div className="space-y-3">
+        <div className="space-y-2.5 sm:space-y-3">
           {tips.map((tip, index) => {
             const Icon = tip.icon
             return (
               <div
                 key={index}
-                className={`p-3 rounded-xl ${tip.color} dark:bg-brand-aqua/10 dark:border-white/10 border border-transparent`}
+                className={`p-2.5 sm:p-3 rounded-lg sm:rounded-xl ${tip.color} dark:bg-brand-aqua/10 dark:border-white/10 border border-transparent`}
               >
-                <div className="flex items-start gap-2">
-                  <Icon size={18} className="mt-0.5 flex-shrink-0 text-brand-aqua dark:text-brand-aqua" />
-                  <div>
-                    <p className="text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1">
+                <div className="flex items-start gap-2 sm:gap-2.5">
+                  <Icon size={16} className="sm:w-[18px] sm:h-[18px] mt-0.5 flex-shrink-0 text-brand-aqua dark:text-brand-aqua" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-0.5 sm:mb-1">
                       {tip.title}
                     </p>
-                    <p className="text-xs text-brand-midnight/70 dark:text-brand-clean/70">
+                    <p className="text-xs text-brand-midnight/70 dark:text-brand-clean/70 leading-snug">
                       {tip.content}
                     </p>
                   </div>
@@ -94,8 +94,8 @@ export default function SupportPanel() {
       </div>
 
       {/* Links rápidos */}
-      <div className="bg-brand-white dark:bg-brand-royal rounded-2xl p-4 shadow-lg border border-brand-clean dark:border-white/10">
-        <h3 className="font-display font-bold text-brand-midnight dark:text-brand-clean mb-3">
+      <div className="bg-brand-white dark:bg-brand-royal rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-lg border border-brand-clean dark:border-white/10">
+        <h3 className="font-display font-bold text-base sm:text-lg text-brand-midnight dark:text-brand-clean mb-3 sm:mb-4">
           Acesso Rápido
         </h3>
         <div className="space-y-2">
@@ -105,28 +105,28 @@ export default function SupportPanel() {
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 p-3 text-sm font-medium text-white bg-green-500 hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 rounded-lg transition-smooth shadow-md hover:shadow-lg"
+              className="flex items-center gap-2 p-2.5 sm:p-3 text-xs sm:text-sm font-medium text-white bg-green-500 hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 rounded-lg transition-smooth shadow-md hover:shadow-lg"
             >
-              <MessageCircle size={18} />
+              <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
               <span>Assistente PLEN no WhatsApp</span>
             </a>
           )}
           
           <a
             href="/registros"
-            className="block p-2 text-sm text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
+            className="block p-2 sm:p-2.5 text-xs sm:text-sm text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
           >
             → Ver todos os registros
           </a>
           <a
             href="/dividas"
-            className="block p-2 text-sm text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
+            className="block p-2 sm:p-2.5 text-xs sm:text-sm text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
           >
             → Gerenciar dívidas
           </a>
           <a
             href="/dashboard"
-            className="block p-2 text-sm text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
+            className="block p-2 sm:p-2.5 text-xs sm:text-sm text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
           >
             → Ver relatórios
           </a>
