@@ -139,34 +139,31 @@ export default function BannerInformacoes() {
   return (
     <div className="mb-6">
       <div 
-        className={`${cor.bg} border-2 ${cor.border} rounded-2xl shadow-lg relative overflow-hidden animate-fade-in w-full`}
-        style={{ 
-          height: '300px'
-        }}
+        className={`${cor.bg} border-2 ${cor.border} rounded-xl sm:rounded-2xl shadow-lg relative overflow-hidden animate-fade-in w-full`}
       >
         {/* Botão de fechar */}
         <button
           onClick={() => fecharBanner(banner.id)}
-          className="absolute top-4 right-4 p-2 hover:bg-white/50 dark:hover:bg-white/20 rounded-lg transition-smooth z-10"
+          className="absolute top-2 right-2 sm:top-3 sm:right-3 p-1.5 sm:p-2 hover:bg-white/50 dark:hover:bg-white/20 rounded-lg transition-smooth z-10"
           aria-label="Fechar banner"
         >
-          <X size={20} className={cor.icon} />
+          <X size={18} className={cor.icon} />
         </button>
 
         {/* Conteúdo do banner */}
-        <div className="flex items-center justify-center h-full p-8 pr-16">
-          <div className="flex items-center gap-6 w-full">
+        <div className="flex items-center p-4 sm:p-5 md:p-6 pr-10 sm:pr-12 md:pr-16">
+          <div className="flex items-start sm:items-center gap-3 sm:gap-4 md:gap-5 w-full">
             {/* Ícone */}
-            <div className={`${cor.iconBg} p-6 rounded-xl flex-shrink-0`}>
-              <Icone size={48} className={cor.icon} strokeWidth={2} />
+            <div className={`${cor.iconBg} p-3 sm:p-4 md:p-5 rounded-lg sm:rounded-xl flex-shrink-0`}>
+              <Icone size={32} className={`${cor.icon} sm:w-10 sm:h-10 md:w-12 md:h-12`} strokeWidth={2} />
             </div>
 
             {/* Texto */}
             <div className="flex-1 min-w-0">
-              <h3 className={`text-2xl font-display font-bold ${cor.text} mb-3`}>
+              <h3 className={`text-lg sm:text-xl md:text-2xl font-display font-bold ${cor.text} mb-1.5 sm:mb-2 md:mb-3`}>
                 {banner.titulo}
               </h3>
-              <p className={`text-base ${cor.text}/80 leading-relaxed`}>
+              <p className={`text-sm sm:text-base ${cor.text}/80 leading-snug sm:leading-relaxed`}>
                 {banner.descricao}
               </p>
             </div>
@@ -175,25 +172,25 @@ export default function BannerInformacoes() {
 
         {/* Navegação (se houver mais de um banner) */}
         {bannersVisiveis.length > 1 && (
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center justify-center gap-2">
+          <div className="absolute bottom-3 sm:bottom-4 left-1/2 transform -translate-x-1/2 flex items-center justify-center gap-1.5 sm:gap-2">
             <button
               onClick={bannerAnterior}
-              className="p-2 hover:bg-white/50 dark:hover:bg-white/20 rounded-lg transition-smooth"
+              className="p-1.5 sm:p-2 hover:bg-white/50 dark:hover:bg-white/20 rounded-lg transition-smooth"
               aria-label="Banner anterior"
             >
-              <ChevronLeft size={20} className={cor.icon} />
+              <ChevronLeft size={18} className={cor.icon} />
             </button>
             
             {/* Indicadores */}
-            <div className="flex gap-2">
+            <div className="flex gap-1.5 sm:gap-2">
               {bannersVisiveis.map((_, index) => (
                 <button
                   key={index}
                   onClick={() => setBannerAtual(index)}
-                  className={`h-2 rounded-full transition-smooth ${
+                  className={`h-1.5 sm:h-2 rounded-full transition-smooth ${
                     index === bannerAtual
-                      ? `w-8 ${cor.icon} bg-current`
-                      : 'w-2 bg-white/50 dark:bg-white/30'
+                      ? `w-6 sm:w-8 ${cor.icon} bg-current`
+                      : 'w-1.5 sm:w-2 bg-white/50 dark:bg-white/30'
                   }`}
                   aria-label={`Ir para banner ${index + 1}`}
                 />
@@ -202,10 +199,10 @@ export default function BannerInformacoes() {
 
             <button
               onClick={proximoBanner}
-              className="p-2 hover:bg-white/50 dark:hover:bg-white/20 rounded-lg transition-smooth"
+              className="p-1.5 sm:p-2 hover:bg-white/50 dark:hover:bg-white/20 rounded-lg transition-smooth"
               aria-label="Próximo banner"
             >
-              <ChevronRight size={20} className={cor.icon} />
+              <ChevronRight size={18} className={cor.icon} />
             </button>
           </div>
         )}
