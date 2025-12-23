@@ -299,7 +299,7 @@ export default function PlanosPage() {
             <button
               onClick={() => handleSelecionarPlano('teste')}
               disabled={loadingCheckout === 'teste'}
-              className="w-full text-center py-3 bg-gray-100 hover:bg-gray-200 text-[#0D1B2A] rounded-xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-center py-3 text-sm sm:text-base bg-gray-100 hover:bg-gray-200 text-[#0D1B2A] rounded-xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loadingCheckout === 'teste' ? 'Processando...' : 'Começar Grátis'}
             </button>
@@ -354,7 +354,7 @@ export default function PlanosPage() {
             <button
               onClick={() => handleSelecionarPlano('basico')}
               disabled={loadingCheckout === 'basico'}
-              className="w-full text-center py-3 bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl font-bold transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-center py-3 text-sm sm:text-base bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl font-bold transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loadingCheckout === 'basico' ? 'Processando...' : 'Assinar Agora'}
             </button>
@@ -412,7 +412,7 @@ export default function PlanosPage() {
             <button
               onClick={() => handleSelecionarPlano('premium')}
               disabled={loadingCheckout === 'premium'}
-              className="w-full text-center py-3 bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl font-bold transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-center py-3 text-sm sm:text-base bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl font-bold transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loadingCheckout === 'premium' ? 'Processando...' : 'Assinar Agora'}
             </button>
@@ -461,7 +461,7 @@ export default function PlanosPage() {
             <button
               onClick={() => handleSelecionarPlano('premium')}
               disabled={loadingCheckout === 'premium'}
-              className="w-full text-center py-3 bg-[#0D1B2A] hover:bg-[#1B263B] text-white rounded-xl font-bold transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-center py-3 text-sm sm:text-base bg-[#0D1B2A] hover:bg-[#1B263B] text-white rounded-xl font-bold transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loadingCheckout === 'premium' ? 'Processando...' : 'Assinar Anual'}
             </button>
