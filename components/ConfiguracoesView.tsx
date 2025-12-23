@@ -167,6 +167,38 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
       loading: loadingProfile
     })
   }, [userProfile, loadingProfile])
+
+  // Bloquear scroll do body quando modais estiverem abertos
+  useEffect(() => {
+    const hasOpenModal = showModalResetar || showModalLogout || showModalExcluirUsuario || showRedefinirSenha || showModalEditarNome
+    
+    if (hasOpenModal) {
+      // Salvar a posição atual do scroll
+      const scrollY = window.scrollY
+      document.body.style.position = 'fixed'
+      document.body.style.top = `-${scrollY}px`
+      document.body.style.width = '100%'
+      document.body.style.overflow = 'hidden'
+    } else {
+      // Restaurar o scroll quando o modal fechar
+      const scrollY = document.body.style.top
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
+      document.body.style.overflow = ''
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0') * -1)
+      }
+    }
+
+    // Cleanup: garantir que o scroll seja restaurado quando o componente desmontar
+    return () => {
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
+      document.body.style.overflow = ''
+    }
+  }, [showModalResetar, showModalLogout, showModalExcluirUsuario, showRedefinirSenha, showModalEditarNome])
   
   const carregarPerfil = async () => {
     // Evitar múltiplos carregamentos simultâneos
@@ -1574,8 +1606,25 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
 
       {/* Modal de Confirmação para Resetar Registros */}
       {showModalResetar && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 glass-backdrop">
-          <div className="bg-white dark:bg-brand-royal rounded-xl shadow-2xl max-w-sm w-full p-4 sm:p-5 animate-slide-up border border-gray-200 dark:border-white/20">
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 glass-backdrop overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowModalResetar(false)
+              setConfirmacaoResetar('')
+            }
+          }}
+          onTouchMove={(e) => {
+            // Prevenir scroll no backdrop
+            if (e.target === e.currentTarget) {
+              e.preventDefault()
+            }
+          }}
+        >
+          <div 
+            className="bg-white dark:bg-brand-royal rounded-xl shadow-2xl max-w-sm w-full p-4 sm:p-5 animate-slide-up border border-gray-200 dark:border-white/20 my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
                 <AlertTriangle className="text-red-600 dark:text-red-400" size={18} strokeWidth={2} />
