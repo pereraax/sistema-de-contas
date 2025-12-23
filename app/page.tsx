@@ -166,7 +166,7 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section com Imagem da Mulher */}
-      <section className="bg-white pt-3 sm:pt-6 md:pt-8 pb-6 sm:pb-10 md:pb-12 relative overflow-hidden">
+      <section className="bg-white pt-8 sm:pt-10 md:pt-12 pb-6 sm:pb-10 md:pb-12 relative overflow-hidden">
         {/* Cofrinhos e WhatsApp flutuantes na frente - quantidade reduzida */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
           {/* Cofrinho 1 - Superior esquerdo */}
@@ -214,26 +214,26 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-2 gap-6 md:gap-8 items-center">
             {/* Texto à esquerda */}
             <div className={`text-center md:text-left transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-              <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-[#E6F7FF] border border-[#00C2FF] rounded-full mb-4 sm:mb-6">
+              <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-[#E6F7FF] border border-[#00C2FF] rounded-full mb-5 sm:mb-6">
                 <TrendingUp size={14} className="text-[#00C2FF] sm:w-4 sm:h-4" />
                 <span className="text-xs sm:text-sm font-medium text-[#00C2FF]">Plataforma #1 em Controle Financeiro</span>
               </div>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-display font-bold text-[#0D1B2A] mb-3 sm:mb-4 leading-tight">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-6xl font-display font-bold text-[#0D1B2A] mb-4 sm:mb-5 leading-tight">
                 Controle Financeiro
                 <br />
                 <span className="text-[#00C2FF]">Simplificado</span>
               </h1>
-              <p className="text-sm sm:text-base md:text-lg text-gray-700 mb-4 sm:mb-6 leading-relaxed">
+              <p className="text-base sm:text-lg md:text-xl text-gray-700 mb-6 sm:mb-8 leading-relaxed">
                 Gerencie suas finanças pessoais, dívidas e empréstimos de forma inteligente e organizada. 
                 <span className="text-[#00C2FF] font-semibold"> Tudo em um só lugar</span>, com design moderno e intuitivo.
               </p>
-              <div className="flex justify-center md:justify-start">
+              <div className="flex justify-center md:justify-start mt-4 sm:mt-6">
                 <a
                   href="#planos"
-                  className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm bg-gradient-to-r from-[#00C2FF] to-[#0099CC] text-white rounded-xl font-bold hover:shadow-xl hover:shadow-[#00C2FF]/30 transition-all duration-300 transform hover:scale-105"
+                  className="inline-flex items-center justify-center gap-2.5 w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 text-base sm:text-lg bg-gradient-to-r from-[#00C2FF] to-[#0099CC] text-white rounded-xl sm:rounded-2xl font-bold hover:shadow-xl hover:shadow-[#00C2FF]/30 transition-all duration-300 transform hover:scale-105"
                 >
                   Testar Agora Grátis
-                  <ArrowRight size={16} className="sm:w-5 sm:h-5" strokeWidth={2.5} />
+                  <ArrowRight size={20} className="sm:w-6 sm:h-6" strokeWidth={2.5} />
                 </a>
               </div>
             </div>
