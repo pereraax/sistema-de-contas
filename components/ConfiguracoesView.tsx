@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@/lib/types'
 import { obterUsuarios, criarUsuario, resetarTodosRegistros } from '@/lib/actions'
@@ -197,6 +197,49 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
       document.body.style.top = ''
       document.body.style.width = ''
       document.body.style.overflow = ''
+    }
+  }, [showModalResetar, showModalLogout, showModalExcluirUsuario, showRedefinirSenha, showModalEditarNome])
+
+  // Detectar botão "voltar" do navegador e fechar modais
+  useEffect(() => {
+    const handlePopState = () => {
+      // Fechar todos os modais quando o usuário clicar em "voltar"
+      if (showModalResetar) {
+        setShowModalResetar(false)
+        setConfirmacaoResetar('')
+      }
+      if (showModalLogout) {
+        setShowModalLogout(false)
+      }
+      if (showModalExcluirUsuario) {
+        setShowModalExcluirUsuario(false)
+        setUsuarioParaExcluir(null)
+      }
+      if (showRedefinirSenha) {
+        setShowRedefinirSenha(false)
+        setSenhaAtual('')
+        setNovaSenha('')
+        setConfirmarSenha('')
+      }
+      if (showModalEditarNome) {
+        setShowModalEditarNome(false)
+        setNome(userProfile?.profile?.nome || userProfile?.email?.split('@')[0] || 'Usuário')
+      }
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [showModalResetar, showModalLogout, showModalExcluirUsuario, showRedefinirSenha, showModalEditarNome, userProfile])
+
+  // Adicionar entrada no histórico quando modais abrirem
+  useEffect(() => {
+    const hasOpenModal = showModalResetar || showModalLogout || showModalExcluirUsuario || showRedefinirSenha || showModalEditarNome
+    
+    if (hasOpenModal) {
+      // Adicionar uma entrada no histórico quando o modal abrir
+      window.history.pushState({ modalOpen: true }, '')
     }
   }, [showModalResetar, showModalLogout, showModalExcluirUsuario, showRedefinirSenha, showModalEditarNome])
   
