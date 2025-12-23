@@ -82,7 +82,7 @@ export default async function HomePage() {
           </div>
 
           {/* Conteúdo Principal - SEMPRE VISÍVEL, mas desabilitado se email não confirmado */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ marginTop: '-220px' }}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:-mt-[220px]">
             {/* Coluna Esquerda - Ações Rápidas */}
             <div className="lg:col-span-2 space-y-6 sm:space-y-8 md:space-y-10">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
