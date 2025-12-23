@@ -367,7 +367,7 @@ function LoginContent() {
             <div className="mb-6 text-center">
               <div className="flex justify-center mb-4">
                 <Image 
-                  src="/logo azul.png" 
+                  src="/logo-azul-novo.png" 
                   alt="PLENIPAY" 
                   width={140}
                   height={32}
