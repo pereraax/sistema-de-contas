@@ -1151,7 +1151,7 @@ export default function LandingPage() {
               </div>
               <button
                 onClick={() => handleSelecionarPlano('anual')}
-                className="block w-full text-center py-2 sm:py-3 text-xs sm:text-sm bg-white hover:bg-gray-100 text-[#0D1B2A] rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                className="block w-full text-center py-3 bg-white hover:bg-gray-100 text-[#0D1B2A] rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
               >
                 Assinar Anual
               </button>
