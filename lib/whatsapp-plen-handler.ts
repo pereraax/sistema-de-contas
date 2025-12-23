@@ -339,12 +339,12 @@ async function handleWhatsAppAuthentication(
   const trimmedText = text.trim()
 
   // Verificar se é primeira mensagem (oi, olá, etc)
-  if (lowerText === 'oi' || lowerText === 'olá' || lowerText === 'ola' || lowerText === 'hello' || lowerText === 'hi') {
+  if (lowerText === 'oi' || lowerText === 'olá' || lowerText === 'ola' || lowerText === 'hello' || lowerText === 'hi' || lowerText === 'bom dia' || lowerText === 'boa tarde' || lowerText === 'boa noite') {
     // Limpar qualquer email pendente anterior
     pendingEmails.delete(phoneNumber)
     return {
       success: true,
-      message: `Olá! 👋 Bem-vindo ao assistente PLEN!\n\nPara usar o assistente, preciso identificar sua conta.\n\n📧 Me envie seu email de cadastro...`,
+      message: `👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n• "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n• "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n• "gastei 30 reais de ônibus hoje"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais do cliente"\n• "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯\n\n📧 Para começar, me envie seu email de cadastro para eu identificar sua conta...`,
     }
   }
 
