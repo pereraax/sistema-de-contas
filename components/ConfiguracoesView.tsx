@@ -202,7 +202,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
 
   // Detectar botão "voltar" do navegador e fechar modais
   useEffect(() => {
-    const handlePopState = () => {
+    const handlePopState = (event: PopStateEvent) => {
       // Fechar todos os modais quando o usuário clicar em "voltar"
       if (showModalResetar) {
         setShowModalResetar(false)
@@ -225,6 +225,8 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
         setShowModalEditarNome(false)
         setNome(userProfile?.profile?.nome || userProfile?.email?.split('@')[0] || 'Usuário')
       }
+      // Resetar a flag quando o modal fechar via popstate
+      historyEntryAdded.current = false
     }
 
     window.addEventListener('popstate', handlePopState)
@@ -237,9 +239,13 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
   useEffect(() => {
     const hasOpenModal = showModalResetar || showModalLogout || showModalExcluirUsuario || showRedefinirSenha || showModalEditarNome
     
-    if (hasOpenModal) {
-      // Adicionar uma entrada no histórico quando o modal abrir
+    if (hasOpenModal && !historyEntryAdded.current) {
+      // Adicionar uma entrada no histórico quando o modal abrir pela primeira vez
       window.history.pushState({ modalOpen: true }, '')
+      historyEntryAdded.current = true
+    } else if (!hasOpenModal && historyEntryAdded.current) {
+      // Resetar a flag quando todos os modais fecharem
+      historyEntryAdded.current = false
     }
   }, [showModalResetar, showModalLogout, showModalExcluirUsuario, showRedefinirSenha, showModalEditarNome])
   
