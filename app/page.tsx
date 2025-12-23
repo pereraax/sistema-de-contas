@@ -128,36 +128,35 @@ export default function LandingPage() {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="bg-[#1a1a1a] border-b border-[#2a2a2a] sticky top-0 z-50">
-        <div className="container mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-3 max-w-6xl flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 max-w-7xl flex items-center justify-between">
+          <Link href="/" className="flex items-center flex-shrink-0">
             <Image 
               src="/2 cores.png" 
               alt="PLENIPAY" 
-              width={300}
-              height={75}
-              className="h-8 sm:h-10 md:h-14 w-auto object-contain"
-              style={{ width: 'auto', height: '100%' }}
+              width={200}
+              height={50}
+              className="h-6 sm:h-7 md:h-9 lg:h-10 w-auto object-contain"
               priority
             />
-          </div>
+          </Link>
           {isAuthenticated ? (
             <Link
               href="/home"
-              className="px-3 py-1.5 text-xs sm:text-sm md:text-base text-white bg-[#00C2FF] hover:bg-[#0099CC] rounded-lg font-semibold transition-all duration-300"
+              className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-white bg-[#00C2FF] hover:bg-[#0099CC] rounded-md sm:rounded-lg font-medium sm:font-semibold transition-all duration-300 whitespace-nowrap"
             >
               Dashboard
             </Link>
           ) : (
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5">
               <Link
                 href="/login"
-                className="px-3 py-1.5 text-xs sm:text-sm md:text-base text-white bg-[#00C2FF] hover:bg-[#0099CC] rounded-lg font-semibold transition-all duration-300 shadow-md"
+                className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-white border border-[#00C2FF] hover:bg-[#00C2FF] rounded-md sm:rounded-lg font-medium sm:font-semibold transition-all duration-300 whitespace-nowrap"
               >
                 Entrar
               </Link>
               <Link
                 href="/#planos"
-                className="px-3 py-1.5 text-xs sm:text-sm md:text-base text-white bg-[#0099CC] hover:bg-[#007A99] rounded-lg font-semibold transition-all duration-300"
+                className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-white bg-[#00C2FF] hover:bg-[#0099CC] rounded-md sm:rounded-lg font-medium sm:font-semibold transition-all duration-300 whitespace-nowrap"
               >
                 Cadastrar
               </Link>
