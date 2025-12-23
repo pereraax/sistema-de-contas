@@ -1574,33 +1574,31 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
       {/* Modal de Confirmação para Resetar Registros */}
       {showModalResetar && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 glass-backdrop">
-          <div className="bg-brand-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up border border-brand-clean">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 bg-red-100 rounded-xl">
-                <AlertTriangle className="text-red-600" size={24} strokeWidth={2} />
+          <div className="bg-brand-white rounded-xl shadow-2xl max-w-sm w-full p-4 sm:p-5 animate-slide-up border border-brand-clean">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <AlertTriangle className="text-red-600" size={18} strokeWidth={2} />
               </div>
-              <h3 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
+              <h3 className="text-base sm:text-lg font-display font-bold text-brand-midnight dark:text-brand-clean">
                 Confirmar Reset de Registros
               </h3>
             </div>
 
-            <div className="space-y-4 mb-6">
-              <p className="text-brand-midnight dark:text-brand-clean/80">
+            <div className="space-y-2.5 mb-4">
+              <p className="text-sm text-brand-midnight dark:text-brand-clean/80">
                 Você está prestes a <strong className="text-red-600">permanentemente deletar</strong> todos os seus registros financeiros.
               </p>
-              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                <p className="text-sm text-red-800 font-medium">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-2.5">
+                <p className="text-xs text-red-800 font-medium mb-1.5">
                   ⚠️ Esta ação não pode ser desfeita!
                 </p>
-                <ul className="mt-2 text-sm text-red-700 space-y-1 list-disc list-inside">
-                  <li>Todos os registros de entrada serão deletados</li>
-                  <li>Todos os registros de saída serão deletados</li>
-                  <li>Todas as dívidas serão deletadas</li>
-                  <li>Todos os empréstimos serão deletados</li>
+                <ul className="text-xs text-red-700 space-y-0.5 list-disc list-inside">
+                  <li>Registros de entrada e saída</li>
+                  <li>Dívidas e empréstimos</li>
                 </ul>
               </div>
               <div>
-                <label className="block text-sm font-medium text-brand-midnight dark:text-brand-clean mb-2">
+                <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
                   Digite <strong className="text-red-600">RESETAR</strong> para confirmar:
                 </label>
                 <input
@@ -1608,27 +1606,27 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                   value={confirmacaoResetar}
                   onChange={(e) => setConfirmacaoResetar(e.target.value)}
                   placeholder="Digite RESETAR"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:border-red-500 transition-smooth text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-red-500 transition-smooth text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight"
                   autoFocus
                 />
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <button
                 onClick={() => {
                   setShowModalResetar(false)
                   setConfirmacaoResetar('')
                 }}
                 disabled={loadingResetar}
-                className="flex-1 px-4 py-2 bg-brand-clean dark:bg-brand-royal text-brand-midnight dark:text-brand-clean rounded-xl hover:bg-brand-clean dark:bg-brand-royal/80 transition-smooth font-medium disabled:opacity-50"
+                className="flex-1 px-3 py-2 text-sm bg-brand-clean dark:bg-brand-royal text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-brand-clean dark:bg-brand-royal/80 transition-smooth font-medium disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleResetarRegistros}
                 disabled={loadingResetar || confirmacaoResetar !== 'RESETAR'}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-smooth font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 px-3 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-smooth font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
               >
                 {loadingResetar ? (
                   <>
