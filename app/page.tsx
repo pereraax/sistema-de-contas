@@ -372,52 +372,66 @@ export default function LandingPage() {
             </div>
 
             {/* Texto Explicativo à Direita */}
-            <div className="order-1 md:order-2 text-center md:text-left">
+            <div className="order-1 md:order-2 text-center">
               <div className="inline-block px-2.5 sm:px-3 py-1 sm:py-1.5 bg-[#E6F7FF] border border-[#00C2FF] rounded-full mb-3 sm:mb-4">
                 <span className="text-[#00C2FF] font-semibold text-[10px] sm:text-xs">FUNCIONALIDADES DO WHATSAPP</span>
               </div>
               
-              <h2 className="text-lg sm:text-xl md:text-2xl font-display font-bold text-[#0D1B2A] mb-2 sm:mb-3 leading-tight">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-display font-bold text-[#0D1B2A] mb-6 sm:mb-8 leading-tight">
                 Veja como é fácil registrar transações pelo WhatsApp
               </h2>
 
-              <div className="space-y-3 sm:space-y-4 mt-4 sm:mt-6">
+              <div className="space-y-6 sm:space-y-8 max-w-2xl mx-auto">
                 {/* Item 1 */}
-                <div className="flex items-start gap-2 sm:gap-3">
-                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-xs sm:text-sm">
+                <div className="flex flex-col items-center">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md mb-3 sm:mb-4">
                     1
                   </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base md:text-lg font-bold text-[#0D1B2A] mb-1">Fale com o PLEN!</h3>
-                    <p className="text-gray-700 leading-relaxed text-xs sm:text-sm">
+                  <div className="w-full">
+                    <h3 className="text-base sm:text-lg md:text-xl font-bold text-[#0D1B2A] mb-2">Fale com o PLEN!</h3>
+                    <p className="text-gray-700 leading-relaxed text-sm sm:text-base">
                       Pode mandar uma mensagem de texto, uma foto do comprovante, um áudio ou até um PDF — 
                       o PLEN entende tudo.
                     </p>
                   </div>
                 </div>
 
+                {/* Separador 1 */}
+                <div className="flex items-center justify-center max-w-xs mx-auto">
+                  <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
+                  <div className="mx-2 w-1.5 h-1.5 rounded-full bg-[#00C2FF]/50 blur-[1px]"></div>
+                  <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
+                </div>
+
                 {/* Item 2 */}
-                <div className="flex items-start gap-2 sm:gap-3">
-                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-xs sm:text-sm">
+                <div className="flex flex-col items-center">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md mb-3 sm:mb-4">
                     2
                   </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base md:text-lg font-bold text-[#0D1B2A] mb-1">Interpretação automática</h3>
-                    <p className="text-gray-700 leading-relaxed text-xs sm:text-sm">
+                  <div className="w-full">
+                    <h3 className="text-base sm:text-lg md:text-xl font-bold text-[#0D1B2A] mb-2">Interpretação automática</h3>
+                    <p className="text-gray-700 leading-relaxed text-sm sm:text-base">
                       Ele identifica na hora o valor, o tipo da transação e a categoria correta, 
                       sem você precisar fazer nada.
                     </p>
                   </div>
                 </div>
 
+                {/* Separador 2 */}
+                <div className="flex items-center justify-center max-w-xs mx-auto">
+                  <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
+                  <div className="mx-2 w-1.5 h-1.5 rounded-full bg-[#00C2FF]/50 blur-[1px]"></div>
+                  <div className="flex-1 h-[2px] bg-gradient-to-r from-[#00C2FF]/0 via-[#00C2FF]/30 to-[#00C2FF]/0 rounded-full"></div>
+                </div>
+
                 {/* Item 3 */}
-                <div className="flex items-start gap-2 sm:gap-3">
-                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-xs sm:text-sm">
+                <div className="flex flex-col items-center">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#00C2FF] text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-md mb-3 sm:mb-4">
                     3
                   </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base md:text-lg font-bold text-[#0D1B2A] mb-1">Registro em tempo real</h3>
-                    <p className="text-gray-700 leading-relaxed text-xs sm:text-sm">
+                  <div className="w-full">
+                    <h3 className="text-base sm:text-lg md:text-xl font-bold text-[#0D1B2A] mb-2">Registro em tempo real</h3>
+                    <p className="text-gray-700 leading-relaxed text-sm sm:text-base">
                       Sua movimentação já aparece no painel de controle e nos relatórios financeiros, 
                       prontinha pra você acompanhar.
                     </p>
@@ -425,18 +439,18 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              <p className="text-gray-600 mt-4 sm:mt-6 mb-3 sm:mb-4 leading-relaxed text-xs sm:text-sm">
+              <p className="text-gray-600 mt-6 sm:mt-8 mb-5 sm:mb-6 leading-relaxed text-sm sm:text-base max-w-2xl mx-auto">
                 Faça o teste e veja como o PLEN pode te ajudar no dia a dia de forma inteligente 
                 e sem precisar de planilhas.
               </p>
 
-              <div className="flex justify-center md:justify-start">
+              <div className="flex justify-center">
                 <a
                   href="#planos"
-                  className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl font-bold transition-all duration-300 shadow-md transform hover:scale-105"
+                  className="inline-flex items-center justify-center gap-2.5 px-6 sm:px-8 py-3 sm:py-3.5 text-base sm:text-lg bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl sm:rounded-2xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
                 >
                   Testar Agora
-                  <ArrowRight size={16} className="sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
+                  <ArrowRight size={20} className="sm:w-6 sm:h-6" strokeWidth={2.5} />
                 </a>
               </div>
             </div>
