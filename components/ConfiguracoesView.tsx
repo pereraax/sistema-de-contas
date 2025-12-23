@@ -1574,10 +1574,10 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
       {/* Modal de Confirmação para Resetar Registros */}
       {showModalResetar && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 glass-backdrop">
-          <div className="bg-brand-white rounded-xl shadow-2xl max-w-sm w-full p-4 sm:p-5 animate-slide-up border border-brand-clean">
+          <div className="bg-white dark:bg-brand-royal rounded-xl shadow-2xl max-w-sm w-full p-4 sm:p-5 animate-slide-up border border-gray-200 dark:border-white/20">
             <div className="flex items-center gap-2 mb-3">
-              <div className="p-2 bg-red-100 rounded-lg">
-                <AlertTriangle className="text-red-600" size={18} strokeWidth={2} />
+              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                <AlertTriangle className="text-red-600 dark:text-red-400" size={18} strokeWidth={2} />
               </div>
               <h3 className="text-base sm:text-lg font-display font-bold text-brand-midnight dark:text-brand-clean">
                 Confirmar Reset de Registros
@@ -1585,28 +1585,28 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
             </div>
 
             <div className="space-y-2.5 mb-4">
-              <p className="text-sm text-brand-midnight dark:text-brand-clean/80">
-                Você está prestes a <strong className="text-red-600">permanentemente deletar</strong> todos os seus registros financeiros.
+              <p className="text-sm text-brand-midnight dark:text-brand-clean/90">
+                Você está prestes a <strong className="text-red-600 dark:text-red-400">permanentemente deletar</strong> todos os seus registros financeiros.
               </p>
-              <div className="bg-red-50 border border-red-200 rounded-lg p-2.5">
-                <p className="text-xs text-red-800 font-medium mb-1.5">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg p-2.5">
+                <p className="text-xs text-red-800 dark:text-red-300 font-medium mb-1.5">
                   ⚠️ Esta ação não pode ser desfeita!
                 </p>
-                <ul className="text-xs text-red-700 space-y-0.5 list-disc list-inside">
+                <ul className="text-xs text-red-700 dark:text-red-300/80 space-y-0.5 list-disc list-inside">
                   <li>Registros de entrada e saída</li>
                   <li>Dívidas e empréstimos</li>
                 </ul>
               </div>
               <div>
                 <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
-                  Digite <strong className="text-red-600">RESETAR</strong> para confirmar:
+                  Digite <strong className="text-red-600 dark:text-red-400">RESETAR</strong> para confirmar:
                 </label>
                 <input
                   type="text"
                   value={confirmacaoResetar}
                   onChange={(e) => setConfirmacaoResetar(e.target.value)}
                   placeholder="Digite RESETAR"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-red-500 transition-smooth text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:border-red-500 dark:focus:border-red-400 transition-smooth text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   autoFocus
                 />
               </div>
@@ -1619,14 +1619,14 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                   setConfirmacaoResetar('')
                 }}
                 disabled={loadingResetar}
-                className="flex-1 px-3 py-2 text-sm bg-brand-clean dark:bg-brand-royal text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-brand-clean dark:bg-brand-royal/80 transition-smooth font-medium disabled:opacity-50"
+                className="flex-1 px-3 py-2 text-sm bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-gray-200 dark:hover:bg-brand-midnight/80 transition-smooth font-medium disabled:opacity-50 border border-gray-200 dark:border-white/20"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleResetarRegistros}
                 disabled={loadingResetar || confirmacaoResetar !== 'RESETAR'}
-                className="flex-1 px-3 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-smooth font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                className="flex-1 px-3 py-2 text-sm bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-smooth font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
               >
                 {loadingResetar ? (
                   <>
@@ -1635,8 +1635,8 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                   </>
                 ) : (
                   <>
-                    <RotateCcw size={18} strokeWidth={2} />
-                    <span>Confirmar Reset</span>
+                    <RotateCcw size={16} strokeWidth={2} />
+                    <span>Confirmar</span>
                   </>
                 )}
               </button>
