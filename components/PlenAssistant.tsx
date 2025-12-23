@@ -24,7 +24,7 @@ export default function PlenAssistant() {
     {
       id: '1',
       role: 'assistant',
-      content: 'Olá! Eu sou o PLEN, seu assistente financeiro inteligente. Estou aqui para ajudá-lo a gerenciar suas finanças de forma simples e eficiente.\n\n📝 Para registrar um novo lançamento, você pode me informar de forma natural, por exemplo:\n\n• "ganhei 100 reais de ana"\n• "gastei 40 no shopping"\n• "ganhei 20 da tia"\n• "divida de 2000 sofá"\n\nEu processarei e registrarei essas informações da melhor forma possível. Como posso ajudá-lo hoje?',
+      content: '👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n• "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n• "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n• "gastei 30 reais de ônibus hoje"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais do cliente"\n• "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯\n\nComo posso ajudar você hoje? 🤗',
       timestamp: new Date()
     }
   ])
@@ -50,7 +50,7 @@ export default function PlenAssistant() {
           setMessages([{
             id: '1',
             role: 'assistant',
-            content: 'Olá! Eu sou o PLEN, seu assistente financeiro inteligente. Estou aqui para ajudá-lo a gerenciar suas finanças de forma simples e eficiente.\n\n📝 Para registrar um novo lançamento, você pode me informar de forma natural, por exemplo:\n\n• "ganhei 100 reais de ana"\n• "gastei 40 no shopping"\n• "ganhei 20 da tia"\n• "divida de 2000 sofá"\n\nEu processarei e registrarei essas informações da melhor forma possível. Como posso ajudá-lo hoje?',
+            content: '👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n• "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n• "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n• "gastei 30 reais de ônibus hoje"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais do cliente"\n• "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯\n\nComo posso ajudar você hoje? 🤗',
             timestamp: new Date()
           }])
           setInput('')
@@ -75,7 +75,7 @@ export default function PlenAssistant() {
         setMessages([{
           id: '1',
           role: 'assistant',
-          content: 'Olá! Eu sou o PLEN, seu assistente financeiro inteligente. Estou aqui para ajudá-lo a gerenciar suas finanças de forma simples e eficiente.\n\n📝 Para registrar um novo lançamento, você pode me informar de forma natural, por exemplo:\n\n• "ganhei 100 reais de ana"\n• "gastei 40 no shopping"\n• "ganhei 20 da tia"\n• "divida de 2000 sofá"\n\nEu processarei e registrarei essas informações da melhor forma possível. Como posso ajudá-lo hoje?',
+          content: '👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n• "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n• "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n• "gastei 30 reais de ônibus hoje"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais do cliente"\n• "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯\n\nComo posso ajudar você hoje? 🤗',
           timestamp: new Date()
         }])
         setInput('')
