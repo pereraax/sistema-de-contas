@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { CheckCircle2, TrendingUp, Crown, Target, Sparkles } from 'lucide-react'
 
 interface Notification {
