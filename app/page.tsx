@@ -648,10 +648,10 @@ export default function LandingPage() {
                 <div className="relative overflow-hidden">
                   <div 
                     key={currentFeatureIndex}
-                    className={`transform transition-transform duration-500 ease-in-out ${
+                    className={`${
                       slideDirection === 'right' 
-                        ? 'animate-slide-in-right' 
-                        : 'animate-slide-in-left'
+                        ? 'animate-slide-card-right' 
+                        : 'animate-slide-card-left'
                     }`}
                   >
                     <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden mx-auto max-w-md">
