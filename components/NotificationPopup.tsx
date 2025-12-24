@@ -121,29 +121,35 @@ export default function NotificationPopup() {
   useEffect(() => {
     if (!isVisible) return
 
+    let timeouts: NodeJS.Timeout[] = []
+
     const mostrarProximaNotificacao = () => {
       const novaNotificacao = gerarMensagem()
       setNotifications(prev => [novaNotificacao])
       
       // Remover após 5 segundos
-      setTimeout(() => {
+      const removeTimeout = setTimeout(() => {
         setNotifications(prev => prev.filter(n => n.id !== novaNotificacao.id))
       }, 5000)
+      timeouts.push(removeTimeout)
+    }
+
+    const agendarProxima = (delay: number) => {
+      const timeout = setTimeout(() => {
+        mostrarProximaNotificacao()
+        // Agendar próxima com intervalo aleatório
+        const intervalos = [5000, 6000, 10000, 12000]
+        const proximoIntervalo = intervalos[Math.floor(Math.random() * intervalos.length)]
+        agendarProxima(proximoIntervalo)
+      }, delay)
+      timeouts.push(timeout)
     }
 
     // Mostrar primeira notificação após 3 segundos
-    const primeiroTimeout = setTimeout(mostrarProximaNotificacao, 3000)
-
-    // Intervalo aleatório entre 5, 6, 10, 12 segundos
-    const intervalos = [5000, 6000, 10000, 12000]
-    
-    const intervalId = setInterval(() => {
-      mostrarProximaNotificacao()
-    }, intervalos[Math.floor(Math.random() * intervalos.length)])
+    agendarProxima(3000)
 
     return () => {
-      clearTimeout(primeiroTimeout)
-      clearInterval(intervalId)
+      timeouts.forEach(timeout => clearTimeout(timeout))
     }
   }, [isVisible])
 
