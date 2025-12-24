@@ -160,7 +160,7 @@ export default function NotificationPopup() {
       {notifications.map((notification) => (
         <div
           key={notification.id}
-          className="bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] text-white rounded-xl shadow-2xl p-4 min-w-[320px] max-w-[400px] animate-slide-in-left border border-white/20 backdrop-blur-sm"
+          className="bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] text-white rounded-xl shadow-2xl p-4 min-w-[320px] max-w-[400px] border border-white/20 backdrop-blur-sm animate-slide-up"
         >
           <div className="flex items-start gap-3">
             <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
