@@ -7,6 +7,7 @@ import PlenAssistant from '@/components/PlenAssistant'
 import { MenuProvider } from '@/components/MobileMenu'
 import MobileMenu from '@/components/MobileMenu'
 import VisitorTrackingWrapper from '@/components/VisitorTrackingWrapper'
+import NotificationPopup from '@/components/NotificationPopup'
 
 // Forçar renderização dinâmica no layout para evitar prerendering
 // Isso ajuda a evitar erros de Context durante o build
@@ -45,6 +46,7 @@ export default function RootLayout({
             <MobileMenu />
             <ChatWidget />
             <PlenAssistant />
+            <NotificationPopup />
           </MenuProvider>
         </ThemeProvider>
       </body>
