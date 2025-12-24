@@ -143,7 +143,7 @@ export default function LandingPage() {
           {isAuthenticated ? (
             <Link
               href="/home"
-              className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-white bg-[#00C2FF] hover:bg-[#0099CC] rounded-md sm:rounded-lg font-medium sm:font-semibold transition-all duration-300 whitespace-nowrap"
+              className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-white bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] rounded-md sm:rounded-lg font-medium sm:font-semibold transition-all duration-300 whitespace-nowrap shadow-md hover:shadow-lg hover:shadow-[#00C2FF]/40 transform hover:scale-105"
             >
               Dashboard
             </Link>
