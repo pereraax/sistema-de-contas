@@ -421,7 +421,7 @@ function CadastroContent() {
                 console.log('Botão clicado!')
                 // Não prevenir default aqui, deixar o form onSubmit fazer isso
               }}
-              className="w-full px-4 py-2.5 bg-[#00C2FF] text-white rounded-lg text-sm font-semibold hover:bg-[#0099CC] transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              className="w-full px-4 py-2.5 bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] text-white rounded-lg text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-2xl hover:shadow-[#00C2FF]/50 transform hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-2"
             >
               {loading ? 'Criando conta...' : 'Criar Conta'}
             </button>

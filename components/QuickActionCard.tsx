@@ -146,10 +146,10 @@ export default function QuickActionCard({
         <button
           onClick={handleClick}
           disabled={isDisabled}
-          className={`w-full px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-aqua dark:bg-brand-aqua text-brand-midnight dark:text-brand-midnight rounded-lg sm:rounded-xl font-bold transition-smooth shadow-md flex items-center justify-center gap-2 text-sm sm:text-base ${
+          className={`w-full px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] text-white rounded-lg sm:rounded-xl font-bold transition-all duration-300 shadow-md hover:shadow-2xl hover:shadow-[#00C2FF]/50 flex items-center justify-center gap-2 text-sm sm:text-base transform hover:scale-105 active:scale-100 ${
             isDisabled 
-              ? 'opacity-50 cursor-not-allowed' 
-              : 'hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 hover:shadow-lg'
+              ? 'opacity-50 cursor-not-allowed transform-none' 
+              : ''
           }`}
         >
           <Plus size={18} className="sm:w-5 sm:h-5" strokeWidth={2.5} />

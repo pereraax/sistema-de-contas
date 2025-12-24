@@ -354,7 +354,7 @@ export default function PlanosPage() {
             <button
               onClick={() => handleSelecionarPlano('basico')}
               disabled={loadingCheckout === 'basico'}
-              className="w-full text-center py-3 text-sm sm:text-base bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl font-bold transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-center py-3 text-sm sm:text-base bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] text-white rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-2xl hover:shadow-[#00C2FF]/50 transform hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               {loadingCheckout === 'basico' ? 'Processando...' : 'Assinar Agora'}
             </button>
@@ -412,7 +412,7 @@ export default function PlanosPage() {
             <button
               onClick={() => handleSelecionarPlano('premium')}
               disabled={loadingCheckout === 'premium'}
-              className="w-full text-center py-3 text-sm sm:text-base bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl font-bold transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-center py-3 text-sm sm:text-base bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] text-white rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-2xl hover:shadow-[#00C2FF]/50 transform hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               {loadingCheckout === 'premium' ? 'Processando...' : 'Assinar Agora'}
             </button>

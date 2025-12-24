@@ -157,7 +157,7 @@ export default function LandingPage() {
               </Link>
               <Link
                 href="/#planos"
-                className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-white bg-[#00C2FF] hover:bg-[#0099CC] rounded-md sm:rounded-lg font-medium sm:font-semibold transition-all duration-300 whitespace-nowrap"
+                className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-white bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] rounded-md sm:rounded-lg font-medium sm:font-semibold transition-all duration-300 whitespace-nowrap shadow-md hover:shadow-lg hover:shadow-[#00C2FF]/40 transform hover:scale-105"
               >
                 Cadastrar
               </Link>
@@ -231,7 +231,7 @@ export default function LandingPage() {
               <div className="flex justify-center md:justify-start mt-4 sm:mt-6">
                 <a
                   href="#planos"
-                  className="inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 sm:py-3.5 text-base sm:text-lg bg-gradient-to-r from-[#00C2FF] to-[#0099CC] text-white rounded-xl font-bold hover:shadow-xl hover:shadow-[#00C2FF]/30 transition-all duration-300 transform hover:scale-105 whitespace-nowrap"
+                  className="inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 sm:py-3.5 text-base sm:text-lg bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] text-white rounded-xl font-bold hover:shadow-2xl hover:shadow-[#00C2FF]/50 transition-all duration-300 transform hover:scale-110 active:scale-105 whitespace-nowrap animate-pulse-subtle"
                 >
                   Testar Agora Grátis
                   <ArrowRight size={18} className="sm:w-5 sm:h-5" strokeWidth={2.5} />
@@ -455,7 +455,7 @@ export default function LandingPage() {
               <div className="flex justify-center">
                 <a
                   href="#planos"
-                  className="inline-flex items-center justify-center gap-2.5 px-6 sm:px-8 py-3 sm:py-3.5 text-base sm:text-lg bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl sm:rounded-2xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                  className="inline-flex items-center justify-center gap-2.5 px-6 sm:px-8 py-3 sm:py-3.5 text-base sm:text-lg bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] text-white rounded-xl sm:rounded-2xl font-bold transition-all duration-300 shadow-lg hover:shadow-2xl hover:shadow-[#00C2FF]/50 transform hover:scale-110 active:scale-105"
                 >
                   Testar Agora
                   <ArrowRight size={20} className="sm:w-6 sm:h-6" strokeWidth={2.5} />
@@ -1082,7 +1082,7 @@ export default function LandingPage() {
               </div>
               <button
                 onClick={() => handleSelecionarPlano('basico')}
-                className="block w-full text-center py-3 text-sm sm:text-base bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl font-bold transition-all duration-300 shadow-lg"
+                className="block w-full text-center py-3 text-sm sm:text-base bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] text-white rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-2xl hover:shadow-[#00C2FF]/50 transform hover:scale-105 active:scale-100"
               >
                 Assinar Agora
               </button>
