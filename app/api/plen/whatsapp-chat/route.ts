@@ -1300,6 +1300,31 @@ export async function POST(request: NextRequest) {
         })
       }
 
+      // VERIFICAR LIMITE DE ENVIOS VIA WHATSAPP PARA PLANO GRATUITO
+      if (plano === 'teste') {
+        // Contar envios via WhatsApp do usuário (todos os tempos, não apenas mensais)
+        const { data: enviosWhatsapp, error: enviosError } = await supabaseAdmin
+          .from('whatsapp_envios')
+          .select('id')
+          .eq('account_owner_id', userId)
+        
+        const totalEnvios = enviosWhatsapp?.length || 0
+        const LIMITE_ENVIOS_GRATUITO = 7
+        
+        console.log('🔍 [PLEN WhatsApp] Verificando limite de envios:', {
+          plano,
+          totalEnvios,
+          limite: LIMITE_ENVIOS_GRATUITO
+        })
+        
+        if (totalEnvios >= LIMITE_ENVIOS_GRATUITO) {
+          console.log('❌ [PLEN WhatsApp] Limite de envios excedido para plano gratuito')
+          return NextResponse.json({
+            response: `❌ Você excedeu o limite de ${LIMITE_ENVIOS_GRATUITO} envios de registros via WhatsApp no plano gratuito.\n\n📊 Você já enviou ${totalEnvios} registro(s) via WhatsApp.\n\n💼 Para continuar usando o assistente WhatsApp sem limites, assine um plano:\n\n🔗 plenipay.com/planos\n\n✨ Assine agora e tenha acesso ilimitado a todas as funcionalidades!`,
+          })
+        }
+      }
+
       // Obter usuário da tabela users
       console.log('👤 [PLEN WhatsApp] Buscando usuário para account_owner_id:', userId)
       const user_id = await obterOuCriarUsuarioPadrao(supabaseAdmin, userId)
