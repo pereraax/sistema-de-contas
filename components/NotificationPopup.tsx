@@ -102,15 +102,15 @@ function gerarMensagem(): Notification {
 function getIcon(iconType: Notification['icon']) {
   switch (iconType) {
     case 'purchase':
-      return <CheckCircle2 size={20} className="text-white" strokeWidth={2.5} />
+      return <CheckCircle2 size={16} className="sm:w-5 sm:h-5 text-white" strokeWidth={2.5} />
     case 'goal':
-      return <Target size={20} className="text-white" strokeWidth={2.5} />
+      return <Target size={16} className="sm:w-5 sm:h-5 text-white" strokeWidth={2.5} />
     case 'premium':
-      return <Crown size={20} className="text-white" strokeWidth={2.5} />
+      return <Crown size={16} className="sm:w-5 sm:h-5 text-white" strokeWidth={2.5} />
     case 'achievement':
-      return <Sparkles size={20} className="text-white" strokeWidth={2.5} />
+      return <Sparkles size={16} className="sm:w-5 sm:h-5 text-white" strokeWidth={2.5} />
     default:
-      return <TrendingUp size={20} className="text-white" strokeWidth={2.5} />
+      return <TrendingUp size={16} className="sm:w-5 sm:h-5 text-white" strokeWidth={2.5} />
   }
 }
 
@@ -156,29 +156,29 @@ export default function NotificationPopup() {
   if (notifications.length === 0) return null
 
   return (
-    <div className="fixed bottom-6 left-6 z-[100] space-y-3">
+    <div className="fixed bottom-4 left-3 sm:bottom-6 sm:left-6 z-[100] space-y-2 sm:space-y-3">
       {notifications.map((notification) => (
         <div
           key={notification.id}
-          className="bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] text-white rounded-xl shadow-2xl p-4 min-w-[320px] max-w-[400px] border border-white/20 backdrop-blur-sm animate-slide-up"
+          className="bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] text-white rounded-lg sm:rounded-xl shadow-2xl p-2.5 sm:p-4 w-[260px] sm:min-w-[320px] sm:max-w-[400px] border border-white/20 backdrop-blur-sm animate-slide-up"
         >
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
+          <div className="flex items-start gap-2 sm:gap-3">
+            <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
               {getIcon(notification.icon)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium leading-relaxed">
+              <p className="text-xs sm:text-sm font-medium leading-relaxed">
                 {notification.message}
               </p>
-              <p className="text-xs text-white/70 mt-1">
+              <p className="text-[10px] sm:text-xs text-white/70 mt-0.5 sm:mt-1">
                 agora mesmo
               </p>
             </div>
             <button
               onClick={() => setNotifications(prev => prev.filter(n => n.id !== notification.id))}
-              className="flex-shrink-0 text-white/70 hover:text-white transition-colors"
+              className="flex-shrink-0 text-white/70 hover:text-white transition-colors p-0.5"
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="14" height="14" className="sm:w-4 sm:h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 4L4 12M4 4l8 8" />
               </svg>
             </button>
