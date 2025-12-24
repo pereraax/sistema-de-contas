@@ -118,10 +118,49 @@ function getIcon(iconType: Notification['icon']) {
 
 export default function NotificationPopup() {
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const [isVisible, setIsVisible] = useState(true)
+  const [isVisible, setIsVisible] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isChecking, setIsChecking] = useState(true)
+  const pathname = usePathname()
+
+  // Verificar autenticação e rota
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        setIsAuthenticated(!!user)
+      } catch (error) {
+        setIsAuthenticated(false)
+      } finally {
+        setIsChecking(false)
+      }
+    }
+
+    checkAuth()
+
+    // Monitorar mudanças de autenticação
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session?.user)
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  // Só mostrar na landing page (/) e se não estiver autenticado
+  useEffect(() => {
+    if (isChecking) return
+    
+    // Só mostrar se estiver na landing page E não estiver autenticado
+    const shouldShow = pathname === '/' && !isAuthenticated
+    setIsVisible(shouldShow)
+  }, [pathname, isAuthenticated, isChecking])
 
   useEffect(() => {
-    if (!isVisible) return
+    if (!isVisible || isChecking) return
 
     let timeouts: NodeJS.Timeout[] = []
 
