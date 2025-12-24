@@ -14,7 +14,8 @@ export default function LandingPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const [currentFeaturePage, setCurrentFeaturePage] = useState(1)
+  const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0)
+  const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('right')
   const [isDarkMode, setIsDarkMode] = useState(false)
 
   useEffect(() => {
@@ -231,7 +232,7 @@ export default function LandingPage() {
               <div className="flex justify-center md:justify-start mt-4 sm:mt-6">
                 <a
                   href="#planos"
-                  className="inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 sm:py-3.5 text-base sm:text-lg bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] text-white rounded-xl font-bold hover:shadow-2xl hover:shadow-[#00C2FF]/50 transition-all duration-300 transform hover:scale-110 active:scale-105 whitespace-nowrap animate-pulse-subtle"
+                  className="inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 sm:py-3.5 text-base sm:text-lg bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] text-white rounded-xl font-bold hover:shadow-2xl hover:shadow-[#00C2FF]/50 transition-all duration-300 transform hover:scale-110 active:scale-105 whitespace-nowrap"
                 >
                   Testar Agora Grátis
                   <ArrowRight size={18} className="sm:w-5 sm:h-5" strokeWidth={2.5} />
@@ -618,122 +619,104 @@ export default function LandingPage() {
               }
             ]
 
-            const totalFeaturePages = Math.ceil(funcionalidades.length / 3)
-            
-            // Função para navegar para a próxima página (loop infinito)
-            const nextPage = () => {
-              setCurrentFeaturePage((prev) => (prev >= totalFeaturePages ? 1 : prev + 1))
+            // Função para navegar para o próximo card (loop infinito)
+            const nextCard = () => {
+              setSlideDirection('right')
+              setCurrentFeatureIndex((prev) => (prev >= funcionalidades.length - 1 ? 0 : prev + 1))
             }
             
-            // Função para navegar para a página anterior (loop infinito)
-            const prevPage = () => {
-              setCurrentFeaturePage((prev) => (prev <= 1 ? totalFeaturePages : prev - 1))
+            // Função para navegar para o card anterior (loop infinito)
+            const prevCard = () => {
+              setSlideDirection('left')
+              setCurrentFeatureIndex((prev) => (prev <= 0 ? funcionalidades.length - 1 : prev - 1))
             }
 
-            // Lógica para mostrar os cards corretos com loop
-            let currentFeatures: typeof funcionalidades = []
-            if (currentFeaturePage === 1) {
-              // Página 1: mostra 1, 2, 3
-              currentFeatures = funcionalidades.slice(0, 3)
-            } else if (currentFeaturePage === 2) {
-              // Página 2: mostra 4, 5, 1 (loop)
-              currentFeatures = [
-                funcionalidades[3], // 4
-                funcionalidades[4], // 5
-                funcionalidades[0]  // 1 (volta para o início)
-              ]
-            }
+            const currentFeature = funcionalidades[currentFeatureIndex]
 
             return (
-              <div className="relative max-w-6xl mx-auto">
+              <div className="relative max-w-4xl mx-auto">
                 {/* Botão Anterior - Sempre visível */}
                 <button
-                  onClick={prevPage}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 sm:-translate-x-3 md:-translate-x-6 z-10 w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-[#00C2FF] text-white flex items-center justify-center shadow-md hover:bg-[#0099CC] transition-all duration-300 hover:scale-105"
+                  onClick={prevCard}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 sm:-translate-x-3 md:-translate-x-6 z-10 w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] text-white flex items-center justify-center shadow-lg hover:shadow-2xl hover:shadow-[#00C2FF]/50 transition-all duration-300 hover:scale-110 active:scale-100"
                   aria-label="Anterior"
                 >
                   <ChevronLeft size={16} className="sm:w-5 sm:h-5 md:w-6 md:h-6" />
                 </button>
 
-                {/* Grid de 3 Cards com animação */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 relative">
+                {/* Container do Card com animação de slide */}
+                <div className="relative overflow-hidden">
                   <div 
-                    key={currentFeaturePage}
-                    className="col-span-full grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 animate-slide-fade"
+                    key={currentFeatureIndex}
+                    className={`transform transition-transform duration-500 ease-in-out ${
+                      slideDirection === 'right' 
+                        ? 'animate-slide-in-right' 
+                        : 'animate-slide-in-left'
+                    }`}
                   >
-                    {currentFeatures.map((feature) => (
-                      <div key={`${currentFeaturePage}-${feature.numero}`} className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
-                        {/* Header Verde */}
-                        <div className="bg-[#00C2FF] px-3 sm:px-4 py-2 sm:py-3">
-                          <div className="flex items-center justify-center gap-1.5 sm:gap-2">
-                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white flex items-center justify-center">
-                              <span className="text-[#00C2FF] font-bold text-xs sm:text-sm">{feature.numero}</span>
-                            </div>
-                            <h3 className="text-white font-black text-sm sm:text-base md:text-lg text-center">{feature.titulo}</h3>
+                    <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden mx-auto max-w-md">
+                      {/* Header Azul */}
+                      <div className="bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] px-4 sm:px-5 py-3 sm:py-4">
+                        <div className="flex items-center justify-center gap-2 sm:gap-2.5">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white flex items-center justify-center shadow-md">
+                            <span className="text-[#00C2FF] font-bold text-sm sm:text-base">{currentFeature.numero}</span>
                           </div>
+                          <h3 className="text-white font-black text-base sm:text-lg md:text-xl text-center">{currentFeature.titulo}</h3>
                         </div>
-                        
-                        {/* Conteúdo */}
-                        <div className="p-3 sm:p-4">
-                          <p className="text-gray-600 mb-3 sm:mb-4 leading-relaxed text-xs sm:text-sm">
-                            {feature.descricao}
-                          </p>
-                          {/* Imagem do WhatsApp */}
-                          {feature.numero === 1 ? (
-                            <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                              <Image
-                                src="/WhatsApp Image 2025-12-13 at 18.56.42.jpeg"
-                                alt="Exemplo de uso do Comprovante no WhatsApp"
-                                width={600}
-                                height={400}
-                                className="w-full h-auto object-contain"
-                                unoptimized
-                              />
-                            </div>
-                          ) : feature.numero === 2 ? (
-                            <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                              <Image
-                                src="/WhatsApp Image 2025-12-13 at 18.48.38 (1).jpeg"
-                                alt="Exemplo de uso de Mensagem no WhatsApp"
-                                width={600}
-                                height={400}
-                                className="w-full h-auto object-contain"
-                                unoptimized
-                              />
-                            </div>
-                          ) : feature.numero === 3 ? (
-                            <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                              <Image
-                                src="/WhatsApp Image 2025-12-13 at 18.48.38.jpeg"
-                                alt="Exemplo de uso de Lembrete no WhatsApp"
-                                width={600}
-                                height={400}
-                                className="w-full h-auto object-contain"
-                                unoptimized
-                              />
-                            </div>
-                          ) : feature.numero === 4 ? (
-                            <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                              <Image
-                                src="/WhatsApp Image 2025-12-13 at 18.48.37 (1).jpeg"
-                                alt="Exemplo de uso de Relatório no WhatsApp"
-                                width={600}
-                                height={400}
-                                className="w-full h-auto object-contain"
-                                unoptimized
-                              />
-                            </div>
-                          ) : feature.numero === 5 ? (
-                            <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                              <Image
-                                src="/WhatsApp Image 2025-12-13 at 18.48.37.jpeg"
-                                alt="Exemplo de uso de Áudio no WhatsApp"
-                                width={600}
-                                height={400}
-                                className="w-full h-auto object-contain"
-                                unoptimized
-                              />
-                            </div>
+                      </div>
+                      
+                      {/* Conteúdo */}
+                      <div className="p-4 sm:p-5">
+                        <p className="text-gray-600 mb-4 sm:mb-5 leading-relaxed text-sm sm:text-base text-center">
+                          {currentFeature.descricao}
+                        </p>
+                        {/* Imagem do WhatsApp */}
+                        <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+                          {currentFeature.numero === 1 ? (
+                            <Image
+                              src="/WhatsApp Image 2025-12-13 at 18.56.42.jpeg"
+                              alt="Exemplo de uso do Comprovante no WhatsApp"
+                              width={600}
+                              height={400}
+                              className="w-full h-auto object-contain"
+                              unoptimized
+                            />
+                          ) : currentFeature.numero === 2 ? (
+                            <Image
+                              src="/WhatsApp Image 2025-12-13 at 18.48.38 (1).jpeg"
+                              alt="Exemplo de uso de Mensagem no WhatsApp"
+                              width={600}
+                              height={400}
+                              className="w-full h-auto object-contain"
+                              unoptimized
+                            />
+                          ) : currentFeature.numero === 3 ? (
+                            <Image
+                              src="/WhatsApp Image 2025-12-13 at 18.48.38.jpeg"
+                              alt="Exemplo de uso de Lembrete no WhatsApp"
+                              width={600}
+                              height={400}
+                              className="w-full h-auto object-contain"
+                              unoptimized
+                            />
+                          ) : currentFeature.numero === 4 ? (
+                            <Image
+                              src="/WhatsApp Image 2025-12-13 at 18.48.37 (1).jpeg"
+                              alt="Exemplo de uso de Relatório no WhatsApp"
+                              width={600}
+                              height={400}
+                              className="w-full h-auto object-contain"
+                              unoptimized
+                            />
+                          ) : currentFeature.numero === 5 ? (
+                            <Image
+                              src="/WhatsApp Image 2025-12-13 at 18.48.37.jpeg"
+                              alt="Exemplo de uso de Áudio no WhatsApp"
+                              width={600}
+                              height={400}
+                              className="w-full h-auto object-contain"
+                              unoptimized
+                            />
                           ) : (
                             <div className="bg-gray-100 rounded-lg h-48 flex items-center justify-center border-2 border-dashed border-gray-300">
                               <span className="text-gray-400 text-xs text-center px-4">Imagem do WhatsApp<br/>será adicionada aqui</span>
@@ -741,14 +724,14 @@ export default function LandingPage() {
                           )}
                         </div>
                       </div>
-                    ))}
+                    </div>
                   </div>
                 </div>
 
                 {/* Botão Próximo - Sempre visível */}
                 <button
-                  onClick={nextPage}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 sm:translate-x-3 md:translate-x-6 z-10 w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-[#00C2FF] text-white flex items-center justify-center shadow-md hover:bg-[#0099CC] transition-all duration-300 hover:scale-105"
+                  onClick={nextCard}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 sm:translate-x-3 md:translate-x-6 z-10 w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] text-white flex items-center justify-center shadow-lg hover:shadow-2xl hover:shadow-[#00C2FF]/50 transition-all duration-300 hover:scale-110 active:scale-100"
                   aria-label="Próximo"
                 >
                   <ChevronRight size={16} className="sm:w-5 sm:h-5 md:w-6 md:h-6" />
@@ -756,7 +739,23 @@ export default function LandingPage() {
 
                 {/* Indicador de Página */}
                 <div className="flex justify-center items-center gap-2 mt-4 sm:mt-6">
-                  <span className="text-xs text-gray-600">{currentFeaturePage}/{totalFeaturePages}</span>
+                  <div className="flex gap-1.5">
+                    {funcionalidades.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          setSlideDirection(index > currentFeatureIndex ? 'right' : 'left')
+                          setCurrentFeatureIndex(index)
+                        }}
+                        className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                          index === currentFeatureIndex
+                            ? 'bg-[#00C2FF] w-6'
+                            : 'bg-gray-300 hover:bg-gray-400'
+                        }`}
+                        aria-label={`Ir para funcionalidade ${index + 1}`}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             )
