@@ -157,6 +157,11 @@ export default function NotificationPopup() {
     // Só mostrar se estiver na landing page E não estiver autenticado
     const shouldShow = pathname === '/' && !isAuthenticated
     setIsVisible(shouldShow)
+    
+    // Limpar notificações se não deve mostrar
+    if (!shouldShow) {
+      setNotifications([])
+    }
   }, [pathname, isAuthenticated, isChecking])
 
   useEffect(() => {
@@ -194,7 +199,10 @@ export default function NotificationPopup() {
     }
   }, [isVisible])
 
-  if (notifications.length === 0) return null
+  // Não mostrar se estiver verificando, autenticado, ou não estiver na landing page
+  if (isChecking || isAuthenticated || pathname !== '/' || notifications.length === 0) {
+    return null
+  }
 
   return (
     <div className="fixed bottom-4 left-3 sm:bottom-6 sm:left-6 z-[100] space-y-2 sm:space-y-3">

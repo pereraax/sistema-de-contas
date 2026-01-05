@@ -52,6 +52,14 @@ export function registerSentMessage(phoneNumber: string, message: string) {
   const key = `${phoneNumber}-${message.substring(0, 100)}`
   sentMessages.set(key, Date.now())
   console.log('📝 [WhatsApp PLEN] Mensagem enviada registrada:', key.substring(0, 50))
+  
+  // Adicionar log ao sistema
+  try {
+    const { addLog } = require('@/lib/server-logs')
+    addLog('info', `📝 [WhatsApp PLEN] Mensagem enviada registrada: ${phoneNumber}-${message.substring(0, 50)}`)
+  } catch (e) {
+    // Ignorar erro
+  }
 }
 
 /**
@@ -208,6 +216,15 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
     }
     
     console.log('✅ [WhatsApp PLEN] Resultado válido, retornando resposta')
+    
+    // Adicionar log ao sistema
+    try {
+      const { addLog } = await import('@/lib/server-logs')
+      addLog('info', `✅ [WhatsApp PLEN] Resultado válido, retornando resposta - Success: ${plenResult?.success}, HasMessage: ${!!plenResult?.message}`)
+    } catch (e) {
+      // Ignorar erro de importação
+    }
+    
     return plenResult
   } catch (error: any) {
     console.error('❌ [WhatsApp PLEN] ==========================================')
@@ -564,6 +581,9 @@ async function authenticateWhatsAppUser(
  */
 async function processWithPLEN(userId: string, text: string, imageBase64?: string) {
   try {
+    // Importar addLog dinamicamente para evitar problemas de circular dependency
+    const { addLog } = await import('@/lib/server-logs')
+    
     // Chamar API especial do PLEN para WhatsApp (não precisa autenticação)
     // CRÍTICO: Em ambiente server-side, usar URL absoluta baseada no host da requisição
     // Se não tiver, usar localhost como fallback
@@ -576,16 +596,20 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
     
     const url = `${apiUrl}/api/plen/whatsapp-chat`
     
-    console.log('📞 [WhatsApp PLEN] ==========================================')
-    console.log('📞 [WhatsApp PLEN] CHAMANDO API PLEN WHATSAPP')
+    // Logar ANTES de fazer fetch
+    console.log('='.repeat(80))
+    console.log('📞📞📞 [WhatsApp PLEN] CHAMANDO API PLEN WHATSAPP 📞📞📞')
     console.log('📞 [WhatsApp PLEN] URL:', url)
-    console.log('📞 [WhatsApp PLEN] API URL Base:', apiUrl)
     console.log('📞 [WhatsApp PLEN] User ID:', userId)
-    console.log('📞 [WhatsApp PLEN] Text Length:', text.length)
-    console.log('📞 [WhatsApp PLEN] Text Preview:', typeof text === 'string' ? text.substring(0, 100) : String(text).substring(0, 100))
-    console.log('📞 [WhatsApp PLEN] Has Image:', !!imageBase64)
-    console.log('📞 [WhatsApp PLEN] Image Size:', imageBase64 ? imageBase64.length : 0)
-    console.log('📞 [WhatsApp PLEN] ==========================================')
+    console.log('📞 [WhatsApp PLEN] Text:', text.substring(0, 100))
+    console.log('='.repeat(80))
+    console.error('📞 [WhatsApp PLEN] CHAMANDO API (stderr)!', url)
+    
+    try {
+      addLog('info', `📞 [WhatsApp PLEN] CHAMANDO API: ${url}`)
+    } catch (e) {
+      console.error('Erro ao adicionar log:', e)
+    }
     
     // CRÍTICO: Adicionar timeout e melhor tratamento de erros
     const controller = new AbortController()
@@ -607,11 +631,15 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
       
       clearTimeout(timeoutId)
 
+      const statusMsg = `📡 [WhatsApp PLEN] Status da resposta: ${response.status} ${response.statusText}`
       console.log('📡 [WhatsApp PLEN] Status da resposta:', response.status, response.statusText)
+      addLog('info', statusMsg)
 
       // Ler resposta como texto primeiro para debug
       const responseText = await response.text()
-      console.log('📡 [WhatsApp PLEN] Resposta bruta (primeiros 500 chars):', responseText.substring(0, 500))
+      const responsePreview = responseText.substring(0, 500)
+      console.log('📡 [WhatsApp PLEN] Resposta bruta (primeiros 500 chars):', responsePreview)
+      addLog('info', `📡 [WhatsApp PLEN] Resposta: ${responsePreview}`)
       
       let data: any = {}
       try {

@@ -47,9 +47,44 @@ export default function ModalConfirmacao({
 
   const cor = cores[tipo]
 
+  // Bloquear scroll do body quando o modal estiver aberto
+  useEffect(() => {
+    const scrollY = window.scrollY
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
+      document.body.style.overflow = ''
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY.toString()) * -1)
+      }
+    }
+  }, [])
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl shadow-2xl max-w-sm w-full p-6 animate-slide-up border-2 border-brand-aqua/30 dark:border-brand-aqua/40">
+    <div 
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onCancelar()
+        }
+      }}
+      onTouchMove={(e) => {
+        // Prevenir scroll no backdrop
+        if (e.target === e.currentTarget) {
+          e.preventDefault()
+        }
+      }}
+    >
+      <div 
+        className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl shadow-2xl max-w-sm w-full p-6 animate-slide-up border-2 border-brand-aqua/30 dark:border-brand-aqua/40 my-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center gap-3 mb-5">
           <div className={`p-3 ${cor.bg} rounded-xl shadow-lg`}>
             <AlertTriangle className={cor.icon} size={24} strokeWidth={2.5} />

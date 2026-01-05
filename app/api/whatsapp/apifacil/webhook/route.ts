@@ -94,6 +94,14 @@ export async function POST(request: NextRequest) {
   console.log(`${logPrefix} 🚀 [Apifacil Webhook] URL:`, request.url)
   console.log('='.repeat(80))
   
+  // Adicionar ao sistema de logs
+  try {
+    const { addLog } = await import('@/lib/server-logs')
+    addLog('info', `🚀🚀🚀 [Apifacil Webhook] WEBHOOK CHAMADO! ${timestamp}`)
+  } catch (e) {
+    console.error('Erro ao adicionar log:', e)
+  }
+  
   // Também logar no stderr para garantir que aparece
   console.error(`${logPrefix} 🚀 [Apifacil Webhook] WEBHOOK CHAMADO (stderr)!`, timestamp)
   
@@ -383,6 +391,18 @@ export async function POST(request: NextRequest) {
       console.log('✅ [Apifacil Webhook] Tipo Mensagem:', body.tipo_mensagem)
       console.log('✅ [Apifacil Webhook] URL Media:', body.url_media)
       console.log('✅ [Apifacil Webhook] Media URL:', body.media_url)
+      
+      // Adicionar logs importantes ao sistema
+      try {
+        const { addLog } = await import('@/lib/server-logs')
+        addLog('info', `📨 [Apifacil Webhook] Tipo Envio: ${body.tipo_envio || 'N/A'}, Origem: ${body.origem || 'N/A'}, Destino: ${body.destino || 'N/A'}`)
+        if (body.mensagem) {
+          addLog('info', `📨 [Apifacil Webhook] Mensagem: ${body.mensagem.substring(0, 100)}`)
+        }
+      } catch (e) {
+        console.error('Erro ao adicionar log:', e)
+      }
+      
       console.log('✅ [Apifacil Webhook] Mensagem completa (primeiros 500 chars):', JSON.stringify({
         mensagem: body.mensagem,
         caption: body.caption,
@@ -479,6 +499,15 @@ export async function POST(request: NextRequest) {
         console.log('⚠️ [Apifacil Webhook] Tipo Envio:', body.tipo_envio)
         console.log('⚠️ [Apifacil Webhook] Origem:', body.origem)
         console.log('⚠️ [Apifacil Webhook] Destino:', body.destino)
+        
+        // Adicionar log ao sistema
+        try {
+          const { addLog } = await import('@/lib/server-logs')
+          addLog('warn', `⚠️ [Apifacil Webhook] Mensagem ENVIADA por nós detectada, ignorando - Tipo: ${body.tipo_envio}, Origem: ${body.origem}, Destino: ${body.destino}`)
+        } catch (e) {
+          console.error('Erro ao adicionar log:', e)
+        }
+        
         return NextResponse.json({ success: true, message: 'Ignorado (mensagem enviada por nós)' }, { status: 200 })
       }
       
@@ -494,6 +523,14 @@ export async function POST(request: NextRequest) {
       console.log('✅ [Apifacil Webhook] Tipo Envio:', body.tipo_envio || 'não especificado')
       console.log('✅ [Apifacil Webhook] Origem:', body.origem)
       console.log('✅ [Apifacil Webhook] Destino:', body.destino)
+      
+      // Adicionar log ao sistema
+      try {
+        const { addLog } = await import('@/lib/server-logs')
+        addLog('info', `✅ [Apifacil Webhook] Mensagem RECEBIDA - Tipo: ${body.tipo_envio || 'N/A'}, Origem: ${body.origem || 'N/A'}, Destino: ${body.destino || 'N/A'}`)
+      } catch (e) {
+        console.error('Erro ao adicionar log:', e)
+      }
       
       // Extrair número do remetente (formato oficial do apifacil.dev)
       // IMPORTANTE: Para mensagens RECEBIDAS, o remetente é quem enviou para nós
@@ -1044,6 +1081,10 @@ export async function POST(request: NextRequest) {
       })
       
       try {
+        // Adicionar ao sistema de logs também
+        const { addLog } = await import('@/lib/server-logs')
+        addLog('info', `📨📨📨 [Apifacil Webhook] MENSAGEM RECEBIDA! Phone: ${phoneNumber}, Text: ${text?.substring(0, 100) || 'sem texto'}`)
+        
         addSendLog({
           timestamp: initialLogTimestamp,
           phoneNumber: phoneNumber,
@@ -1282,6 +1323,14 @@ export async function POST(request: NextRequest) {
           })
         }
         
+        // Adicionar log antes de processar
+        try {
+          const { addLog } = await import('@/lib/server-logs')
+          addLog('info', `🔄 [Apifacil Webhook] Processando mensagem: ${text?.substring(0, 100) || 'sem texto'}`)
+        } catch (e) {
+          console.error('Erro ao adicionar log:', e)
+        }
+        
         const result = await processWhatsAppMessage(messageData)
         
         console.log('🔄 [Apifacil Webhook] ==========================================')
@@ -1291,6 +1340,19 @@ export async function POST(request: NextRequest) {
         console.log('🔄 [Apifacil Webhook] Result tem message?', !!result?.message)
         console.log('🔄 [Apifacil Webhook] Result completo:', result ? JSON.stringify(result, null, 2).substring(0, 1000) : 'null')
         console.log('🔄 [Apifacil Webhook] ==========================================')
+        
+        // Adicionar log do resultado
+        try {
+          const { addLog } = await import('@/lib/server-logs')
+          addLog('info', `🔄 [Apifacil Webhook] RESULTADO DO PROCESSAMENTO - Success: ${result?.success}, HasMessage: ${!!result?.message}`)
+          if (result?.success && result?.message) {
+            addLog('info', `✅ [Apifacil Webhook] Mensagem processada com sucesso! Resposta: ${result.message.substring(0, 100)}`)
+          } else {
+            addLog('warn', `⚠️ [Apifacil Webhook] Processamento retornou sem sucesso ou sem mensagem`)
+          }
+        } catch (e) {
+          console.error('Erro ao adicionar log:', e)
+        }
         
         // Atualizar log inicial com resultado
         // Buscar novamente o log (pode ter mudado)
@@ -1324,6 +1386,14 @@ export async function POST(request: NextRequest) {
         if (result && result.success && result.message) {
           console.log('✅ [Apifacil Webhook] Resultado válido - tem sucesso e mensagem!')
           console.log('📤 [Apifacil Webhook] Enviando resposta:', result.message.substring(0, 100))
+          
+          // Adicionar log ao sistema
+          try {
+            const { addLog } = await import('@/lib/server-logs')
+            addLog('info', `📤 [Apifacil Webhook] Enviando resposta para ${phoneNumber}: ${result.message.substring(0, 100)}`)
+          } catch (e) {
+            console.error('Erro ao adicionar log:', e)
+          }
           
           // CRÍTICO: Verificar se já enviamos esta mensagem recentemente (evitar duplicação)
           const messageKey = `${phoneNumber}-${result.message.substring(0, 50)}`
@@ -1401,6 +1471,18 @@ export async function POST(request: NextRequest) {
             console.log('📤 [Apifacil Webhook] Data:', sendResult ? JSON.stringify(sendResult, null, 2).substring(0, 500) : 'null')
             console.log('📤 [Apifacil Webhook] ==========================================')
             
+            // Adicionar log ao sistema
+            try {
+              const { addLog } = await import('@/lib/server-logs')
+              if (sendResult?.success) {
+                addLog('info', `✅ [Apifacil Webhook] RESULTADO DO ENVIO - Success: true, Mensagem enviada com sucesso!`)
+              } else {
+                addLog('error', `❌ [Apifacil Webhook] RESULTADO DO ENVIO - Success: false, Error: ${sendResult?.error || 'Desconhecido'}`)
+              }
+            } catch (e) {
+              console.error('Erro ao adicionar log:', e)
+            }
+            
             // Atualizar log com resultado
             const sendLogs = getSendLogs()
             const lastLog = sendLogs[0]
@@ -1416,9 +1498,25 @@ export async function POST(request: NextRequest) {
             
             if (sendResult && sendResult.success) {
               console.log('✅ [Apifacil Webhook] Resposta enviada com sucesso!')
+              
+              // Adicionar log ao sistema
+              try {
+                const { addLog } = await import('@/lib/server-logs')
+                addLog('info', `✅ [Apifacil Webhook] Resposta enviada com sucesso para ${phoneNumber}!`)
+              } catch (e) {
+                console.error('Erro ao adicionar log:', e)
+              }
             } else {
               console.error('❌ [Apifacil Webhook] Erro ao enviar resposta:', sendResult?.error || 'Erro desconhecido')
               console.error('❌ [Apifacil Webhook] SendResult completo:', JSON.stringify(sendResult, null, 2))
+              
+              // Adicionar log de erro ao sistema
+              try {
+                const { addLog } = await import('@/lib/server-logs')
+                addLog('error', `❌ [Apifacil Webhook] Erro ao enviar resposta: ${sendResult?.error || 'Erro desconhecido'}`)
+              } catch (e) {
+                console.error('Erro ao adicionar log:', e)
+              }
             }
           } catch (sendError: any) {
             console.error('❌ [Apifacil Webhook] Erro ao enviar mensagem:', sendError.message)

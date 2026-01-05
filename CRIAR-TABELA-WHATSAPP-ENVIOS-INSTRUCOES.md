@@ -36,3 +36,4 @@ FROM whatsapp_envios
 GROUP BY account_owner_id
 ORDER BY total_envios DESC;
 ```
+

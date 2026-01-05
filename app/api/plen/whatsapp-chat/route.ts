@@ -10,6 +10,7 @@ import { criarRegistro } from '@/lib/actions'
 import { obterPlanoUsuario, obterFeaturesUsuario, podeCriarRegistro } from '@/lib/plano'
 import { format, startOfWeek, addDays, parse, setHours, setMinutes, setSeconds, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
+import { addLog } from '@/lib/server-logs'
 
 /**
  * Função para identificar se é familiar/pessoa
@@ -459,6 +460,23 @@ Retorne APENAS o JSON válido, sem markdown, sem explicações, sem texto adicio
 async function processarComando(mensagem: string) {
   const msgLower = mensagem.toLowerCase().trim()
   const msgOriginal = mensagem.trim() // Preservar mensagem original para extração de nomes
+  
+  // CRÍTICO: Verificar "verificar conta" PRIMEIRO, antes de qualquer outro processamento
+  // Verificar se contém palavras-chave relacionadas a verificar conta
+  const msgLowerTrim = msgLower.trim()
+  const temVerificar = /verificar|ver/i.test(msgLowerTrim)
+  const temConta = /conta|dados|informa[çc][õo]es/i.test(msgLowerTrim)
+  const temMinhaConta = /minha\s+conta|meus\s+dados/i.test(msgLowerTrim)
+  
+  // Se tem "verificar conta" ou variações
+  if ((temVerificar && temConta) || temMinhaConta || msgLowerTrim === 'verificar conta' || msgLowerTrim === 'ver conta') {
+    console.log('✅ [PLEN WhatsApp] ==========================================')
+    console.log('✅ [PLEN WhatsApp] COMANDO "VERIFICAR CONTA" DETECTADO!')
+    console.log('✅ [PLEN WhatsApp] Mensagem original:', mensagem)
+    console.log('✅ [PLEN WhatsApp] Mensagem lowercase:', msgLowerTrim)
+    console.log('✅ [PLEN WhatsApp] ==========================================')
+    return { tipo: 'verificar_conta', dados: {} }
+  }
   
   // CRÍTICO: Verificar se é lembrete PRIMEIRO, antes de processar valores
   // Isso evita confundir "11 horas" com valor monetário
@@ -963,6 +981,7 @@ async function processarComando(mensagem: string) {
     }
   }
 
+
   // Consultas - IMPORTANTE: só consultar se NÃO for um registro de dívida E não tiver valor
   // Se tem valor numérico, é sempre um registro, não uma consulta
   const temValor = valor !== null && valor > 0
@@ -1025,8 +1044,31 @@ async function processarComando(mensagem: string) {
 }
 
 export async function POST(request: NextRequest) {
+  // CRÍTICO: Log IMEDIATO no início, antes de qualquer coisa
+  const timestamp = new Date().toISOString()
+  
+  // Logar no console E no sistema de logging
+  const endpointMsg = `🚀🚀🚀 [PLEN WhatsApp] ENDPOINT CHAMADO! 🚀🚀🚀 Timestamp: ${timestamp}`
+  console.log('='.repeat(80))
+  console.log(endpointMsg)
+  console.log('🚀 [PLEN WhatsApp] URL:', request.url)
+  console.log('='.repeat(80))
+  addLog('info', endpointMsg)
+  addLog('info', `🚀 [PLEN WhatsApp] URL: ${request.url}`)
+  
   try {
     const { userId, message, imageBase64 } = await request.json()
+    
+    const dadosLog = {
+      userId: userId?.substring(0, 8) + '...',
+      hasMessage: !!message,
+      hasImage: !!imageBase64,
+      messagePreview: message?.substring(0, 50) || 'N/A'
+    }
+    
+    const dadosMsg = `📥 [PLEN WhatsApp] Dados recebidos: ${JSON.stringify(dadosLog)}`
+    console.log(dadosMsg)
+    addLog('info', dadosMsg)
 
     if (!userId || (!message && !imageBase64)) {
       console.error('❌ [PLEN WhatsApp] Parâmetros inválidos:', { userId, hasMessage: !!message, hasImage: !!imageBase64 })
@@ -1068,6 +1110,16 @@ export async function POST(request: NextRequest) {
         response: '❌ Usuário não encontrado. Verifique se sua conta está ativa.',
       })
     }
+    
+    // Log detalhado do profile buscado
+    console.log('👤 [PLEN WhatsApp] Profile buscado:', {
+      id: profile.id,
+      email: profile.email,
+      plano: profile.plano,
+      planoTipo: typeof profile.plano,
+      planoRaw: JSON.stringify(profile.plano)
+    })
+    addLog('info', `👤 [PLEN WhatsApp] Profile encontrado - Email: ${profile.email}, Plano: ${profile.plano} (tipo: ${typeof profile.plano})`)
 
     // Buscar dados do usuário
     // CRÍTICO: A tabela registros NÃO tem account_owner_id, apenas user_id
@@ -1174,6 +1226,8 @@ export async function POST(request: NextRequest) {
     } else {
       comando = await processarComando(message)
       console.log('🔍 [PLEN WhatsApp] Comando detectado:', comando.tipo, comando.dados)
+      console.log('🔍 [PLEN WhatsApp] Mensagem original:', message)
+      console.log('🔍 [PLEN WhatsApp] Mensagem em lowercase:', message.toLowerCase().trim())
     }
 
     // Executar ação se necessário
@@ -1182,7 +1236,26 @@ export async function POST(request: NextRequest) {
       
       // Verificar permissões do plano (versão que aceita userId)
       // Como estamos usando Admin Client, vamos buscar o plano do profile diretamente
-      const plano = (profile.plano || 'teste') as 'teste' | 'basico' | 'premium'
+      
+      // CRÍTICO: Normalizar o plano para garantir comparação correta
+      const planoRaw = profile.plano
+      const planoNormalizado = typeof planoRaw === 'string' ? planoRaw.toLowerCase().trim() : null
+      const plano = (planoNormalizado || 'teste') as 'teste' | 'basico' | 'premium'
+      
+      // Log detalhado para debug
+      console.log('🔍 [PLEN WhatsApp] ==========================================')
+      console.log('🔍 [PLEN WhatsApp] DETECÇÃO DE PLANO - DEBUG COMPLETO')
+      console.log('🔍 [PLEN WhatsApp] Profile.plano (raw):', profile.plano)
+      console.log('🔍 [PLEN WhatsApp] Profile.plano (tipo):', typeof profile.plano)
+      console.log('🔍 [PLEN WhatsApp] Plano normalizado:', planoNormalizado)
+      console.log('🔍 [PLEN WhatsApp] Plano final:', plano)
+      console.log('🔍 [PLEN WhatsApp] User ID:', userId?.substring(0, 8) + '...')
+      console.log('🔍 [PLEN WhatsApp] É teste?', plano === 'teste')
+      console.log('🔍 [PLEN WhatsApp] Comparação string:', `"${plano}" === "teste"`)
+      console.log('🔍 [PLEN WhatsApp] ==========================================')
+      
+      const planoDetectadoMsg = `🔍 [PLEN WhatsApp] DETECÇÃO DE PLANO - Raw: ${profile.plano}, Normalizado: ${planoNormalizado}, Final: ${plano}, É teste? ${plano === 'teste'}`
+      addLog('info', planoDetectadoMsg)
       
       // Obter features baseado no plano
       // IMPORTANTE: obterFeaturesUsuario precisa de autenticação, mas estamos usando Admin Client
@@ -1190,7 +1263,7 @@ export async function POST(request: NextRequest) {
       const features = {
         teste: {
           podeCriarRegistros: true,
-          limiteRegistrosMensais: 50,
+          limiteRegistrosMensais: 10,
           podeCriarDividas: false,
           podeCriarEmprestimos: false,
           podeRegistrarSalario: false,
@@ -1248,20 +1321,79 @@ export async function POST(request: NextRequest) {
       }[plano]
       
       // Verificar limite de registros (adaptado para funcionar sem sessão)
-      // Contar registros do mês atual
+      // IMPORTANTE: Contar TODOS os registros do mês atual de TODOS os usuários do account_owner_id
       const hoje = new Date()
       const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+      const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59, 999)
+      
+      // Contar registros do mês atual usando created_at (data de criação)
+      // CRÍTICO: Contar TODOS os tipos de registros (entrada, saida, divida)
       const registrosMesAtual = registros.filter((r: any) => {
-        const dataRegistro = new Date(r.data_registro)
-        return dataRegistro >= inicioMes
+        // SEMPRE usar created_at para contar (quando o registro foi criado)
+        // Se não tem created_at, usar data_registro como fallback
+        let dataCriacao: Date
+        if (r.created_at) {
+          dataCriacao = new Date(r.created_at)
+        } else if (r.data_registro) {
+          dataCriacao = new Date(r.data_registro)
+        } else {
+          // Se não tem nenhuma data, não contar
+          return false
+        }
+        // Verificar se está dentro do mês atual
+        return dataCriacao >= inicioMes && dataCriacao <= fimMes
       }).length
+      
+      // Log detalhado dos registros do mês para debug
+      const registrosMesDetalhados = registros.filter((r: any) => {
+        let dataCriacao: Date
+        if (r.created_at) {
+          dataCriacao = new Date(r.created_at)
+        } else if (r.data_registro) {
+          dataCriacao = new Date(r.data_registro)
+        } else {
+          return false
+        }
+        return dataCriacao >= inicioMes && dataCriacao <= fimMes
+      })
+      
+      console.log('📊 [PLEN WhatsApp] Detalhes dos registros do mês:')
+      registrosMesDetalhados.forEach((r: any, index: number) => {
+        console.log(`  ${index + 1}. Tipo: ${r.tipo}, Valor: ${r.valor}, Created: ${r.created_at}, Data: ${r.data_registro}`)
+      })
+      
+      console.log('📊 [PLEN WhatsApp] ==========================================')
+      console.log('📊 [PLEN WhatsApp] VERIFICAÇÃO DE LIMITE DE REGISTROS MENSAL')
+      console.log('📊 [PLEN WhatsApp] Plano:', plano)
+      console.log('📊 [PLEN WhatsApp] Limite configurado:', features.limiteRegistrosMensais)
+      console.log('📊 [PLEN WhatsApp] Registros encontrados (total):', registros.length)
+      console.log('📊 [PLEN WhatsApp] Registros do mês atual:', registrosMesAtual)
+      console.log('📊 [PLEN WhatsApp] Início do mês:', inicioMes.toISOString())
+      console.log('📊 [PLEN WhatsApp] Fim do mês:', fimMes.toISOString())
+      console.log('📊 [PLEN WhatsApp] ==========================================')
+      
+      addLog('info', `📊 [PLEN WhatsApp] VERIFICAÇÃO DE LIMITE - Plano: ${plano}, Limite: ${features.limiteRegistrosMensais}, Registros do mês: ${registrosMesAtual}`)
       
       // Limite baseado no plano (usar features.limiteRegistrosMensais)
       const limite = features.limiteRegistrosMensais === null ? -1 : features.limiteRegistrosMensais
+      
+      // CRÍTICO: Verificar se atingiu ou EXCEDEU o limite
+      // Se limite é 10, permite criar até 9 registros (0-9), bloqueia no 10º
+      // IMPORTANTE: A verificação deve ser < limite, não <=
+      // Exemplo: limite = 10, registrosMesAtual = 10 → 10 < 10 = false → BLOQUEIA ✓
+      // Exemplo: limite = 10, registrosMesAtual = 9 → 9 < 10 = true → PERMITE ✓
       const podeCriar = limite === -1 || registrosMesAtual < limite
+      
+      console.log('📊 [PLEN WhatsApp] Limite:', limite, '| Registros atuais:', registrosMesAtual, '| Pode criar?', podeCriar)
+      
       if (!podeCriar) {
+        const mensagemLimite = `❌ Limite de registros mensais atingido para o plano ${plano.toUpperCase()}.\n\n📊 Você já criou ${registrosMesAtual} registro(s) este mês.\n📌 O limite é de ${limite} registro(s) por mês.\n\n💼 Assine um plano Básico ou Premium e tenha registros ilimitados:\n🔗 plenipay.com/planos\n\n✨ Conheça nossos planos e escolha o ideal para você!`
+        
+        console.log('❌ [PLEN WhatsApp] LIMITE ATINGIDO! Bloqueando criação de registro.')
+        addLog('warn', `❌ [PLEN WhatsApp] LIMITE DE REGISTROS MENSAL ATINGIDO! Plano: ${plano}, Registros: ${registrosMesAtual}/${limite}`)
+        
         return NextResponse.json({
-          response: `❌ Limite de registros mensais atingido para o plano ${plano.toUpperCase()}. Você já criou ${registrosMesAtual} registro(s) este mês. O limite é ${limite}.\n\n💼 Assine um plano Básico ou Premium e tenha registros ilimitados:\n🔗 plenipay.com/planos\n\n✨ Conheça nossos planos e escolha o ideal para você!`,
+          response: mensagemLimite,
         })
       }
 
@@ -1300,30 +1432,139 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // VERIFICAR LIMITE DE ENVIOS VIA WHATSAPP PARA PLANO GRATUITO
-      if (plano === 'teste') {
-        // Contar envios via WhatsApp do usuário (todos os tempos, não apenas mensais)
-        const { data: enviosWhatsapp, error: enviosError } = await supabaseAdmin
-          .from('whatsapp_envios')
-          .select('id')
-          .eq('account_owner_id', userId)
+      // ✅ NOVA IMPLEMENTAÇÃO: Verificar limite de envios via WhatsApp usando função dedicada
+      // Esta função é mais robusta e isolada, garantindo que a verificação sempre funcione
+      const { checkAndRegisterWhatsAppLimit } = await import('@/lib/whatsapp-limit-checker')
+      
+      console.log('🔥🔥🔥 [PLEN WhatsApp] VERIFICANDO LIMITE DE ENVIOS WHATSAPP 🔥🔥🔥')
+      addLog('info', '🔥🔥🔥 [PLEN WhatsApp] VERIFICANDO LIMITE DE ENVIOS WHATSAPP 🔥🔥🔥')
+      
+      const limitResult = await checkAndRegisterWhatsAppLimit(userId, comando.tipo)
+      
+      // Se não permitir, retornar mensagem de bloqueio
+      if (!limitResult.allowed) {
+        console.log('❌ [PLEN WhatsApp] LIMITE BLOQUEADO:', limitResult.message)
+        addLog('warn', `❌ [PLEN WhatsApp] LIMITE BLOQUEADO: ${limitResult.message?.substring(0, 100)}`)
+        return NextResponse.json({
+          response: limitResult.message || `❌ Limite de envios atingido. Você já enviou ${limitResult.currentCount} registro(s) via WhatsApp no plano gratuito.`,
+        })
+      }
+      
+      // Se permitir, continuar com o processamento
+      console.log('✅ [PLEN WhatsApp] LIMITE OK - Pode continuar:', {
+        currentCount: limitResult.currentCount,
+        limit: limitResult.limit,
+        hasError: !!limitResult.error
+      })
+      addLog('info', `✅ [PLEN WhatsApp] LIMITE OK - Total: ${limitResult.currentCount} / ${limitResult.limit === -1 ? 'ilimitado' : limitResult.limit}`)
+      
+      if (limitResult.error) {
+        // Logar erro mas continuar (fail-open)
+        console.warn('⚠️ [PLEN WhatsApp] Erro na verificação (permitindo):', limitResult.error)
+        addLog('warn', `⚠️ [PLEN WhatsApp] Erro na verificação (permitindo): ${limitResult.error}`)
+      }
+      
+      // CÓDIGO ANTIGO REMOVIDO - substituído pela função checkAndRegisterWhatsAppLimit
+      // Mantido apenas para referência histórica (remover após testes)
+      /*
+      if (false && isPlanoTeste) {
+        // LOG CLARO - SEMPRE EXECUTA (CONSOLE E MEMÓRIA)
+        const logMsg1 = '🔥🔥🔥 PLANO TESTE - VERIFICANDO LIMITE 🔥🔥🔥'
+        console.log('\n' + '='.repeat(80))
+        console.log(logMsg1)
+        console.log('='.repeat(80))
+        addLog('info', logMsg1)
         
-        const totalEnvios = enviosWhatsapp?.length || 0
         const LIMITE_ENVIOS_GRATUITO = 7
         
-        console.log('🔍 [PLEN WhatsApp] Verificando limite de envios:', {
-          plano,
-          totalEnvios,
-          limite: LIMITE_ENVIOS_GRATUITO
-        })
-        
-        if (totalEnvios >= LIMITE_ENVIOS_GRATUITO) {
-          console.log('❌ [PLEN WhatsApp] Limite de envios excedido para plano gratuito')
-          return NextResponse.json({
-            response: `❌ Você excedeu o limite de ${LIMITE_ENVIOS_GRATUITO} envios de registros via WhatsApp no plano gratuito.\n\n📊 Você já enviou ${totalEnvios} registro(s) via WhatsApp.\n\n💼 Para continuar usando o assistente WhatsApp sem limites, assine um plano:\n\n🔗 plenipay.com/planos\n\n✨ Assine agora e tenha acesso ilimitado a todas as funcionalidades!`,
-          })
+        try {
+          // PASSO 1: Contar envios atuais
+          const { data: enviosAtuais, error: errorContagem } = await supabaseAdmin
+            .from('whatsapp_envios')
+            .select('id')
+            .eq('account_owner_id', userId)
+          
+          if (errorContagem) {
+            const errorMsg = `❌ ERRO ao contar envios: ${errorContagem.message}`
+            console.error(errorMsg)
+            addLog('error', errorMsg)
+          }
+          
+          const totalAtual = enviosAtuais?.length || 0
+          const totalMsg = `📊 Total de envios: ${totalAtual} / ${LIMITE_ENVIOS_GRATUITO}`
+          console.log(totalMsg)
+          addLog('info', totalMsg)
+          
+          // PASSO 2: Se já atingiu o limite, BLOQUEAR
+          if (totalAtual >= LIMITE_ENVIOS_GRATUITO) {
+            const limiteMsg = `❌ LIMITE EXCEDIDO! Bloqueando... Total: ${totalAtual}`
+            console.log(limiteMsg)
+            addLog('warn', limiteMsg)
+            return NextResponse.json({
+              response: `❌ Você excedeu o limite de ${LIMITE_ENVIOS_GRATUITO} envios de registros via WhatsApp no plano gratuito.\n\n📊 Você já enviou ${totalAtual} registro(s) via WhatsApp.\n\n💼 Para continuar usando o assistente WhatsApp sem limites, assine um plano:\n\n🔗 plenipay.com/planos\n\n✨ Assine agora e tenha acesso ilimitado a todas as funcionalidades!`,
+            })
+          }
+          
+          // PASSO 3: INSERIR o novo envio ANTES de processar
+          const tipoRegistroEnvio = comando.tipo === 'registrar_entrada' ? 'entrada' : 
+                                   comando.tipo === 'registrar_divida' ? 'divida' : 'saida'
+          
+          const insertMsg = `📝 Inserindo envio: ${tipoRegistroEnvio}`
+          console.log(insertMsg)
+          addLog('info', insertMsg)
+          
+          const { data: envioInserido, error: envioError } = await supabaseAdmin
+            .from('whatsapp_envios')
+            .insert({
+              account_owner_id: userId,
+              tipo_registro: tipoRegistroEnvio,
+              created_at: new Date().toISOString()
+            })
+            .select()
+          
+          if (envioError) {
+            const errorInsertMsg = `❌ ERRO AO INSERIR! Código: ${envioError.code}, Mensagem: ${envioError.message}, Detalhes: ${envioError.details || 'N/A'}, Hint: ${envioError.hint || 'N/A'}`
+            console.error('='.repeat(80))
+            console.error('❌❌❌ ERRO CRÍTICO NA INSERÇÃO ❌❌❌')
+            console.error(errorInsertMsg)
+            console.error('User ID:', userId)
+            console.error('Tipo registro:', tipoRegistroEnvio)
+            console.error('Erro completo:', JSON.stringify(envioError, null, 2))
+            console.error('='.repeat(80))
+            addLog('error', errorInsertMsg)
+            // CRÍTICO: Logar também com process.stdout.write para garantir que aparece
+            process.stdout.write(`\n❌ ERRO AO INSERIR: ${envioError.message}\n`)
+          } else {
+            const successMsg = `✅ ENVIO REGISTRADO! ID: ${envioInserido?.[0]?.id}`
+            console.log('='.repeat(80))
+            console.log('✅✅✅ INSERÇÃO BEM-SUCEDIDA ✅✅✅')
+            console.log(successMsg)
+            console.log('='.repeat(80))
+            addLog('info', successMsg)
+            // CRÍTICO: Logar também com process.stdout.write
+            process.stdout.write(`\n✅ ENVIO REGISTRADO: ID ${envioInserido?.[0]?.id}\n`)
+            
+            // Verificar total após inserção
+            const { data: enviosApos } = await supabaseAdmin
+              .from('whatsapp_envios')
+              .select('id')
+              .eq('account_owner_id', userId)
+            
+            const totalApos = enviosApos?.length || 0
+            const totalAposMsg = `📊 Total após inserção: ${totalApos} / ${LIMITE_ENVIOS_GRATUITO}`
+            console.log(totalAposMsg)
+            addLog('info', totalAposMsg)
+            process.stdout.write(`📊 Total: ${totalApos} / ${LIMITE_ENVIOS_GRATUITO}\n`)
+          }
+          
+          console.log('='.repeat(80) + '\n')
+        } catch (error: any) {
+          const criticalErrorMsg = `❌ ERRO CRÍTICO no limite: ${error.message}`
+          console.error(criticalErrorMsg)
+          addLog('error', criticalErrorMsg)
         }
       }
+      */
 
       // Obter usuário da tabela users
       console.log('👤 [PLEN WhatsApp] Buscando usuário para account_owner_id:', userId)
@@ -1419,6 +1660,20 @@ export async function POST(request: NextRequest) {
       }
       
       console.log('✅ [PLEN WhatsApp] Registro criado com sucesso:', registro.id)
+      console.log('📋 [PLEN WhatsApp] Dados do registro criado:', {
+        id: registro.id,
+        user_id: registro.user_id,
+        nome: registro.nome,
+        tipo: registro.tipo,
+        valor: registro.valor,
+        created_at: registro.created_at,
+        data_registro: registro.data_registro
+      })
+      console.log('🔗 [PLEN WhatsApp] Relação: account_owner_id (profile) -> user_id (users) -> registro.user_id:', {
+        account_owner_id: userId.substring(0, 8) + '...',
+        user_id_na_tabela_users: user_id?.substring(0, 8) + '...',
+        registro_user_id: registro.user_id?.substring(0, 8) + '...'
+      })
 
       const tipoNome = comando.tipo === 'registrar_entrada' ? 'entrada' : comando.tipo === 'registrar_divida' ? 'dívida' : 'gasto'
       
@@ -1487,6 +1742,9 @@ export async function POST(request: NextRequest) {
       
       // Construir mensagem no formato solicitado
       const resposta = `📌 ${nomeFinal}\n${emojiValor} R$ ${valorFormatado}\n📅 ${dataFormatada}\n🗂️ Categoria: ${categoriaCapitalizada} ${emojiCategoria}\n\n✨ Seu ${tipoNome} foi registrado com sucesso!`
+      
+      // Adicionar log de sucesso
+      addLog('info', `✨ [PLEN WhatsApp] Registro criado com sucesso! ${tipoNome}: R$ ${valorFormatado}, Categoria: ${categoriaCapitalizada}`)
       
       return NextResponse.json({
         response: resposta,
@@ -1628,6 +1886,81 @@ export async function POST(request: NextRequest) {
     if (comando.tipo === 'total_saidas') {
       return NextResponse.json({
         response: `💸 Total de saídas: R$ ${totalSaidas.toFixed(2)}`,
+      })
+    }
+
+    // Verificar conta - mostrar email, key e data de ativação
+    if (comando.tipo === 'verificar_conta') {
+      console.log('✅ [PLEN WhatsApp] ==========================================')
+      console.log('✅ [PLEN WhatsApp] PROCESSANDO COMANDO VERIFICAR CONTA')
+      console.log('✅ [PLEN WhatsApp] User ID:', userId)
+      console.log('✅ [PLEN WhatsApp] ==========================================')
+      
+      // Buscar dados do perfil (email e whatsapp_key)
+      const { data: profileData, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .select('email, whatsapp_key')
+        .eq('id', userId)
+        .single()
+
+      if (profileError || !profileData) {
+        console.error('❌ [PLEN WhatsApp] Erro ao buscar perfil:', profileError)
+        return NextResponse.json({
+          response: '❌ Erro ao buscar informações da conta. Tente novamente.',
+        })
+      }
+
+      const email = profileData.email || 'Não informado'
+      const whatsappKey = profileData.whatsapp_key || 'Não configurada'
+
+      // Buscar data de ativação da sessão WhatsApp
+      let dataAtivacao: string | null = null
+      try {
+        const { data: sessionData, error: sessionError } = await supabaseAdmin
+          .from('whatsapp_sessions')
+          .select('created_at, updated_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+
+        if (!sessionError && sessionData) {
+          // Usar created_at como data de ativação (primeira vez que foi ativada)
+          dataAtivacao = sessionData.created_at
+        } else if (sessionError && sessionError.code !== 'PGRST116') {
+          // PGRST116 = nenhum resultado encontrado (não é erro crítico)
+          console.warn('⚠️ [PLEN WhatsApp] Erro ao buscar sessão:', sessionError)
+        }
+      } catch (error: any) {
+        // Se a tabela não existe, continuar mesmo assim
+        if (error?.message?.includes('does not exist') || error?.code === '42P01') {
+          console.warn('⚠️ [PLEN WhatsApp] Tabela whatsapp_sessions não existe. Execute o SQL ADICIONAR-WHATSAPP-KEY.sql')
+        } else {
+          console.warn('⚠️ [PLEN WhatsApp] Erro ao buscar sessão:', error)
+        }
+        // Continuar mesmo sem data de ativação
+      }
+
+      // Formatar data de ativação
+      let dataFormatada = 'Não disponível'
+      if (dataAtivacao) {
+        try {
+          const data = new Date(dataAtivacao)
+          dataFormatada = format(data, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+        } catch (error) {
+          console.error('❌ [PLEN WhatsApp] Erro ao formatar data:', error)
+        }
+      }
+
+      // Construir resposta
+      const resposta = `📋 *Informações da sua conta:*\n\n` +
+        `📧 *Email:*\n${email}\n\n` +
+        `🔑 *Chave WhatsApp:*\n${whatsappKey}\n\n` +
+        `📅 *Ativada em:*\n${dataFormatada}\n\n` +
+        `💡 *Dica:* Guarde essas informações em local seguro!`
+
+      return NextResponse.json({
+        response: resposta,
       })
     }
     
@@ -1884,6 +2217,22 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // CRÍTICO: Verificar se é "verificar conta" antes de retornar mensagem padrão
+    // Isso garante que mesmo se o comando não foi detectado antes, ainda será processado aqui
+    const msgLowerCheck = message.toLowerCase().trim()
+    const isVerificarConta = (msgLowerCheck.includes('verificar') && msgLowerCheck.includes('conta')) ||
+                            msgLowerCheck === 'verificar conta' ||
+                            msgLowerCheck === 'ver conta' ||
+                            msgLowerCheck.includes('minha conta') ||
+                            msgLowerCheck.includes('dados da conta')
+    
+    if (isVerificarConta && comando.tipo === 'conversa') {
+      console.log('⚠️ [PLEN WhatsApp] Comando "verificar conta" detectado no fallback!')
+      console.log('⚠️ [PLEN WhatsApp] Forçando tipo para verificar_conta')
+      comando.tipo = 'verificar_conta'
+      // Não retornar aqui, deixar o handler processar
+    }
+
     // Resposta padrão/boas-vindas com mensagem melhorada
     const primeiraMensagem = message.toLowerCase().trim()
     const isBoasVindas = /^(oi|olá|olá!|oi!|hello|hi|bom dia|boa tarde|boa noite)$/i.test(primeiraMensagem)
@@ -1894,10 +2243,12 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Resposta padrão para mensagens não reconhecidas
-    return NextResponse.json({
-      response: `🤔 Ops, não entendi muito bem o que você quis dizer. Mas não se preocupe, vou te ajudar! 😊\n\n📋 Você pode me pedir para:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n\n💡 Dica: Você pode falar de forma natural, como se estivesse conversando comigo! Por exemplo:\n• "gastei 30 reais de ônibus"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais"\n\nDigite "oi" para ver todas as opções disponíveis! 😊`,
-    })
+    // Resposta padrão para mensagens não reconhecidas (apenas se não for verificar_conta)
+    if (comando.tipo !== 'verificar_conta') {
+      return NextResponse.json({
+        response: `🤔 Ops, não entendi muito bem o que você quis dizer. Mas não se preocupe, vou te ajudar! 😊\n\n📋 Você pode me pedir para:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n\n💡 Dica: Você pode falar de forma natural, como se estivesse conversando comigo! Por exemplo:\n• "gastei 30 reais de ônibus"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais"\n\nDigite "oi" para ver todas as opções disponíveis! 😊`,
+      })
+    }
   } catch (error: any) {
     console.error('❌ [PLEN WhatsApp] ==========================================')
     console.error('❌ [PLEN WhatsApp] ERRO GERAL NO PROCESSAMENTO')

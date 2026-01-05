@@ -4,6 +4,7 @@ export interface User {
   id: string
   nome: string
   created_at: string
+  imagem_url?: string
 }
 
 export type RecorrenciaTipo = 'diaria' | 'semanal' | 'quinzenal' | 'mensal' | 'bimestral' | 'trimestral' | 'semestral' | 'anual'

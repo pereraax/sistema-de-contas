@@ -61,6 +61,14 @@ export async function sendTextMessage(
       phoneNumber: cleanPhone,
       messageLength: message.length,
     })
+    
+    // Adicionar log ao sistema
+    try {
+      const { addLog } = await import('@/lib/server-logs')
+      addLog('info', `📤 [Apifacil] Enviando mensagem para ${cleanPhone}, Tamanho: ${message.length} caracteres`)
+    } catch (e) {
+      // Ignorar erro
+    }
 
     const response = await fetch(url, {
       method: 'POST',
@@ -100,6 +108,14 @@ export async function sendTextMessage(
       status: response.status,
       response: responseData,
     })
+    
+    // Adicionar log ao sistema
+    try {
+      const { addLog } = await import('@/lib/server-logs')
+      addLog('info', `✅ [Apifacil] Mensagem enviada com sucesso! Status: ${response.status}, MessageID: ${responseData.id || responseData.messageId || 'N/A'}`)
+    } catch (e) {
+      // Ignorar erro
+    }
 
     return {
       success: true,

@@ -15,12 +15,24 @@ import { createNotification } from './NotificationBell'
 
 interface DividasListaProps {
   dividas: Registro[]
+  usuarios?: User[]
   onDividasChange?: (dividas: Registro[]) => void
 }
 
-export default function DividasLista({ dividas: dividasIniciais, onDividasChange }: DividasListaProps) {
+export default function DividasLista({ dividas: dividasIniciais, usuarios = [], onDividasChange }: DividasListaProps) {
   const router = useRouter()
   const [dividas, setDividas] = useState<Registro[]>(dividasIniciais)
+  
+  // Associar dados do usuário às dívidas
+  const dividasComUsuarios = useMemo(() => {
+    return dividas.map((divida) => {
+      const user = usuarios.find((u) => u.id === divida.user_id)
+      return {
+        ...divida,
+        user: user || undefined,
+      }
+    })
+  }, [dividas, usuarios])
   const [registroEditando, setRegistroEditando] = useState<Registro | null>(null)
   const [dividaPagando, setDividaPagando] = useState<Registro | null>(null)
   const [showModalExcluir, setShowModalExcluir] = useState(false)
@@ -187,11 +199,11 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
   // Filtrar dívidas por termo de busca
   const dividasFiltradas = useMemo(() => {
     if (!searchTerm.trim()) {
-      return dividas
+      return dividasComUsuarios
     }
     
     const termo = searchTerm.toLowerCase().trim()
-    return dividas.filter((d) => {
+    return dividasComUsuarios.filter((d) => {
       const nome = d.nome?.toLowerCase() || ''
       const observacao = limparObservacao(d.observacao)?.toLowerCase() || ''
       const valor = d.valor?.toString() || ''
@@ -529,7 +541,36 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
                       </div>
                       <div>
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Usuário</p>
-                        <p className="text-brand-midnight/80 dark:text-brand-clean/80">👤 {divida.user?.nome || 'N/A'}</p>
+                        {divida.user ? (
+                          <div className="flex items-center gap-2">
+                            {divida.user.imagem_url ? (
+                              <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                <img 
+                                  src={divida.user.imagem_url} 
+                                  alt={divida.user.nome}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement
+                                    target.style.display = 'none'
+                                    const parent = target.parentElement
+                                    if (parent) {
+                                      parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${divida.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                                    }
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                <span className="text-brand-aqua font-bold text-xs">
+                                  {divida.user.nome?.charAt(0).toUpperCase() || '?'}
+                                </span>
+                              </div>
+                            )}
+                            <span className="text-brand-midnight/80 dark:text-brand-clean/80">{divida.user.nome}</span>
+                          </div>
+                        ) : (
+                          <span className="text-brand-midnight/60 dark:text-brand-clean/60">N/A</span>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Categoria</p>
@@ -662,9 +703,36 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
                         </span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">
-                          👤 {divida.user?.nome || 'N/A'}
-                        </span>
+                        {divida.user ? (
+                          <div className="flex items-center gap-2">
+                            {divida.user.imagem_url ? (
+                              <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                <img 
+                                  src={divida.user.imagem_url} 
+                                  alt={divida.user.nome}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement
+                                    target.style.display = 'none'
+                                    const parent = target.parentElement
+                                    if (parent) {
+                                      parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${divida.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                                    }
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                <span className="text-brand-aqua font-bold text-xs">
+                                  {divida.user.nome?.charAt(0).toUpperCase() || '?'}
+                                </span>
+                              </div>
+                            )}
+                            <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">{divida.user.nome}</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-brand-midnight/60 dark:text-brand-clean/60">N/A</span>
+                        )}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
                         <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">
@@ -779,7 +847,36 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
                       </div>
                       <div>
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Usuário</p>
-                        <p className="text-brand-midnight/80 dark:text-brand-clean/80">👤 {divida.user?.nome || 'N/A'}</p>
+                        {divida.user ? (
+                          <div className="flex items-center gap-2">
+                            {divida.user.imagem_url ? (
+                              <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                <img 
+                                  src={divida.user.imagem_url} 
+                                  alt={divida.user.nome}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement
+                                    target.style.display = 'none'
+                                    const parent = target.parentElement
+                                    if (parent) {
+                                      parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${divida.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                                    }
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                <span className="text-brand-aqua font-bold text-xs">
+                                  {divida.user.nome?.charAt(0).toUpperCase() || '?'}
+                                </span>
+                              </div>
+                            )}
+                            <span className="text-brand-midnight/80 dark:text-brand-clean/80">{divida.user.nome}</span>
+                          </div>
+                        ) : (
+                          <span className="text-brand-midnight/60 dark:text-brand-clean/60">N/A</span>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Categoria</p>
@@ -877,7 +974,36 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
                         <span className="text-sm text-brand-midnight/80">
-                          👤 {divida.user?.nome || 'N/A'}
+                          {divida.user ? (
+                            <div className="flex items-center gap-2">
+                              {divida.user.imagem_url ? (
+                                <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                  <img 
+                                    src={divida.user.imagem_url} 
+                                    alt={divida.user.nome}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement
+                                      target.style.display = 'none'
+                                      const parent = target.parentElement
+                                      if (parent) {
+                                        parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${divida.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                  <span className="text-brand-aqua font-bold text-xs">
+                                    {divida.user.nome?.charAt(0).toUpperCase() || '?'}
+                                  </span>
+                                </div>
+                              )}
+                              <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">{divida.user.nome}</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-brand-midnight/60 dark:text-brand-clean/60">N/A</span>
+                          )}
                         </span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">

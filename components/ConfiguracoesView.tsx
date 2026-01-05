@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@/lib/types'
-import { obterUsuarios, criarUsuario, resetarTodosRegistros } from '@/lib/actions'
-import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown, Download, Smartphone, Share2, ArrowRight, Lightbulb } from 'lucide-react'
+import { obterUsuarios, criarUsuario, resetarTodosRegistros, atualizarImagemPerfilUsuario } from '@/lib/actions'
+import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown, Download, Smartphone, Share2, ArrowRight, Lightbulb, Copy, Check, Camera } from 'lucide-react'
 import { createNotification } from './NotificationBell'
 import { atualizarSenha, reenviarEmailConfirmacao, signOut, limparBypassEmailConfirmacao } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/client'
@@ -52,13 +52,16 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(false)
   const [nome, setNome] = useState('')
   const [showModalEditarNome, setShowModalEditarNome] = useState(false)
+  const [uploadingImagem, setUploadingImagem] = useState<string | null>(null)
   const [loadingNome, setLoadingNome] = useState(false)
   const [showModalVerificarEmail, setShowModalVerificarEmail] = useState(false)
   const [bypassLimpo, setBypassLimpo] = useState(false) // Flag para evitar limpar bypass múltiplas vezes
   const [carregandoPerfil, setCarregandoPerfil] = useState(false) // Flag para evitar múltiplos carregamentos simultâneos
   const [whatsappKey, setWhatsappKey] = useState<string | null>(null)
   const [loadingWhatsappKey, setLoadingWhatsappKey] = useState(false)
+  const historyEntryAdded = useRef(false)
   const [showWhatsappKey, setShowWhatsappKey] = useState(false)
+  const [copiedKey, setCopiedKey] = useState(false)
 
   useEffect(() => {
     const tab = searchParams.get('tab')
@@ -533,6 +536,64 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
       setShowNovoUsuario(false)
     }
     setLoading(false)
+  }
+
+  const handleUploadImagem = async (userId: string, file: File) => {
+    setUploadingImagem(userId)
+    
+    try {
+      // Fazer upload da imagem
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', file)
+      uploadFormData.append('folder', 'perfis')
+      uploadFormData.append('bucket', 'avatares') // Usar bucket específico para avatares
+
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadFormData,
+      })
+
+      const uploadData = await uploadResponse.json()
+
+      if (!uploadResponse.ok || uploadData.error) {
+        // Mensagem mais clara se o bucket não existir
+        if (uploadData.error?.includes('Bucket') && uploadData.error?.includes('not found')) {
+          throw new Error('Bucket "avatares" não encontrado. Por favor, crie o bucket no Supabase Storage (Dashboard > Storage > New bucket, nome: "avatares", público: sim).')
+        }
+        throw new Error(uploadData.error || 'Erro ao fazer upload da imagem')
+      }
+
+      console.log('📤 [Upload] Upload concluído, URL recebida:', uploadData.url)
+      
+      // Atualizar o usuário com a URL da imagem
+      const result = await atualizarImagemPerfilUsuario(userId, uploadData.url)
+
+      if (result.error) {
+        console.error('❌ [Upload] Erro ao atualizar no banco:', result.error)
+        createNotification('Erro ao atualizar imagem: ' + result.error, 'warning')
+      } else {
+        console.log('✅ [Upload] Imagem atualizada no banco:', result.data)
+        createNotification('Imagem de perfil atualizada com sucesso!', 'success')
+        // Atualizar o estado do usuário sendo editado se estiver no modal
+        if (editandoUsuario && editandoUsuario.id === userId) {
+          setEditandoUsuario({ ...editandoUsuario, imagem_url: uploadData.url })
+        }
+        await carregarUsuarios()
+        
+        // Verificar se a imagem foi carregada corretamente
+        const usuariosAtualizados = await obterUsuarios()
+        const usuarioAtualizado = usuariosAtualizados.data?.find(u => u.id === userId)
+        console.log('🔍 [Upload] Usuário após recarregar:', usuarioAtualizado)
+        if (usuarioAtualizado) {
+          console.log('🔍 [Upload] imagem_url do usuário:', usuarioAtualizado.imagem_url)
+        }
+      }
+    } catch (error: any) {
+      console.error('Erro ao fazer upload da imagem:', error)
+      createNotification('Erro ao fazer upload da imagem: ' + (error.message || 'Erro desconhecido'), 'warning')
+    } finally {
+      setUploadingImagem(null)
+    }
   }
 
   // Função para validar senha
@@ -1051,8 +1112,52 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                                   {showWhatsappKey ? whatsappKey : '•••••-•••••-•••••'}
                                 </code>
                                 <button
+                                  onClick={async () => {
+                                    if (!showWhatsappKey) {
+                                      // Se a chave estiver oculta, mostrar primeiro
+                                      setShowWhatsappKey(true)
+                                      // Aguardar um pouco para o usuário ver a chave
+                                      await new Promise(resolve => setTimeout(resolve, 100))
+                                    }
+                                    // Copiar para o clipboard
+                                    if (whatsappKey) {
+                                      try {
+                                        await navigator.clipboard.writeText(whatsappKey)
+                                        setCopiedKey(true)
+                                        setTimeout(() => setCopiedKey(false), 2000)
+                                      } catch (err) {
+                                        console.error('Erro ao copiar:', err)
+                                        // Fallback para navegadores antigos
+                                        const textArea = document.createElement('textarea')
+                                        textArea.value = whatsappKey
+                                        textArea.style.position = 'fixed'
+                                        textArea.style.opacity = '0'
+                                        document.body.appendChild(textArea)
+                                        textArea.select()
+                                        try {
+                                          document.execCommand('copy')
+                                          setCopiedKey(true)
+                                          setTimeout(() => setCopiedKey(false), 2000)
+                                        } catch (fallbackErr) {
+                                          console.error('Erro ao copiar (fallback):', fallbackErr)
+                                        }
+                                        document.body.removeChild(textArea)
+                                      }
+                                    }
+                                  }}
+                                  className="p-2 text-brand-aqua hover:text-brand-aqua/80 transition-smooth relative"
+                                  title="Copiar chave"
+                                >
+                                  {copiedKey ? (
+                                    <Check size={18} className="text-green-500" />
+                                  ) : (
+                                    <Copy size={18} />
+                                  )}
+                                </button>
+                                <button
                                   onClick={() => setShowWhatsappKey(!showWhatsappKey)}
                                   className="p-2 text-brand-aqua hover:text-brand-aqua/80 transition-smooth"
+                                  title={showWhatsappKey ? "Ocultar chave" : "Mostrar chave"}
                                 >
                                   {showWhatsappKey ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
@@ -1614,11 +1719,30 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                     className="p-4 bg-white dark:bg-brand-midnight/60 border border-gray-200 rounded-xl hover:bg-brand-clean dark:bg-brand-royal/50 transition-smooth backdrop-blur-sm flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-brand-aqua/20 flex items-center justify-center">
-                        <span className="text-brand-aqua font-bold text-xl">
-                          {user.nome.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
+                      {user.imagem_url ? (
+                        <div className="w-12 h-12 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border-2 border-brand-aqua/30">
+                          <img 
+                            src={user.imagem_url} 
+                            alt={user.nome}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              // Fallback para inicial do nome se a imagem falhar
+                              const target = e.target as HTMLImageElement
+                              target.style.display = 'none'
+                              const parent = target.parentElement
+                              if (parent) {
+                                parent.innerHTML = `<span class="text-brand-aqua font-bold text-xl">${user.nome.charAt(0).toUpperCase()}</span>`
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-brand-aqua/20 flex items-center justify-center">
+                          <span className="text-brand-aqua font-bold text-xl">
+                            {user.nome.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
                       <div>
                         <p className="font-medium text-brand-midnight dark:text-brand-clean">{user.nome}</p>
                         <p className="text-xs text-brand-midnight dark:text-brand-clean/50">
@@ -1773,6 +1897,155 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
           textoConfirmar="Excluir"
           tipo="danger"
         />
+      )}
+
+      {/* Modal de Editar Usuário */}
+      {editandoUsuario && (
+        <div
+          className="fixed inset-0 bg-black/60 z-[99999] flex items-center justify-center p-4"
+          onClick={() => setEditandoUsuario(null)}
+          style={{
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+          }}
+        >
+          <div
+            className="bg-white dark:bg-brand-royal rounded-2xl shadow-2xl w-full max-w-md p-6 animate-scale-up max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
+                Editar Usuário
+              </h3>
+              <button
+                onClick={() => setEditandoUsuario(null)}
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-brand-midnight dark:text-brand-clean" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Avatar e Upload de Imagem */}
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  {editandoUsuario.imagem_url ? (
+                    <div className="w-24 h-24 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border-2 border-brand-aqua/30">
+                      <img 
+                        src={editandoUsuario.imagem_url} 
+                        alt={editandoUsuario.nome}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.style.display = 'none'
+                          const parent = target.parentElement
+                          if (parent) {
+                            parent.innerHTML = `<span class="text-brand-aqua font-bold text-3xl">${editandoUsuario.nome.charAt(0).toUpperCase()}</span>`
+                          }
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-brand-aqua/20 flex items-center justify-center border-2 border-brand-aqua/30">
+                      <span className="text-brand-aqua font-bold text-3xl">
+                        {editandoUsuario.nome.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        handleUploadImagem(editandoUsuario.id, file)
+                      }
+                    }}
+                    disabled={uploadingImagem === editandoUsuario.id}
+                  />
+                  <div className="px-4 py-2 bg-brand-aqua/10 hover:bg-brand-aqua/20 dark:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-lg transition-colors flex items-center gap-2 text-brand-aqua font-medium text-sm">
+                    {uploadingImagem === editandoUsuario.id ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-brand-aqua border-t-transparent rounded-full animate-spin" />
+                        <span>Enviando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera size={18} strokeWidth={2} />
+                        <span>Alterar foto de perfil</span>
+                      </>
+                    )}
+                  </div>
+                </label>
+              </div>
+
+              {/* Nome do Usuário */}
+              <div>
+                <label className="block text-sm font-medium text-brand-midnight dark:text-brand-clean mb-2">
+                  Nome
+                </label>
+                <input
+                  type="text"
+                  value={editandoUsuario.nome}
+                  onChange={(e) => setEditandoUsuario({ ...editandoUsuario, nome: e.target.value })}
+                  placeholder="Digite o nome do usuário"
+                  maxLength={50}
+                  className="w-full px-4 py-3 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg text-brand-midnight dark:text-brand-clean text-base focus:outline-none focus:border-brand-aqua transition-smooth"
+                  autoFocus
+                />
+              </div>
+
+              {/* Botões */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setEditandoUsuario(null)}
+                  className="flex-1 px-4 py-3 bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/10 transition-smooth"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!editandoUsuario.nome.trim()) {
+                      createNotification('O nome não pode estar vazio', 'warning')
+                      return
+                    }
+                    setLoading(true)
+                    try {
+                      const supabase = createClient()
+                      const { data: { user } } = await supabase.auth.getUser()
+                      if (user) {
+                        const { error } = await supabase
+                          .from('users')
+                          .update({ nome: editandoUsuario.nome.trim() })
+                          .eq('id', editandoUsuario.id)
+                          .eq('account_owner_id', user.id)
+                        
+                        if (error) {
+                          createNotification('Erro ao salvar: ' + error.message, 'warning')
+                        } else {
+                          createNotification('Usuário atualizado com sucesso!', 'success')
+                          setEditandoUsuario(null)
+                          await carregarUsuarios()
+                        }
+                      }
+                    } catch (error: any) {
+                      createNotification('Erro ao salvar usuário', 'warning')
+                    } finally {
+                      setLoading(false)
+                    }
+                  }}
+                  disabled={loading || !editandoUsuario.nome.trim()}
+                  className="flex-1 px-4 py-3 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal de Verificação de Email */}

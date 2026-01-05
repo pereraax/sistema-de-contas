@@ -75,10 +75,10 @@ export default function ModalSelecionarUsuario({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border-2 border-brand-aqua/30 dark:border-brand-aqua/40">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[10000] flex items-center justify-center p-4 animate-fade-in">
+      <div className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border-2 border-brand-aqua/30 dark:border-brand-aqua/40">
         <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-6 py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua/10 via-brand-aqua/5 to-transparent dark:from-brand-aqua/20 dark:via-brand-aqua/10">
-          <h2 className="text-2xl font-display text-brand-midnight dark:text-brand-clean">
+          <h2 className="text-2xl font-display font-bold text-brand-midnight dark:text-brand-clean">
             Selecionar Usuário
           </h2>
           <div className="flex items-center gap-2">
@@ -114,7 +114,7 @@ export default function ModalSelecionarUsuario({
           {/* Botão adicionar novo */}
           <button
             onClick={() => setShowNovoUsuario(!showNovoUsuario)}
-            className="w-full px-5 py-3 bg-gradient-to-r from-brand-aqua to-brand-blue text-brand-midnight rounded-xl font-bold hover:from-brand-aqua/90 hover:to-brand-blue/90 transition-smooth flex items-center justify-center gap-2 text-sm shadow-lg hover:shadow-xl"
+            className="w-full px-5 py-3 bg-brand-aqua text-brand-midnight rounded-xl font-bold hover:bg-brand-aqua/90 transition-smooth flex items-center justify-center gap-2 text-sm shadow-lg hover:shadow-xl"
           >
             <Plus size={20} strokeWidth={3} />
             Adicionar Novo Usuário
@@ -153,7 +153,7 @@ export default function ModalSelecionarUsuario({
           )}
 
           {/* Lista de usuários */}
-          <div className="max-h-96 overflow-y-auto space-y-2">
+          <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
             {usuariosFiltrados.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-brand-midnight/60 dark:text-brand-clean/70">
@@ -170,16 +170,35 @@ export default function ModalSelecionarUsuario({
                   }}
                   className={`w-full p-4 rounded-xl transition-all duration-300 text-left ${
                     selectedUserId === user.id
-                      ? 'bg-gradient-to-r from-brand-aqua/30 via-brand-aqua/20 to-brand-blue/20 dark:from-brand-aqua/40 dark:via-brand-aqua/30 dark:to-brand-blue/30 border-2 border-brand-aqua shadow-xl shadow-brand-aqua/30 scale-[1.02]'
+                      ? 'bg-gradient-to-r from-brand-aqua/30 via-brand-aqua/20 to-brand-blue/20 dark:from-brand-aqua/40 dark:via-brand-aqua/30 dark:to-brand-blue/30 border-2 border-brand-aqua shadow-xl shadow-brand-aqua/30'
                       : 'bg-white dark:bg-brand-midnight/80 border-2 border-gray-200 dark:border-white/20 hover:bg-gradient-to-r hover:from-brand-aqua/10 hover:to-brand-blue/10 dark:hover:from-brand-aqua/20 dark:hover:to-brand-blue/20 hover:border-brand-aqua/50 hover:shadow-lg'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-aqua/30 to-brand-blue/30 dark:from-brand-aqua/40 dark:to-brand-blue/40 flex items-center justify-center border-2 border-brand-aqua/30 dark:border-brand-aqua/50">
-                      <span className="text-brand-aqua dark:text-brand-aqua font-bold text-lg">
-                        {user.nome.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
+                    {user.imagem_url ? (
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-brand-aqua/30 to-brand-blue/30 dark:from-brand-aqua/40 dark:to-brand-blue/40 flex items-center justify-center border-2 border-brand-aqua/30 dark:border-brand-aqua/50">
+                        <img 
+                          src={user.imagem_url} 
+                          alt={user.nome}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            // Fallback para inicial do nome se a imagem falhar
+                            const target = e.target as HTMLImageElement
+                            target.style.display = 'none'
+                            const parent = target.parentElement
+                            if (parent) {
+                              parent.innerHTML = `<span class="text-brand-aqua dark:text-brand-aqua font-bold text-lg">${user.nome.charAt(0).toUpperCase()}</span>`
+                            }
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-aqua/30 to-brand-blue/30 dark:from-brand-aqua/40 dark:to-brand-blue/40 flex items-center justify-center border-2 border-brand-aqua/30 dark:border-brand-aqua/50">
+                        <span className="text-brand-aqua dark:text-brand-aqua font-bold text-lg">
+                          {user.nome.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex-1">
                       <p className="font-medium text-brand-midnight dark:text-brand-clean text-base">
                         {user.nome}

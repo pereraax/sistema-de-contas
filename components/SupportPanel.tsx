@@ -58,12 +58,12 @@ export default function SupportPanel() {
   // const alert: { title: string; content: string; color: string } | null = null
 
   return (
-    <div className="space-y-4 sm:space-y-6 mb-8 sm:mb-10 lg:mb-0" data-support-panel>
+    <div className="space-y-4 sm:space-y-6 lg:space-y-3 mb-8 sm:mb-10 lg:mb-0" data-support-panel>
       {/* Alertas - só mostra se houver dívidas pendentes */}
       {/* TODO: Implementar alertas quando necessário */}
 
-      {/* Dicas */}
-      <div className="bg-brand-white dark:bg-brand-royal rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-lg border border-brand-clean dark:border-white/10">
+      {/* Dicas - Oculto no desktop para deixar mais compacto */}
+      <div className="bg-brand-white dark:bg-brand-royal rounded-xl sm:rounded-2xl lg:rounded-lg p-4 sm:p-5 lg:p-3 shadow-lg border border-brand-clean dark:border-white/10 lg:hidden">
         <h3 className="font-display font-bold text-base sm:text-lg text-brand-midnight dark:text-brand-clean mb-4 sm:mb-5 flex items-center gap-2">
           <Lightbulb size={18} className="sm:w-5 sm:h-5 text-yellow-600 dark:text-yellow-400" />
           Dicas e Suporte
@@ -96,39 +96,39 @@ export default function SupportPanel() {
       </div>
 
       {/* Links rápidos */}
-      <div className="bg-brand-white dark:bg-brand-royal rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-lg border border-brand-clean dark:border-white/10">
-        <h3 className="font-display font-bold text-base sm:text-lg text-brand-midnight dark:text-brand-clean mb-3 sm:mb-4">
+      <div className="bg-brand-white dark:bg-brand-royal rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-3 shadow-lg border border-brand-clean dark:border-white/10">
+        <h3 className="font-display font-bold text-sm sm:text-base lg:text-sm text-brand-midnight dark:text-brand-clean mb-2 sm:mb-3 lg:mb-2">
           Acesso Rápido
         </h3>
-        <div className="space-y-2.5 sm:space-y-3">
+        <div className="space-y-1.5 sm:space-y-2 lg:space-y-1.5">
           {/* Botão Assistente PLEN no WhatsApp */}
           {whatsappUrl && (
             <a
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 p-2.5 sm:p-3 text-xs sm:text-sm font-medium text-white bg-green-500 hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 rounded-lg transition-smooth shadow-md hover:shadow-lg"
+              className="flex items-center gap-2 p-2 sm:p-2.5 lg:p-1.5 text-xs font-medium text-white bg-green-500 hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 rounded-lg transition-smooth shadow-md hover:shadow-lg"
             >
-              <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
-              <span>Assistente PLEN no WhatsApp</span>
+              <MessageCircle size={14} className="lg:w-3.5 lg:h-3.5" />
+              <span className="lg:text-[11px]">Assistente PLEN</span>
             </a>
           )}
           
           <a
             href="/registros"
-            className="block p-2.5 sm:p-3 text-xs sm:text-sm text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
+            className="block p-2 sm:p-2.5 lg:p-1.5 text-xs lg:text-[11px] text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
           >
             → Ver todos os registros
           </a>
           <a
             href="/dividas"
-            className="block p-2.5 sm:p-3 text-xs sm:text-sm text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
+            className="block p-2 sm:p-2.5 lg:p-1.5 text-xs lg:text-[11px] text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
           >
             → Gerenciar dívidas
           </a>
           <a
             href="/dashboard"
-            className="block p-2.5 sm:p-3 text-xs sm:text-sm text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
+            className="block p-2 sm:p-2.5 lg:p-1.5 text-xs lg:text-[11px] text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
           >
             → Ver relatórios
           </a>

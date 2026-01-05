@@ -7,10 +7,21 @@ import { processWhatsAppMessage } from '@/lib/whatsapp-plen-handler'
 import { enviarMensagemWebJS, getClientWebJS } from '@/lib/whatsapp-webjs'
 
 export async function POST(request: NextRequest) {
+  // Logar IMEDIATAMENTE no início - SEMPRE EXECUTA
+  const timestamp = new Date().toISOString()
+  console.log('='.repeat(80))
+  console.log('📨📨📨 [WhatsApp Webhook] WEBHOOK POST CHAMADO! 📨📨📨')
+  console.log('📨 [WhatsApp Webhook] Timestamp:', timestamp)
+  console.log('='.repeat(80))
+  
   try {
+    const { addLog } = await import('@/lib/server-logs')
+    addLog('info', `📨📨📨 [WhatsApp Webhook] WEBHOOK POST CHAMADO! ${timestamp}`)
+    
     const body = await request.json()
     
-    console.log('📨 [WhatsApp Webhook] Mensagem recebida:', JSON.stringify(body).substring(0, 500))
+    console.log('📨 [WhatsApp Webhook] Body recebido:', JSON.stringify(body).substring(0, 500))
+    addLog('info', `📨 [WhatsApp Webhook] Body recebido: ${JSON.stringify(body).substring(0, 200)}`)
 
     // whatsapp-web.js envia mensagens neste formato:
     // { key: { remoteJid: "...", ... }, message: { conversation: "...", ... } }
@@ -22,23 +33,40 @@ export async function POST(request: NextRequest) {
       // Extrair texto da mensagem
       const texto = message.message?.conversation || message.message?.extendedTextMessage?.text || ''
       
+      const phoneNumber = message.key.remoteJid || 'N/A'
+      const text = message.message?.conversation || message.message?.extendedTextMessage?.text || 'N/A'
+      
+      // Logar IMEDIATAMENTE no console E no sistema
+      console.log('='.repeat(80))
+      console.log('🔄🔄🔄 [WhatsApp Webhook] MENSAGEM RECEBIDA! 🔄🔄🔄')
+      console.log('🔄 [WhatsApp Webhook] Phone:', phoneNumber)
+      console.log('🔄 [WhatsApp Webhook] Text:', text.substring(0, 150))
+      console.log('='.repeat(80))
+      
+      const { addLog: addLog2 } = await import('@/lib/server-logs')
+      addLog2('info', `🔄🔄🔄 [WhatsApp Webhook] MENSAGEM RECEBIDA! Phone: ${phoneNumber}, Text: ${text.substring(0, 100)}`)
+      
       if (!texto || texto.trim() === '') {
+        addLog2('info', '⚠️ [WhatsApp Webhook] Mensagem sem texto - ignorando')
         return NextResponse.json({ success: true, message: 'Ignorado (mensagem sem texto)' })
       }
 
       // Processar mensagem com PLEN (async para não bloquear resposta)
-      // IMPORTANTE: Aguardar um pouco para garantir que o módulo está carregado
       setTimeout(async () => {
         try {
-          console.log('🔄 [WhatsApp Webhook] Iniciando processamento da mensagem...')
+          const { addLog: addLog3 } = await import('@/lib/server-logs')
+          addLog3('info', `🔄 [WhatsApp Webhook] Processando mensagem: ${text.substring(0, 100)}`)
+          
           const result = await processWhatsAppMessage(message)
           
-          console.log('📥 [WhatsApp Webhook] Resultado do processamento:', {
+          const resultLogMsg = `📥 [WhatsApp Webhook] Resultado: Success=${result?.success}, HasMessage=${!!result?.message}`
+          console.log('📥 [WhatsApp Webhook] Resultado:', {
             hasResult: !!result,
             success: result?.success,
             hasMessage: !!result?.message,
-            messagePreview: result?.message?.substring(0, 100),
+            preview: result?.message?.substring(0, 100),
           })
+          addLog('info', resultLogMsg)
           
           if (result && result.success && result.message) {
             // Enviar resposta via whatsapp-web.js

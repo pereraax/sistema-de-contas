@@ -22,9 +22,9 @@ export default function RegistroCard({ registro, onEdit }: RegistroCardProps) {
   const [showModalExcluir, setShowModalExcluir] = useState(false)
 
   const tipoColors = {
-    entrada: 'bg-green-100 text-green-700 border-green-300',
-    saida: 'bg-red-100 text-red-700 border-red-300',
-    divida: 'bg-orange-100 text-orange-700 border-orange-300',
+    entrada: 'bg-green-500 text-white border-green-600 dark:bg-green-600 dark:border-green-700',
+    saida: 'bg-red-500 text-white border-red-600 dark:bg-red-600 dark:border-red-700',
+    divida: 'bg-orange-500 text-white border-orange-600 dark:bg-orange-600 dark:border-orange-700',
   }
 
   const tipoLabels = {
@@ -93,7 +93,7 @@ export default function RegistroCard({ registro, onEdit }: RegistroCardProps) {
           )}
         </div>
         <span
-          className={`px-3 py-1 rounded-full text-xs font-medium border ${tipoColors[registro.tipo]}`}
+          className={`px-3 py-1 rounded-full text-xs font-semibold border shadow-sm ${tipoColors[registro.tipo]}`}
         >
           {tipoLabels[registro.tipo]}
         </span>
@@ -102,9 +102,32 @@ export default function RegistroCard({ registro, onEdit }: RegistroCardProps) {
       <div className="flex items-center justify-between mb-4">
         <span className="text-2xl font-bold text-gray-900">{valorFormatado}</span>
         {registro.user && (
-          <span className="text-sm text-gray-600">
-            👤 {registro.user.nome}
-          </span>
+          <div className="flex items-center gap-2">
+            {registro.user.imagem_url ? (
+              <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                <img 
+                  src={registro.user.imagem_url} 
+                  alt={registro.user.nome}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                    const parent = target.parentElement
+                    if (parent) {
+                      parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${registro.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                    }
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                <span className="text-brand-aqua font-bold text-xs">
+                  {registro.user.nome?.charAt(0).toUpperCase() || '?'}
+                </span>
+              </div>
+            )}
+            <span className="text-sm text-gray-600">{registro.user.nome}</span>
+          </div>
         )}
       </div>
 

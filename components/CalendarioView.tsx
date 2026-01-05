@@ -414,7 +414,9 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
                     onClick={() => setDropdownTipoAberto(!dropdownTipoAberto)}
                     className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight hover:border-brand-aqua/50 flex items-center justify-between shadow-sm"
                   >
-                    <span className={filtroTipo ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}>
+                    <span className={`flex items-center gap-2 ${filtroTipo ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}`}>
+                      {filtroTipo === 'entrada' && <div className="w-2.5 h-2.5 rounded-full bg-green-500" />}
+                      {filtroTipo === 'saida' && <div className="w-2.5 h-2.5 rounded-full bg-red-500" />}
                       {filtroTipo === 'entrada' ? 'Entrada' : filtroTipo === 'saida' ? 'Saída' : 'Todos'}
                     </span>
                     <ChevronDown 
@@ -452,13 +454,16 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
                             setFiltroTipo('entrada')
                             setDropdownTipoAberto(false)
                           }}
-                          className={`w-full px-4 py-3 text-left flex items-center justify-between transition-smooth border-t border-gray-100 dark:border-white/10 ${
+                          className={`w-full px-4 py-3 text-left flex items-center justify-between transition-all border-t border-gray-100 dark:border-white/10 ${
                             filtroTipo === 'entrada'
-                              ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
-                              : 'text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+                              ? 'bg-gradient-to-r from-green-500 to-green-600 text-white font-bold shadow-md'
+                              : 'text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
                           }`}
                         >
-                          <span>Entrada</span>
+                          <span className="flex items-center gap-2">
+                            <div className={`w-2.5 h-2.5 rounded-full ${filtroTipo === 'entrada' ? 'bg-white' : 'bg-green-500'}`} />
+                            Entrada
+                          </span>
                           {filtroTipo === 'entrada' && <Check size={18} strokeWidth={3} />}
                         </button>
                         <button
@@ -467,13 +472,16 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
                             setFiltroTipo('saida')
                             setDropdownTipoAberto(false)
                           }}
-                          className={`w-full px-4 py-3 text-left flex items-center justify-between transition-smooth border-t border-gray-100 dark:border-white/10 ${
+                          className={`w-full px-4 py-3 text-left flex items-center justify-between transition-all border-t border-gray-100 dark:border-white/10 ${
                             filtroTipo === 'saida'
-                              ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
-                              : 'text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+                              ? 'bg-gradient-to-r from-red-500 to-red-600 text-white font-bold shadow-md'
+                              : 'text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
                           }`}
                         >
-                          <span>Saída</span>
+                          <span className="flex items-center gap-2">
+                            <div className={`w-2.5 h-2.5 rounded-full ${filtroTipo === 'saida' ? 'bg-white' : 'bg-red-500'}`} />
+                            Saída
+                          </span>
                           {filtroTipo === 'saida' && <Check size={18} strokeWidth={3} />}
                         </button>
                       </div>

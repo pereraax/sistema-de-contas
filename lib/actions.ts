@@ -386,6 +386,9 @@ export async function obterRegistros(filtros: any = {}) {
   if (filtros.tipo) {
     query = query.eq('tipo', filtros.tipo)
   }
+  if (filtros.categoria) {
+    query = query.eq('categoria', filtros.categoria)
+  }
   // Removido: filtros.user_id não deve sobrescrever o filtro do usuário autenticado
   // Apenas o próprio usuário pode ver seus registros
   if (filtros.etiquetas && Array.isArray(filtros.etiquetas) && filtros.etiquetas.length > 0) {
@@ -456,7 +459,7 @@ export async function obterUsuarios() {
   // Isso garante que cada conta veja apenas seus próprios usuários/pessoas
   const { data, error } = await supabase
     .from('users')
-    .select('*')
+    .select('id, nome, created_at, imagem_url, account_owner_id') // Incluir imagem_url explicitamente
     .eq('account_owner_id', user.id) // Filtrar por account_owner_id
     .order('nome', { ascending: true })
 
@@ -466,6 +469,13 @@ export async function obterUsuarios() {
   }
 
   console.log('✅ Usuários encontrados:', data?.length || 0, 'para account_owner:', user.id)
+  
+  // Log para debug de imagens
+  if (data && data.length > 0) {
+    data.forEach((u: any) => {
+      console.log(`👤 Usuário: ${u.nome}, imagem_url: ${u.imagem_url || 'null'}`)
+    })
+  }
 
   return { data: data || [] }
 }
@@ -499,6 +509,52 @@ export async function criarUsuario(formData: FormData) {
   }
 
   console.log('✅ Usuário criado na tabela users:', data.id, 'para account_owner:', user.id)
+
+  revalidatePath('/configuracoes')
+  revalidateTag('usuarios')
+
+  return { data }
+}
+
+export async function atualizarImagemPerfilUsuario(userId: string, imagemUrl: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'Não autenticado' }
+  }
+
+  // Verificar se o usuário pertence ao account_owner_id do usuário autenticado
+  const { data: usuarioExistente, error: usuarioError } = await supabase
+    .from('users')
+    .select('account_owner_id')
+    .eq('id', userId)
+    .single()
+
+  if (usuarioError || !usuarioExistente) {
+    return { error: 'Usuário não encontrado' }
+  }
+
+  if (usuarioExistente.account_owner_id !== user.id) {
+    return { error: 'Sem permissão para atualizar este usuário' }
+  }
+
+  console.log('🖼️ [Atualizar Imagem] Atualizando imagem_url para usuário:', userId.substring(0, 8) + '...')
+  console.log('🖼️ [Atualizar Imagem] URL da imagem:', imagemUrl)
+
+  const { data, error } = await supabase
+    .from('users')
+    .update({ imagem_url: imagemUrl })
+    .eq('id', userId)
+    .select('id, nome, created_at, imagem_url, account_owner_id')
+    .single()
+
+  if (error) {
+    console.error('❌ Erro ao atualizar imagem de perfil:', error)
+    return { error: error.message }
+  }
+
+  console.log('✅ [Atualizar Imagem] Imagem atualizada com sucesso:', data)
 
   revalidatePath('/configuracoes')
   revalidateTag('usuarios')

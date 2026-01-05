@@ -62,8 +62,17 @@ export default function RegistrosLista({
     router.push('/registros')
   }
 
+  // Associar dados do usuário aos registros
+  const registrosComUsuarios = registros.map((registro) => {
+    const user = usuarios.find((u) => u.id === registro.user_id)
+    return {
+      ...registro,
+      user: user || undefined,
+    }
+  })
+
   const todasEtiquetas = Array.from(
-    new Set(registros.flatMap((r) => r.etiquetas || []))
+    new Set(registrosComUsuarios.flatMap((r) => r.etiquetas || []))
   )
 
   const temFiltrosAtivos = Object.values(filtrosAtuais).some((v) => v)
@@ -88,9 +97,39 @@ export default function RegistrosLista({
   }
 
   const tipoColors = {
-    entrada: 'bg-green-100 text-green-700 border-green-300',
-    saida: 'bg-red-100 text-red-700 border-red-300',
-    divida: 'bg-orange-100 text-orange-700 border-orange-300',
+    entrada: 'bg-green-500 text-white border-green-600 dark:bg-green-600 dark:border-green-700',
+    saida: 'bg-red-500 text-white border-red-600 dark:bg-red-600 dark:border-red-700',
+    divida: 'bg-orange-500 text-white border-orange-600 dark:bg-orange-600 dark:border-orange-700',
+  }
+  
+  // Cores para categorias (cada categoria tem sua própria cor)
+  const categoriaColors: Record<string, string> = {
+    alimentacao: 'bg-amber-500 text-white border-amber-600 dark:bg-amber-600 dark:border-amber-700',
+    transporte: 'bg-blue-500 text-white border-blue-600 dark:bg-blue-600 dark:border-blue-700',
+    moradia: 'bg-purple-500 text-white border-purple-600 dark:bg-purple-600 dark:border-purple-700',
+    compras: 'bg-pink-500 text-white border-pink-600 dark:bg-pink-600 dark:border-pink-700',
+    saude: 'bg-red-400 text-white border-red-500 dark:bg-red-500 dark:border-red-600',
+    educacao: 'bg-indigo-500 text-white border-indigo-600 dark:bg-indigo-600 dark:border-indigo-700',
+    trabalho: 'bg-slate-500 text-white border-slate-600 dark:bg-slate-600 dark:border-slate-700',
+    entretenimento: 'bg-fuchsia-500 text-white border-fuchsia-600 dark:bg-fuchsia-600 dark:border-fuchsia-700',
+    fitness: 'bg-emerald-500 text-white border-emerald-600 dark:bg-emerald-600 dark:border-emerald-700',
+    viagem: 'bg-cyan-500 text-white border-cyan-600 dark:bg-cyan-600 dark:border-cyan-700',
+    outros: 'bg-yellow-500 text-white border-yellow-600 dark:bg-yellow-600 dark:border-yellow-700',
+  }
+  
+  // Mapeamento de nomes de categorias
+  const categoriaNomes: Record<string, string> = {
+    alimentacao: 'Alimentação',
+    transporte: 'Transporte',
+    moradia: 'Moradia',
+    compras: 'Compras',
+    saude: 'Saúde',
+    educacao: 'Educação',
+    trabalho: 'Trabalho',
+    entretenimento: 'Entretenimento',
+    fitness: 'Fitness',
+    viagem: 'Viagem',
+    outros: 'Outros',
   }
 
   const tipoLabels = {
@@ -148,7 +187,9 @@ export default function RegistrosLista({
               onClick={() => setDropdownTipoAberto(!dropdownTipoAberto)}
               className="w-full px-3 py-2 border border-gray-200 dark:border-white/20 rounded-lg text-xs text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight flex items-center justify-between"
             >
-              <span className={filtros.tipo ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}>
+              <span className={`flex items-center gap-2 ${filtros.tipo ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}`}>
+                {filtros.tipo === 'entrada' && <div className="w-2 h-2 rounded-full bg-green-500" />}
+                {filtros.tipo === 'saida' && <div className="w-2 h-2 rounded-full bg-red-500" />}
                 {filtros.tipo === 'entrada' ? 'Entrada' : filtros.tipo === 'saida' ? 'Saída' : 'Todos'}
               </span>
               <ChevronDown size={14} className={`text-brand-aqua transition-transform ${dropdownTipoAberto ? 'rotate-180' : ''}`} />
@@ -166,17 +207,31 @@ export default function RegistrosLista({
                 <button
                   type="button"
                   onClick={() => { setFiltros({ ...filtros, tipo: 'entrada' }); setDropdownTipoAberto(false); }}
-                  className={`w-full px-3 py-2 text-left flex items-center justify-between border-t text-xs ${filtros.tipo === 'entrada' ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold' : 'text-brand-midnight dark:text-brand-clean'}`}
+                  className={`w-full px-3 py-2 text-left flex items-center justify-between border-t text-xs transition-all ${
+                    filtros.tipo === 'entrada' 
+                      ? 'bg-gradient-to-r from-green-500 to-green-600 text-white font-bold shadow-md' 
+                      : 'text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
+                  }`}
                 >
-                  <span>Entrada</span>
+                  <span className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${filtros.tipo === 'entrada' ? 'bg-white' : 'bg-green-500'}`} />
+                    Entrada
+                  </span>
                   {filtros.tipo === 'entrada' && <Check size={14} />}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setFiltros({ ...filtros, tipo: 'saida' }); setDropdownTipoAberto(false); }}
-                  className={`w-full px-3 py-2 text-left flex items-center justify-between border-t text-xs ${filtros.tipo === 'saida' ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold' : 'text-brand-midnight dark:text-brand-clean'}`}
+                  className={`w-full px-3 py-2 text-left flex items-center justify-between border-t text-xs transition-all ${
+                    filtros.tipo === 'saida' 
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 text-white font-bold shadow-md' 
+                      : 'text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+                  }`}
                 >
-                  <span>Saída</span>
+                  <span className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${filtros.tipo === 'saida' ? 'bg-white' : 'bg-red-500'}`} />
+                    Saída
+                  </span>
                   {filtros.tipo === 'saida' && <Check size={14} />}
                 </button>
               </div>
@@ -372,7 +427,9 @@ export default function RegistrosLista({
                 onClick={() => setDropdownTipoAberto(!dropdownTipoAberto)}
                 className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight hover:border-brand-aqua/50 flex items-center justify-between shadow-sm hover:shadow-md"
               >
-                <span className={filtros.tipo ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}>
+                <span className={`flex items-center gap-2 ${filtros.tipo ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}`}>
+                  {filtros.tipo === 'entrada' && <div className="w-2.5 h-2.5 rounded-full bg-green-500" />}
+                  {filtros.tipo === 'saida' && <div className="w-2.5 h-2.5 rounded-full bg-red-500" />}
                   {filtros.tipo === 'entrada' ? 'Entrada' : filtros.tipo === 'saida' ? 'Saída' : 'Todos'}
                 </span>
                 <ChevronDown 
@@ -413,13 +470,16 @@ export default function RegistrosLista({
                           setFiltros({ ...filtros, tipo: 'entrada' })
                           setDropdownTipoAberto(false)
                         }}
-                        className={`w-full px-4 py-3 text-left flex items-center justify-between transition-smooth border-t border-gray-100 dark:border-white/10 ${
+                        className={`w-full px-4 py-3 text-left flex items-center justify-between transition-all border-t border-gray-100 dark:border-white/10 ${
                           filtros.tipo === 'entrada'
-                            ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
-                            : 'text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+                            ? 'bg-gradient-to-r from-green-500 to-green-600 text-white font-bold shadow-md'
+                            : 'text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
                         }`}
                       >
-                        <span>Entrada</span>
+                        <span className="flex items-center gap-2">
+                          <div className={`w-2.5 h-2.5 rounded-full ${filtros.tipo === 'entrada' ? 'bg-white' : 'bg-green-500'}`} />
+                          Entrada
+                        </span>
                         {filtros.tipo === 'entrada' && (
                           <Check size={18} strokeWidth={3} />
                         )}
@@ -430,13 +490,16 @@ export default function RegistrosLista({
                           setFiltros({ ...filtros, tipo: 'saida' })
                           setDropdownTipoAberto(false)
                         }}
-                        className={`w-full px-4 py-3 text-left flex items-center justify-between transition-smooth border-t border-gray-100 dark:border-white/10 ${
+                        className={`w-full px-4 py-3 text-left flex items-center justify-between transition-all border-t border-gray-100 dark:border-white/10 ${
                           filtros.tipo === 'saida'
-                            ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
-                            : 'text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white font-bold shadow-md'
+                            : 'text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
                         }`}
                       >
-                        <span>Saída</span>
+                        <span className="flex items-center gap-2">
+                          <div className={`w-2.5 h-2.5 rounded-full ${filtros.tipo === 'saida' ? 'bg-white' : 'bg-red-500'}`} />
+                          Saída
+                        </span>
                         {filtros.tipo === 'saida' && (
                           <Check size={18} strokeWidth={3} />
                         )}
@@ -654,7 +717,7 @@ export default function RegistrosLista({
         <div className="bg-brand-white dark:bg-brand-royal rounded-2xl shadow-lg border border-brand-clean dark:border-white/10 overflow-hidden animate-fade-in">
           {/* Mobile: Cards */}
           <div className="md:hidden space-y-4 p-4">
-            {registros.map((registro) => (
+            {registrosComUsuarios.map((registro) => (
               <div key={registro.id} className="bg-brand-royal dark:bg-brand-midnight rounded-xl p-3 border border-brand-clean/20 dark:border-white/10 relative">
                 {/* Botões de ação no canto superior direito */}
                 <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
@@ -682,7 +745,7 @@ export default function RegistrosLista({
                         {registro.nome}
                       </h3>
                       <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium border ${tipoColors[registro.tipo]} dark:opacity-90`}
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold border shadow-sm ${tipoColors[registro.tipo]}`}
                       >
                         {tipoLabels[registro.tipo]}
                       </span>
@@ -704,11 +767,48 @@ export default function RegistrosLista({
                     </div>
                     <div>
                       <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Usuário</p>
-                      <p className="text-xs text-brand-midnight/80 dark:text-brand-clean/80">👤 {registro.user?.nome || 'N/A'}</p>
+                      {registro.user ? (
+                        <div className="flex items-center gap-2">
+                          {registro.user.imagem_url ? (
+                            <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                              <img 
+                                src={registro.user.imagem_url} 
+                                alt={registro.user.nome}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement
+                                  target.style.display = 'none'
+                                  const parent = target.parentElement
+                                  if (parent) {
+                                    parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${registro.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                              <span className="text-brand-aqua font-bold text-xs">
+                                {registro.user.nome?.charAt(0).toUpperCase() || '?'}
+                              </span>
+                            </div>
+                          )}
+                          <span className="text-xs text-brand-midnight/80 dark:text-brand-clean/80">{registro.user.nome}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">N/A</span>
+                      )}
                     </div>
                     <div>
                       <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Categoria</p>
-                      <p className="text-xs font-medium text-brand-midnight/80 dark:text-brand-clean/80">{registro.categoria || '-'}</p>
+                      {registro.categoria && registro.categoria.toLowerCase() !== 'entrada' && registro.categoria.toLowerCase() !== 'saida' ? (
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border shadow-sm ${
+                          categoriaColors[registro.categoria.toLowerCase()] || 'bg-gray-500 text-white border-gray-600 dark:bg-gray-600 dark:border-gray-700'
+                        }`}>
+                          {categoriaNomes[registro.categoria.toLowerCase()] || registro.categoria}
+                        </span>
+                      ) : (
+                        <p className="text-xs font-medium text-brand-midnight/80 dark:text-brand-clean/80">-</p>
+                      )}
                     </div>
                     <div>
                       <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Data</p>
@@ -797,7 +897,7 @@ export default function RegistrosLista({
                 </tr>
               </thead>
               <tbody className="bg-brand-white dark:bg-brand-royal divide-y divide-brand-clean dark:divide-white/10">
-                {registros.map((registro) => (
+                {registrosComUsuarios.map((registro) => (
                   <tr key={registro.id} className="hover:bg-brand-clean/50 dark:hover:bg-white/5 transition-smooth">
                     <td className="px-4 py-4">
                       <div>
@@ -813,7 +913,7 @@ export default function RegistrosLista({
                     </td>
                     <td className="px-4 py-4">
                       <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium border ${tipoColors[registro.tipo]} dark:opacity-90`}
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold border shadow-sm ${tipoColors[registro.tipo]}`}
                       >
                         {tipoLabels[registro.tipo]}
                       </span>
@@ -827,14 +927,47 @@ export default function RegistrosLista({
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">
-                        👤 {registro.user?.nome || 'N/A'}
-                      </span>
+                      {registro.user ? (
+                        <div className="flex items-center gap-2">
+                          {registro.user.imagem_url ? (
+                            <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                              <img 
+                                src={registro.user.imagem_url} 
+                                alt={registro.user.nome}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement
+                                  target.style.display = 'none'
+                                  const parent = target.parentElement
+                                  if (parent) {
+                                    parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${registro.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                              <span className="text-brand-aqua font-bold text-xs">
+                                {registro.user.nome?.charAt(0).toUpperCase() || '?'}
+                              </span>
+                            </div>
+                          )}
+                          <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">{registro.user.nome}</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-brand-midnight/60 dark:text-brand-clean/60">N/A</span>
+                      )}
                     </td>
                     <td className="px-4 py-4">
-                      <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">
-                        {registro.categoria || '-'}
-                      </span>
+                      {registro.categoria && registro.categoria.toLowerCase() !== 'entrada' && registro.categoria.toLowerCase() !== 'saida' ? (
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border shadow-sm ${
+                          categoriaColors[registro.categoria.toLowerCase()] || 'bg-gray-500 text-white border-gray-600 dark:bg-gray-600 dark:border-gray-700'
+                        }`}>
+                          {categoriaNomes[registro.categoria.toLowerCase()] || registro.categoria}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-brand-midnight/60 dark:text-brand-clean/60">-</span>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-1">

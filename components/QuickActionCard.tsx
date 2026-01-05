@@ -122,7 +122,7 @@ export default function QuickActionCard({
 
   return (
     <>
-      <div className={`bg-brand-white dark:bg-brand-royal rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-brand-clean dark:border-white/10 hover:shadow-xl transition-smooth animate-slide-up ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+      <div className={`bg-brand-white dark:bg-brand-royal rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-brand-clean dark:border-white/10 hover:shadow-xl transition-smooth animate-slide-up flex flex-col h-full ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
         {isDisabled && (
           <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
             <p className="text-xs text-orange-800 dark:text-orange-200">
@@ -130,7 +130,7 @@ export default function QuickActionCard({
             </p>
           </div>
         )}
-        <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-5">
+        <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-5 flex-1">
           <div className="p-2.5 sm:p-3 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg sm:rounded-xl flex-shrink-0">
             <Icon size={24} className={`sm:w-7 sm:h-7 ${isDisabled ? 'opacity-50' : ''} text-brand-aqua dark:text-brand-aqua`} strokeWidth={2} />
           </div>
@@ -138,7 +138,7 @@ export default function QuickActionCard({
             <h3 className={`text-base sm:text-lg md:text-xl font-display font-bold mb-2 sm:mb-2.5 ${isDisabled ? 'text-brand-midnight/50 dark:text-brand-clean/50' : 'text-brand-midnight dark:text-brand-clean'}`}>
               {title}
             </h3>
-            <p className={`text-xs sm:text-sm leading-relaxed mb-3 sm:mb-4 ${isDisabled ? 'text-brand-midnight/40 dark:text-brand-clean/40' : 'text-brand-midnight/70 dark:text-brand-clean/70'}`}>
+            <p className={`text-xs sm:text-sm leading-relaxed ${isDisabled ? 'text-brand-midnight/40 dark:text-brand-clean/40' : 'text-brand-midnight/70 dark:text-brand-clean/70'}`}>
               {description}
             </p>
           </div>
@@ -146,7 +146,7 @@ export default function QuickActionCard({
         <button
           onClick={handleClick}
           disabled={isDisabled}
-          className={`w-full px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] text-white rounded-lg sm:rounded-xl font-bold transition-all duration-300 shadow-md hover:shadow-2xl hover:shadow-[#00C2FF]/50 flex items-center justify-center gap-2 text-sm sm:text-base transform hover:scale-105 active:scale-100 ${
+          className={`w-full px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] text-white rounded-lg sm:rounded-xl font-bold transition-all duration-300 shadow-md hover:shadow-2xl hover:shadow-[#00C2FF]/50 flex items-center justify-center gap-2 text-sm sm:text-base transform hover:scale-105 active:scale-100 mt-auto ${
             isDisabled 
               ? 'opacity-50 cursor-not-allowed transform-none' 
               : ''

@@ -2,39 +2,18 @@
 
 # Script para iniciar o servidor Next.js
 
-cd "/Users/charllestabordas/Documents/SISTEMA DE CONTAS"
+cd "$(dirname "$0")"
 
-# Tentar encontrar o Node.js em vários locais
-NODE_PATH=""
-if [ -f "/usr/local/bin/node" ]; then
-    NODE_PATH="/usr/local/bin"
-elif [ -f "/opt/homebrew/bin/node" ]; then
-    NODE_PATH="/opt/homebrew/bin"
-elif [ -f "$HOME/.nvm/versions/node/$(ls $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin/node" ]; then
-    NODE_PATH="$HOME/.nvm/versions/node/$(ls $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin"
+echo "🚀 Iniciando servidor Next.js..."
+echo ""
+
+# Parar processos existentes na porta 3000
+if lsof -ti:3000 > /dev/null 2>&1; then
+    echo "⚠️ Parando processo existente na porta 3000..."
+    kill $(lsof -ti:3000) 2>/dev/null
+    sleep 2
 fi
 
-if [ -n "$NODE_PATH" ]; then
-    export PATH="$NODE_PATH:$PATH"
-    echo "✅ Node.js encontrado em: $NODE_PATH"
-    echo "📦 Versão do Node: $($NODE_PATH/node --version 2>/dev/null || echo 'não encontrada')"
-    echo "🚀 Iniciando servidor..."
-    $NODE_PATH/npm run dev
-else
-    echo "❌ Node.js não encontrado!"
-    echo ""
-    echo "Por favor, instale o Node.js:"
-    echo "1. Acesse: https://nodejs.org/"
-    echo "2. Baixe a versão LTS"
-    echo "3. Instale o arquivo .pkg"
-    echo "4. Execute este script novamente"
-    echo ""
-    echo "Ou use o Terminal do Mac e execute:"
-    echo "  cd \"/Users/charllestabordas/Documents/SISTEMA DE CONTAS\""
-    echo "  npm run dev"
-fi
-
-
-
-
-
+# Iniciar servidor
+echo "✅ Iniciando servidor..."
+npm run dev

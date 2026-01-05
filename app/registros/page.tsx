@@ -14,13 +14,14 @@ export const dynamic = 'force-dynamic'
 async function RegistrosContent({
   searchParams,
 }: {
-  searchParams: { nome?: string; tipo?: string; user_id?: string; etiqueta?: string; data_inicio?: string; data_fim?: string } | null
+  searchParams: { nome?: string; tipo?: string; user_id?: string; etiqueta?: string; categoria?: string; data_inicio?: string; data_fim?: string } | null
 }) {
   const filtros: any = {}
   if (searchParams?.nome) filtros.nome = searchParams.nome
   if (searchParams?.tipo) filtros.tipo = searchParams.tipo
   if (searchParams?.user_id) filtros.user_id = searchParams.user_id
   if (searchParams?.etiqueta) filtros.etiquetas = [searchParams.etiqueta]
+  if (searchParams?.categoria) filtros.categoria = searchParams.categoria
   if (searchParams?.data_inicio) filtros.data_inicio = searchParams.data_inicio
   if (searchParams?.data_fim) filtros.data_fim = searchParams.data_fim
 
@@ -41,7 +42,7 @@ async function RegistrosContent({
 export default async function RegistrosPage({
   searchParams,
 }: {
-  searchParams: { nome?: string; tipo?: string; user_id?: string; etiqueta?: string; data_inicio?: string; data_fim?: string }
+  searchParams: { nome?: string; tipo?: string; user_id?: string; etiqueta?: string; categoria?: string; data_inicio?: string; data_fim?: string }
 }) {
 
   return (

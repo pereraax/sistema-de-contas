@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Plus,
   UtensilsCrossed,
@@ -25,6 +26,7 @@ import {
   Image as ImageIcon,
   Palette,
   CheckCircle2,
+  ChevronRight,
 } from 'lucide-react'
 import ModalConfirmacao from './ModalConfirmacao'
 
@@ -57,6 +59,7 @@ interface Categoria {
 }
 
 export default function GerenciarCategoriasView() {
+  const router = useRouter()
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [modalCriarAberto, setModalCriarAberto] = useState(false)
   const [modalEditarAberto, setModalEditarAberto] = useState(false)
@@ -68,6 +71,11 @@ export default function GerenciarCategoriasView() {
     icone: 'Tag',
     cor: '#00C2FF',
   })
+  
+  const handleCategoriaClick = (categoria: Categoria) => {
+    // Redirecionar para registros com filtro de categoria
+    router.push(`/registros?categoria=${categoria.id}`)
+  }
 
   // Categorias padrão
   const categoriasPadrao: Categoria[] = [
@@ -184,7 +192,7 @@ export default function GerenciarCategoriasView() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
           {categorias.map((categoria) => {
             const IconComponent = getIconComponent(categoria.icone)
             const isPersonalizada = categoria.tipo === 'personalizada'
@@ -192,56 +200,73 @@ export default function GerenciarCategoriasView() {
             return (
               <div
                 key={categoria.id}
-                className="bg-white dark:bg-brand-royal rounded-xl p-5 shadow-md border border-gray-200 dark:border-white/10 hover:shadow-lg transition-all duration-300 relative group"
+                className="bg-white dark:bg-brand-royal rounded-xl p-4 shadow-md border border-gray-200 dark:border-white/10 hover:shadow-lg transition-all duration-300 relative group"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div
-                    className="w-12 h-12 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: `${categoria.cor}60` }}
-                  >
-                    <IconComponent size={24} style={{ color: categoria.cor }} strokeWidth={2.5} />
-                  </div>
-                  {isPersonalizada && (
-                    <div className="relative">
-                      <button
-                        onClick={() => setMenuAberto(menuAberto === categoria.id ? null : categoria.id)}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
-                      >
-                        <MoreVertical size={18} className="text-gray-600 dark:text-gray-400" />
-                      </button>
-                      {menuAberto === categoria.id && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-10"
-                            onClick={() => setMenuAberto(null)}
-                          />
-                          <div className="absolute right-0 top-8 bg-white dark:bg-brand-midnight rounded-lg shadow-xl border border-gray-200 dark:border-white/20 z-20 min-w-[140px] overflow-hidden">
-                            <button
-                              onClick={() => abrirModalEditar(categoria)}
-                              className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-50 dark:hover:bg-white/10 text-left"
-                            >
-                              <Edit size={16} className="text-blue-600" />
-                              <span className="text-sm text-gray-900 dark:text-gray-100">Editar</span>
-                            </button>
-                            <button
-                              onClick={() => abrirModalExcluir(categoria)}
-                              className="w-full flex items-center gap-2 px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-left"
-                            >
-                              <Trash2 size={16} className="text-red-600" />
-                              <span className="text-sm text-red-600">Excluir</span>
-                            </button>
-                          </div>
-                        </>
-                      )}
+                <button
+                  onClick={() => handleCategoriaClick(categoria)}
+                  className="w-full flex items-center justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-4 flex-1">
+                    <div
+                      className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${categoria.cor}60` }}
+                    >
+                      <IconComponent size={24} style={{ color: categoria.cor }} strokeWidth={2.5} />
                     </div>
-                  )}
-                </div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-brand-clean mb-1">
-                  {categoria.nome}
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {categoria.tipo === 'padrao' ? 'Padrão' : 'Personalizada'}
-                </p>
+                    <div className="flex-1 text-left">
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-brand-clean mb-1">
+                        {categoria.nome}
+                      </h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {categoria.tipo === 'padrao' ? 'Padrão' : 'Personalizada'}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight size={20} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                </button>
+                {isPersonalizada && (
+                  <div className="absolute top-4 right-12">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setMenuAberto(menuAberto === categoria.id ? null : categoria.id)
+                      }}
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                    >
+                      <MoreVertical size={18} className="text-gray-600 dark:text-gray-400" />
+                    </button>
+                    {menuAberto === categoria.id && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setMenuAberto(null)}
+                        />
+                        <div className="absolute right-0 top-8 bg-white dark:bg-brand-midnight rounded-lg shadow-xl border border-gray-200 dark:border-white/20 z-20 min-w-[140px] overflow-hidden">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              abrirModalEditar(categoria)
+                            }}
+                            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-50 dark:hover:bg-white/10 text-left"
+                          >
+                            <Edit size={16} className="text-blue-600" />
+                            <span className="text-sm text-gray-900 dark:text-gray-100">Editar</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              abrirModalExcluir(categoria)
+                            }}
+                            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-left"
+                          >
+                            <Trash2 size={16} className="text-red-600" />
+                            <span className="text-sm text-red-600">Excluir</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}

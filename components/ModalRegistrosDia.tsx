@@ -24,9 +24,9 @@ export default function ModalRegistrosDia({ data, registros, onClose }: ModalReg
   const [registroParaExcluir, setRegistroParaExcluir] = useState<{ id: string; nome: string } | null>(null)
 
   const tipoColors = {
-    entrada: 'bg-green-100 text-green-700 border-green-300',
-    saida: 'bg-red-100 text-red-700 border-red-300',
-    divida: 'bg-orange-100 text-orange-700 border-orange-300',
+    entrada: 'bg-green-500 text-white border-green-600 dark:bg-green-600 dark:border-green-700',
+    saida: 'bg-red-500 text-white border-red-600 dark:bg-red-600 dark:border-red-700',
+    divida: 'bg-orange-500 text-white border-orange-600 dark:bg-orange-600 dark:border-orange-700',
   }
 
   const tipoLabels = {
@@ -175,7 +175,7 @@ export default function ModalRegistrosDia({ data, registros, onClose }: ModalReg
                             {registro.nome}
                           </h3>
                           <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-medium border ${tipoColors[registro.tipo]}`}
+                            className={`px-2.5 py-1 rounded-full text-xs font-semibold border shadow-sm ${tipoColors[registro.tipo]}`}
                           >
                             {tipoLabels[registro.tipo]}
                           </span>

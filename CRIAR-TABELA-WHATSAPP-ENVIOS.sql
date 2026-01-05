@@ -25,3 +25,4 @@ CREATE POLICY "Sistema pode inserir envios"
   ON whatsapp_envios
   FOR INSERT
   WITH CHECK (true);
+

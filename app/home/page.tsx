@@ -63,29 +63,16 @@ export default async function HomePage() {
             <ReceitasDespesasDonut />
           </div>
 
-          {/* Banner e Dicas - Lado a lado */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 sm:mb-10 lg:mb-0">
-            {/* Coluna Esquerda - Banner */}
-            <div className="lg:col-span-2">
-              <BannerInformacoes />
-            </div>
-
-            {/* Coluna Direita - Suporte e Dicas (Desktop) */}
-            <div className="hidden lg:block lg:col-span-1">
-              <SupportPanel />
-            </div>
-          </div>
-
           {/* SupportPanel no Mobile - ANTES dos cards de registro */}
           <div className="lg:hidden mb-6 sm:mb-8">
             <SupportPanel />
           </div>
 
           {/* Conteúdo Principal - SEMPRE VISÍVEL, mas desabilitado se email não confirmado */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:-mt-[220px]">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             {/* Coluna Esquerda - Ações Rápidas */}
             <div className="lg:col-span-2 space-y-6 sm:space-y-8 md:space-y-10">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 items-stretch">
                 <QuickActionCard
                   title="NOVO REGISTRO"
                   description="Registre qualquer entrada, saída ou dívida de forma rápida e organizada."
@@ -101,7 +88,7 @@ export default async function HomePage() {
                   type="salario"
                 />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 items-stretch">
                 <QuickActionCard
                   title="EMPRÉSTIMO"
                   description="Registre todos os empréstimos feitos para pessoas, com documentos e informações completas."
@@ -123,6 +110,11 @@ export default async function HomePage() {
             <div className="hidden lg:block lg:col-span-1">
               <SupportPanel />
             </div>
+          </div>
+
+          {/* Banner - Abaixo dos cards de registro */}
+          <div className="mb-6">
+            <BannerInformacoes />
           </div>
         </div>
       </main>
