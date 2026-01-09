@@ -45,7 +45,7 @@ export default function AdminLayoutWrapper({
           <AdminSidebar onClose={() => setSidebarOpen(false)} />
         </div>
 
-        <main className="lg:ml-64 p-4 lg:p-8 pt-16 lg:pt-8">
+        <main className="lg:ml-64 p-3 sm:p-4 lg:p-8 pt-20 sm:pt-16 lg:pt-8 pb-4 sm:pb-6 lg:pb-8">
           {children}
         </main>
       </div>

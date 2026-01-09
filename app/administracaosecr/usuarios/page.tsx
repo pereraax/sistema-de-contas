@@ -18,11 +18,11 @@ async function UsuariosContent() {
 export default async function AdminUsuariosPage() {
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-display font-bold text-brand-clean mb-2" style={{ fontWeight: 700 }}>
+      <div className="mb-4 sm:mb-6 lg:mb-8 pt-2 sm:pt-0 pl-0 sm:pl-0">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-display font-bold text-brand-clean mb-1 sm:mb-2">
           Todos os Usuários
         </h1>
-        <p className="font-semibold text-brand-clean/70" style={{ fontWeight: 600 }}>
+        <p className="text-xs sm:text-sm lg:text-base font-semibold text-brand-clean/70">
           Gerencie todos os usuários cadastrados na plataforma
         </p>
       </div>

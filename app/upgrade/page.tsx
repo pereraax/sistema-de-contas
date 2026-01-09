@@ -184,12 +184,12 @@ export default function UpgradePage() {
                       plano.id === 'premium'
                         ? 'bg-yellow-400 text-[#0D1B2A]'
                         : 'bg-yellow-400 text-[#0D1B2A]'
-                    } text-xs font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 ${
+                    } text-xs font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 whitespace-nowrap ${
                       plano.id === 'anual' ? 'px-4 py-1.5' : ''
                     }`}>
-                      {plano.id === 'premium' && <Sparkles size={14} className="text-[#0D1B2A]" />}
+                      {plano.id === 'premium' && <Sparkles size={14} className="text-[#0D1B2A] flex-shrink-0" />}
                       {plano.id === 'anual' && <DollarSign size={14} className="text-[#0D1B2A] flex-shrink-0" />}
-                      <span className={plano.id === 'anual' ? 'leading-tight whitespace-nowrap' : ''}>
+                      <span className="whitespace-nowrap">
                         {plano.badge}
                       </span>
                     </div>

@@ -710,15 +710,15 @@ export default function RegistrosLista({
 
       {/* Lista de registros */}
       {registros.length === 0 ? (
-        <div className="bg-brand-white dark:bg-brand-royal rounded-2xl p-12 text-center shadow-lg border border-brand-clean dark:border-white/10">
+        <div className="bg-white dark:bg-brand-royal rounded-2xl p-12 text-center shadow-lg border border-gray-200 dark:border-white/10">
           <p className="text-brand-midnight/60 dark:text-brand-clean/60 text-lg">Nenhum registro encontrado</p>
         </div>
       ) : (
-        <div className="bg-brand-white dark:bg-brand-royal rounded-2xl shadow-lg border border-brand-clean dark:border-white/10 overflow-hidden animate-fade-in">
+        <div className="bg-white dark:bg-brand-royal rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden animate-fade-in">
           {/* Mobile: Cards */}
           <div className="md:hidden space-y-4 p-4">
             {registrosComUsuarios.map((registro) => (
-              <div key={registro.id} className="bg-brand-royal dark:bg-brand-midnight rounded-xl p-3 border border-brand-clean/20 dark:border-white/10 relative">
+              <div key={registro.id} className="bg-white dark:bg-brand-midnight rounded-xl p-3 border border-gray-200 dark:border-white/10 shadow-sm hover:shadow-md transition-shadow relative">
                 {/* Botões de ação no canto superior direito */}
                 <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
                   <button
@@ -738,18 +738,11 @@ export default function RegistrosLista({
                 </div>
                 
                 <div className="space-y-2 pr-12">
-                  {/* Nome e Tipo */}
+                  {/* Nome */}
                   <div>
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <h3 className="text-base font-semibold text-brand-midnight dark:text-brand-clean">
-                        {registro.nome}
-                      </h3>
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-xs font-semibold border shadow-sm ${tipoColors[registro.tipo]}`}
-                      >
-                        {tipoLabels[registro.tipo]}
-                      </span>
-                    </div>
+                    <h3 className="text-base font-semibold text-brand-midnight dark:text-brand-clean mb-1">
+                      {registro.nome}
+                    </h3>
                     {limparObservacao(registro.observacao) && (
                       <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">
                         {limparObservacao(registro.observacao)}
@@ -761,9 +754,14 @@ export default function RegistrosLista({
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Valor</p>
-                      <p className="text-sm font-bold text-brand-midnight dark:text-brand-clean">
+                      <p className="text-sm font-bold text-brand-midnight dark:text-brand-clean mb-1">
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(registro.valor)}
                       </p>
+                      <span
+                        className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold border shadow-sm ${tipoColors[registro.tipo]}`}
+                      >
+                        {tipoLabels[registro.tipo]}
+                      </span>
                     </div>
                     <div>
                       <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Usuário</p>
@@ -865,40 +863,40 @@ export default function RegistrosLista({
           {/* Desktop: Tabela */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-brand-royal dark:bg-brand-midnight border-b border-brand-midnight dark:border-white/10">
+              <thead className="bg-gray-50 dark:bg-brand-midnight border-b border-gray-200 dark:border-white/10">
                 <tr>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-gray-700 dark:text-brand-clean uppercase tracking-wider">
                     Nome
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-gray-700 dark:text-brand-clean uppercase tracking-wider">
                     Tipo
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-gray-700 dark:text-brand-clean uppercase tracking-wider">
                     Valor
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-gray-700 dark:text-brand-clean uppercase tracking-wider">
                     Usuário
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-gray-700 dark:text-brand-clean uppercase tracking-wider">
                     Categoria
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-gray-700 dark:text-brand-clean uppercase tracking-wider">
                     Etiquetas
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-gray-700 dark:text-brand-clean uppercase tracking-wider">
                     Parcelas
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-gray-700 dark:text-brand-clean uppercase tracking-wider">
                     Data
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-gray-700 dark:text-brand-clean uppercase tracking-wider">
                     Ações
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-brand-white dark:bg-brand-royal divide-y divide-brand-clean dark:divide-white/10">
+              <tbody className="bg-white dark:bg-brand-royal divide-y divide-gray-200 dark:divide-white/10">
                 {registrosComUsuarios.map((registro) => (
-                  <tr key={registro.id} className="hover:bg-brand-clean/50 dark:hover:bg-white/5 transition-smooth">
+                  <tr key={registro.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-smooth">
                     <td className="px-4 py-4">
                       <div>
                         <div className="text-sm font-medium text-brand-midnight dark:text-brand-clean">

@@ -435,32 +435,32 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
 
       {/* Modal */}
       <div 
-        className="relative bg-white dark:bg-brand-royal rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 w-full max-w-lg max-h-[90vh] flex flex-col animate-slide-up"
+        className="relative bg-white dark:bg-brand-royal rounded-3xl shadow-2xl border border-gray-200 dark:border-white/10 w-full max-w-lg max-h-[90vh] flex flex-col animate-slide-up overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-white/10 bg-white dark:bg-brand-midnight">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-brand-aqua/20 rounded-xl">
+            <div className="p-2 bg-brand-aqua/20 dark:bg-brand-aqua/30 rounded-xl">
               <User size={24} className="text-brand-aqua" />
             </div>
             <div>
-              <h2 className="text-xl font-display font-bold text-brand-clean">
+              <h2 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
                 Detalhes do Usuário
               </h2>
-              <p className="text-sm text-brand-clean/60">Informações completas</p>
+              <p className="text-sm text-brand-midnight/60 dark:text-brand-clean/60">Informações completas</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-xl transition-smooth"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-smooth"
           >
-            <X size={20} className="text-brand-clean/60" />
+            <X size={20} className="text-brand-midnight/60 dark:text-brand-clean/60" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="px-5 py-4 overflow-y-auto flex-1 bg-white dark:bg-brand-royal" style={{ overscrollBehavior: 'contain', minHeight: 0 }}>
+        <div className="px-5 py-4 overflow-y-auto flex-1 bg-white dark:bg-brand-royal min-h-0" style={{ overscrollBehavior: 'contain' }}>
           {/* Mensagem de feedback */}
           {mensagem && (
             <div className={`mb-3 p-3 rounded-lg border text-xs ${
@@ -496,10 +496,10 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
 
           <div className="space-y-4">
             {/* ID Admin */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center gap-2 mb-1.5">
                 <Key size={16} className="text-brand-aqua" />
-                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">ID Admin</label>
+                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">ID Admin</label>
               </div>
               <p className="text-sm font-mono text-brand-midnight dark:text-brand-clean font-semibold">
                 #{usuarioLocal?.id_curto || usuarioLocal?.id.substring(0, 5)}
@@ -510,25 +510,25 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
             </div>
 
             {/* Nome */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center gap-2 mb-1.5">
                 <User size={16} className="text-brand-aqua" />
-                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">Nome Completo</label>
+                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Nome Completo</label>
               </div>
               <p className="text-sm font-medium text-brand-midnight dark:text-brand-clean">{usuarioLocal?.nome}</p>
             </div>
 
             {/* Email */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center gap-2 mb-1.5">
                 <Mail size={16} className="text-brand-aqua" />
-                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">Email</label>
+                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Email</label>
               </div>
               <p className="text-sm text-brand-midnight dark:text-brand-clean">{usuarioLocal?.email}</p>
             </div>
 
             {/* Contatos */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center gap-2 mb-2">
                 <Phone size={16} className="text-brand-aqua" />
                 <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">Contatos</label>
@@ -553,11 +553,11 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
             </div>
 
             {/* Plano */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <CreditCard size={16} className="text-brand-aqua" />
-                  <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">Plano Atual</label>
+                  <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Plano Atual</label>
                 </div>
                 <button
                   onClick={() => {
@@ -587,15 +587,15 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
 
               {/* Formulário de Alteração de Plano */}
               {mostrarAlterarPlano && (
-                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10 space-y-3">
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/20 space-y-3">
                   <div>
-                    <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean/70 mb-2">
+                    <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean/80 mb-2">
                       Novo Plano
                     </label>
                     <select
                       value={novoPlano}
                       onChange={(e) => setNovoPlano(e.target.value as 'teste' | 'basico' | 'premium')}
-                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg text-sm text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua"
+                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/30 rounded-lg text-sm text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua"
                     >
                       <option value="teste">Teste (Gratuito)</option>
                       <option value="basico">Básico (R$ 29,90/mês)</option>
@@ -605,13 +605,13 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
 
                   {(novoPlano === 'basico' || novoPlano === 'premium') && (
                     <div>
-                      <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean/70 mb-2">
+                      <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean/80 mb-2">
                         Status do Plano
                       </label>
                       <select
                         value={novoStatus}
                         onChange={(e) => setNovoStatus(e.target.value as 'trial' | 'ativo' | 'cancelado' | 'expirado')}
-                        className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg text-sm text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua"
+                        className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/30 rounded-lg text-sm text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua"
                       >
                         <option value="trial">Trial (Teste)</option>
                         <option value="ativo">Ativo</option>
@@ -656,7 +656,7 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
                         setMostrarAlterarPlano(false)
                         setNovoPlano(usuarioLocal?.plano || 'teste')
                       }}
-                      className="px-3 py-2 bg-gray-100 dark:bg-brand-royal text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-smooth text-sm font-medium"
+                      className="px-3 py-2 bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-gray-200 dark:hover:bg-white/20 transition-smooth text-sm font-medium border border-gray-200 dark:border-white/20"
                     >
                       Cancelar
                     </button>
@@ -666,10 +666,10 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
             </div>
 
             {/* Data de Cadastro */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center gap-2 mb-1.5">
                 <Calendar size={16} className="text-brand-aqua" />
-                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">Cadastrado em</label>
+                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Cadastrado em</label>
               </div>
               <p className="text-sm text-brand-midnight dark:text-brand-clean">
                 {usuarioLocal?.created_at && format(new Date(usuarioLocal.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
@@ -677,10 +677,10 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
             </div>
 
             {/* Último Login */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center gap-2 mb-1.5">
                 <Calendar size={16} className="text-brand-aqua" />
-                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">Último Login</label>
+                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Último Login</label>
               </div>
               <p className="text-sm text-brand-midnight dark:text-brand-clean">
                 {usuarioLocal?.last_sign_in_at 
@@ -691,11 +691,11 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
             </div>
 
             {/* Contagem de Registros */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <FileText size={16} className="text-brand-aqua" />
-                  <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">Registros</label>
+                  <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Registros</label>
                 </div>
                 <button
                   onClick={async () => {
@@ -794,7 +794,7 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
                       console.warn('⚠️ [Modal] Nenhum usuário local definido para atualizar')
                     }
                   }}
-                  className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded transition-smooth"
+                  className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/20 rounded transition-smooth"
                   title="Atualizar contagem de registros"
                   disabled={carregandoRegistros}
                 >
@@ -853,7 +853,7 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-gray-200 dark:border-white/10 bg-white dark:bg-brand-midnight flex-shrink-0">
+        <div className="px-5 py-4 border-t border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight flex-shrink-0">
           {/* Confirmação de exclusão */}
           {mostrarConfirmacaoExclusao && (
             <div 

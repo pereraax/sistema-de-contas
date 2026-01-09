@@ -1091,9 +1091,9 @@ export default function LandingPage() {
             {/* Plano Premium - Destacado */}
             <AnimateOnScroll delay={300} direction="up">
               <div className="bg-gradient-to-br from-[#00C2FF] to-[#0099CC] rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 shadow-xl border-2 border-white relative transform scale-[1.02] hover:scale-[1.03] transition-all duration-300 z-10">
-              <div className="absolute -top-2 sm:-top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-[#0D1B2A] text-[10px] sm:text-xs font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded-full shadow-lg flex items-center gap-1 sm:gap-1.5">
-                <Sparkles size={12} className="text-[#0D1B2A] sm:w-3.5 sm:h-3.5" />
-                <span>MAIS POPULAR</span>
+              <div className="absolute -top-2 sm:-top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-[#0D1B2A] text-[10px] sm:text-xs font-bold px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full shadow-lg flex items-center gap-1 sm:gap-1.5 whitespace-nowrap">
+                <Sparkles size={12} className="text-[#0D1B2A] sm:w-3.5 sm:h-3.5 flex-shrink-0" />
+                <span className="whitespace-nowrap">MAIS POPULAR</span>
               </div>
               <div className="bg-white/20 backdrop-blur-sm text-white rounded-xl py-2 sm:py-3 px-3 sm:px-4 mb-4 sm:mb-5 text-center border border-white/30">
                 <h3 className="text-lg sm:text-xl md:text-2xl font-bold">Plano Premium</h3>

@@ -254,3 +254,15 @@ body::-webkit-scrollbar {
 }
 
 /* Animações foram movidas para app/animations.css */
+
+/* Garantir que SupportPanel apareça apenas uma vez no desktop */
+#support-panel-unique {
+  display: block;
+}
+
+@media (min-width: 1024px) {
+  /* No desktop, garantir que apenas uma instância seja visível */
+  #support-panel-unique:not(:first-of-type) {
+    display: none !important;
+  }
+}

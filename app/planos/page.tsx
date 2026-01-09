@@ -362,7 +362,7 @@ export default function PlanosPage() {
 
           {/* Plano Premium */}
           <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-[#00C2FF] relative">
-            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-[#00C2FF] text-white text-xs font-bold px-3 py-1 rounded-full">
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-[#00C2FF] text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
               MAIS POPULAR
             </div>
             <div className="bg-[#00C2FF] text-white rounded-xl py-3 px-4 mb-6 text-center">

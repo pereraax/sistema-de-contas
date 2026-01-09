@@ -189,25 +189,25 @@ export default function UsuariosLista({ usuarios: usuariosIniciais, error }: Usu
             <table className="w-full">
               <thead className="bg-brand-midnight border-b border-white/10">
                 <tr>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     ID Admin
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     Nome
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     Email
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     Contato
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     Plano
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     Cadastrado em
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     Ações
                   </th>
                 </tr>

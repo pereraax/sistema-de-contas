@@ -18,7 +18,7 @@ import {
 import { obterEstatisticas } from '@/lib/actions'
 import { useState, useEffect } from 'react'
 import { useFiltroData } from './FiltroRapidoDataWrapper'
-import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight } from 'lucide-react'
 
 export default function ReceitasDespesasDonut() {
   const { dataInicio, dataFim } = useFiltroData()
@@ -27,6 +27,7 @@ export default function ReceitasDespesasDonut() {
     totalSaidas: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [viewMode, setViewMode] = useState<'donut' | 'bar'>('donut')
 
   useEffect(() => {
     const carregarEstatisticas = async () => {
@@ -119,24 +120,50 @@ export default function ReceitasDespesasDonut() {
     : '0.0'
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Quadro 1: Gráfico Donut Animado */}
-      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-brand-royal dark:to-brand-midnight rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-white/10 hover:shadow-xl transition-all duration-300">
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-brand-clean">
-              Receitas x Despesas
-            </h2>
+    <div className="bg-gradient-to-br from-white to-gray-50 dark:from-brand-royal dark:to-brand-midnight rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-white/10 hover:shadow-xl transition-all duration-300">
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-brand-clean">
+            Receitas x Despesas
+          </h2>
+          <div className="flex items-center gap-2">
             {saldoAtual >= 0 ? (
               <TrendingUp className="text-green-500" size={20} />
             ) : (
               <TrendingDown className="text-red-500" size={20} />
             )}
+            {/* Botões de navegação */}
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-brand-midnight/50 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('donut')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
+                  viewMode === 'donut'
+                    ? 'bg-brand-aqua text-white shadow-md'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-brand-midnight'
+                }`}
+              >
+                Donut
+              </button>
+              <button
+                onClick={() => setViewMode('bar')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
+                  viewMode === 'bar'
+                    ? 'bg-brand-aqua text-white shadow-md'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-brand-midnight'
+                }`}
+              >
+                Comparativo
+              </button>
+            </div>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            {periodoTexto}
-          </p>
         </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          {periodoTexto}
+        </p>
+      </div>
+
+      {/* Conteúdo baseado no modo de visualização */}
+      {viewMode === 'donut' ? (
         <div className="flex flex-col md:flex-row items-start md:items-center justify-start md:justify-center gap-8">
           {/* Gráfico de Donut com animação */}
           <div className="relative w-[280px] h-[280px] mx-auto md:mx-0 animate-fade-in">
@@ -231,131 +258,121 @@ export default function ReceitasDespesasDonut() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Quadro 2: Gráfico de Barras Comparativo */}
-      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-brand-royal dark:to-brand-midnight rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-white/10 hover:shadow-xl transition-all duration-300">
-        <div className="mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-brand-clean mb-1">
-            Comparativo Visual
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Análise comparativa de valores
-          </p>
-        </div>
-        
-        {/* Cards de resumo */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800/30">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="text-green-600 dark:text-green-400" size={18} />
-              <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Receitas</p>
-            </div>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-              {new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-                maximumFractionDigits: 0,
-              }).format(receitas)}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{receitasPercent}%</p>
-          </div>
-          <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 border border-red-200 dark:border-red-800/30">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingDown className="text-red-600 dark:text-red-400" size={18} />
-              <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Despesas</p>
-            </div>
-            <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-              {new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-                maximumFractionDigits: 0,
-              }).format(despesas)}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{despesasPercent}%</p>
-          </div>
-        </div>
-
-        {/* Gráfico de barras */}
-        <div className="h-[200px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={barData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
-              <XAxis 
-                dataKey="name" 
-                tick={{ fill: '#6b7280', fontSize: 12 }}
-                axisLine={{ stroke: '#e5e7eb' }}
-              />
-              <YAxis 
-                tick={{ fill: '#6b7280', fontSize: 12 }}
-                axisLine={{ stroke: '#e5e7eb' }}
-                tickFormatter={(value) => 
-                  new Intl.NumberFormat('pt-BR', {
-                    style: 'currency',
-                    currency: 'BRL',
-                    maximumFractionDigits: 0,
-                    notation: 'compact',
-                    compactDisplay: 'short',
-                  }).format(value)
-                }
-              />
-              <Tooltip
-                formatter={(value: number) =>
-                  new Intl.NumberFormat('pt-BR', {
-                    style: 'currency',
-                    currency: 'BRL',
-                  }).format(value)
-                }
-                contentStyle={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  padding: '8px 12px',
-                }}
-              />
-              <Bar 
-                dataKey="valor" 
-                radius={[8, 8, 0, 0]}
-                animationDuration={800}
-                animationEasing="ease-out"
-              >
-                {barData.map((entry, index) => (
-                  <Cell key={`bar-cell-${index}`} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Indicador de saldo */}
-        <div className={`mt-4 p-4 rounded-xl border-2 ${
-          saldoAtual >= 0 
-            ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
-            : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Saldo Final</p>
-              <p className={`text-xl font-bold ${
-                saldoAtual >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-              }`}>
+      ) : (
+        <div className="animate-fade-in">
+          {/* Cards de resumo */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800/30">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="text-green-600 dark:text-green-400" size={18} />
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Receitas</p>
+              </div>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {new Intl.NumberFormat('pt-BR', {
                   style: 'currency',
                   currency: 'BRL',
-                }).format(saldoAtual)}
+                  maximumFractionDigits: 0,
+                }).format(receitas)}
               </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{receitasPercent}%</p>
             </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500 dark:text-gray-400">Diferença</p>
-              <p className={`text-lg font-semibold ${
-                saldoAtual >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-              }`}>
-                {saldoAtual >= 0 ? '+' : ''}{diferencaPercent}%
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 border border-red-200 dark:border-red-800/30">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingDown className="text-red-600 dark:text-red-400" size={18} />
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Despesas</p>
+              </div>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                  maximumFractionDigits: 0,
+                }).format(despesas)}
               </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{despesasPercent}%</p>
+            </div>
+          </div>
+
+          {/* Gráfico de barras */}
+          <div className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={barData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fill: '#6b7280', fontSize: 12 }}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                />
+                <YAxis 
+                  tick={{ fill: '#6b7280', fontSize: 12 }}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                  tickFormatter={(value) => 
+                    new Intl.NumberFormat('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                      maximumFractionDigits: 0,
+                      notation: 'compact',
+                      compactDisplay: 'short',
+                    }).format(value)
+                  }
+                />
+                <Tooltip
+                  formatter={(value: number) =>
+                    new Intl.NumberFormat('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    }).format(value)
+                  }
+                  contentStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                  }}
+                />
+                <Bar 
+                  dataKey="valor" 
+                  radius={[8, 8, 0, 0]}
+                  animationDuration={800}
+                  animationEasing="ease-out"
+                >
+                  {barData.map((entry, index) => (
+                    <Cell key={`bar-cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Indicador de saldo */}
+          <div className={`mt-4 p-4 rounded-xl border-2 ${
+            saldoAtual >= 0 
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
+              : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Saldo Final</p>
+                <p className={`text-xl font-bold ${
+                  saldoAtual >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                }`}>
+                  {new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                  }).format(saldoAtual)}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Diferença</p>
+                <p className={`text-lg font-semibold ${
+                  saldoAtual >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                }`}>
+                  {saldoAtual >= 0 ? '+' : ''}{diferencaPercent}%
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

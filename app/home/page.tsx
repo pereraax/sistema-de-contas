@@ -63,15 +63,10 @@ export default async function HomePage() {
             <ReceitasDespesasDonut />
           </div>
 
-          {/* SupportPanel no Mobile - ANTES dos cards de registro */}
-          <div className="lg:hidden mb-6 sm:mb-8">
-            <SupportPanel />
-          </div>
-
-          {/* Conteúdo Principal - SEMPRE VISÍVEL, mas desabilitado se email não confirmado */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Conteúdo Principal - Cards de Ação Rápida */}
+          <div className="flex flex-col lg:flex-row gap-6">
             {/* Coluna Esquerda - Ações Rápidas */}
-            <div className="lg:col-span-2 space-y-6 sm:space-y-8 md:space-y-10">
+            <div className="flex-1 lg:w-2/3 space-y-6 sm:space-y-8 md:space-y-10">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 items-stretch">
                 <QuickActionCard
                   title="NOVO REGISTRO"
@@ -106,15 +101,20 @@ export default async function HomePage() {
               </div>
             </div>
 
-            {/* Coluna Direita - SupportPanel (Desktop) */}
-            <div className="hidden lg:block lg:col-span-1">
-              <SupportPanel />
+            {/* Coluna Direita - SupportPanel (Desktop) - APENAS UMA VEZ NO DESKTOP - NUNCA DUPLICAR */}
+            <div className="hidden lg:block lg:w-1/3">
+              <SupportPanel key="support-desktop-only" />
             </div>
           </div>
 
-          {/* Banner - Abaixo dos cards de registro */}
-          <div className="mb-6">
+          {/* Banner - Abaixo dos cards de registro com espaçamento adequado */}
+          <div className="mt-8 mb-6">
             <BannerInformacoes />
+          </div>
+
+          {/* SupportPanel no Mobile - Abaixo do banner - APENAS NO MOBILE - NUNCA NO DESKTOP */}
+          <div className="lg:hidden">
+            <SupportPanel key="support-mobile-only" />
           </div>
         </div>
       </main>

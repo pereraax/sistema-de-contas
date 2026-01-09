@@ -1,16 +1,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import { MenuButton } from '@/components/MobileMenu'
 import PlanoGuard from '@/components/PlanoGuard'
 import NotificationBell from '@/components/NotificationBell'
 import UserProfileMenu from '@/components/UserProfileMenu'
 import Logo from '@/components/Logo'
-import { Loader2, Clock, CheckCircle2, XCircle, Calendar, Trash2, Search, Filter, AlertCircle, Sparkles, X, Plus, Pencil, User as UserIcon } from 'lucide-react'
+import { createNotification } from '@/components/NotificationBell'
+import { Loader2, Clock, CheckCircle2, XCircle, Calendar, Trash2, Search, Filter, AlertCircle, Sparkles, X, Plus, Pencil, User as UserIcon, TrendingUp, TrendingDown, ChevronDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { format, isPast, isToday, isTomorrow, addDays } from 'date-fns'
 import ModalSelecionarUsuario from '@/components/ModalSelecionarUsuario'
+import ModalSelecionarTipo from '@/components/ModalSelecionarTipo'
 import { User } from '@/lib/types'
 import { formatarValorEmTempoReal, converterValorFormatadoParaNumero } from '@/lib/formatCurrency'
 
@@ -26,9 +29,11 @@ interface Lembrete {
   valor?: number | null
   nota?: string | null
   user_id?: string | null
+  tipo?: 'entrada' | 'saida' | null
 }
 
 export default function LembretesPage() {
+  const router = useRouter()
   const [lembretes, setLembretes] = useState<Lembrete[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -45,14 +50,20 @@ export default function LembretesPage() {
   const [errorMessage, setErrorMessage] = useState('')
   const [showModalUsuario, setShowModalUsuario] = useState(false)
   const [showModalUsuarioEdit, setShowModalUsuarioEdit] = useState(false)
+  const [showModalTipo, setShowModalTipo] = useState(false)
+  const [showModalTipoEdit, setShowModalTipoEdit] = useState(false)
   const [usuarioSelecionado, setUsuarioSelecionado] = useState<User | null>(null)
   const [usuarioSelecionadoEdit, setUsuarioSelecionadoEdit] = useState<User | null>(null)
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [lembreteDetalhes, setLembreteDetalhes] = useState<Lembrete | null>(null)
+  const [usuarios, setUsuarios] = useState<User[]>([])
   const [formData, setFormData] = useState({
     descricao: '',
     data_lembrete: new Date().toISOString().slice(0, 16),
     valor: '',
     nota: '',
     user_id: '',
+    tipo: '' as 'entrada' | 'saida' | '',
   })
   const [editFormData, setEditFormData] = useState({
     descricao: '',
@@ -60,6 +71,7 @@ export default function LembretesPage() {
     valor: '',
     nota: '',
     user_id: '',
+    tipo: '' as 'entrada' | 'saida' | '',
   })
 
   const carregarLembretes = async () => {
@@ -98,6 +110,29 @@ export default function LembretesPage() {
   const marcarComoConcluido = async (id: string) => {
     try {
       const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        setErrorMessage('Usuário não autenticado')
+        setShowErrorModal(true)
+        return
+      }
+
+      // Buscar o lembrete para obter valor e tipo
+      const { data: lembrete, error: fetchError } = await supabase
+        .from('lembretes')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (fetchError || !lembrete) {
+        console.error('Erro ao buscar lembrete:', fetchError)
+        setErrorMessage('Erro ao buscar lembrete')
+        setShowErrorModal(true)
+        return
+      }
+
+      // Atualizar status do lembrete
       const { error } = await supabase
         .from('lembretes')
         .update({ status: 'concluido' })
@@ -105,13 +140,123 @@ export default function LembretesPage() {
 
       if (error) {
         console.error('Erro ao marcar como concluído:', error)
-        alert('Erro ao marcar como concluído')
-      } else {
-        carregarLembretes()
+        setErrorMessage('Erro ao marcar como concluído')
+        setShowErrorModal(true)
+        return
       }
+
+      // Se o lembrete tiver valor e tipo, criar registro automaticamente
+      if (lembrete.valor && lembrete.valor > 0 && lembrete.tipo && (lembrete.tipo === 'entrada' || lembrete.tipo === 'saida')) {
+        try {
+          console.log('📝 Criando registro do lembrete:', {
+            valor: lembrete.valor,
+            tipo: lembrete.tipo,
+            user_id_lembrete: lembrete.user_id,
+            account_owner_id: user.id
+          })
+
+          // Buscar o primeiro usuário da tabela users que pertence a este account_owner
+          // Isso é necessário porque user_id precisa ser um id da tabela users, não do auth.users
+          const { data: usuarios, error: usuariosError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('account_owner_id', user.id)
+            .limit(1)
+          
+          let registroUserId: string | null = null
+
+          if (usuariosError) {
+            console.error('❌ Erro ao buscar usuários:', usuariosError)
+          } else if (usuarios && usuarios.length > 0) {
+            // Se o lembrete tem um user_id específico, verificar se ele pertence ao account_owner
+            if (lembrete.user_id) {
+              const { data: usuarioLembrete } = await supabase
+                .from('users')
+                .select('id')
+                .eq('id', lembrete.user_id)
+                .eq('account_owner_id', user.id)
+                .single()
+              
+              if (usuarioLembrete) {
+                registroUserId = usuarioLembrete.id
+                console.log('✅ Usando user_id do lembrete:', registroUserId)
+              } else {
+                registroUserId = usuarios[0].id
+                console.log('⚠️ User_id do lembrete não pertence ao account_owner, usando primeiro usuário:', registroUserId)
+              }
+            } else {
+              registroUserId = usuarios[0].id
+              console.log('✅ Usando primeiro usuário do account_owner:', registroUserId)
+            }
+          } else {
+            console.error('❌ Nenhum usuário encontrado para o account_owner:', user.id)
+            setErrorMessage('Nenhum usuário encontrado. Por favor, crie um usuário primeiro.')
+            setShowErrorModal(true)
+            return
+          }
+
+          // Verificar se temos um user_id válido
+          if (!registroUserId) {
+            console.error('❌ Não foi possível determinar o user_id para o registro')
+            setErrorMessage('Erro ao criar registro: usuário não encontrado')
+            setShowErrorModal(true)
+            return
+          }
+
+          // Criar registro
+          // IMPORTANTE: A tabela registros NÃO tem account_owner_id, apenas user_id
+          // O account_owner_id está na tabela users, não em registros
+          const novoRegistro: any = {
+            user_id: registroUserId,
+            nome: lembrete.descricao,
+            tipo: lembrete.tipo,
+            valor: lembrete.valor,
+            data_registro: new Date().toISOString(),
+            observacao: lembrete.nota || `Lembrete concluído: ${lembrete.descricao}`,
+            categoria: null,
+            etiquetas: [],
+            parcelas_totais: 1,
+            parcelas_pagas: 0,
+          }
+
+          console.log('📤 Enviando registro para o banco:', novoRegistro)
+
+          const { data: registroCriado, error: registroError } = await supabase
+            .from('registros')
+            .insert([novoRegistro])
+            .select()
+            .single()
+
+          if (registroError) {
+            console.error('❌ Erro ao criar registro do lembrete:', registroError)
+            setErrorMessage(`Lembrete concluído, mas houve um erro ao criar o registro: ${registroError.message}`)
+            setShowErrorModal(true)
+          } else if (registroCriado) {
+            console.log('✅ Registro criado automaticamente do lembrete:', registroCriado)
+            createNotification(
+              `Registro de ${lembrete.tipo === 'entrada' ? 'entrada' : 'saída'} de ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lembrete.valor)} criado automaticamente!`,
+              'success'
+            )
+            // Forçar atualização do cache e recarregar a página home
+            router.refresh()
+            // Aguardar um pouco e recarregar a página home se estiver aberta
+            setTimeout(() => {
+              if (window.location.pathname === '/home') {
+                window.location.reload()
+              }
+            }, 500)
+          }
+        } catch (registroError) {
+          console.error('Erro ao criar registro do lembrete:', registroError)
+          // Não bloquear a conclusão do lembrete se falhar ao criar o registro
+        }
+      }
+
+      carregarLembretes()
     } catch (error) {
       console.error('Erro ao marcar como concluído:', error)
-      alert('Erro ao marcar como concluído')
+      setErrorMessage('Erro ao marcar como concluído')
+      setShowErrorModal(true)
     }
   }
 
@@ -172,6 +317,7 @@ export default function LembretesPage() {
       valor: valorFormatado,
       nota: lembrete.nota || '',
       user_id: lembrete.user_id || '',
+      tipo: lembrete.tipo || '',
     })
     
     // Carregar dados do usuário se houver user_id
@@ -207,7 +353,29 @@ export default function LembretesPage() {
       valor: '',
       nota: '',
       user_id: '',
+      tipo: '',
     })
+  }
+
+  const carregarUsuarios = async () => {
+    try {
+      const { obterUsuarios } = await import('@/lib/actions')
+      const result = await obterUsuarios()
+      setUsuarios(result.data || [])
+    } catch (error) {
+      console.error('Erro ao carregar usuários:', error)
+      setUsuarios([])
+    }
+  }
+
+  const abrirModalDetalhes = (lembrete: Lembrete) => {
+    setLembreteDetalhes(lembrete)
+    setShowDetailModal(true)
+  }
+
+  const fecharModalDetalhes = () => {
+    setShowDetailModal(false)
+    setLembreteDetalhes(null)
   }
 
   const salvarEdicao = async () => {
@@ -248,6 +416,13 @@ export default function LembretesPage() {
       // Se houver user_id selecionado, adicionar
       if (editFormData.user_id) {
         updateData.user_id = editFormData.user_id
+      }
+      
+      // Adicionar tipo apenas se houver um valor válido
+      if (editFormData.tipo && (editFormData.tipo === 'entrada' || editFormData.tipo === 'saida')) {
+        updateData.tipo = editFormData.tipo
+      } else {
+        updateData.tipo = null
       }
 
       const { error } = await supabase
@@ -315,6 +490,11 @@ export default function LembretesPage() {
       if (formData.user_id && formData.user_id.trim() !== '') {
         insertData.user_id = formData.user_id
       }
+      
+      // Adicionar tipo apenas se houver um valor válido
+      if (formData.tipo && (formData.tipo === 'entrada' || formData.tipo === 'saida')) {
+        insertData.tipo = formData.tipo
+      }
 
       const { error } = await supabase
         .from('lembretes')
@@ -332,6 +512,7 @@ export default function LembretesPage() {
           valor: '',
           nota: '',
           user_id: '',
+          tipo: '',
         })
         carregarLembretes()
       }
@@ -356,6 +537,10 @@ export default function LembretesPage() {
     return () => {
       window.removeEventListener('focus', handleFocus)
     }
+  }, [])
+
+  useEffect(() => {
+    carregarUsuarios()
   }, [])
 
   // Filtrar lembretes
@@ -571,7 +756,8 @@ export default function LembretesPage() {
                       return (
                         <div
                           key={lembrete.id}
-                          className="group relative bg-white dark:bg-brand-royal rounded-xl p-4 sm:p-5 shadow-lg border-2 border-red-400 dark:border-red-500/50 hover:border-red-500 dark:hover:border-red-400 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden"
+                          onClick={() => abrirModalDetalhes(lembrete)}
+                          className="group relative bg-white dark:bg-brand-royal rounded-xl p-4 sm:p-5 shadow-lg border-2 border-red-400 dark:border-red-500/50 hover:border-red-500 dark:hover:border-red-400 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden cursor-pointer"
                         >
                           <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 dark:bg-red-500/20 rounded-full -mr-12 -mt-12 blur-xl"></div>
                           <div className="relative">
@@ -595,7 +781,7 @@ export default function LembretesPage() {
                                 Atrasado
                               </span>
                             </div>
-                            <div className="flex gap-2 mt-3 sm:mt-4">
+                            <div className="flex gap-2 mt-3 sm:mt-4" onClick={(e) => e.stopPropagation()}>
                               <button
                                 onClick={() => marcarComoConcluido(lembrete.id)}
                                 className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
@@ -649,7 +835,8 @@ export default function LembretesPage() {
                       return (
                         <div
                           key={lembrete.id}
-                          className="group relative bg-white dark:bg-brand-royal rounded-xl p-4 sm:p-5 shadow-lg border-2 border-blue-400 dark:border-blue-500/50 hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden"
+                          onClick={() => abrirModalDetalhes(lembrete)}
+                          className="group relative bg-white dark:bg-brand-royal rounded-xl p-4 sm:p-5 shadow-lg border-2 border-blue-400 dark:border-blue-500/50 hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden cursor-pointer"
                         >
                           <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 dark:bg-blue-500/20 rounded-full -mr-12 -mt-12 blur-xl"></div>
                           <div className="relative">
@@ -673,7 +860,7 @@ export default function LembretesPage() {
                                 Hoje
                               </span>
                             </div>
-                            <div className="flex gap-2 mt-3 sm:mt-4">
+                            <div className="flex gap-2 mt-3 sm:mt-4" onClick={(e) => e.stopPropagation()}>
                               <button
                                 onClick={() => marcarComoConcluido(lembrete.id)}
                                 className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
@@ -727,7 +914,8 @@ export default function LembretesPage() {
                       return (
                         <div
                           key={lembrete.id}
-                          className="group relative bg-white dark:bg-brand-royal rounded-xl p-4 sm:p-5 shadow-lg border-2 border-purple-400 dark:border-purple-500/50 hover:border-purple-500 dark:hover:border-purple-400 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden"
+                          onClick={() => abrirModalDetalhes(lembrete)}
+                          className="group relative bg-white dark:bg-brand-royal rounded-xl p-4 sm:p-5 shadow-lg border-2 border-purple-400 dark:border-purple-500/50 hover:border-purple-500 dark:hover:border-purple-400 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden cursor-pointer"
                         >
                           <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/10 dark:bg-purple-500/20 rounded-full -mr-12 -mt-12 blur-xl"></div>
                           <div className="relative">
@@ -751,7 +939,7 @@ export default function LembretesPage() {
                                 Amanhã
                               </span>
                             </div>
-                            <div className="flex gap-2 mt-3 sm:mt-4">
+                            <div className="flex gap-2 mt-3 sm:mt-4" onClick={(e) => e.stopPropagation()}>
                               <button
                                 onClick={() => marcarComoConcluido(lembrete.id)}
                                 className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
@@ -826,7 +1014,7 @@ export default function LembretesPage() {
                                 </div>
                               </div>
                             </div>
-                            <div className="flex gap-2 mt-3 sm:mt-4">
+                            <div className="flex gap-2 mt-3 sm:mt-4" onClick={(e) => e.stopPropagation()}>
                               <button
                                 onClick={() => marcarComoConcluido(lembrete.id)}
                                 className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
@@ -880,7 +1068,8 @@ export default function LembretesPage() {
                       return (
                         <div
                           key={lembrete.id}
-                          className="group relative bg-white/60 dark:bg-brand-royal/60 backdrop-blur-sm rounded-2xl p-6 shadow-lg border-2 border-green-400/50 dark:border-green-500/30 opacity-80 hover:opacity-100 transition-all duration-300"
+                          onClick={() => abrirModalDetalhes(lembrete)}
+                          className="group relative bg-white/60 dark:bg-brand-royal/60 backdrop-blur-sm rounded-2xl p-6 shadow-lg border-2 border-green-400/50 dark:border-green-500/30 opacity-80 hover:opacity-100 transition-all duration-300 cursor-pointer"
                         >
                           <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 dark:bg-green-500/10 rounded-full -mr-12 -mt-12 blur-xl"></div>
                           <div className="relative">
@@ -978,6 +1167,7 @@ export default function LembretesPage() {
                   valor: '',
                   nota: '',
                   user_id: '',
+                  tipo: '',
                 })
               }}
             >
@@ -1076,16 +1266,47 @@ export default function LembretesPage() {
 
                     <div>
                       <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
-                        Data e Hora *
+                        Tipo
                       </label>
-                      <input
-                        type="datetime-local"
-                        value={formData.data_lembrete}
-                        onChange={(e) => setFormData({ ...formData, data_lembrete: e.target.value })}
-                        className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua transition-smooth text-sm"
-                        required
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowModalTipo(true)}
+                        className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 focus:outline-none focus:border-brand-aqua transition-smooth flex items-center justify-between text-left text-sm"
+                      >
+                        <div className="flex items-center gap-2">
+                          {formData.tipo === 'entrada' ? (
+                            <>
+                              <TrendingUp size={16} className="text-green-600 dark:text-green-400" />
+                              <span className="text-brand-midnight dark:text-brand-clean">Entrada</span>
+                            </>
+                          ) : formData.tipo === 'saida' ? (
+                            <>
+                              <TrendingDown size={16} className="text-red-600 dark:text-red-400" />
+                              <span className="text-brand-midnight dark:text-brand-clean">Saída</span>
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-4 h-4"></div>
+                              <span className="text-brand-midnight/50 dark:text-brand-clean/50">Selecione...</span>
+                            </>
+                          )}
+                        </div>
+                        <ChevronDown size={16} className="text-brand-midnight/50 dark:text-brand-clean/50" />
+                      </button>
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
+                      Data e Hora *
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={formData.data_lembrete}
+                      onChange={(e) => setFormData({ ...formData, data_lembrete: e.target.value })}
+                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua transition-smooth text-sm"
+                      required
+                    />
                   </div>
 
                   <div>
@@ -1212,16 +1433,47 @@ export default function LembretesPage() {
 
                     <div>
                       <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
-                        Data e Hora *
+                        Tipo
                       </label>
-                      <input
-                        type="datetime-local"
-                        value={editFormData.data_lembrete}
-                        onChange={(e) => setEditFormData({ ...editFormData, data_lembrete: e.target.value })}
-                        className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua transition-smooth text-sm"
-                        required
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowModalTipoEdit(true)}
+                        className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 focus:outline-none focus:border-brand-aqua transition-smooth flex items-center justify-between text-left text-sm"
+                      >
+                        <div className="flex items-center gap-2">
+                          {editFormData.tipo === 'entrada' ? (
+                            <>
+                              <TrendingUp size={16} className="text-green-600 dark:text-green-400" />
+                              <span className="text-brand-midnight dark:text-brand-clean">Entrada</span>
+                            </>
+                          ) : editFormData.tipo === 'saida' ? (
+                            <>
+                              <TrendingDown size={16} className="text-red-600 dark:text-red-400" />
+                              <span className="text-brand-midnight dark:text-brand-clean">Saída</span>
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-4 h-4"></div>
+                              <span className="text-brand-midnight/50 dark:text-brand-clean/50">Selecione...</span>
+                            </>
+                          )}
+                        </div>
+                        <ChevronDown size={16} className="text-brand-midnight/50 dark:text-brand-clean/50" />
+                      </button>
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
+                      Data e Hora *
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={editFormData.data_lembrete}
+                      onChange={(e) => setEditFormData({ ...editFormData, data_lembrete: e.target.value })}
+                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua transition-smooth text-sm"
+                      required
+                    />
                   </div>
 
                   <div>
@@ -1275,6 +1527,24 @@ export default function LembretesPage() {
               setEditFormData({ ...editFormData, user_id: user.id })
             }}
             selectedUserId={editFormData.user_id}
+          />
+
+          <ModalSelecionarTipo
+            isOpen={showModalTipo}
+            onClose={() => setShowModalTipo(false)}
+            onSelect={(tipo) => {
+              setFormData({ ...formData, tipo })
+            }}
+            selectedTipo={formData.tipo}
+          />
+
+          <ModalSelecionarTipo
+            isOpen={showModalTipoEdit}
+            onClose={() => setShowModalTipoEdit(false)}
+            onSelect={(tipo) => {
+              setEditFormData({ ...editFormData, tipo })
+            }}
+            selectedTipo={editFormData.tipo}
           />
 
           {/* Modal de Erro */}
@@ -1414,6 +1684,168 @@ export default function LembretesPage() {
                       )}
                     </button>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal de Detalhes do Lembrete */}
+          {showDetailModal && lembreteDetalhes && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+              <div 
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                onClick={fecharModalDetalhes}
+              ></div>
+              <div className="relative bg-white dark:bg-brand-royal rounded-2xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border-2 border-gray-200 dark:border-brand-midnight/50 animate-fade-in">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-brand-midnight dark:text-brand-clean">
+                    Detalhes do Lembrete
+                  </h2>
+                  <button
+                    onClick={fecharModalDetalhes}
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-brand-midnight rounded-lg transition-colors"
+                  >
+                    <X size={24} className="text-brand-midnight dark:text-brand-clean" />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Descrição */}
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2 block">
+                      Descrição
+                    </label>
+                    <p className="text-lg text-brand-midnight dark:text-brand-clean font-medium">
+                      {lembreteDetalhes.descricao}
+                    </p>
+                  </div>
+
+                  {/* Data e Hora */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2 block">
+                        Data
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="text-brand-aqua" size={18} />
+                        <p className="text-brand-midnight dark:text-brand-clean">
+                          {format(new Date(lembreteDetalhes.data_lembrete), 'dd-MM-yyyy', { locale: ptBR })}
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2 block">
+                        Hora
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <Clock className="text-brand-aqua" size={18} />
+                        <p className="text-brand-midnight dark:text-brand-clean">
+                          {lembreteDetalhes.horario || '10:00:00'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Valor */}
+                  {lembreteDetalhes.valor && (
+                    <div>
+                      <label className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2 block">
+                        Valor
+                      </label>
+                      <p className="text-xl font-bold text-green-600 dark:text-green-400">
+                        {new Intl.NumberFormat('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL',
+                        }).format(lembreteDetalhes.valor)}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Tipo */}
+                  {lembreteDetalhes.tipo && (
+                    <div>
+                      <label className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2 block">
+                        Tipo
+                      </label>
+                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                        lembreteDetalhes.tipo === 'entrada'
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                          : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                      }`}>
+                        {lembreteDetalhes.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Usuário */}
+                  {lembreteDetalhes.user_id && (
+                    <div>
+                      <label className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2 block">
+                        Usuário
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <UserIcon className="text-brand-aqua" size={18} />
+                        <p className="text-brand-midnight dark:text-brand-clean">
+                          {usuarios.find(u => u.id === lembreteDetalhes.user_id)?.nome || 'Usuário não encontrado'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Nota */}
+                  {lembreteDetalhes.nota && (
+                    <div>
+                      <label className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2 block">
+                        Nota
+                      </label>
+                      <p className="text-brand-midnight dark:text-brand-clean bg-gray-50 dark:bg-brand-midnight/50 p-3 rounded-lg">
+                        {lembreteDetalhes.nota}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Status */}
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2 block">
+                      Status
+                    </label>
+                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                      lembreteDetalhes.status === 'concluido'
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                        : lembreteDetalhes.status === 'cancelado'
+                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                        : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                    }`}>
+                      {lembreteDetalhes.status === 'concluido' ? 'Concluído' : 
+                       lembreteDetalhes.status === 'cancelado' ? 'Cancelado' : 'Pendente'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Botões de ação */}
+                <div className="flex gap-3 mt-6 pt-6 border-t border-gray-200 dark:border-brand-midnight/50">
+                  <button
+                    onClick={() => {
+                      fecharModalDetalhes()
+                      abrirModalEditar(lembreteDetalhes)
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-semibold transition-all duration-200 shadow-md hover:shadow-lg"
+                  >
+                    <Pencil size={18} />
+                    Editar
+                  </button>
+                  {lembreteDetalhes.status === 'pendente' && (
+                    <button
+                      onClick={() => {
+                        fecharModalDetalhes()
+                        marcarComoConcluido(lembreteDetalhes.id)
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold transition-all duration-200 shadow-md hover:shadow-lg"
+                    >
+                      <CheckCircle2 size={18} />
+                      Concluir
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
