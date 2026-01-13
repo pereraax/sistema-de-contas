@@ -1677,6 +1677,16 @@ export async function POST(request: NextRequest) {
     if (imageBase64) {
       console.log('🖼️ [PLEN WhatsApp] Processando imagem...')
       comando = await processarComandoComImagem(imageBase64)
+      
+      // Verificar se comando é válido
+      if (!comando || typeof comando !== 'object' || !comando.tipo) {
+        console.error('❌ [PLEN WhatsApp] Erro ao processar imagem - comando inválido:', comando)
+        addLog('error', `❌ [PLEN WhatsApp] Erro ao processar imagem: ${JSON.stringify(comando)}`)
+        return NextResponse.json({
+          response: '📸 Recebi uma imagem, mas não consegui processá-la.\n\n💡 Por favor, descreva o comprovante em texto:\n\n• "paguei 300 reais para Anderson"\n• "recebi 500 reais de Maria"\n• "gastei 80 reais na farmácia"\n\n✅ Com isso, registro automaticamente!',
+        })
+      }
+      
       console.log('🔍 [PLEN WhatsApp] Comando detectado da imagem:', comando.tipo, comando.dados)
       
       // Se não conseguiu processar imagem, pedir descrição ao usuário
@@ -1746,6 +1756,15 @@ export async function POST(request: NextRequest) {
         // Processar comando único normalmente
         comando = await processarComando(message)
       }
+    }
+
+    // Verificar se comando é válido antes de acessar propriedades
+    if (!comando || typeof comando !== 'object' || !comando.tipo) {
+      console.error('❌ [PLEN WhatsApp] Comando inválido:', comando)
+      addLog('error', `❌ [PLEN WhatsApp] Comando inválido recebido: ${JSON.stringify(comando)}`)
+      return NextResponse.json({
+        response: '❌ Não consegui entender sua mensagem. Por favor, tente novamente com um formato como:\n\n• "gastei 50 casa"\n• "ganhei 100 extra"\n• "devo 200 João"',
+      })
     }
 
     // Executar ação se necessário
