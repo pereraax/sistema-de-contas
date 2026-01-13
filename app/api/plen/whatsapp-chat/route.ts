@@ -2770,6 +2770,14 @@ export async function POST(request: NextRequest) {
                             msgLowerCheck.includes('minha conta') ||
                             msgLowerCheck.includes('dados da conta')
     
+    // Verificar novamente se comando é válido antes de acessar propriedades
+    if (!comando || typeof comando !== 'object' || !comando.tipo) {
+      console.error('❌ [PLEN WhatsApp] Comando inválido antes de verificar conta:', comando)
+      return NextResponse.json({
+        response: '❌ Não consegui entender sua mensagem. Por favor, tente novamente com um formato como:\n\n• "gastei 50 casa"\n• "ganhei 100 extra"\n• "devo 200 João"',
+      })
+    }
+
     if (isVerificarConta && comando.tipo === 'conversa') {
       console.log('⚠️ [PLEN WhatsApp] Comando "verificar conta" detectado no fallback!')
       console.log('⚠️ [PLEN WhatsApp] Forçando tipo para verificar_conta')
@@ -2788,7 +2796,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Resposta padrão para mensagens não reconhecidas (apenas se não for verificar_conta)
-    if (comando.tipo !== 'verificar_conta') {
+    if (comando && typeof comando === 'object' && comando.tipo && comando.tipo !== 'verificar_conta') {
       return NextResponse.json({
         response: `🤔 Ops, não entendi muito bem o que você quis dizer. Mas não se preocupe, vou te ajudar! 😊\n\n📋 Você pode me pedir para:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n\n💡 Dica: Você pode falar de forma natural, como se estivesse conversando comigo! Por exemplo:\n• "gastei 30 reais de ônibus"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais"\n\nDigite "oi" para ver todas as opções disponíveis! 😊`,
       })
@@ -2811,14 +2819,18 @@ export async function POST(request: NextRequest) {
     let errorMessage = 'Erro ao processar mensagem'
     let responseMessage = 'Desculpe, ocorreu um erro. Tente novamente em alguns instantes.'
     
-    if (error.message?.includes('usuário') || error.message?.includes('user') || error.code === '23503') {
+    // Garantir que error.message seja uma string
+    const errorMsg = error?.message ? String(error.message) : 'Erro desconhecido'
+    
+    if (errorMsg.includes('usuário') || errorMsg.includes('user') || error.code === '23503') {
       responseMessage = '❌ Para registrar transações, você precisa criar pelo menos um usuário/pessoa primeiro.\n\n📱 Acesse: plenipay.com/configuracoes\n\nVá em "Usuários/Pessoas" e clique em "+ Novo Usuário".'
-    } else if (error.message?.includes('plano') || error.message?.includes('limite')) {
-      responseMessage = `❌ ${error.message}`
-    } else if (error.message?.includes('permission') || error.message?.includes('permissão') || error.code === '42501') {
+    } else if (errorMsg.includes('plano') || errorMsg.includes('limite')) {
+      responseMessage = `❌ ${errorMsg}`
+    } else if (errorMsg.includes('permission') || errorMsg.includes('permissão') || error.code === '42501') {
       responseMessage = '❌ Erro de permissão. Verifique se sua conta está ativa.'
-    } else if (error.message) {
-      responseMessage = `❌ Erro: ${error.message}`
+    } else if (errorMsg && errorMsg !== 'true' && errorMsg !== 'false') {
+      // Só mostrar a mensagem de erro se não for um booleano
+      responseMessage = `❌ Erro: ${errorMsg}`
     }
     
     // CRÍTICO: Sempre retornar status 200 com resposta, mesmo em caso de erro
