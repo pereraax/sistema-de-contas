@@ -10,7 +10,10 @@ import { criarRegistro } from '@/lib/actions'
 import { obterPlanoUsuario, obterFeaturesUsuario, podeCriarRegistro } from '@/lib/plano'
 import { format, startOfWeek, addDays, parse, setHours, setMinutes, setSeconds, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
-import { addLog } from '@/lib/server-logs'
+import { addLog, interceptConsoleLogs } from '@/lib/server-logs'
+
+// Interceptar console.log para capturar logs automaticamente
+interceptConsoleLogs()
 
 /**
  * Função para identificar se é familiar/pessoa
@@ -125,6 +128,292 @@ async function obterOuCriarUsuarioPadrao(supabaseAdmin: any, authUserId: string)
     console.error('❌ [PLEN WhatsApp] Erro ao obter/criar usuário:', error)
     return null
   }
+}
+
+// Função para processar múltiplos registros em uma única mensagem
+async function processarMultiplosRegistros(
+  linhas: string[],
+  userId: string,
+  supabaseAdmin: any,
+  profile: any,
+  registros: any[],
+  features: any
+): Promise<NextResponse> {
+  console.log('📝 [PLEN WhatsApp] ==========================================')
+  console.log('📝 [PLEN WhatsApp] 🔥🔥🔥 PROCESSANDO MÚLTIPLOS REGISTROS 🔥🔥🔥')
+  console.log('📝 [PLEN WhatsApp] Total de linhas recebidas:', linhas.length)
+  console.log('📝 [PLEN WhatsApp] Linhas:', JSON.stringify(linhas))
+  console.log('📝 [PLEN WhatsApp] User ID:', userId?.substring(0, 8) + '...')
+  console.log('📝 [PLEN WhatsApp] ==========================================')
+  
+  addLog('info', `🔥 [PLEN WhatsApp] INICIANDO processarMultiplosRegistros com ${linhas.length} linhas`)
+  
+  const resultados: Array<{ sucesso: boolean; mensagem: string; linha: string }> = []
+  
+  // Obter usuário padrão uma vez para todos os registros
+  const user_id = await obterOuCriarUsuarioPadrao(supabaseAdmin, userId)
+  if (!user_id) {
+    return NextResponse.json({
+      response: '❌ Para registrar transações, você precisa criar pelo menos um usuário/pessoa primeiro.\n\n📱 Acesse: plenipay.com/configuracoes\n\nVá em "Usuários/Pessoas" e clique em "+ Novo Usuário".',
+    })
+  }
+  
+  // Processar cada linha como um registro separado
+  console.log('📝 [PLEN WhatsApp] ==========================================')
+  console.log('📝 [PLEN WhatsApp] INICIANDO PROCESSAMENTO DE MÚLTIPLOS REGISTROS')
+  console.log('📝 [PLEN WhatsApp] Total de linhas recebidas:', linhas.length)
+  console.log('📝 [PLEN WhatsApp] Linhas:', JSON.stringify(linhas))
+  console.log('📝 [PLEN WhatsApp] ==========================================')
+  
+  for (let i = 0; i < linhas.length; i++) {
+    const linha = linhas[i]
+    try {
+      const linhaTrim = linha.trim()
+      if (!linhaTrim || linhaTrim.length === 0) {
+        console.log(`📝 [PLEN WhatsApp] Linha ${i + 1} vazia, ignorando`)
+        continue
+      }
+      
+      console.log('📝 [PLEN WhatsApp] ==========================================')
+      console.log(`📝 [PLEN WhatsApp] Processando linha ${i + 1}/${linhas.length}:`, JSON.stringify(linhaTrim))
+      
+      // Processar comando da linha
+      const comando = await processarComando(linhaTrim)
+      
+      console.log('📝 [PLEN WhatsApp] Comando detectado:', comando.tipo, comando.dados)
+      
+      // Verificar se é um registro válido
+      if (comando.tipo !== 'registrar_gasto' && 
+          comando.tipo !== 'registrar_entrada' && 
+          comando.tipo !== 'registrar_divida') {
+        console.log('📝 [PLEN WhatsApp] ⚠️ Linha não reconhecida como registro:', comando.tipo)
+        resultados.push({
+          sucesso: false,
+          mensagem: `⚠️ "${linhaTrim}" não foi reconhecido como registro (tipo: ${comando.tipo})`,
+          linha: linhaTrim
+        })
+        continue
+      }
+      
+      console.log('📝 [PLEN WhatsApp] ✅ Linha reconhecida como registro válido!')
+      
+      // Verificar limite de registros mensais
+      const hoje = new Date()
+      const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+      const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59, 999)
+      
+      const registrosMesAtual = registros.filter((r: any) => {
+        let dataCriacao: Date
+        if (r.created_at) {
+          dataCriacao = new Date(r.created_at)
+        } else if (r.data_registro) {
+          dataCriacao = new Date(r.data_registro)
+        } else {
+          return false
+        }
+        return dataCriacao >= inicioMes && dataCriacao <= fimMes
+      }).length
+      
+      const limite = features.limiteRegistrosMensais === null ? -1 : features.limiteRegistrosMensais
+      const podeCriar = limite === -1 || registrosMesAtual < limite
+      
+      if (!podeCriar) {
+        resultados.push({
+          sucesso: false,
+          mensagem: `❌ Limite de registros mensais atingido`,
+          linha
+        })
+        continue
+      }
+      
+      // Verificar se pode criar dívidas
+      if (comando.tipo === 'registrar_divida' && !features.podeCriarDividas) {
+        resultados.push({
+          sucesso: false,
+          mensagem: `❌ Plano não permite criar dívidas`,
+          linha
+        })
+        continue
+      }
+      
+      // Verificar limite de envios via WhatsApp
+      // IMPORTANTE: Para múltiplos registros, verificar o limite uma vez no início
+      // e depois apenas contar, não bloquear cada registro individualmente
+      const { checkAndRegisterWhatsAppLimit } = await import('@/lib/whatsapp-limit-checker')
+      const limitResult = await checkAndRegisterWhatsAppLimit(userId, comando.tipo)
+      
+      if (!limitResult.allowed) {
+        resultados.push({
+          sucesso: false,
+          mensagem: `❌ Limite de envios via WhatsApp atingido (${limitResult.currentCount}/${limitResult.limit})`,
+          linha
+        })
+        continue
+      }
+      
+      // Criar registro
+      const tipoRegistro = comando.dados.tipo === 'divida' ? 'saida' : comando.dados.tipo
+      
+      const { data: registro, error: registroError } = await supabaseAdmin
+        .from('registros')
+        .insert({
+          user_id: user_id,
+          nome: comando.dados.descricao,
+          tipo: tipoRegistro,
+          valor: comando.dados.valor,
+          categoria: comando.dados.categoria || 'outros',
+          data_registro: new Date().toISOString(),
+          parcelas_totais: 1,
+          parcelas_pagas: 0,
+          etiquetas: comando.tipo === 'registrar_divida' ? ['dívida', 'dinheiro'] : ['dinheiro'],
+        })
+        .select()
+        .single()
+      
+      if (registroError || !registro) {
+        resultados.push({
+          sucesso: false,
+          mensagem: `❌ Erro: ${registroError?.message || 'Erro desconhecido'}`,
+          linha
+        })
+        continue
+      }
+      
+      // Sucesso - formatar igual à resposta individual
+      const tipoNome = comando.tipo === 'registrar_entrada' ? 'entrada' : 
+                      comando.tipo === 'registrar_divida' ? 'dívida' : 'gasto'
+      
+      // Extrair nome do item da descrição
+      let nomeDoItem: string | null = null
+      if (comando.dados.nomeExtraido) {
+        nomeDoItem = comando.dados.nomeExtraido
+      } else if (comando.dados.descricao) {
+        const recebeuMatch = comando.dados.descricao.match(/Recebeu de (.+)/i)
+        if (recebeuMatch && recebeuMatch[1]) {
+          nomeDoItem = recebeuMatch[1].trim()
+        } else {
+          const gastoMatch = comando.dados.descricao.match(/Gasto em (.+)/i)
+          if (gastoMatch && gastoMatch[1]) {
+            nomeDoItem = gastoMatch[1].trim()
+          } else if (comando.dados.descricao !== 'Entrada via WhatsApp' && 
+                     comando.dados.descricao !== 'Gasto via WhatsApp' &&
+                     comando.dados.descricao !== 'Dívida via WhatsApp') {
+            nomeDoItem = comando.dados.descricao
+          }
+        }
+      }
+      
+      const nomeFinal = nomeDoItem || comando.dados.categoria || 'Item'
+      
+      // Formatar data
+      const dataRegistro = registro?.data_registro ? new Date(registro.data_registro) : new Date()
+      const dataFormatada = format(dataRegistro, 'dd-MM-yyyy', { locale: ptBR })
+      
+      // Formatar valor
+      const valorFormatado = comando.dados.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      
+      // Emoji do valor
+      const emojiValor = comando.tipo === 'registrar_entrada' ? '🟢' : '🔴'
+      
+      // Categoria com emoji
+      const categoriaFinal = comando.dados.categoria || 'outros'
+      const categoriaCapitalizada = categoriaFinal.charAt(0).toUpperCase() + categoriaFinal.slice(1).toLowerCase()
+      const categoriaEmojis: { [key: string]: string } = {
+        'moradia': '🏠',
+        'casa': '🏠',
+        'alimentação': '🍽️',
+        'alimentacao': '🍽️',
+        'transporte': '🚗',
+        'saúde': '🏥',
+        'saude': '🏥',
+        'educação': '📚',
+        'educacao': '📚',
+        'lazer': '🎮',
+        'compras': '🛍️',
+        'vestuário': '👕',
+        'vestuario': '👕',
+        'pessoa': '👤',
+        'extra': '⭐',
+        'outros': '📦',
+      }
+      const emojiCategoria = categoriaEmojis[categoriaFinal.toLowerCase()] || '📦'
+      
+      // Formatar mensagem igual à resposta individual
+      const mensagemFormatada = `📌 ${nomeFinal}\n${emojiValor} R$ ${valorFormatado}\n📅 ${dataFormatada}\n🗂️ Categoria: ${categoriaCapitalizada} ${emojiCategoria}\n\n✨ Seu ${tipoNome} foi registrado com sucesso!`
+      
+      resultados.push({
+        sucesso: true,
+        mensagem: mensagemFormatada,
+        linha: linhaTrim,
+        registro: registro
+      })
+      
+      console.log(`✅ [PLEN WhatsApp] Linha ${i + 1}/${linhas.length} processada com SUCESSO!`)
+      console.log(`✅ [PLEN WhatsApp] Total de sucessos até agora: ${resultados.filter(r => r.sucesso).length}`)
+      
+      // Atualizar contagem de registros para próxima iteração
+      registros.push(registro)
+      
+    } catch (error: any) {
+      console.error('❌ [PLEN WhatsApp] Erro ao processar linha:', linha, error)
+      resultados.push({
+        sucesso: false,
+        mensagem: `❌ Erro: ${error.message || 'Erro desconhecido'}`,
+        linha
+      })
+    }
+  }
+  
+  // Montar resposta consolidada no mesmo formato visual
+  const sucessos = resultados.filter(r => r.sucesso)
+  const falhas = resultados.filter(r => !r.sucesso)
+  
+  console.log('📝 [PLEN WhatsApp] ==========================================')
+  console.log('📝 [PLEN WhatsApp] RESULTADOS DO PROCESSAMENTO')
+  console.log('📝 [PLEN WhatsApp] Total de linhas processadas:', resultados.length)
+  console.log('📝 [PLEN WhatsApp] Sucessos:', sucessos.length)
+  console.log('📝 [PLEN WhatsApp] Falhas:', falhas.length)
+  console.log('📝 [PLEN WhatsApp] Detalhes dos sucessos:', sucessos.map(r => r.linha))
+  console.log('📝 [PLEN WhatsApp] ==========================================')
+  
+  let resposta = ``
+  
+  // CRÍTICO: Mostrar TODOS os registros bem-sucedidos no mesmo formato visual
+  if (sucessos.length > 0) {
+    sucessos.forEach((r, i) => {
+      resposta += r.mensagem
+      // Adicionar separador entre registros (exceto no último se não houver falhas)
+      if (i < sucessos.length - 1) {
+        resposta += `\n\n${'─'.repeat(30)}\n\n`
+      } else if (falhas.length > 0) {
+        resposta += `\n\n${'─'.repeat(30)}\n\n`
+      }
+    })
+  }
+  
+  // Se houver falhas, adicionar no final
+  if (falhas.length > 0) {
+    if (sucessos.length > 0) {
+      resposta += `\n\n`
+    }
+    resposta += `❌ *${falhas.length} registro(s) com erro:*\n`
+    falhas.forEach((r, i) => {
+      resposta += `${i + 1}. ${r.mensagem}\n`
+    })
+  }
+  
+  // Se não houve sucessos nem falhas (não deveria acontecer, mas por segurança)
+  if (sucessos.length === 0 && falhas.length === 0) {
+    resposta = `⚠️ Nenhum registro foi processado. Verifique se as mensagens estão no formato correto:\n\n• "ganhei 20 extra"\n• "gastei 40 roupa"\n• "recebi 50 de João"`
+  }
+  
+  console.log('📝 [PLEN WhatsApp] ==========================================')
+  console.log('📝 [PLEN WhatsApp] RESPOSTA FINAL MONTADA')
+  console.log('📝 [PLEN WhatsApp] Tamanho da resposta:', resposta.length, 'caracteres')
+  console.log('📝 [PLEN WhatsApp] Primeiros 500 caracteres:', resposta.substring(0, 500))
+  console.log('📝 [PLEN WhatsApp] ==========================================')
+  
+  return NextResponse.json({ response: resposta })
 }
 
 // Função para processar comandos em linguagem natural (versão simplificada para WhatsApp)
@@ -696,9 +985,31 @@ async function processarComando(mensagem: string) {
     
     // Se não encontrou nome, usar descrição padrão
     if (!descricao) {
-      descricao = 'Entrada via WhatsApp'
-      categoria = 'entrada'
-      nomeExtraido = null
+      // Tentar extrair categoria da mensagem (ex: "ganhei 20 extra" → categoria "extra")
+      if (valor) {
+        const valorStr = valor.toString()
+        const valorIndex = msgLower.indexOf(valorStr)
+        if (valorIndex >= 0) {
+          const depoisValor = msgLower.substring(valorIndex + valorStr.length).trim()
+          const depoisValorLimpo = depoisValor.replace(/^\s*(?:reais?|r\$|\$)\s*/i, '').trim()
+          const palavrasMatch = depoisValorLimpo.match(/^([A-Za-zÀ-ÿ]+?)(?:\s|$|,|\.|$)/i)
+          if (palavrasMatch && palavrasMatch[1]) {
+            const palavra = palavrasMatch[1].trim()
+            if (palavra.length >= 2 && palavra.length < 50 && 
+                !/^(?:reais?|r\$|\$|de|para|com|em|no|na|a|o|via|whatsapp)$/i.test(palavra)) {
+              categoria = palavra.toLowerCase()
+              descricao = palavra.charAt(0).toUpperCase() + palavra.slice(1).toLowerCase()
+              nomeExtraido = descricao
+            }
+          }
+        }
+      }
+      
+      if (!descricao) {
+        descricao = 'Entrada via WhatsApp'
+        categoria = 'entrada'
+        nomeExtraido = null
+      }
     }
   }
   
@@ -872,9 +1183,31 @@ async function processarComando(mensagem: string) {
     
     // Se não encontrou nome, usar descrição padrão
     if (!descricao) {
-      descricao = 'Gasto via WhatsApp'
-      categoria = 'outros'
-      nomeExtraido = null
+      // Tentar extrair categoria da mensagem (ex: "gastei 40 roupa" → categoria "roupa")
+      if (valor) {
+        const valorStr = valor.toString()
+        const valorIndex = msgLower.indexOf(valorStr)
+        if (valorIndex >= 0) {
+          const depoisValor = msgLower.substring(valorIndex + valorStr.length).trim()
+          const depoisValorLimpo = depoisValor.replace(/^\s*(?:reais?|r\$|\$)\s*/i, '').trim()
+          const palavrasMatch = depoisValorLimpo.match(/^([A-Za-zÀ-ÿ]+?)(?:\s|$|,|\.|$)/i)
+          if (palavrasMatch && palavrasMatch[1]) {
+            const palavra = palavrasMatch[1].trim()
+            if (palavra.length >= 2 && palavra.length < 50 && 
+                !/^(?:reais?|r\$|\$|de|para|com|em|no|na|a|o|via|whatsapp)$/i.test(palavra)) {
+              categoria = palavra.toLowerCase()
+              descricao = `Gasto em ${palavra.charAt(0).toUpperCase() + palavra.slice(1).toLowerCase()}`
+              nomeExtraido = palavra.charAt(0).toUpperCase() + palavra.slice(1).toLowerCase()
+            }
+          }
+        }
+      }
+      
+      if (!descricao) {
+        descricao = 'Gasto via WhatsApp'
+        categoria = 'outros'
+        nomeExtraido = null
+      }
     }
   }
   
@@ -1044,6 +1377,8 @@ async function processarComando(mensagem: string) {
 }
 
 export async function POST(request: NextRequest) {
+  // Garantir que logs estão sendo capturados
+  addLog('info', `📥 [PLEN WhatsApp] Nova requisição recebida`)
   // CRÍTICO: Log IMEDIATO no início, antes de qualquer coisa
   const timestamp = new Date().toISOString()
   
@@ -1056,8 +1391,70 @@ export async function POST(request: NextRequest) {
   addLog('info', endpointMsg)
   addLog('info', `🚀 [PLEN WhatsApp] URL: ${request.url}`)
   
+  // CRÍTICO: Capturar também os console.log para o sistema de logs
+  // Interceptar console.log temporariamente para capturar logs do PLEN WhatsApp
+  let originalConsoleLog: typeof console.log | undefined
+  let originalConsoleError: typeof console.error | undefined
+  let originalConsoleWarn: typeof console.warn | undefined
+  
+  try {
+    originalConsoleLog = console.log.bind(console)
+    originalConsoleError = console.error.bind(console)
+    originalConsoleWarn = console.warn.bind(console)
+    
+    console.log = (...args: any[]) => {
+      originalConsoleLog!(...args)
+      const message = args.map(arg => {
+        if (typeof arg === 'string') return arg
+        if (typeof arg === 'object') return JSON.stringify(arg)
+        return String(arg)
+      }).join(' ')
+      // Capturar TODOS os logs que contêm [PLEN WhatsApp] ou PLEN WhatsApp
+      if (message.includes('[PLEN WhatsApp]') || message.includes('PLEN WhatsApp')) {
+        addLog('log', message)
+      }
+    }
+    
+    console.error = (...args: any[]) => {
+      originalConsoleError!(...args)
+      const message = args.map(arg => {
+        if (typeof arg === 'string') return arg
+        if (typeof arg === 'object') return JSON.stringify(arg)
+        return String(arg)
+      }).join(' ')
+      // Capturar TODOS os logs que contêm [PLEN WhatsApp] ou PLEN WhatsApp
+      if (message.includes('[PLEN WhatsApp]') || message.includes('PLEN WhatsApp')) {
+        addLog('error', message)
+      }
+    }
+    
+    console.warn = (...args: any[]) => {
+      originalConsoleWarn!(...args)
+      const message = args.map(arg => {
+        if (typeof arg === 'string') return arg
+        if (typeof arg === 'object') return JSON.stringify(arg)
+        return String(arg)
+      }).join(' ')
+      // Capturar TODOS os logs que contêm [PLEN WhatsApp] ou PLEN WhatsApp
+      if (message.includes('[PLEN WhatsApp]') || message.includes('PLEN WhatsApp')) {
+        addLog('warn', message)
+      }
+    }
+  } catch (interceptError) {
+    // Se falhar ao interceptar, continuar normalmente
+    console.error('Erro ao interceptar console:', interceptError)
+  }
+  
   try {
     const { userId, message, imageBase64 } = await request.json()
+    
+    // CRÍTICO: Logar mensagem recebida IMEDIATAMENTE
+    process.stdout.write('\n')
+    process.stdout.write('='.repeat(80) + '\n')
+    process.stdout.write('[PLEN WhatsApp] MENSAGEM RECEBIDA\n')
+    process.stdout.write('[PLEN WhatsApp] Message: ' + (message || 'null') + '\n')
+    process.stdout.write('[PLEN WhatsApp] UserId: ' + (userId?.substring(0, 8) || 'null') + '...\n')
+    process.stdout.write('='.repeat(80) + '\n')
     
     const dadosLog = {
       userId: userId?.substring(0, 8) + '...',
@@ -1159,6 +1556,71 @@ export async function POST(request: NextRequest) {
     // As dívidas são registros com tipo='divida'
     const dividas = registros.filter((r: any) => r.tipo === 'divida' || r.etiquetas?.includes('dívida'))
 
+    // Calcular features baseado no plano (necessário para processar múltiplos registros)
+    const planoRaw = profile.plano
+    const planoNormalizado = typeof planoRaw === 'string' ? planoRaw.toLowerCase().trim() : null
+    const plano = (planoNormalizado || 'teste') as 'teste' | 'basico' | 'premium'
+    
+    const features = {
+      teste: {
+        podeCriarRegistros: true,
+        limiteRegistrosMensais: 10,
+        podeCriarDividas: false,
+        podeCriarEmprestimos: false,
+        podeRegistrarSalario: false,
+        podeUsarCalendario: false,
+        podeUsarMetas: false,
+        limiteMetas: 0,
+        podeUsarDashboard: true,
+        podeUsarDashboardAvancado: false,
+        podeExportarRelatorios: false,
+        podeExportarAvancado: false,
+        podeCriarUsuarios: true,
+        limiteUsuarios: 2,
+        podeUploadDocumentos: false,
+        podeUsarGameDinamico: false,
+        podeUsarFiltrosAvancados: false,
+      },
+      basico: {
+        podeCriarRegistros: true,
+        limiteRegistrosMensais: null,
+        podeCriarDividas: true,
+        podeCriarEmprestimos: false,
+        podeRegistrarSalario: true,
+        podeUsarCalendario: true,
+        podeUsarMetas: true,
+        limiteMetas: 3,
+        podeUsarDashboard: true,
+        podeUsarDashboardAvancado: false,
+        podeExportarRelatorios: true,
+        podeExportarAvancado: false,
+        podeCriarUsuarios: true,
+        limiteUsuarios: 10,
+        podeUploadDocumentos: false,
+        podeUsarGameDinamico: false,
+        podeUsarFiltrosAvancados: true,
+      },
+      premium: {
+        podeCriarRegistros: true,
+        limiteRegistrosMensais: null,
+        podeCriarDividas: true,
+        podeCriarEmprestimos: true,
+        podeRegistrarSalario: true,
+        podeUsarCalendario: true,
+        podeUsarMetas: true,
+        limiteMetas: null,
+        podeUsarDashboard: true,
+        podeUsarDashboardAvancado: true,
+        podeExportarRelatorios: true,
+        podeExportarAvancado: true,
+        podeCriarUsuarios: true,
+        limiteUsuarios: null,
+        podeUploadDocumentos: true,
+        podeUsarGameDinamico: true,
+        podeUsarFiltrosAvancados: true,
+      },
+    }[plano]
+
     // Calcular estatísticas
     const hoje = new Date()
     const inicioSemana = startOfWeek(hoje, { locale: ptBR })
@@ -1224,10 +1686,66 @@ export async function POST(request: NextRequest) {
         })
       }
     } else {
-      comando = await processarComando(message)
-      console.log('🔍 [PLEN WhatsApp] Comando detectado:', comando.tipo, comando.dados)
-      console.log('🔍 [PLEN WhatsApp] Mensagem original:', message)
-      console.log('🔍 [PLEN WhatsApp] Mensagem em lowercase:', message.toLowerCase().trim())
+      // NOVA SOLUÇÃO: Detectar múltiplos registros e registrar apenas o primeiro
+      const mensagemOriginal = message.trim()
+      
+      // Contar quantos padrões de registro existem na mensagem
+      const regexPadrao = /(ganhei|gastei|recebi|paguei|comprei|tenho|devo|divida|dívida)\s+\d+/gi
+      const padroesEncontrados = mensagemOriginal.match(regexPadrao) || []
+      
+      // Se encontrou mais de 1 padrão, processar apenas o primeiro e avisar
+      if (padroesEncontrados.length > 1) {
+        console.log('[PLEN WhatsApp] Múltiplos registros detectados:', padroesEncontrados.length)
+        addLog('info', `⚠️ [PLEN WhatsApp] Múltiplos registros detectados: ${padroesEncontrados.length}`)
+        
+        // Extrair o primeiro registro da mensagem
+        let primeiroRegistro = mensagemOriginal
+        
+        // Tentar dividir por vírgula
+        if (mensagemOriginal.includes(',')) {
+          const partes = mensagemOriginal.split(/,/)
+            .map(p => p.trim())
+            .filter(p => {
+              const pLower = p.toLowerCase()
+              const temPalavraChave = /(ganhei|gastei|recebi|paguei|comprei|tenho|devo|divida|dívida)/i.test(pLower)
+              const temValor = /\d+/.test(pLower)
+              return temPalavraChave && temValor && p.length > 0
+            })
+          
+          if (partes.length > 0) {
+            primeiroRegistro = partes[0]
+          }
+        } else if (/\r\n|\r|\n/.test(mensagemOriginal)) {
+          // Tentar dividir por quebra de linha
+          const partes = mensagemOriginal.split(/\r\n|\r|\n/)
+            .map(p => p.trim())
+            .filter(p => {
+              const pLower = p.toLowerCase()
+              const temPalavraChave = /(ganhei|gastei|recebi|paguei|comprei|tenho|devo|divida|dívida)/i.test(pLower)
+              const temValor = /\d+/.test(pLower)
+              return temPalavraChave && temValor && p.length > 0
+            })
+          
+          if (partes.length > 0) {
+            primeiroRegistro = partes[0]
+          }
+        }
+        
+        console.log('[PLEN WhatsApp] Processando apenas o primeiro registro:', primeiroRegistro)
+        addLog('info', `📝 [PLEN WhatsApp] Processando primeiro registro: "${primeiroRegistro}"`)
+        
+        // Processar apenas o primeiro registro
+        comando = await processarComando(primeiroRegistro)
+        
+        // Adicionar flag ao comando para indicar que havia múltiplos
+        if (comando && typeof comando === 'object') {
+          (comando as any).temMultiplosRegistros = true
+          (comando as any).totalRegistros = padroesEncontrados.length
+        }
+      } else {
+        // Processar comando único normalmente
+        comando = await processarComando(message)
+      }
     }
 
     // Executar ação se necessário
@@ -1741,7 +2259,14 @@ export async function POST(request: NextRequest) {
       const emojiValor = comando.tipo === 'registrar_entrada' ? '🟢' : '🔴'
       
       // Construir mensagem no formato solicitado
-      const resposta = `📌 ${nomeFinal}\n${emojiValor} R$ ${valorFormatado}\n📅 ${dataFormatada}\n🗂️ Categoria: ${categoriaCapitalizada} ${emojiCategoria}\n\n✨ Seu ${tipoNome} foi registrado com sucesso!`
+      let resposta = `📌 ${nomeFinal}\n${emojiValor} R$ ${valorFormatado}\n📅 ${dataFormatada}\n🗂️ Categoria: ${categoriaCapitalizada} ${emojiCategoria}\n\n✨ Seu ${tipoNome} foi registrado com sucesso!`
+      
+      // Verificar se detectou múltiplos registros (usando flag do comando)
+      if ((comando as any)?.temMultiplosRegistros && (comando as any)?.totalRegistros > 1) {
+        const total = (comando as any).totalRegistros
+        // Adicionar mensagem pedindo para enviar um registro de cada vez
+        resposta += `\n\n⚠️ *Atenção:* Detectei ${total} registros na sua mensagem, mas registrei apenas o primeiro.\n\n💡 *Para registrar todos os registros de forma organizada, envie um registro de cada vez:*\n\n• "gastei 30 casa"\n• "ganhei 50 carro"\n\n✅ Assim eu consigo registrar tudo corretamente!`
+      }
       
       // Adicionar log de sucesso
       addLog('info', `✨ [PLEN WhatsApp] Registro criado com sucesso! ${tipoNome}: R$ ${valorFormatado}, Categoria: ${categoriaCapitalizada}`)
@@ -2280,8 +2805,23 @@ export async function POST(request: NextRequest) {
     // CRÍTICO: Sempre retornar status 200 com resposta, mesmo em caso de erro
     // Isso garante que o cliente sempre receba uma resposta válida
     console.log('✅ [PLEN WhatsApp] Retornando resposta de erro:', responseMessage.substring(0, 100))
+    
+    // Restaurar console.log originais
+    if (typeof originalConsoleLog !== 'undefined') {
+      console.log = originalConsoleLog
+      console.error = originalConsoleError
+      console.warn = originalConsoleWarn
+    }
+    
     return NextResponse.json({
       response: responseMessage,
     })
+  } finally {
+    // Garantir que os console.log originais sejam restaurados
+    if (typeof originalConsoleLog !== 'undefined') {
+      console.log = originalConsoleLog
+      console.error = originalConsoleError
+      console.warn = originalConsoleWarn
+    }
   }
 }

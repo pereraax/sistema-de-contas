@@ -38,11 +38,24 @@ export function addLog(level: LogEntry['level'], message: string) {
     }
     
     // Logar no console também para debug (sempre, não só para WhatsApp)
-    console.log(`[SERVER-LOGS] ${level.toUpperCase()}: ${message}`)
+    // Usar console.log original para evitar recursão
+    if (globalThis.__originalConsoleLog) {
+      globalThis.__originalConsoleLog(`[SERVER-LOGS] ${level.toUpperCase()}: ${message}`)
+    } else {
+      console.log(`[SERVER-LOGS] ${level.toUpperCase()}: ${message}`)
+    }
   } catch (error) {
     // Se houver erro, pelo menos logar no console
-    console.error('[SERVER-LOGS] Erro ao adicionar log:', error)
-    console.log(`[FALLBACK-LOG] ${message}`)
+    if (globalThis.__originalConsoleError) {
+      globalThis.__originalConsoleError('[SERVER-LOGS] Erro ao adicionar log:', error)
+    } else {
+      console.error('[SERVER-LOGS] Erro ao adicionar log:', error)
+    }
+    if (globalThis.__originalConsoleLog) {
+      globalThis.__originalConsoleLog(`[FALLBACK-LOG] ${message}`)
+    } else {
+      console.log(`[FALLBACK-LOG] ${message}`)
+    }
   }
 }
 
@@ -68,5 +81,68 @@ export function clearLogs() {
 export function getLogsCount(): number {
   const logsBuffer = getLogsBuffer()
   return logsBuffer.length
+}
+
+// Intercepta console.log para capturar logs automaticamente
+declare global {
+  var __originalConsoleLog: typeof console.log | undefined
+  var __originalConsoleError: typeof console.error | undefined
+  var __originalConsoleWarn: typeof console.warn | undefined
+  var __consoleIntercepted: boolean | undefined
+}
+
+export function interceptConsoleLogs() {
+  // Evitar interceptar múltiplas vezes
+  if (globalThis.__consoleIntercepted) {
+    return
+  }
+  
+  globalThis.__originalConsoleLog = console.log
+  globalThis.__originalConsoleError = console.error
+  globalThis.__originalConsoleWarn = console.warn
+  
+  console.log = (...args: any[]) => {
+    const message = args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+    ).join(' ')
+    
+    // Adicionar ao buffer se contiver [PLEN WhatsApp]
+    if (message.includes('[PLEN WhatsApp]') || message.includes('PLEN WhatsApp')) {
+      addLog('log', message)
+    }
+    
+    // Chamar console.log original
+    globalThis.__originalConsoleLog?.(...args)
+  }
+  
+  console.error = (...args: any[]) => {
+    const message = args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+    ).join(' ')
+    
+    // Adicionar ao buffer se contiver [PLEN WhatsApp]
+    if (message.includes('[PLEN WhatsApp]') || message.includes('PLEN WhatsApp')) {
+      addLog('error', message)
+    }
+    
+    // Chamar console.error original
+    globalThis.__originalConsoleError?.(...args)
+  }
+  
+  console.warn = (...args: any[]) => {
+    const message = args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+    ).join(' ')
+    
+    // Adicionar ao buffer se contiver [PLEN WhatsApp]
+    if (message.includes('[PLEN WhatsApp]') || message.includes('PLEN WhatsApp')) {
+      addLog('warn', message)
+    }
+    
+    // Chamar console.warn original
+    globalThis.__originalConsoleWarn?.(...args)
+  }
+  
+  globalThis.__consoleIntercepted = true
 }
 
