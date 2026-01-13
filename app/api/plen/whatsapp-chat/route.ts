@@ -1747,10 +1747,34 @@ export async function POST(request: NextRequest) {
         // Processar apenas o primeiro registro
         comando = await processarComando(primeiroRegistro)
         
+        // Log para debug
+        console.log('[PLEN WhatsApp] Comando retornado após processar primeiro registro:', {
+          tipo: typeof comando,
+          isObject: typeof comando === 'object',
+          comando: comando
+        })
+        
         // Adicionar flag ao comando para indicar que havia múltiplos
-        if (comando && typeof comando === 'object') {
-          (comando as any).temMultiplosRegistros = true
-          (comando as any).totalRegistros = padroesEncontrados.length
+        // Verificação EXTRA para garantir que comando é um objeto válido
+        if (comando && typeof comando === 'object' && comando !== null && !Array.isArray(comando)) {
+          try {
+            (comando as any).temMultiplosRegistros = true
+            (comando as any).totalRegistros = padroesEncontrados.length
+            console.log('[PLEN WhatsApp] Flags adicionadas ao comando:', {
+              temMultiplosRegistros: (comando as any).temMultiplosRegistros,
+              totalRegistros: (comando as any).totalRegistros
+            })
+          } catch (error: any) {
+            console.error('[PLEN WhatsApp] Erro ao adicionar flags ao comando:', error)
+            addLog('error', `❌ [PLEN WhatsApp] Erro ao adicionar flags: ${error.message}`)
+          }
+        } else {
+          console.error('[PLEN WhatsApp] Comando inválido ao tentar adicionar flags:', {
+            comando,
+            tipo: typeof comando,
+            isNull: comando === null,
+            isArray: Array.isArray(comando)
+          })
         }
       } else {
         // Processar comando único normalmente
@@ -2281,10 +2305,13 @@ export async function POST(request: NextRequest) {
       let resposta = `📌 ${nomeFinal}\n${emojiValor} R$ ${valorFormatado}\n📅 ${dataFormatada}\n🗂️ Categoria: ${categoriaCapitalizada} ${emojiCategoria}\n\n✨ Seu ${tipoNome} foi registrado com sucesso!`
       
       // Verificar se detectou múltiplos registros (usando flag do comando)
-      if ((comando as any)?.temMultiplosRegistros && (comando as any)?.totalRegistros > 1) {
-        const total = (comando as any).totalRegistros
+      // Verificação segura para evitar erro "true is not a function"
+      const temMultiplos = comando && typeof comando === 'object' && 'temMultiplosRegistros' in comando && (comando as any).temMultiplosRegistros === true
+      const totalRegistros = comando && typeof comando === 'object' && 'totalRegistros' in comando ? (comando as any).totalRegistros : 0
+      
+      if (temMultiplos && totalRegistros > 1) {
         // Adicionar mensagem pedindo para enviar um registro de cada vez
-        resposta += `\n\n⚠️ *Atenção:* Detectei ${total} registros na sua mensagem, mas registrei apenas o primeiro.\n\n💡 *Para registrar todos os registros de forma organizada, envie um registro de cada vez:*\n\n• "gastei 30 casa"\n• "ganhei 50 carro"\n\n✅ Assim eu consigo registrar tudo corretamente!`
+        resposta += `\n\n⚠️ *Atenção:* Detectei ${totalRegistros} registros na sua mensagem, mas registrei apenas o primeiro.\n\n💡 *Para registrar todos os registros de forma organizada, envie um registro de cada vez:*\n\n• "gastei 30 casa"\n• "ganhei 50 carro"\n\n✅ Assim eu consigo registrar tudo corretamente!`
       }
       
       // Adicionar log de sucesso
