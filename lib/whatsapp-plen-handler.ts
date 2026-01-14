@@ -605,6 +605,15 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
     console.log('='.repeat(80))
     console.error('📞 [WhatsApp PLEN] CHAMANDO API (stderr)!', url)
     
+    // CRÍTICO: Logar no stdout para garantir que aparece no Render
+    process.stdout.write('\n')
+    process.stdout.write('='.repeat(80) + '\n')
+    process.stdout.write('[WhatsApp PLEN] CHAMANDO API PLEN WHATSAPP\n')
+    process.stdout.write('[WhatsApp PLEN] URL: ' + url + '\n')
+    process.stdout.write('[WhatsApp PLEN] User ID: ' + userId + '\n')
+    process.stdout.write('[WhatsApp PLEN] Text: ' + text.substring(0, 100) + '\n')
+    process.stdout.write('='.repeat(80) + '\n')
+    
     try {
       addLog('info', `📞 [WhatsApp PLEN] CHAMANDO API: ${url}`)
     } catch (e) {
