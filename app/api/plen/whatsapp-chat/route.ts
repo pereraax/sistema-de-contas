@@ -1706,8 +1706,19 @@ export async function POST(request: NextRequest) {
       const regexPadrao = /(ganhei|gastei|recebi|paguei|comprei|tenho|devo|divida|dívida)\s+\d+/gi
       const padroesEncontrados = mensagemOriginal.match(regexPadrao) || []
       
+      // CRÍTICO: Logar no stdout para garantir que aparece no Render
+      process.stdout.write('\n')
+      process.stdout.write('='.repeat(80) + '\n')
+      process.stdout.write('[PLEN WhatsApp] DETECCAO DE MULTIPLOS REGISTROS\n')
+      process.stdout.write('[PLEN WhatsApp] Mensagem: "' + mensagemOriginal + '"\n')
+      process.stdout.write('[PLEN WhatsApp] Padroes encontrados: ' + padroesEncontrados.length + '\n')
+      process.stdout.write('[PLEN WhatsApp] Padroes: ' + JSON.stringify(padroesEncontrados) + '\n')
+      process.stdout.write('[PLEN WhatsApp] Vai entrar no if? ' + (padroesEncontrados.length > 1) + '\n')
+      process.stdout.write('='.repeat(80) + '\n')
+      
       // Se encontrou mais de 1 padrão, processar apenas o primeiro e avisar
       if (padroesEncontrados.length > 1) {
+        process.stdout.write('[PLEN WhatsApp] *** MULTIPLOS REGISTROS DETECTADOS: ' + padroesEncontrados.length + ' ***\n')
         console.log('[PLEN WhatsApp] Múltiplos registros detectados:', padroesEncontrados.length)
         addLog('info', `⚠️ [PLEN WhatsApp] Múltiplos registros detectados: ${padroesEncontrados.length}`)
         
@@ -1766,6 +1777,10 @@ export async function POST(request: NextRequest) {
             // Também salvar em variáveis separadas para garantir preservação
             temMultiplosRegistrosFlag = true
             totalRegistrosFlag = padroesEncontrados.length
+            
+            // CRÍTICO: Logar no stdout
+            process.stdout.write('[PLEN WhatsApp] FLAGS DEFINIDAS - temMultiplosRegistrosFlag: true, totalRegistrosFlag: ' + totalRegistrosFlag + '\n')
+            
             console.log('[PLEN WhatsApp] Flags adicionadas ao comando:', {
               temMultiplosRegistros: (comando as any).temMultiplosRegistros,
               totalRegistros: (comando as any).totalRegistros,
@@ -2338,11 +2353,17 @@ export async function POST(request: NextRequest) {
         vaiAdicionarMensagem: temMultiplos && totalRegistros > 1
       })
       
+      // CRÍTICO: Logar no stdout
+      process.stdout.write('[PLEN WhatsApp] VERIFICACAO FINAL - temMultiplos: ' + temMultiplos + ', totalRegistros: ' + totalRegistros + '\n')
+      process.stdout.write('[PLEN WhatsApp] Vai adicionar mensagem? ' + (temMultiplos && totalRegistros > 1) + '\n')
+      
       if (temMultiplos && totalRegistros > 1) {
+        process.stdout.write('[PLEN WhatsApp] *** ADICIONANDO MENSAGEM DE AVISO ***\n')
         console.log('[PLEN WhatsApp] ✅ ADICIONANDO MENSAGEM DE AVISO SOBRE MÚLTIPLOS REGISTROS')
         // Adicionar mensagem pedindo para enviar um registro de cada vez
         resposta += `\n\n⚠️ *Atenção:* Detectei ${totalRegistros} registros na sua mensagem, mas registrei apenas o primeiro.\n\n💡 *Para registrar todos os registros de forma organizada, envie um registro de cada vez:*\n\n• "gastei 30 casa"\n• "ganhei 50 carro"\n\n✅ Assim eu consigo registrar tudo corretamente!`
       } else {
+        process.stdout.write('[PLEN WhatsApp] *** NAO ADICIONOU MENSAGEM - temMultiplos: ' + temMultiplos + ', totalRegistros: ' + totalRegistros + ' ***\n')
         console.log('[PLEN WhatsApp] ❌ NÃO ADICIONOU MENSAGEM - temMultiplos:', temMultiplos, 'totalRegistros:', totalRegistros)
       }
       
