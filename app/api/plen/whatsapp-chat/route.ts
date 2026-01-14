@@ -1709,6 +1709,15 @@ export async function POST(request: NextRequest) {
       // NOVA SOLUÇÃO: Detectar múltiplos registros e registrar apenas o primeiro
       const mensagemOriginal = message.trim()
       
+      // CRÍTICO: Logar ANTES de qualquer processamento
+      process.stdout.write('\n')
+      process.stdout.write('='.repeat(80) + '\n')
+      process.stdout.write('[PLEN WhatsApp] INICIANDO DETECCAO DE MULTIPLOS REGISTROS\n')
+      process.stdout.write('[PLEN WhatsApp] Mensagem recebida: "' + mensagemOriginal + '"\n')
+      process.stdout.write('[PLEN WhatsApp] Tipo da mensagem: ' + typeof mensagemOriginal + '\n')
+      process.stdout.write('[PLEN WhatsApp] Tamanho da mensagem: ' + mensagemOriginal.length + '\n')
+      process.stdout.write('='.repeat(80) + '\n')
+      
       // Contar quantos padrões de registro existem na mensagem
       const regexPadrao = /(ganhei|gastei|recebi|paguei|comprei|tenho|devo|divida|dívida)\s+\d+/gi
       const padroesEncontrados = mensagemOriginal.match(regexPadrao) || []
@@ -1722,6 +1731,14 @@ export async function POST(request: NextRequest) {
       process.stdout.write('[PLEN WhatsApp] Padroes: ' + JSON.stringify(padroesEncontrados) + '\n')
       process.stdout.write('[PLEN WhatsApp] Vai entrar no if? ' + (padroesEncontrados.length > 1) + '\n')
       process.stdout.write('='.repeat(80) + '\n')
+      
+      // Log também no console para debug
+      console.log('[PLEN WhatsApp] ==========================================')
+      console.log('[PLEN WhatsApp] DETECCAO DE MULTIPLOS REGISTROS')
+      console.log('[PLEN WhatsApp] Mensagem:', mensagemOriginal)
+      console.log('[PLEN WhatsApp] Padroes encontrados:', padroesEncontrados.length)
+      console.log('[PLEN WhatsApp] Padroes:', padroesEncontrados)
+      console.log('[PLEN WhatsApp] ==========================================')
       
       // Se encontrou mais de 1 padrão, processar apenas o primeiro e avisar
       if (padroesEncontrados.length > 1) {
