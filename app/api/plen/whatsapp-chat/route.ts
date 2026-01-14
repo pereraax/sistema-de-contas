@@ -1377,10 +1377,17 @@ async function processarComando(mensagem: string) {
 }
 
 export async function POST(request: NextRequest) {
+  // CRÍTICO: Log IMEDIATO no stdout ANTES de qualquer coisa
+  const timestamp = new Date().toISOString()
+  process.stdout.write('\n')
+  process.stdout.write('='.repeat(80) + '\n')
+  process.stdout.write('[PLEN WhatsApp] ENDPOINT CHAMADO!\n')
+  process.stdout.write('[PLEN WhatsApp] Timestamp: ' + timestamp + '\n')
+  process.stdout.write('[PLEN WhatsApp] URL: ' + request.url + '\n')
+  process.stdout.write('='.repeat(80) + '\n')
+  
   // Garantir que logs estão sendo capturados
   addLog('info', `📥 [PLEN WhatsApp] Nova requisição recebida`)
-  // CRÍTICO: Log IMEDIATO no início, antes de qualquer coisa
-  const timestamp = new Date().toISOString()
   
   // Logar no console E no sistema de logging
   const endpointMsg = `🚀🚀🚀 [PLEN WhatsApp] ENDPOINT CHAMADO! 🚀🚀🚀 Timestamp: ${timestamp}`
