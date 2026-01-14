@@ -1674,6 +1674,9 @@ export async function POST(request: NextRequest) {
     // Processar comando (agora é async para usar IA)
     // Se tem imagem, processar com IA Vision
     let comando: any
+    // Variáveis para rastrear múltiplos registros (fora do objeto comando para garantir preservação)
+    let temMultiplosRegistrosFlag = false
+    let totalRegistrosFlag = 0
     if (imageBase64) {
       console.log('🖼️ [PLEN WhatsApp] Processando imagem...')
       comando = await processarComandoComImagem(imageBase64)
@@ -1760,9 +1763,14 @@ export async function POST(request: NextRequest) {
           try {
             (comando as any).temMultiplosRegistros = true
             (comando as any).totalRegistros = padroesEncontrados.length
+            // Também salvar em variáveis separadas para garantir preservação
+            temMultiplosRegistrosFlag = true
+            totalRegistrosFlag = padroesEncontrados.length
             console.log('[PLEN WhatsApp] Flags adicionadas ao comando:', {
               temMultiplosRegistros: (comando as any).temMultiplosRegistros,
-              totalRegistros: (comando as any).totalRegistros
+              totalRegistros: (comando as any).totalRegistros,
+              flagExterna: temMultiplosRegistrosFlag,
+              totalExterno: totalRegistrosFlag
             })
           } catch (error: any) {
             console.error('[PLEN WhatsApp] Erro ao adicionar flags ao comando:', error)
@@ -2304,14 +2312,38 @@ export async function POST(request: NextRequest) {
       // Construir mensagem no formato solicitado
       let resposta = `📌 ${nomeFinal}\n${emojiValor} R$ ${valorFormatado}\n📅 ${dataFormatada}\n🗂️ Categoria: ${categoriaCapitalizada} ${emojiCategoria}\n\n✨ Seu ${tipoNome} foi registrado com sucesso!`
       
-      // Verificar se detectou múltiplos registros (usando flag do comando)
-      // Verificação segura para evitar erro "true is not a function"
-      const temMultiplos = comando && typeof comando === 'object' && 'temMultiplosRegistros' in comando && (comando as any).temMultiplosRegistros === true
-      const totalRegistros = comando && typeof comando === 'object' && 'totalRegistros' in comando ? (comando as any).totalRegistros : 0
+      // Verificar se detectou múltiplos registros (usando flag do comando OU variáveis externas)
+      // Log detalhado para debug
+      console.log('[PLEN WhatsApp] ==========================================')
+      console.log('[PLEN WhatsApp] VERIFICANDO MÚLTIPLOS REGISTROS NA RESPOSTA')
+      console.log('[PLEN WhatsApp] Comando:', JSON.stringify(comando, null, 2))
+      console.log('[PLEN WhatsApp] temMultiplosRegistros (comando):', (comando as any)?.temMultiplosRegistros)
+      console.log('[PLEN WhatsApp] totalRegistros (comando):', (comando as any)?.totalRegistros)
+      console.log('[PLEN WhatsApp] temMultiplosRegistrosFlag (variável):', temMultiplosRegistrosFlag)
+      console.log('[PLEN WhatsApp] totalRegistrosFlag (variável):', totalRegistrosFlag)
+      console.log('[PLEN WhatsApp] ==========================================')
+      
+      // Verificação segura: usar variáveis externas como fallback se flags do comando não estiverem disponíveis
+      const comandoObj = comando as any
+      const temMultiplosDoComando = comandoObj && typeof comandoObj === 'object' && comandoObj.temMultiplosRegistros === true
+      const totalRegistrosDoComando = comandoObj && typeof comandoObj === 'object' ? (comandoObj.totalRegistros || 0) : 0
+      
+      // Usar variáveis externas se disponíveis, senão usar do comando
+      const temMultiplos = temMultiplosRegistrosFlag || temMultiplosDoComando
+      const totalRegistros = totalRegistrosFlag > 0 ? totalRegistrosFlag : totalRegistrosDoComando
+      
+      console.log('[PLEN WhatsApp] Resultado da verificação:', {
+        temMultiplos,
+        totalRegistros,
+        vaiAdicionarMensagem: temMultiplos && totalRegistros > 1
+      })
       
       if (temMultiplos && totalRegistros > 1) {
+        console.log('[PLEN WhatsApp] ✅ ADICIONANDO MENSAGEM DE AVISO SOBRE MÚLTIPLOS REGISTROS')
         // Adicionar mensagem pedindo para enviar um registro de cada vez
         resposta += `\n\n⚠️ *Atenção:* Detectei ${totalRegistros} registros na sua mensagem, mas registrei apenas o primeiro.\n\n💡 *Para registrar todos os registros de forma organizada, envie um registro de cada vez:*\n\n• "gastei 30 casa"\n• "ganhei 50 carro"\n\n✅ Assim eu consigo registrar tudo corretamente!`
+      } else {
+        console.log('[PLEN WhatsApp] ❌ NÃO ADICIONOU MENSAGEM - temMultiplos:', temMultiplos, 'totalRegistros:', totalRegistros)
       }
       
       // Adicionar log de sucesso
