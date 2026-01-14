@@ -1825,6 +1825,8 @@ export async function POST(request: NextRequest) {
         }
       } else {
         // Processar comando único normalmente
+        process.stdout.write('[PLEN WhatsApp] Processando comando unico (sem multiplos detectados)\n')
+        console.log('[PLEN WhatsApp] Processando comando único normalmente')
         comando = await processarComando(message)
       }
     }
