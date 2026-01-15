@@ -26,6 +26,62 @@ app.prepare().then(() => {
     console.log(`> Environment: ${process.env.NODE_ENV || 'development'}`)
     console.log(`> PORT: ${port}`)
     
+    // Iniciar keep-alive automático para manter a aplicação acordada no Render
+    if (process.env.RENDER) {
+      const keepAliveInterval = setInterval(async () => {
+        try {
+          const http = require('http')
+          const options = {
+            hostname: hostname === '0.0.0.0' ? 'localhost' : hostname,
+            port: port,
+            path: '/api/health',
+            method: 'GET',
+            timeout: 5000,
+          }
+          
+          const req = http.request(options, (res) => {
+            if (res.statusCode === 200) {
+              console.log('✅ [Keep-Alive] Aplicação mantida acordada')
+            }
+          })
+          
+          req.on('error', (err) => {
+            // Ignorar erros silenciosamente
+          })
+          
+          req.on('timeout', () => {
+            req.destroy()
+          })
+          
+          req.end()
+        } catch (error) {
+          // Ignorar erros silenciosamente
+        }
+      }, 2 * 60 * 1000) // A cada 2 minutos (reduzido para evitar spin down)
+      
+      console.log('✅ [Keep-Alive] Sistema de keep-alive iniciado (ping a cada 2 minutos)')
+      
+      // Fazer primeiro ping imediatamente
+      setTimeout(() => {
+        const http = require('http')
+        const options = {
+          hostname: hostname === '0.0.0.0' ? 'localhost' : hostname,
+          port: port,
+          path: '/api/health',
+          method: 'GET',
+          timeout: 5000,
+        }
+        
+        const req = http.request(options, () => {
+          console.log('✅ [Keep-Alive] Primeiro ping realizado')
+        })
+        
+        req.on('error', () => {})
+        req.on('timeout', () => req.destroy())
+        req.end()
+      }, 5000) // Após 5 segundos do servidor iniciar (mais rápido)
+    }
+    
     // Iniciar keep-alive do apifacil.dev automaticamente (opcional, não bloqueia se falhar)
     try {
       const { startKeepAlive, isApifacilConfigured } = require('./lib/whatsapp-apifacil')
