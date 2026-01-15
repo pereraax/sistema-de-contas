@@ -180,68 +180,70 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
     const diasSemana = eachDayOfInterval({ start: inicioSemana, end: fimSemana })
 
     return (
-      <div className="grid grid-cols-7 gap-3">
-        {diasSemana.map((dia) => {
-          const registrosDia = registrosPorData(dia)
-          const isSelected = dataSelecionada && isSameDay(dia, dataSelecionada)
-          const isToday = isSameDay(dia, new Date())
-          const isOutroMes = !isSameMonth(dia, dataAtual)
+      <div className="overflow-x-auto -mx-6 px-6">
+        <div className="grid grid-cols-7 gap-2 sm:gap-3 min-w-[700px]">
+          {diasSemana.map((dia) => {
+            const registrosDia = registrosPorData(dia)
+            const isSelected = dataSelecionada && isSameDay(dia, dataSelecionada)
+            const isToday = isSameDay(dia, new Date())
+            const isOutroMes = !isSameMonth(dia, dataAtual)
 
-          const totalEntrada = registrosDia.filter(r => r.tipo === 'entrada').reduce((sum, r) => sum + r.valor, 0)
-          const totalSaida = registrosDia.filter(r => r.tipo === 'saida').reduce((sum, r) => sum + r.valor, 0)
-          const saldo = totalEntrada - totalSaida
+            const totalEntrada = registrosDia.filter(r => r.tipo === 'entrada').reduce((sum, r) => sum + r.valor, 0)
+            const totalSaida = registrosDia.filter(r => r.tipo === 'saida').reduce((sum, r) => sum + r.valor, 0)
+            const saldo = totalEntrada - totalSaida
 
-          return (
-            <div
-              key={dia.toISOString()}
-              className={`rounded-xl border-2 p-4 min-h-[200px] transition-all ${
-                isSelected
-                  ? 'border-brand-aqua bg-gradient-to-br from-brand-aqua/20 to-brand-blue/20 dark:from-brand-aqua/30 dark:to-brand-blue/30 shadow-lg'
-                  : isToday
-                  ? 'border-brand-aqua/50 bg-gradient-to-br from-brand-aqua/10 to-brand-blue/10 dark:from-brand-aqua/20 dark:to-brand-blue/20'
-                  : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight/50'
-              }`}
-            >
-              <button
-                onClick={() => {
-                  setDataSelecionada(dia)
-                  setDataModal(dia)
-                }}
-                className="w-full text-left mb-3"
+            return (
+              <div
+                key={dia.toISOString()}
+                className={`rounded-xl border-2 p-2 sm:p-3 md:p-4 min-h-[180px] sm:min-h-[200px] transition-all ${
+                  isSelected
+                    ? 'border-brand-aqua bg-gradient-to-br from-brand-aqua/20 to-brand-blue/20 dark:from-brand-aqua/30 dark:to-brand-blue/30 shadow-lg'
+                    : isToday
+                    ? 'border-brand-aqua/50 bg-gradient-to-br from-brand-aqua/10 to-brand-blue/10 dark:from-brand-aqua/20 dark:to-brand-blue/20'
+                    : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight/50'
+                }`}
               >
-                <div className={`text-sm font-bold mb-1 ${isOutroMes ? 'text-gray-400' : isToday ? 'text-brand-aqua' : 'text-brand-midnight dark:text-brand-clean'}`}>
-                  {format(dia, 'EEE', { locale: ptBR })}
+                <button
+                  onClick={() => {
+                    setDataSelecionada(dia)
+                    setDataModal(dia)
+                  }}
+                  className="w-full text-left mb-2 sm:mb-3"
+                >
+                  <div className={`text-[10px] sm:text-xs font-bold mb-0.5 sm:mb-1 ${isOutroMes ? 'text-gray-400' : isToday ? 'text-brand-aqua' : 'text-brand-midnight dark:text-brand-clean'}`}>
+                    {format(dia, 'EEE', { locale: ptBR })}
+                  </div>
+                  <div className={`text-lg sm:text-xl md:text-2xl font-bold ${isOutroMes ? 'text-gray-400' : isToday ? 'text-brand-aqua' : 'text-brand-midnight dark:text-brand-clean'}`}>
+                    {format(dia, 'd')}
+                  </div>
+                </button>
+                
+                <div className="space-y-1.5 sm:space-y-2">
+                  {totalEntrada > 0 && (
+                    <div className="text-[10px] sm:text-xs font-semibold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded leading-tight">
+                      +{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalEntrada)}
+                    </div>
+                  )}
+                  {totalSaida > 0 && (
+                    <div className="text-[10px] sm:text-xs font-semibold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded leading-tight">
+                      -{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalSaida)}
+                    </div>
+                  )}
+                  {saldo !== 0 && (
+                    <div className={`text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded leading-tight ${saldo > 0 ? 'text-green-700 dark:text-green-300 bg-green-200 dark:bg-green-900/40' : 'text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/40'}`}>
+                      Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(saldo)}
+                    </div>
+                  )}
+                  {registrosDia.length > 0 && (
+                    <div className="text-[9px] sm:text-xs text-brand-midnight/60 dark:text-brand-clean/60 mt-1.5 sm:mt-2">
+                      {registrosDia.length} {registrosDia.length === 1 ? 'registro' : 'registros'}
+                    </div>
+                  )}
                 </div>
-                <div className={`text-2xl font-bold ${isOutroMes ? 'text-gray-400' : isToday ? 'text-brand-aqua' : 'text-brand-midnight dark:text-brand-clean'}`}>
-                  {format(dia, 'd')}
-                </div>
-              </button>
-              
-              <div className="space-y-2">
-                {totalEntrada > 0 && (
-                  <div className="text-xs font-semibold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded">
-                    +{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(totalEntrada)}
-                  </div>
-                )}
-                {totalSaida > 0 && (
-                  <div className="text-xs font-semibold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
-                    -{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(totalSaida)}
-                  </div>
-                )}
-                {saldo !== 0 && (
-                  <div className={`text-xs font-bold px-2 py-1 rounded ${saldo > 0 ? 'text-green-700 dark:text-green-300 bg-green-200 dark:bg-green-900/40' : 'text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/40'}`}>
-                    Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(saldo)}
-                  </div>
-                )}
-                {registrosDia.length > 0 && (
-                  <div className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mt-2">
-                    {registrosDia.length} {registrosDia.length === 1 ? 'registro' : 'registros'}
-                  </div>
-                )}
               </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
     )
   }
@@ -653,16 +655,18 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
 
         {vista === 'semana' && (
           <>
-            {/* Dias da semana */}
-            <div className="grid grid-cols-7 gap-3 mb-4">
-              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia) => (
-                <div
-                  key={dia}
-                  className="text-center text-sm font-bold text-brand-midnight dark:text-brand-clean py-2 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg"
-                >
-                  {dia}
-                </div>
-              ))}
+            {/* Dias da semana - Responsivo */}
+            <div className="overflow-x-auto -mx-6 px-6 mb-4">
+              <div className="grid grid-cols-7 gap-2 sm:gap-3 min-w-[700px]">
+                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia) => (
+                  <div
+                    key={dia}
+                    className="text-center text-xs sm:text-sm font-bold text-brand-midnight dark:text-brand-clean py-1.5 sm:py-2 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg"
+                  >
+                    {dia}
+                  </div>
+                ))}
+              </div>
             </div>
             {renderVistaSemana()}
           </>
