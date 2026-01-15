@@ -582,10 +582,17 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
             {/* Mobile: Cards */}
             <div className="md:hidden space-y-4 p-4">
               {dividasPendentes.map((divida) => (
-                <div key={divida.id} className="bg-brand-royal dark:bg-brand-midnight rounded-xl p-4 border border-brand-clean/20 dark:border-white/10 relative">
+                <div 
+                  key={divida.id} 
+                  className="bg-brand-royal dark:bg-brand-midnight rounded-xl p-4 border border-brand-clean/20 dark:border-white/10 relative hover:shadow-md transition-shadow duration-200 cursor-pointer"
+                  onClick={() => setRegistroEditando(divida)}
+                >
                   {/* Botão de excluir no canto superior direito */}
                   <button
-                    onClick={() => handleExcluir(divida.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleExcluir(divida.id)
+                    }}
                     className="absolute top-3 right-3 p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth z-10"
                     title="Excluir"
                   >
