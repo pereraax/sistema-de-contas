@@ -14,24 +14,23 @@ async function loadProfileData() {
   try {
     const supabase = await createClient()
     
-    // Buscar usuário e perfil em paralelo
-    const [userResult, profileResult] = await Promise.all([
-      supabase.auth.getUser(),
-      supabase.auth.getUser().then(async ({ data: { user } }) => {
-        if (!user) return { data: null, error: null }
-        return supabase
-          .from('profiles')
-          .select('id, nome, email, cpf, whatsapp, whatsapp_key, plano, imagem_url, email_confirmed_at')
-          .eq('id', user.id)
-          .maybeSingle()
-      })
-    ])
-
-    const { data: { user }, error: userError } = userResult
-    const { data: profile, error: profileError } = profileResult
+    // Buscar usuário primeiro
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
 
     if (userError || !user) {
       return null
+    }
+
+    // Buscar perfil do usuário (apenas campos necessários)
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, nome, email, cpf, whatsapp, whatsapp_key, plano, imagem_url, email_confirmed_at')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    // Ignorar erro de perfil se não existir (pode ser criado depois)
+    if (profileError && profileError.code !== 'PGRST116') {
+      console.error('Erro ao buscar perfil:', profileError)
     }
 
     return {
