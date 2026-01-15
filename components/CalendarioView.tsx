@@ -129,10 +129,10 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
               }}
               className={`aspect-square p-1.5 rounded-xl border-2 transition-all hover:scale-105 overflow-hidden ${
                 isSelected
-                  ? 'border-brand-aqua bg-gradient-to-br from-brand-aqua/20 to-brand-blue/20 dark:from-brand-aqua/30 dark:to-brand-blue/30 shadow-lg shadow-brand-aqua/20'
+                  ? 'border-brand-aqua bg-white dark:bg-brand-royal shadow-lg shadow-brand-aqua/20'
                   : isToday
-                  ? 'border-brand-aqua/50 bg-gradient-to-br from-brand-aqua/10 to-brand-blue/10 dark:from-brand-aqua/20 dark:to-brand-blue/20'
-                  : 'border-gray-200 dark:border-white/20 hover:border-brand-aqua/50 dark:hover:border-brand-aqua/50 hover:bg-gray-50 dark:hover:bg-white/5'
+                  ? 'border-brand-aqua/50 bg-white dark:bg-brand-royal'
+                  : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-royal hover:border-brand-aqua/50 dark:hover:border-brand-aqua/50'
               }`}
             >
               <div className="flex flex-col h-full min-h-0">
@@ -197,10 +197,10 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
                 key={dia.toISOString()}
                 className={`rounded-xl border-2 p-2 sm:p-3 md:p-4 min-h-[180px] sm:min-h-[200px] transition-all ${
                   isSelected
-                    ? 'border-brand-aqua bg-gradient-to-br from-brand-aqua/20 to-brand-blue/20 dark:from-brand-aqua/30 dark:to-brand-blue/30 shadow-lg'
+                    ? 'border-brand-aqua bg-white dark:bg-brand-royal shadow-lg'
                     : isToday
-                    ? 'border-brand-aqua/50 bg-gradient-to-br from-brand-aqua/10 to-brand-blue/10 dark:from-brand-aqua/20 dark:to-brand-blue/20'
-                    : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight/50'
+                    ? 'border-brand-aqua/50 bg-white dark:bg-brand-royal'
+                    : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-royal'
                 }`}
               >
                 <button
@@ -273,8 +273,8 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
               }}
               className={`p-4 rounded-xl border-2 transition-all hover:scale-105 ${
                 isMesAtual
-                  ? 'border-brand-aqua bg-gradient-to-br from-brand-aqua/20 to-brand-blue/20 dark:from-brand-aqua/30 dark:to-brand-blue/30 shadow-lg'
-                  : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight/50 hover:border-brand-aqua/50'
+                  ? 'border-brand-aqua bg-white dark:bg-brand-royal shadow-lg'
+                  : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-royal hover:border-brand-aqua/50'
               }`}
             >
               <div className="text-lg font-bold text-brand-midnight dark:text-brand-clean mb-2">
