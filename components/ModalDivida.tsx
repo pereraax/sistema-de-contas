@@ -441,15 +441,15 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4 animate-fade-in overflow-y-auto">
       <div className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[90vh] sm:max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border-2 border-brand-aqua/30 dark:border-brand-aqua/40 my-4 sm:my-0">
-        <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua/10 via-brand-aqua/5 to-transparent dark:from-brand-aqua/20 dark:via-brand-aqua/10">
-          <h2 className="text-xl sm:text-2xl font-display font-bold text-brand-midnight dark:text-brand-clean">
+        <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal">
+          <h2 className="text-xl sm:text-2xl font-display font-bold text-white dark:text-brand-clean">
             Registrar Dívida
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-red-500/20 dark:hover:bg-red-500/30 rounded-xl transition-smooth"
+            className="p-2 hover:bg-white/20 dark:hover:bg-red-500/30 rounded-xl transition-smooth"
           >
-            <X size={22} className="text-brand-midnight dark:text-brand-clean" strokeWidth={2.5} />
+            <X size={22} className="text-white dark:text-brand-clean" strokeWidth={2.5} />
           </button>
         </div>
 

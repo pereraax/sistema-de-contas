@@ -99,20 +99,20 @@ export default function ModalRegistrosDia({ data, registros, onClose }: ModalReg
     <>
       <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in">
         <div className="bg-white dark:bg-brand-royal rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border border-gray-200 dark:border-white/10">
-          <div className="flex-shrink-0 border-b border-gray-200 dark:border-white/10 px-5 py-4 flex items-center justify-between bg-white dark:bg-brand-midnight">
+          <div className="flex-shrink-0 border-b border-brand-aqua/20 dark:border-white/10 px-5 py-4 flex items-center justify-between bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal">
             <div>
-              <h2 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
+              <h2 className="text-xl font-display font-bold text-white dark:text-brand-clean">
                 Registros do Dia
               </h2>
-              <p className="text-xs text-brand-midnight/70 dark:text-brand-clean/70 mt-1">
+              <p className="text-xs text-white/80 dark:text-brand-clean/70 mt-1">
                 {format(data, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
               </p>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-smooth"
+              className="p-1.5 hover:bg-white/20 dark:hover:bg-white/10 rounded-lg transition-smooth"
             >
-              <X size={20} className="text-brand-midnight dark:text-brand-clean" />
+              <X size={20} className="text-white dark:text-brand-clean" />
             </button>
           </div>
 

@@ -924,7 +924,7 @@ export default function RegistrosLista({
           {/* Desktop: Tabela */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gradient-to-r from-brand-aqua to-brand-blue dark:from-brand-midnight dark:to-brand-royal border-b border-brand-aqua/20 dark:border-white/10">
+              <thead className="bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal border-b border-brand-aqua/20 dark:border-white/10">
                 <tr>
                   <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Nome

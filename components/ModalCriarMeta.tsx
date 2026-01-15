@@ -137,20 +137,20 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header Fixo */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-white/10 flex-shrink-0 bg-white dark:bg-brand-midnight">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-brand-aqua/20 dark:border-white/10 flex-shrink-0 bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-brand-aqua rounded-lg">
-                <Target size={16} className="text-brand-midnight" />
+              <div className="p-1.5 bg-white/20 rounded-lg">
+                <Target size={16} className="text-white" />
               </div>
-              <h2 className="text-lg font-display font-bold text-brand-midnight dark:text-brand-clean">
+              <h2 className="text-lg font-display font-bold text-white dark:text-brand-clean">
                 {metaParaEditar ? 'Editar Meta' : 'Criar Nova Meta'}
               </h2>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-smooth"
+              className="p-1.5 hover:bg-white/20 dark:hover:bg-white/10 rounded-lg transition-smooth"
             >
-              <X size={18} className="text-brand-midnight dark:text-brand-clean" />
+              <X size={18} className="text-white dark:text-brand-clean" />
             </button>
           </div>
 
