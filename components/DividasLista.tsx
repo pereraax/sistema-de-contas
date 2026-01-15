@@ -574,7 +574,27 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                       </div>
                       <div>
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Categoria</p>
-                        <p className="text-brand-midnight/80 dark:text-brand-clean/80">{divida.categoria || '-'}</p>
+                        {divida.categoria ? (
+                          <span className="inline-block px-2 py-1 text-xs font-medium text-brand-midnight dark:text-brand-clean bg-blue-100 dark:bg-blue-900/30 rounded border border-blue-200 dark:border-blue-800/50">
+                            {divida.categoria}
+                          </span>
+                        ) : (
+                          <p className="text-brand-midnight/40 dark:text-brand-clean/40">-</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Status</p>
+                        {divida.parcelas_pagas >= divida.parcelas_totais ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs font-medium border border-green-200 dark:border-green-800/50">
+                            <CheckCircle size={12} />
+                            Pago
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded text-xs font-medium border border-orange-200 dark:border-orange-800/50">
+                            <XCircle size={12} />
+                            Pendente
+                          </span>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Data</p>
