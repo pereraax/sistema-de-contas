@@ -769,9 +769,16 @@ export default function RegistrosLista({
           {/* Mobile: Cards */}
           <div className="md:hidden space-y-4 p-4">
             {registrosComUsuarios.map((registro) => (
-              <div key={registro.id} className="bg-white dark:bg-brand-midnight rounded-xl p-3 border border-gray-200 dark:border-white/10 shadow-sm hover:shadow-md transition-shadow relative">
+              <div 
+                key={registro.id} 
+                onClick={() => setRegistroEditando(registro)}
+                className="bg-white dark:bg-brand-midnight rounded-xl p-3 border border-gray-200 dark:border-white/10 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-brand-aqua/50 active:scale-[0.98] relative"
+              >
                 {/* Botões de ação no canto superior direito */}
-                <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
+                <div 
+                  className="absolute top-2 right-2 flex flex-col gap-1 z-10"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <button
                     onClick={() => handleExcluir(registro.id)}
                     className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
@@ -896,7 +903,10 @@ export default function RegistrosLista({
 
                   {/* Ações - apenas botão de marcar pago se for dívida */}
                   {registro.tipo === 'divida' && registro.parcelas_pagas < registro.parcelas_totais && (
-                    <div className="pt-1 border-t border-brand-clean/20 dark:border-white/10">
+                    <div 
+                      className="pt-1 border-t border-brand-clean/20 dark:border-white/10"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         onClick={() => handleMarcarPago(registro.id)}
                         className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
@@ -947,7 +957,11 @@ export default function RegistrosLista({
               </thead>
               <tbody className="bg-white dark:bg-brand-royal divide-y divide-gray-200 dark:divide-white/10">
                 {registrosComUsuarios.map((registro) => (
-                  <tr key={registro.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-smooth">
+                  <tr 
+                    key={registro.id} 
+                    onClick={() => setRegistroEditando(registro)}
+                    className="hover:bg-gray-50 dark:hover:bg-white/5 transition-smooth cursor-pointer active:bg-gray-100 dark:active:bg-white/10"
+                  >
                     <td className="px-4 py-4">
                       <div>
                         <div className="text-sm font-medium text-brand-midnight dark:text-brand-clean">
@@ -1061,7 +1075,10 @@ export default function RegistrosLista({
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
+                      <div 
+                        className="flex items-center gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {registro.tipo === 'divida' && registro.parcelas_pagas < registro.parcelas_totais && (
                           <button
                             onClick={() => handleMarcarPago(registro.id)}
