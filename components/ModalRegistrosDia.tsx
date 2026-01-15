@@ -101,7 +101,7 @@ export default function ModalRegistrosDia({ data, registros, onClose }: ModalReg
         <div className="bg-white dark:bg-brand-royal rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border border-gray-200 dark:border-white/10">
           <div className="flex-shrink-0 border-b border-gray-200 dark:border-white/10 px-5 py-4 flex items-center justify-between bg-white dark:bg-brand-midnight">
             <div>
-              <h2 className="text-xl font-display text-brand-midnight dark:text-brand-clean">
+              <h2 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
                 Registros do Dia
               </h2>
               <p className="text-xs text-brand-midnight/70 dark:text-brand-clean/70 mt-1">
