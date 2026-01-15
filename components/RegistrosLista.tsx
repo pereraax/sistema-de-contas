@@ -444,7 +444,7 @@ export default function RegistrosLista({
                   <span>Todas</span>
                   {filtros.categoria === '' && <Check size={14} />}
                 </button>
-                {todasCategorias.map((cat) => {
+                {todasCategorias.filter(cat => cat).map((cat) => {
                   const catLower = cat.toLowerCase()
                   const categoriaColor = obterCorCategoria(cat)
                   return (
@@ -867,7 +867,7 @@ export default function RegistrosLista({
                           <Check size={18} strokeWidth={3} />
                         )}
                       </button>
-                      {todasCategorias.map((cat) => {
+                      {todasCategorias.filter(cat => cat).map((cat) => {
                         const catLower = cat.toLowerCase()
                         const categoriaColor = obterCorCategoria(cat)
                         return (
@@ -1284,9 +1284,7 @@ export default function RegistrosLista({
                     </td>
                     <td className="px-4 py-4">
                       {registro.categoria && registro.categoria.toLowerCase() !== 'entrada' && registro.categoria.toLowerCase() !== 'saida' ? (
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border shadow-sm ${
-                          categoriaColors[registro.categoria.toLowerCase()] || 'bg-gray-500 text-white border-gray-600 dark:bg-gray-600 dark:border-gray-700'
-                        }`}>
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border shadow-sm ${obterCorCategoria(registro.categoria)}`}>
                           {categoriaNomes[registro.categoria.toLowerCase()] || registro.categoria}
                         </span>
                       ) : (
