@@ -418,6 +418,8 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
     'dívida - pix': { bg: 'bg-emerald-100/80 dark:bg-emerald-900/40', text: 'text-emerald-800 dark:text-emerald-200', border: 'border-emerald-400 dark:border-emerald-600' },
     'dívida - cartao': { bg: 'bg-blue-100/80 dark:bg-blue-900/40', text: 'text-blue-800 dark:text-blue-200', border: 'border-blue-400 dark:border-blue-600' },
     dinheiro: { bg: 'bg-sky-100/80 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-300 dark:border-sky-700' },
+    comprovante: { bg: 'bg-violet-100/80 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', border: 'border-violet-300 dark:border-violet-700' },
+    roupas: { bg: 'bg-fuchsia-100/80 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300', border: 'border-fuchsia-300 dark:border-fuchsia-700' },
   }
 
   // Função para obter cor de categoria (com fallback para categorias personalizadas não mapeadas)
