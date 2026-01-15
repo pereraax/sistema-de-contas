@@ -719,20 +719,27 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                     )}
 
                     {/* Ações */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-brand-clean/20 dark:border-white/10">
+                    <div className="pt-2 border-t border-brand-clean/20 dark:border-white/10">
                       <button
                         onClick={() => setDividaPagando(divida)}
-                        className="flex-1 px-4 py-2 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-sm shadow-sm"
+                        className="w-full px-4 py-2 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-sm shadow-sm mb-2"
                       >
                         Pagar Dívida
                       </button>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => setRegistroEditando(divida)}
                           className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
                           title="Editar"
                         >
                           <Edit size={18} strokeWidth={2} />
+                        </button>
+                        <button
+                          onClick={() => handleExcluir(divida.id)}
+                          className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
+                          title="Excluir"
+                        >
+                          <Trash2 size={18} strokeWidth={2} />
                         </button>
                       </div>
                     </div>
@@ -909,14 +916,14 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                         </div>
                       </td>
                         <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-col gap-2">
                             <button
                               onClick={() => setDividaPagando(divida)}
-                              className="px-4 py-2 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-sm shadow-sm"
+                              className="w-full px-4 py-2 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-sm shadow-sm"
                             >
                               Pagar Dívida
                             </button>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-center gap-2">
                               <button
                                 onClick={() => setRegistroEditando(divida)}
                                 className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
