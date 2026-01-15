@@ -107,7 +107,7 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
     const diasVaziosInicio = Array.from({ length: primeiroDiaSemana }, (_, i) => i)
 
     return (
-      <div className="grid grid-cols-7 gap-2">
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
         {diasVaziosInicio.map((_, index) => (
           <div key={`empty-${index}`} className="aspect-square" />
         ))}
@@ -638,12 +638,12 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
       <div className="bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl p-6 shadow-2xl border-2 border-brand-aqua/20 dark:border-brand-aqua/30">
         {vista === 'mes' && (
           <>
-            {/* Dias da semana */}
-            <div className="grid grid-cols-7 gap-2 mb-4">
+            {/* Dias da semana - Responsivo */}
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-4">
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia) => (
                 <div
                   key={dia}
-                  className="text-center text-sm font-bold text-brand-midnight dark:text-brand-clean py-2 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg"
+                  className="text-center text-xs sm:text-sm font-bold text-brand-midnight dark:text-brand-clean py-1.5 sm:py-2 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg"
                 >
                   {dia}
                 </div>
