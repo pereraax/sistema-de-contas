@@ -461,6 +461,33 @@ export default function RegistrosLista({
         </div>
       </div>
 
+      {/* Desktop: Filtros Rápidos de Dias */}
+      <div className="hidden md:flex items-center gap-2 mb-4">
+        <button
+          onClick={() => aplicarFiltroDias(null)}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            filtroDiasSelecionado === null
+              ? 'bg-gradient-to-r from-brand-aqua to-blue-500 text-white shadow-md'
+              : 'bg-transparent text-brand-midnight dark:text-brand-clean border-2 border-gray-200 dark:border-white/20 hover:border-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+          }`}
+        >
+          Todos
+        </button>
+        {[7, 30, 60, 90].map((dias) => (
+          <button
+            key={dias}
+            onClick={() => aplicarFiltroDias(dias)}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              filtroDiasSelecionado === dias
+                ? 'bg-gradient-to-r from-brand-aqua to-blue-500 text-white shadow-md'
+                : 'bg-transparent text-brand-midnight dark:text-brand-clean border-2 border-gray-200 dark:border-white/20 hover:border-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+            }`}
+          >
+            {dias} dias
+          </button>
+        ))}
+      </div>
+
       {/* Desktop: Botões de filtro e exportação */}
       <div className="hidden md:flex items-center gap-3 mb-4 sm:mb-6">
         <button
