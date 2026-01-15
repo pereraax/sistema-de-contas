@@ -175,7 +175,7 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
           {/* Informações da Dívida */}
           <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 space-y-2">
             <div>
-              <h3 className="text-base font-display text-brand-midnight dark:text-brand-clean mb-1">
+              <h3 className="text-base font-display font-bold text-brand-midnight dark:text-brand-clean mb-1">
                 {divida.nome}
               </h3>
               {limparObservacao(divida.observacao) && (
@@ -187,8 +187,8 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
           {/* Resumo Financeiro */}
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-white dark:bg-brand-midnight rounded-lg p-3 border border-gray-200 dark:border-white/10">
-              <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-1">Total</p>
-              <p className="text-sm font-display text-brand-midnight dark:text-brand-clean">
+              <p className="text-xs font-bold text-brand-midnight/60 dark:text-brand-clean/60 mb-1">Total</p>
+              <p className="text-sm font-display font-bold text-brand-midnight dark:text-brand-clean">
                 {new Intl.NumberFormat('pt-BR', {
                   style: 'currency',
                   currency: 'BRL',
@@ -196,8 +196,8 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
               </p>
             </div>
             <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 border border-green-200 dark:border-green-800">
-              <p className="text-xs text-green-700 dark:text-green-400 mb-1">Pago</p>
-              <p className="text-sm font-display text-green-700 dark:text-green-400">
+              <p className="text-xs font-bold text-green-700 dark:text-green-400 mb-1">Pago</p>
+              <p className="text-sm font-display font-bold text-green-700 dark:text-green-400">
                 {new Intl.NumberFormat('pt-BR', {
                   style: 'currency',
                   currency: 'BRL',
@@ -205,8 +205,8 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
               </p>
             </div>
             <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 border border-orange-200 dark:border-orange-800">
-              <p className="text-xs text-orange-700 dark:text-orange-400 mb-1">Pendente</p>
-              <p className="text-sm font-display text-orange-700 dark:text-orange-400">
+              <p className="text-xs font-bold text-orange-700 dark:text-orange-400 mb-1">Pendente</p>
+              <p className="text-sm font-display font-bold text-orange-700 dark:text-orange-400">
                 {new Intl.NumberFormat('pt-BR', {
                   style: 'currency',
                   currency: 'BRL',
@@ -218,10 +218,10 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
           {/* Barra de Progresso Atual - Melhorada */}
           <div className="bg-gradient-to-br from-brand-aqua/10 via-brand-aqua/5 to-brand-blue/10 dark:from-brand-aqua/20 dark:via-brand-aqua/10 dark:to-brand-blue/20 rounded-xl p-4 border-2 border-brand-aqua/30 dark:border-brand-aqua/40 shadow-lg">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-base font-display text-brand-midnight dark:text-brand-clean">
+              <span className="text-base font-display font-bold text-brand-midnight dark:text-brand-clean">
                 Progresso Atual
               </span>
-              <span className="text-2xl font-display text-brand-aqua dark:text-brand-aqua drop-shadow-sm">
+              <span className="text-2xl font-display font-bold text-brand-aqua dark:text-brand-aqua drop-shadow-sm">
                 {progressoAtual.toFixed(1)}%
               </span>
             </div>
@@ -251,7 +251,7 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
 
           {/* Campo de Pagamento */}
           <div>
-            <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
+            <label className="block text-xs font-bold text-brand-midnight dark:text-brand-clean mb-1.5">
               Quanto você pode pagar hoje? *
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -322,7 +322,7 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
           {/* Histórico de Pagamentos */}
           {historicoPagamentos.length > 0 && (
             <div className="bg-white dark:bg-brand-midnight rounded-lg p-3 border border-gray-200 dark:border-white/10">
-              <h4 className="text-xs font-display text-brand-midnight dark:text-brand-clean mb-2">
+              <h4 className="text-xs font-display font-bold text-brand-midnight dark:text-brand-clean mb-2">
                 Histórico de Pagamentos
               </h4>
               <div className="space-y-1.5 max-h-40 overflow-y-auto">
