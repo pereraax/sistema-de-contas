@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Registro } from '@/lib/types'
-import { X } from 'lucide-react'
+import { X, CheckCircle2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createNotification } from './NotificationBell'
 import { formatarValorEmTempoReal, converterValorFormatadoParaNumero } from '@/lib/formatCurrency'
@@ -251,9 +251,28 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
 
           {/* Campo de Pagamento */}
           <div>
-            <label className="block text-xs font-bold text-brand-midnight dark:text-brand-clean mb-1.5">
-              Quanto você pode pagar hoje? *
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-brand-midnight dark:text-brand-clean">
+                Quanto você pode pagar hoje? *
+              </label>
+              {valorPendente > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const valorFormatado = new Intl.NumberFormat('pt-BR', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }).format(valorPendente)
+                    setValorPagamento(valorFormatado)
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-smooth text-xs font-semibold shadow-sm"
+                  title="Quitar dívida completamente"
+                >
+                  <CheckCircle2 size={14} />
+                  Quitar Dívida
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="relative">
                 <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-brand-midnight/70 dark:text-brand-clean/70 font-medium text-sm">
