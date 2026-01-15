@@ -165,16 +165,16 @@ export default function ReceitasDespesasDonut() {
       {/* Conteúdo baseado no modo de visualização */}
       {viewMode === 'donut' ? (
         <div className="flex flex-col md:flex-row items-start md:items-center justify-start md:justify-center gap-8">
-          {/* Gráfico de Donut com animação */}
-          <div className="relative w-[280px] h-[280px] mx-auto md:mx-0 animate-fade-in">
+          {/* Gráfico de Donut com animação - Responsivo */}
+          <div className="relative w-[240px] h-[240px] sm:w-[280px] sm:h-[280px] md:w-[300px] md:h-[300px] mx-auto md:mx-0 animate-fade-in">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={donutData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={75}
-                  outerRadius={115}
+                  innerRadius="60%"
+                  outerRadius="85%"
                   paddingAngle={5}
                   dataKey="value"
                   startAngle={90}
@@ -207,11 +207,11 @@ export default function ReceitasDespesasDonut() {
                 />
               </PieChart>
             </ResponsiveContainer>
-            {/* Saldo no centro do donut com animação */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Saldo</p>
+            {/* Saldo no centro do donut com animação - Responsivo */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-2">
+              <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Saldo</p>
               <p
-                className={`text-2xl font-bold transition-colors duration-300 ${
+                className={`text-base sm:text-lg md:text-xl font-bold transition-colors duration-300 leading-tight ${
                   saldoAtual >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                 }`}
               >
@@ -221,9 +221,9 @@ export default function ReceitasDespesasDonut() {
                 }).format(saldoAtual)}
               </p>
               {saldoAtual >= 0 ? (
-                <ArrowUpRight className="text-green-500 mt-1" size={16} />
+                <ArrowUpRight className="text-green-500 mt-0.5 sm:mt-1" size={12} />
               ) : (
-                <ArrowDownRight className="text-red-500 mt-1" size={16} />
+                <ArrowDownRight className="text-red-500 mt-0.5 sm:mt-1" size={12} />
               )}
             </div>
           </div>
