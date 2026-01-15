@@ -127,11 +127,11 @@ export default function RegistrosLista({
   )
 
   // Extrair todas as categorias únicas dos registros
-  const todasCategorias = Array.from(
+  const todasCategorias: string[] = Array.from(
     new Set(
       registrosComUsuarios
         .map((r) => r.categoria)
-        .filter((cat) => cat && cat.toLowerCase() !== 'entrada' && cat.toLowerCase() !== 'saida')
+        .filter((cat): cat is string => !!cat && cat.toLowerCase() !== 'entrada' && cat.toLowerCase() !== 'saida')
     )
   ).sort()
 
