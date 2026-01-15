@@ -259,8 +259,11 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
                 <button
                   type="button"
                   onClick={() => {
-                    // Formatar o valor pendente usando a mesma função de formatação
-                    const valorFormatado = formatarValorEmTempoReal(valorPendente.toFixed(2).replace('.', '').replace(',', ''))
+                    // Converter valor pendente para string sem formatação (apenas números)
+                    // Multiplicar por 100 para ter centavos como inteiro
+                    const valorEmCentavos = Math.round(valorPendente * 100).toString()
+                    // Usar a função de formatação que espera uma string de números
+                    const valorFormatado = formatarValorEmTempoReal(valorEmCentavos)
                     setValorPagamento(valorFormatado)
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-smooth text-xs font-semibold shadow-sm"
