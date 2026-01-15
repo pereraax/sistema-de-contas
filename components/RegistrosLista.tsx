@@ -914,33 +914,33 @@ export default function RegistrosLista({
           {/* Desktop: Tabela */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-brand-aqua dark:bg-brand-midnight border-b border-brand-aqua/20 dark:border-white/10">
+              <thead className="bg-gradient-to-r from-brand-aqua to-brand-blue dark:from-brand-midnight dark:to-brand-royal border-b border-brand-aqua/20 dark:border-white/10">
                 <tr>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Nome
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Tipo
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Valor
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Usuário
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Categoria
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Etiquetas
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Parcelas
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Data
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Ações
                   </th>
                 </tr>
