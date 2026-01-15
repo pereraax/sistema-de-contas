@@ -569,7 +569,7 @@ export default function RegistrosLista({
                 e.stopPropagation()
                 aplicarFiltros()
               }}
-              className="px-4 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-brand-aqua/90 transition-all border-2 border-brand-aqua"
+              className="px-4 py-2.5 bg-brand-aqua text-white rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-brand-aqua/90 transition-all border-2 border-brand-aqua"
             >
               <Filter size={14} strokeWidth={2.5} />
               Aplicar
@@ -597,7 +597,7 @@ export default function RegistrosLista({
           onClick={() => setModalFiltrosAberto(!modalFiltrosAberto)}
           className={`flex items-center justify-center gap-2 px-4 py-2.5 border-2 rounded-xl transition-smooth text-sm font-semibold whitespace-nowrap ${
             temFiltrosAtivos
-              ? 'bg-brand-aqua text-brand-midnight border-brand-aqua shadow-md'
+              ? 'bg-brand-aqua text-white border-brand-aqua shadow-md'
               : 'bg-white dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border-gray-200 dark:border-white/20 hover:border-brand-aqua'
           }`}
         >
@@ -1026,7 +1026,7 @@ export default function RegistrosLista({
         <div className="mt-4 flex gap-3">
           <button
             onClick={aplicarFiltros}
-            className="px-6 py-3 bg-brand-aqua text-brand-midnight rounded-xl hover:bg-brand-aqua/90 transition-smooth font-semibold text-sm flex items-center justify-center gap-2 border-2 border-brand-aqua"
+            className="px-6 py-3 bg-brand-aqua text-white rounded-xl hover:bg-brand-aqua/90 transition-smooth font-semibold text-sm flex items-center justify-center gap-2 border-2 border-brand-aqua"
           >
             <Filter size={18} strokeWidth={2.5} />
             Aplicar Filtros
@@ -1486,11 +1486,11 @@ export default function RegistrosLista({
                   type="button"
                   onClick={handleExportarCSV}
                   disabled={!periodoExportacao || exportando}
-                  className="flex-1 px-4 py-2.5 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2.5 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {exportando ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand-midnight"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                       <span>Exportando...</span>
                     </>
                   ) : (

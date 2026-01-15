@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { CheckCircle, X } from 'lucide-react'
 
@@ -8,13 +8,13 @@ interface ModalEmailConfirmadoSucessoProps {
   onClose?: () => void
 }
 
-export default function ModalEmailConfirmadoSucesso({ onClose }: ModalEmailConfirmadoSucessoProps) {
+function ModalEmailConfirmadoSucessoContent({ onClose }: ModalEmailConfirmadoSucessoProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
-    const emailConfirmed = searchParams.get('emailConfirmed')
+    const emailConfirmed = searchParams?.get('emailConfirmed')
     
     if (emailConfirmed === 'true') {
       setIsOpen(true)
@@ -110,13 +110,21 @@ export default function ModalEmailConfirmadoSucesso({ onClose }: ModalEmailConfi
 
           <button
             onClick={handleClose}
-            className="w-full px-4 py-3 bg-brand-aqua hover:bg-brand-aqua/90 text-brand-midnight font-semibold rounded-lg transition-smooth"
+            className="w-full px-4 py-3 bg-brand-aqua hover:bg-brand-aqua/90 text-white font-semibold rounded-lg transition-smooth"
           >
             Continuar
           </button>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ModalEmailConfirmadoSucesso({ onClose }: ModalEmailConfirmadoSucessoProps) {
+  return (
+    <Suspense fallback={null}>
+      <ModalEmailConfirmadoSucessoContent onClose={onClose} />
+    </Suspense>
   )
 }
 

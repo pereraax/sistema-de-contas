@@ -403,7 +403,7 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
               <button
                 type="submit"
                 disabled={loading || !valorPagamento || converterValorFormatadoParaNumero(valorPagamento) <= 0}
-                className="flex-1 px-4 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="flex-1 px-4 py-2.5 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 {loading ? 'Processando...' : 'CONFIRMAR PAGAMENTO'}
               </button>

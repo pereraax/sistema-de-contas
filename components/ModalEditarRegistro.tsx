@@ -744,7 +744,7 @@ export default function ModalEditarRegistro({
                     onClick={() => setFormData({ ...formData, categoria: isSelected ? '' : cat.id })}
                     className={`flex flex-col items-center justify-center gap-2 px-2 py-3 rounded-lg font-medium transition-smooth min-h-[90px] border shadow-sm ${
                       isSelected
-                        ? 'bg-brand-aqua text-brand-midnight border-brand-aqua shadow-md ring-2 ring-brand-aqua/50'
+                        ? 'bg-brand-aqua text-white border-brand-aqua shadow-md ring-2 ring-brand-aqua/50'
                         : categoriaColor + ' hover:opacity-90 hover:scale-105'
                     }`}
                     title={cat.nome}
@@ -777,7 +777,7 @@ export default function ModalEditarRegistro({
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'pix' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'pix'
-                    ? 'bg-brand-aqua text-brand-midnight shadow-md'
+                    ? 'bg-brand-aqua text-white shadow-md'
                     : 'bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
                 }`}
               >
@@ -789,7 +789,7 @@ export default function ModalEditarRegistro({
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'cartao' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'cartao'
-                    ? 'bg-brand-aqua text-brand-midnight shadow-md'
+                    ? 'bg-brand-aqua text-white shadow-md'
                     : 'bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
                 }`}
               >
@@ -801,7 +801,7 @@ export default function ModalEditarRegistro({
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'dinheiro' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'dinheiro'
-                    ? 'bg-brand-aqua text-brand-midnight shadow-md'
+                    ? 'bg-brand-aqua text-white shadow-md'
                     : 'bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
                 }`}
               >

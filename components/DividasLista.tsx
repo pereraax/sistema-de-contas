@@ -512,7 +512,7 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
           )}
           <button
             onClick={() => setShowModalNovaDivida(true)}
-            className="w-full sm:w-auto px-5 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth flex items-center justify-center gap-2 shadow-md hover:shadow-lg text-sm whitespace-nowrap"
+            className="w-full sm:w-auto px-5 py-2.5 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth flex items-center justify-center gap-2 shadow-md hover:shadow-lg text-sm whitespace-nowrap"
           >
             <Plus size={20} strokeWidth={2.5} />
             Registrar Dívida
@@ -1271,7 +1271,7 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
           {!searchTerm.trim() && (
             <button
               onClick={() => setShowModalNovaDivida(true)}
-              className="mt-4 px-5 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth inline-flex items-center gap-2"
+              className="mt-4 px-5 py-2.5 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth inline-flex items-center gap-2"
             >
               <Plus size={20} strokeWidth={2.5} />
               Registrar Primeira Dívida
