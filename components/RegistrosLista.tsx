@@ -28,6 +28,7 @@ export default function RegistrosLista({
     tipo: filtrosAtuais.tipo || '',
     user_id: filtrosAtuais.user_id || '',
     etiqueta: filtrosAtuais.etiqueta || '',
+    categoria: filtrosAtuais.categoria || '',
     data_inicio: filtrosAtuais.data_inicio || '',
     data_fim: filtrosAtuais.data_fim || '',
   })
@@ -37,6 +38,7 @@ export default function RegistrosLista({
   const [dropdownEtiquetaAberto, setDropdownEtiquetaAberto] = useState(false)
   const [dropdownTipoAberto, setDropdownTipoAberto] = useState(false)
   const [dropdownUsuarioAberto, setDropdownUsuarioAberto] = useState(false)
+  const [dropdownCategoriaAberto, setDropdownCategoriaAberto] = useState(false)
   const [modalFiltrosAberto, setModalFiltrosAberto] = useState(false)
   const [modalExportarAberto, setModalExportarAberto] = useState(false)
   const [periodoExportacao, setPeriodoExportacao] = useState<number | null>(null)
@@ -49,6 +51,7 @@ export default function RegistrosLista({
     if (filtros.tipo) params.set('tipo', filtros.tipo)
     if (filtros.user_id) params.set('user_id', filtros.user_id)
     if (filtros.etiqueta) params.set('etiqueta', filtros.etiqueta)
+    if (filtros.categoria) params.set('categoria', filtros.categoria)
     if (filtros.data_inicio) params.set('data_inicio', filtros.data_inicio)
     if (filtros.data_fim) params.set('data_fim', filtros.data_fim)
     router.push(`/registros?${params.toString()}`)
@@ -60,6 +63,7 @@ export default function RegistrosLista({
       tipo: '',
       user_id: '',
       etiqueta: '',
+      categoria: '',
       data_inicio: '',
       data_fim: '',
     })
@@ -122,6 +126,15 @@ export default function RegistrosLista({
     new Set(registrosComUsuarios.flatMap((r) => r.etiquetas || []))
   )
 
+  // Extrair todas as categorias únicas dos registros
+  const todasCategorias = Array.from(
+    new Set(
+      registrosComUsuarios
+        .map((r) => r.categoria)
+        .filter((cat) => cat && cat.toLowerCase() !== 'entrada' && cat.toLowerCase() !== 'saida')
+    )
+  ).sort()
+
   // Verificar se há filtros ativos, excluindo data_inicio e data_fim (gerenciados pelos filtros rápidos de dias)
   const temFiltrosAtivos = Object.entries(filtrosAtuais).some(([key, value]) => {
     // Ignorar data_inicio e data_fim pois são gerenciados pelos filtros rápidos de dias
@@ -154,6 +167,53 @@ export default function RegistrosLista({
     divida: 'bg-orange-500 text-white border-orange-600 dark:bg-orange-600 dark:border-orange-700',
   }
   
+  // Função para obter cor de categoria (com fallback para categorias personalizadas)
+  const obterCorCategoria = (categoria: string): string => {
+    const catLower = categoria.toLowerCase()
+    
+    // Cores padrão
+    const coresPadrao: Record<string, string> = {
+      alimentacao: 'bg-amber-500 text-white border-amber-600 dark:bg-amber-600 dark:border-amber-700',
+      transporte: 'bg-blue-500 text-white border-blue-600 dark:bg-blue-600 dark:border-blue-700',
+      moradia: 'bg-purple-500 text-white border-purple-600 dark:bg-purple-600 dark:border-purple-700',
+      compras: 'bg-pink-500 text-white border-pink-600 dark:bg-pink-600 dark:border-pink-700',
+      saude: 'bg-red-400 text-white border-red-500 dark:bg-red-500 dark:border-red-600',
+      educacao: 'bg-indigo-500 text-white border-indigo-600 dark:bg-indigo-600 dark:border-indigo-700',
+      trabalho: 'bg-slate-500 text-white border-slate-600 dark:bg-slate-600 dark:border-slate-700',
+      entretenimento: 'bg-fuchsia-500 text-white border-fuchsia-600 dark:bg-fuchsia-600 dark:border-fuchsia-700',
+      fitness: 'bg-emerald-500 text-white border-emerald-600 dark:bg-emerald-600 dark:border-emerald-700',
+      viagem: 'bg-cyan-500 text-white border-cyan-600 dark:bg-cyan-600 dark:border-cyan-700',
+      outros: 'bg-yellow-500 text-white border-yellow-600 dark:bg-yellow-600 dark:border-yellow-700',
+    }
+
+    // Se já tem cor definida, retornar
+    if (coresPadrao[catLower]) {
+      return coresPadrao[catLower]
+    }
+
+    // Para categorias personalizadas, gerar cor baseada no hash da string
+    const coresPersonalizadas = [
+      'bg-rose-500 text-white border-rose-600 dark:bg-rose-600 dark:border-rose-700',
+      'bg-teal-500 text-white border-teal-600 dark:bg-teal-600 dark:border-teal-700',
+      'bg-violet-500 text-white border-violet-600 dark:bg-violet-600 dark:border-violet-700',
+      'bg-orange-500 text-white border-orange-600 dark:bg-orange-600 dark:border-orange-700',
+      'bg-lime-500 text-white border-lime-600 dark:bg-lime-600 dark:border-lime-700',
+      'bg-sky-500 text-white border-sky-600 dark:bg-sky-600 dark:border-sky-700',
+      'bg-amber-400 text-white border-amber-500 dark:bg-amber-500 dark:border-amber-600',
+      'bg-emerald-400 text-white border-emerald-500 dark:bg-emerald-500 dark:border-emerald-600',
+      'bg-pink-400 text-white border-pink-500 dark:bg-pink-500 dark:border-pink-600',
+      'bg-indigo-400 text-white border-indigo-500 dark:bg-indigo-500 dark:border-indigo-600',
+    ]
+
+    // Gerar índice baseado no hash da string
+    let hash = 0
+    for (let i = 0; i < categoria.length; i++) {
+      hash = categoria.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    const index = Math.abs(hash) % coresPersonalizadas.length
+    return coresPersonalizadas[index]
+  }
+
   // Cores para categorias (cada categoria tem sua própria cor)
   const categoriaColors: Record<string, string> = {
     alimentacao: 'bg-amber-500 text-white border-amber-600 dark:bg-amber-600 dark:border-amber-700',
@@ -357,6 +417,52 @@ export default function RegistrosLista({
                     {filtros.user_id === user.id && <Check size={14} />}
                   </button>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Categoria */}
+          <div className="relative">
+            <label className="block text-xs font-medium text-gray-700 dark:text-brand-clean/90 mb-1">Categoria</label>
+            <button
+              type="button"
+              onClick={() => setDropdownCategoriaAberto(!dropdownCategoriaAberto)}
+              className="w-full px-3 py-2 border border-gray-200 dark:border-white/20 rounded-lg text-xs text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight flex items-center justify-between"
+            >
+              <span className={filtros.categoria ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}>
+                {filtros.categoria ? (categoriaNomes[filtros.categoria.toLowerCase()] || filtros.categoria) : 'Todas'}
+              </span>
+              <ChevronDown size={14} className={`text-brand-aqua transition-transform ${dropdownCategoriaAberto ? 'rotate-180' : ''}`} />
+            </button>
+            {dropdownCategoriaAberto && (
+              <div className="absolute z-20 w-full mt-1 bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-midnight dark:via-brand-royal dark:to-brand-midnight rounded-lg shadow-xl border border-brand-aqua/30 max-h-48 overflow-y-auto">
+                <button
+                  type="button"
+                  onClick={() => { setFiltros({ ...filtros, categoria: '' }); setDropdownCategoriaAberto(false); }}
+                  className={`w-full px-3 py-2 text-left flex items-center justify-between text-xs ${filtros.categoria === '' ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold' : 'text-brand-midnight dark:text-brand-clean'}`}
+                >
+                  <span>Todas</span>
+                  {filtros.categoria === '' && <Check size={14} />}
+                </button>
+                {todasCategorias.map((cat) => {
+                  const catLower = cat.toLowerCase()
+                  const categoriaColor = obterCorCategoria(cat)
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => { setFiltros({ ...filtros, categoria: cat }); setDropdownCategoriaAberto(false); }}
+                      className={`w-full px-3 py-2 text-left flex items-center justify-between border-t text-xs transition-all ${
+                        filtros.categoria === cat
+                          ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
+                          : `${categoriaColor} hover:opacity-90`
+                      }`}
+                    >
+                      <span>{categoriaNomes[catLower] || cat}</span>
+                      {filtros.categoria === cat && <Check size={14} />}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -715,6 +821,83 @@ export default function RegistrosLista({
             </div>
           </div>
 
+          {/* Categoria */}
+          <div className="relative">
+            <label className="block text-sm font-medium text-gray-700 dark:text-brand-clean/90 mb-1.5">
+              Categoria
+            </label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setDropdownCategoriaAberto(!dropdownCategoriaAberto)}
+                className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight hover:border-brand-aqua/50 flex items-center justify-between shadow-sm hover:shadow-md"
+              >
+                <span className={filtros.categoria ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}>
+                  {filtros.categoria ? (categoriaNomes[filtros.categoria.toLowerCase()] || filtros.categoria) : 'Todas'}
+                </span>
+                <ChevronDown 
+                  size={18} 
+                  className={`text-brand-aqua transition-transform duration-200 ${dropdownCategoriaAberto ? 'rotate-180' : ''}`}
+                  strokeWidth={2.5}
+                />
+              </button>
+              
+              {dropdownCategoriaAberto && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setDropdownCategoriaAberto(false)}
+                  />
+                  <div className="absolute z-20 w-full mt-2 bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-midnight dark:via-brand-royal dark:to-brand-midnight rounded-xl shadow-2xl border-2 border-brand-aqua/30 dark:border-brand-aqua/40 overflow-hidden animate-slide-up">
+                    <div className="max-h-60 overflow-y-auto">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFiltros({ ...filtros, categoria: '' })
+                          setDropdownCategoriaAberto(false)
+                        }}
+                        className={`w-full px-4 py-3 text-left flex items-center justify-between transition-smooth ${
+                          filtros.categoria === ''
+                            ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
+                            : 'text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+                        }`}
+                      >
+                        <span>Todas</span>
+                        {filtros.categoria === '' && (
+                          <Check size={18} strokeWidth={3} />
+                        )}
+                      </button>
+                      {todasCategorias.map((cat) => {
+                        const catLower = cat.toLowerCase()
+                        const categoriaColor = obterCorCategoria(cat)
+                        return (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => {
+                              setFiltros({ ...filtros, categoria: cat })
+                              setDropdownCategoriaAberto(false)
+                            }}
+                            className={`w-full px-4 py-3 text-left flex items-center justify-between transition-all border-t border-gray-100 dark:border-white/10 ${
+                              filtros.categoria === cat
+                                ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
+                                : `${categoriaColor} hover:opacity-90`
+                            }`}
+                          >
+                            <span>{categoriaNomes[catLower] || cat}</span>
+                            {filtros.categoria === cat && (
+                              <Check size={18} strokeWidth={3} />
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
           {/* Etiqueta */}
           <div className="relative">
             <label className="block text-sm font-medium text-gray-700 dark:text-brand-clean/90 mb-1.5">
@@ -937,9 +1120,7 @@ export default function RegistrosLista({
                     <div>
                       <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Categoria</p>
                       {registro.categoria && registro.categoria.toLowerCase() !== 'entrada' && registro.categoria.toLowerCase() !== 'saida' ? (
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border shadow-sm ${
-                          categoriaColors[registro.categoria.toLowerCase()] || 'bg-gray-500 text-white border-gray-600 dark:bg-gray-600 dark:border-gray-700'
-                        }`}>
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border shadow-sm ${obterCorCategoria(registro.categoria)}`}>
                           {categoriaNomes[registro.categoria.toLowerCase()] || registro.categoria}
                         </span>
                       ) : (
