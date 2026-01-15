@@ -13,9 +13,18 @@ import ModalConfirmarEmail from './ModalConfirmarEmail'
 
 interface ConfiguracoesViewProps {
   tabAtivo: string
+  initialProfileData?: {
+    user: {
+      id: string
+      email: string
+      email_confirmed_at: string | null
+    }
+    profile: any
+    whatsappKey: string | null
+  } | null
 }
 
-export default function ConfiguracoesView({ tabAtivo: tabInicial }: ConfiguracoesViewProps) {
+export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfileData }: ConfiguracoesViewProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [tabAtivo, setTabAtivo] = useState(tabInicial)
@@ -63,6 +72,38 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
   const [showWhatsappKey, setShowWhatsappKey] = useState(false)
   const [copiedKey, setCopiedKey] = useState(false)
 
+  // Inicializar dados do perfil se fornecidos pelo servidor
+  useEffect(() => {
+    if (initialProfileData && !userProfile && tabAtivo === 'perfil') {
+      const { user, profile, whatsappKey } = initialProfileData
+      
+      // Montar estrutura de userProfile
+      const profileData: any = {
+        ...user,
+        email: user.email || '',
+        email_confirmed_at: user.email_confirmed_at || null,
+        profile: profile,
+      }
+      
+      setUserProfile(profileData)
+      setLoadingProfile(false)
+      
+      // Carregar dados adicionais
+      if (profile?.cpf) {
+        setCpf(profile.cpf)
+      }
+      if (profile?.whatsapp) {
+        setWhatsapp(profile.whatsapp)
+      }
+      if (whatsappKey) {
+        setWhatsappKey(whatsappKey)
+      }
+      if (profile?.nome) {
+        setNome(profile.nome)
+      }
+    }
+  }, [initialProfileData])
+
   useEffect(() => {
     const tab = searchParams.get('tab')
     if (tab === 'usuarios') {
@@ -75,15 +116,15 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
       setTabAtivo('perfil') // Padrão agora é Perfil ao invés de Geral
     }
     carregarUsuarios()
-    // Carregar perfil apenas se estiver na aba de perfil e não houver erro de sessão
-    if (tab === 'perfil' && !userProfile?.error) {
+    // Carregar perfil apenas se não houver dados iniciais e estiver na aba de perfil
+    if (tab === 'perfil' && !userProfile?.error && !initialProfileData) {
       carregarPerfil()
     }
-    // Carregar chave WhatsApp se estiver na aba de perfil
-    if (tab === 'perfil') {
+    // Carregar chave WhatsApp apenas se não foi fornecida pelo servidor
+    if (tab === 'perfil' && !initialProfileData?.whatsappKey) {
       carregarWhatsappKey()
     }
-  }, [searchParams, userProfile?.error])
+  }, [searchParams, userProfile?.error, initialProfileData])
   
   // Função para carregar chave WhatsApp
   const carregarWhatsappKey = async () => {
