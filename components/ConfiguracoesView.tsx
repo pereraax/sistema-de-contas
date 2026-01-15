@@ -72,9 +72,9 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
   const [showWhatsappKey, setShowWhatsappKey] = useState(false)
   const [copiedKey, setCopiedKey] = useState(false)
 
-  // Inicializar dados do perfil se fornecidos pelo servidor
+  // Inicializar dados do perfil se fornecidos pelo servidor (apenas uma vez)
   useEffect(() => {
-    if (initialProfileData && !userProfile && tabAtivo === 'perfil') {
+    if (initialProfileData && !userProfile && !loadingProfile) {
       const { user, profile, whatsappKey } = initialProfileData
       
       // Montar estrutura de userProfile
@@ -87,6 +87,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
       
       setUserProfile(profileData)
       setLoadingProfile(false)
+      setCarregandoPerfil(false)
       
       // Carregar dados adicionais
       if (profile?.cpf) {
@@ -102,7 +103,8 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
         setNome(profile.nome)
       }
     }
-  }, [initialProfileData])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Executar apenas uma vez na montagem
 
   useEffect(() => {
     const tab = searchParams.get('tab')
