@@ -846,9 +846,7 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
                         {divida.categoria && divida.categoria.toLowerCase() !== 'entrada' && divida.categoria.toLowerCase() !== 'saida' ? (
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border shadow-sm ${
-                            obterCorCategoria(divida.categoria)
-                          }`}>
+                          <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium border ${obterCorCategoria(divida.categoria)}`}>
                             {categoriaNomes[divida.categoria.toLowerCase()] || divida.categoria}
                           </span>
                         ) : (
