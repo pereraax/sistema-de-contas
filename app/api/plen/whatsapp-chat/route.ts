@@ -407,6 +407,11 @@ async function processarMultiplosRegistros(
     resposta = `⚠️ Nenhum registro foi processado. Verifique se as mensagens estão no formato correto:\n\n• "ganhei 20 extra"\n• "gastei 40 roupa"\n• "recebi 50 de João"`
   }
   
+  // Adicionar mensagem com link para ver todos os registros (apenas se houver sucessos)
+  if (sucessos.length > 0) {
+    resposta += `\n\n📊 Veja todos os seus registros:\n🔗 plenipay.com/registros`
+  }
+  
   console.log('📝 [PLEN WhatsApp] ==========================================')
   console.log('📝 [PLEN WhatsApp] RESPOSTA FINAL MONTADA')
   console.log('📝 [PLEN WhatsApp] Tamanho da resposta:', resposta.length, 'caracteres')
@@ -2352,6 +2357,9 @@ export async function POST(request: NextRequest) {
       
       // Construir mensagem no formato solicitado
       let resposta = `📌 ${nomeFinal}\n${emojiValor} R$ ${valorFormatado}\n📅 ${dataFormatada}\n🗂️ Categoria: ${categoriaCapitalizada} ${emojiCategoria}\n\n✨ Seu ${tipoNome} foi registrado com sucesso!`
+      
+      // Adicionar mensagem com link para ver todos os registros
+      resposta += `\n\n📊 Veja todos os seus registros:\n🔗 plenipay.com/registros`
       
       // Verificar se detectou múltiplos registros (usando flag do comando OU variáveis externas)
       // Log detalhado para debug
