@@ -596,16 +596,8 @@ export default function ChatWidget() {
           className={`fixed z-[9999] bg-white dark:bg-brand-midnight shadow-2xl flex flex-col transition-all duration-300 ${
             isMinimized
               ? 'bottom-4 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-80 h-14 rounded-2xl border-2 border-gray-200 dark:border-brand-aqua/30 overflow-hidden'
-              : 'inset-0 sm:bottom-6 sm:right-6 sm:inset-auto sm:w-96 sm:h-[680px] sm:max-h-[680px] sm:rounded-2xl sm:border-2 sm:border-gray-200 sm:dark:border-brand-aqua/30 rounded-none border-0 overflow-hidden'
+              : 'inset-0 sm:bottom-6 sm:right-6 sm:top-auto sm:left-auto sm:w-96 sm:h-[680px] sm:max-h-[680px] sm:rounded-2xl sm:border-2 sm:border-gray-200 sm:dark:border-brand-aqua/30 rounded-none border-0 overflow-hidden'
           }`}
-          style={{
-            height: isMinimized ? '3.5rem' : undefined,
-            maxHeight: isMinimized ? '3.5rem' : undefined,
-            top: isMinimized ? undefined : 0,
-            left: isMinimized ? undefined : 0,
-            right: isMinimized ? undefined : 0,
-            bottom: isMinimized ? undefined : 0
-          }}
         >
           {/* Header do chat - FIXO (não rolável) */}
           <div className="bg-gradient-to-r from-brand-aqua to-brand-royal dark:from-brand-midnight dark:to-brand-royal sm:rounded-t-2xl overflow-hidden flex-shrink-0">
