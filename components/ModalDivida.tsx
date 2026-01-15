@@ -70,6 +70,21 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
     { id: 'viagem', nome: 'Viagem', icon: Plane },
   ]
 
+  // Cores para categorias (cada categoria tem sua própria cor)
+  const categoriaColors: Record<string, string> = {
+    alimentacao: 'bg-amber-500 text-white border-amber-600 dark:bg-amber-600 dark:border-amber-700',
+    transporte: 'bg-blue-500 text-white border-blue-600 dark:bg-blue-600 dark:border-blue-700',
+    moradia: 'bg-purple-500 text-white border-purple-600 dark:bg-purple-600 dark:border-purple-700',
+    compras: 'bg-pink-500 text-white border-pink-600 dark:bg-pink-600 dark:border-pink-700',
+    saude: 'bg-red-400 text-white border-red-500 dark:bg-red-500 dark:border-red-600',
+    educacao: 'bg-indigo-500 text-white border-indigo-600 dark:bg-indigo-600 dark:border-indigo-700',
+    trabalho: 'bg-slate-500 text-white border-slate-600 dark:bg-slate-600 dark:border-slate-700',
+    entretenimento: 'bg-fuchsia-500 text-white border-fuchsia-600 dark:bg-fuchsia-600 dark:border-fuchsia-700',
+    fitness: 'bg-emerald-500 text-white border-emerald-600 dark:bg-emerald-600 dark:border-emerald-700',
+    viagem: 'bg-cyan-500 text-white border-cyan-600 dark:bg-cyan-600 dark:border-cyan-700',
+    outros: 'bg-yellow-500 text-white border-yellow-600 dark:bg-yellow-600 dark:border-yellow-700',
+  }
+
   useEffect(() => {
     carregarUsuarios()
   }, [])
@@ -676,15 +691,16 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
               {categorias.map((cat) => {
                 const Icon = cat.icon
                 const isSelected = formData.categoria === cat.id
+                const categoriaColor = categoriaColors[cat.id] || 'bg-gray-500 text-white border-gray-600 dark:bg-gray-600 dark:border-gray-700'
                 return (
                   <button
                     key={cat.id}
                     type="button"
                     onClick={() => setFormData({ ...formData, categoria: isSelected ? '' : cat.id })}
-                    className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg font-medium transition-smooth text-xs overflow-hidden ${
+                    className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg font-medium transition-smooth text-xs overflow-hidden border shadow-sm ${
                       isSelected
-                        ? 'bg-brand-aqua text-brand-midnight shadow-md'
-                        : 'bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
+                        ? 'bg-brand-aqua text-brand-midnight border-brand-aqua shadow-md ring-2 ring-brand-aqua/50'
+                        : categoriaColor + ' hover:opacity-90 hover:scale-105'
                     }`}
                     title={cat.nome}
                   >
