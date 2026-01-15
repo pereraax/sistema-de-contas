@@ -122,7 +122,12 @@ export default function RegistrosLista({
     new Set(registrosComUsuarios.flatMap((r) => r.etiquetas || []))
   )
 
-  const temFiltrosAtivos = Object.values(filtrosAtuais).some((v) => v)
+  // Verificar se há filtros ativos, excluindo data_inicio e data_fim (gerenciados pelos filtros rápidos de dias)
+  const temFiltrosAtivos = Object.entries(filtrosAtuais).some(([key, value]) => {
+    // Ignorar data_inicio e data_fim pois são gerenciados pelos filtros rápidos de dias
+    if (key === 'data_inicio' || key === 'data_fim') return false
+    return !!value
+  })
 
   const handleMarcarPago = async (id: string) => {
     await marcarParcelaPaga(id)
@@ -475,7 +480,11 @@ export default function RegistrosLista({
           <span>Filtros</span>
           {temFiltrosAtivos && (
             <span className="px-1.5 py-0.5 bg-brand-midnight dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-full text-xs font-bold">
-              {Object.values(filtrosAtuais).filter(v => v).length}
+              {Object.entries(filtrosAtuais).filter(([key, value]) => {
+                // Excluir data_inicio e data_fim da contagem
+                if (key === 'data_inicio' || key === 'data_fim') return false
+                return !!value
+              }).length}
             </span>
           )}
         </button>
