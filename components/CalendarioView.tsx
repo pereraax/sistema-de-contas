@@ -315,53 +315,53 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
 
   return (
     <div className="space-y-6">
-      {/* Cabeçalho com controles */}
-      <div className="bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl p-6 shadow-2xl border-2 border-brand-aqua/20 dark:border-brand-aqua/30">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+      {/* Cabeçalho com controles - Responsivo */}
+      <div className="bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl border-2 border-brand-aqua/20 dark:border-brand-aqua/30">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
           {/* Título e navegação */}
-          <div className="flex items-center gap-4">
-            <div className="p-2 bg-brand-aqua/20 dark:bg-brand-aqua/30 rounded-xl">
-              <Calendar size={24} className="text-brand-aqua" strokeWidth={2.5} />
+          <div className="flex items-center gap-2 sm:gap-4 w-full md:w-auto">
+            <div className="p-1.5 sm:p-2 bg-brand-aqua/20 dark:bg-brand-aqua/30 rounded-xl flex-shrink-0">
+              <Calendar size={20} className="sm:w-6 sm:h-6 text-brand-aqua" strokeWidth={2.5} />
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-brand-midnight dark:text-brand-clean">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-brand-midnight dark:text-brand-clean truncate">
                 {getTituloPeriodo()}
               </h2>
             </div>
           </div>
 
           {/* Botões de navegação */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 w-full md:w-auto justify-end">
             <button
               onClick={periodoAnterior}
-              className="p-2 hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-xl transition-smooth text-brand-midnight dark:text-brand-clean"
+              className="p-1.5 sm:p-2 hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-xl transition-smooth text-brand-midnight dark:text-brand-clean flex-shrink-0"
             >
-              <ChevronLeft size={24} strokeWidth={2.5} />
+              <ChevronLeft size={20} className="sm:w-6 sm:h-6" strokeWidth={2.5} />
             </button>
             <button
               onClick={irParaHoje}
-              className="px-4 py-2 bg-brand-aqua text-brand-midnight rounded-xl hover:bg-brand-aqua/90 transition-smooth font-semibold text-sm shadow-md hover:shadow-lg"
+              className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-aqua text-brand-midnight rounded-xl hover:bg-brand-aqua/90 transition-smooth font-semibold text-xs sm:text-sm shadow-md hover:shadow-lg flex-shrink-0"
             >
               Hoje
             </button>
             <button
               onClick={proximoPeriodo}
-              className="p-2 hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-xl transition-smooth text-brand-midnight dark:text-brand-clean"
+              className="p-1.5 sm:p-2 hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-xl transition-smooth text-brand-midnight dark:text-brand-clean flex-shrink-0"
             >
-              <ChevronRight size={24} strokeWidth={2.5} />
+              <ChevronRight size={20} className="sm:w-6 sm:h-6" strokeWidth={2.5} />
             </button>
           </div>
         </div>
 
-        {/* Opções de visualização e filtros */}
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Opções de visualização e filtros - Responsivo */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Botões de vista */}
-          <div className="flex gap-2 bg-gray-100 dark:bg-brand-midnight/80 p-1 rounded-xl">
+          <div className="flex gap-1 sm:gap-2 bg-gray-100 dark:bg-brand-midnight/80 p-0.5 sm:p-1 rounded-xl">
             {(['mes', 'semana', 'ano'] as VistaCalendario[]).map((v) => (
               <button
                 key={v}
                 onClick={() => setVista(v)}
-                className={`px-4 py-2 rounded-lg font-semibold text-sm transition-smooth ${
+                className={`px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-semibold text-xs sm:text-sm transition-smooth ${
                   vista === v
                     ? 'bg-brand-aqua text-brand-midnight shadow-md'
                     : 'text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-white/10'
@@ -375,16 +375,17 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
           {/* Botão de filtros */}
           <button
             onClick={() => setMostrarFiltros(!mostrarFiltros)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm transition-smooth ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-semibold text-xs sm:text-sm transition-smooth ${
               mostrarFiltros || temFiltrosAtivos
                 ? 'bg-brand-aqua text-brand-midnight shadow-md'
                 : 'bg-gray-100 dark:bg-brand-midnight/80 text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-white/10'
             }`}
           >
-            <Filter size={18} strokeWidth={2.5} />
-            Filtros
+            <Filter size={16} className="sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
+            <span className="hidden sm:inline">Filtros</span>
+            <span className="sm:hidden">Filt.</span>
             {temFiltrosAtivos && (
-              <span className="bg-brand-midnight text-brand-aqua rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+              <span className="bg-brand-midnight text-brand-aqua rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-[10px] sm:text-xs font-bold">
                 {[filtroTipo, filtroUsuario, filtroEtiqueta].filter(Boolean).length}
               </span>
             )}
@@ -393,9 +394,9 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
           {temFiltrosAtivos && (
             <button
               onClick={limparFiltros}
-              className="flex items-center gap-2 px-4 py-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl font-semibold text-sm hover:bg-red-200 dark:hover:bg-red-900/30 transition-smooth"
+              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl font-semibold text-xs sm:text-sm hover:bg-red-200 dark:hover:bg-red-900/30 transition-smooth"
             >
-              <X size={18} strokeWidth={2.5} />
+              <X size={16} className="sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
               Limpar
             </button>
           )}
@@ -634,8 +635,8 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
         )}
       </div>
 
-      {/* Calendário */}
-      <div className="bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl p-6 shadow-2xl border-2 border-brand-aqua/20 dark:border-brand-aqua/30">
+      {/* Calendário - Responsivo */}
+      <div className="bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl border-2 border-brand-aqua/20 dark:border-brand-aqua/30">
         {vista === 'mes' && (
           <>
             {/* Dias da semana - Responsivo */}
