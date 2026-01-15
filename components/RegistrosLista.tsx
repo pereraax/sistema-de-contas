@@ -382,6 +382,14 @@ export default function RegistrosLista({
           <div className="flex gap-2 pt-2">
             <button
               type="button"
+              onClick={() => setModalExportarAberto(true)}
+              className="flex-1 px-4 py-2.5 bg-white dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean rounded-lg text-xs font-semibold border border-gray-200 dark:border-white/20 hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 flex items-center justify-center gap-2"
+            >
+              <Download size={16} className="text-brand-aqua" />
+              <span>Exportar CSV</span>
+            </button>
+            <button
+              type="button"
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
