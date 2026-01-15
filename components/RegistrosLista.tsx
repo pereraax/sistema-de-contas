@@ -201,6 +201,8 @@ export default function RegistrosLista({
 
   // Função para obter cor de categoria (com fallback para categorias personalizadas não mapeadas)
   const obterCorCategoria = (categoria: string): string => {
+    if (!categoria) return 'bg-gray-100/80 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700'
+    
     const catLower = categoria.toLowerCase().trim()
     
     // Verificar se já tem cor definida
@@ -227,12 +229,16 @@ export default function RegistrosLista({
       { bg: 'bg-purple-100/80 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-300 dark:border-purple-700' },
       { bg: 'bg-cyan-100/80 dark:bg-cyan-900/40', text: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-300 dark:border-cyan-700' },
       { bg: 'bg-fuchsia-100/80 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300', border: 'border-fuchsia-300 dark:border-fuchsia-700' },
+      { bg: 'bg-green-100/80 dark:bg-green-900/40', text: 'text-green-700 dark:text-green-300', border: 'border-green-300 dark:border-green-700' },
+      { bg: 'bg-yellow-100/80 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-300 dark:border-yellow-700' },
+      { bg: 'bg-slate-100/80 dark:bg-slate-900/40', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-300 dark:border-slate-700' },
     ]
 
     // Gerar índice baseado no hash da string para garantir consistência
+    // Usar catLower para garantir que a mesma categoria sempre tenha a mesma cor
     let hash = 0
-    for (let i = 0; i < categoria.length; i++) {
-      hash = categoria.charCodeAt(i) + ((hash << 5) - hash)
+    for (let i = 0; i < catLower.length; i++) {
+      hash = catLower.charCodeAt(i) + ((hash << 5) - hash)
     }
     const index = Math.abs(hash) % coresPersonalizadas.length
     const cor = coresPersonalizadas[index]
