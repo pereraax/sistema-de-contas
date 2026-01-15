@@ -390,19 +390,76 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
   }
 
   // Cores para categorias (cada categoria tem sua própria cor)
-  const categoriaColors: Record<string, string> = {
-    alimentacao: 'bg-amber-500 text-white border-amber-600 dark:bg-amber-600 dark:border-amber-700',
-    transporte: 'bg-blue-500 text-white border-blue-600 dark:bg-blue-600 dark:border-blue-700',
-    moradia: 'bg-purple-500 text-white border-purple-600 dark:bg-purple-600 dark:border-purple-700',
-    compras: 'bg-pink-500 text-white border-pink-600 dark:bg-pink-600 dark:border-pink-700',
-    saude: 'bg-red-400 text-white border-red-500 dark:bg-red-500 dark:border-red-600',
-    educacao: 'bg-indigo-500 text-white border-indigo-600 dark:bg-indigo-600 dark:border-indigo-700',
-    trabalho: 'bg-slate-500 text-white border-slate-600 dark:bg-slate-600 dark:border-slate-700',
-    entretenimento: 'bg-fuchsia-500 text-white border-fuchsia-600 dark:bg-fuchsia-600 dark:border-fuchsia-700',
-    fitness: 'bg-emerald-500 text-white border-emerald-600 dark:bg-emerald-600 dark:border-emerald-700',
-    viagem: 'bg-cyan-500 text-white border-cyan-600 dark:bg-cyan-600 dark:border-cyan-700',
-    outros: 'bg-yellow-500 text-white border-yellow-600 dark:bg-yellow-600 dark:border-yellow-700',
+  // Mapeamento completo de cores únicas para cada categoria (com fundo transparente)
+  // Mesmo sistema usado em RegistrosLista.tsx
+  const coresCategorias: Record<string, { bg: string; text: string; border: string }> = {
+    // Categorias padrão
+    alimentacao: { bg: 'bg-amber-100/80 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-300 dark:border-amber-700' },
+    transporte: { bg: 'bg-blue-100/80 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-300 dark:border-blue-700' },
+    moradia: { bg: 'bg-purple-100/80 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-300 dark:border-purple-700' },
+    compras: { bg: 'bg-pink-100/80 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-300 dark:border-pink-700' },
+    saude: { bg: 'bg-red-100/80 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', border: 'border-red-300 dark:border-red-700' },
+    educacao: { bg: 'bg-indigo-100/80 dark:bg-indigo-900/40', text: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-300 dark:border-indigo-700' },
+    trabalho: { bg: 'bg-slate-100/80 dark:bg-slate-900/40', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-300 dark:border-slate-700' },
+    entretenimento: { bg: 'bg-fuchsia-100/80 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300', border: 'border-fuchsia-300 dark:border-fuchsia-700' },
+    fitness: { bg: 'bg-emerald-100/80 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-300 dark:border-emerald-700' },
+    viagem: { bg: 'bg-cyan-100/80 dark:bg-cyan-900/40', text: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-300 dark:border-cyan-700' },
+    outros: { bg: 'bg-yellow-100/80 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-300 dark:border-yellow-700' },
+    
+    // Categorias personalizadas comuns
+    sorvete: { bg: 'bg-violet-100/80 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', border: 'border-violet-300 dark:border-violet-700' },
+    comida: { bg: 'bg-sky-100/80 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-300 dark:border-sky-700' },
+    por: { bg: 'bg-green-100/80 dark:bg-green-900/40', text: 'text-green-700 dark:text-green-300', border: 'border-green-300 dark:border-green-700' },
+    lojas: { bg: 'bg-teal-100/80 dark:bg-teal-900/40', text: 'text-teal-700 dark:text-teal-300', border: 'border-teal-300 dark:border-teal-700' },
+    carro: { bg: 'bg-rose-100/80 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', border: 'border-rose-300 dark:border-rose-700' },
+    casa: { bg: 'bg-orange-100/80 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-300 dark:border-orange-700' },
+    pessoa: { bg: 'bg-lime-100/80 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', border: 'border-lime-300 dark:border-lime-700' },
+    'dívida - dinheiro': { bg: 'bg-amber-100/80 dark:bg-amber-900/40', text: 'text-amber-800 dark:text-amber-200', border: 'border-amber-400 dark:border-amber-600' },
+    'dívida - pix': { bg: 'bg-emerald-100/80 dark:bg-emerald-900/40', text: 'text-emerald-800 dark:text-emerald-200', border: 'border-emerald-400 dark:border-emerald-600' },
+    'dívida - cartao': { bg: 'bg-blue-100/80 dark:bg-blue-900/40', text: 'text-blue-800 dark:text-blue-200', border: 'border-blue-400 dark:border-blue-600' },
+    dinheiro: { bg: 'bg-sky-100/80 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-300 dark:border-sky-700' },
   }
+
+  // Função para obter cor de categoria (com fallback para categorias personalizadas não mapeadas)
+  const obterCorCategoria = (categoria: string): string => {
+    const catLower = categoria.toLowerCase().trim()
+    
+    // Verificar se já tem cor definida
+    if (coresCategorias[catLower]) {
+      const cor = coresCategorias[catLower]
+      return `${cor.bg} ${cor.text} ${cor.border}`
+    }
+
+    // Para categorias personalizadas não mapeadas, gerar cor baseada no hash da string
+    const coresPersonalizadas = [
+      { bg: 'bg-violet-100/80 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', border: 'border-violet-300 dark:border-violet-700' },
+      { bg: 'bg-teal-100/80 dark:bg-teal-900/40', text: 'text-teal-700 dark:text-teal-300', border: 'border-teal-300 dark:border-teal-700' },
+      { bg: 'bg-rose-100/80 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', border: 'border-rose-300 dark:border-rose-700' },
+      { bg: 'bg-orange-100/80 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-300 dark:border-orange-700' },
+      { bg: 'bg-lime-100/80 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', border: 'border-lime-300 dark:border-lime-700' },
+      { bg: 'bg-sky-100/80 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-300 dark:border-sky-700' },
+      { bg: 'bg-amber-100/80 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-300 dark:border-amber-700' },
+      { bg: 'bg-emerald-100/80 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-300 dark:border-emerald-700' },
+      { bg: 'bg-pink-100/80 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-300 dark:border-pink-700' },
+      { bg: 'bg-indigo-100/80 dark:bg-indigo-900/40', text: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-300 dark:border-indigo-700' },
+      { bg: 'bg-red-100/80 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', border: 'border-red-300 dark:border-red-700' },
+      { bg: 'bg-blue-100/80 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-300 dark:border-blue-700' },
+      { bg: 'bg-purple-100/80 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-300 dark:border-purple-700' },
+      { bg: 'bg-cyan-100/80 dark:bg-cyan-900/40', text: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-300 dark:border-cyan-700' },
+      { bg: 'bg-fuchsia-100/80 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300', border: 'border-fuchsia-300 dark:border-fuchsia-700' },
+    ]
+
+    // Gerar índice baseado no hash da string para garantir consistência
+    let hash = 0
+    for (let i = 0; i < categoria.length; i++) {
+      hash = categoria.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    const index = Math.abs(hash) % coresPersonalizadas.length
+    const cor = coresPersonalizadas[index]
+    return `${cor.bg} ${cor.text} ${cor.border}`
+  }
+
+  const categoriaColors: Record<string, string> = {}
   
   // Mapeamento de nomes de categorias
   const categoriaNomes: Record<string, string> = {
@@ -606,7 +663,7 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Categoria</p>
                         {divida.categoria && divida.categoria.toLowerCase() !== 'entrada' && divida.categoria.toLowerCase() !== 'saida' ? (
                           <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border shadow-sm ${
-                            categoriaColors[divida.categoria.toLowerCase()] || 'bg-gray-500 text-white border-gray-600 dark:bg-gray-600 dark:border-gray-700'
+                            obterCorCategoria(divida.categoria)
                           }`}>
                             {categoriaNomes[divida.categoria.toLowerCase()] || divida.categoria}
                           </span>
@@ -792,7 +849,7 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                       <td className="px-4 py-4 whitespace-nowrap">
                         {divida.categoria && divida.categoria.toLowerCase() !== 'entrada' && divida.categoria.toLowerCase() !== 'saida' ? (
                           <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border shadow-sm ${
-                            categoriaColors[divida.categoria.toLowerCase()] || 'bg-gray-500 text-white border-gray-600 dark:bg-gray-600 dark:border-gray-700'
+                            obterCorCategoria(divida.categoria)
                           }`}>
                             {categoriaNomes[divida.categoria.toLowerCase()] || divida.categoria}
                           </span>
