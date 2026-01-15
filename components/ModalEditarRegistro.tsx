@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Registro, User } from '@/lib/types'
 import { atualizarRegistro, obterUsuarios, obterRegistros } from '@/lib/actions'
-import { X, Plus, User as UserIcon, CreditCard, Wallet, Smartphone, UtensilsCrossed, Car, Home, ShoppingBag, Heart, GraduationCap, Briefcase, Gamepad2, Dumbbell, Plane, Trash2, HelpCircle, Check } from 'lucide-react'
+import { X, Plus, User as UserIcon, CreditCard, Wallet, Smartphone, UtensilsCrossed, Car, Home, ShoppingBag, Heart, GraduationCap, Briefcase, Gamepad2, Dumbbell, Plane, Trash2, HelpCircle, Check, Tag } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createNotification } from './NotificationBell'
 import ModalSelecionarUsuario from './ModalSelecionarUsuario'
@@ -29,6 +29,9 @@ export default function ModalEditarRegistro({
   const [parcelasRelacionadas, setParcelasRelacionadas] = useState<Registro[]>([])
   const [showHelpNome, setShowHelpNome] = useState(false)
   const [showHelpObservacao, setShowHelpObservacao] = useState(false)
+  const [showModalNovaCategoria, setShowModalNovaCategoria] = useState(false)
+  const [novaCategoriaNome, setNovaCategoriaNome] = useState('')
+  const [categoriasPersonalizadas, setCategoriasPersonalizadas] = useState<Array<{ id: string; nome: string; icon: any }>>([])
 
   // Fechar tooltips ao clicar fora
   useEffect(() => {
@@ -72,7 +75,7 @@ export default function ModalEditarRegistro({
   })
   const [temParcelas, setTemParcelas] = useState(false)
 
-  const categorias = [
+  const categoriasPadrao = [
     { id: 'alimentacao', nome: 'Alimentação', icon: UtensilsCrossed },
     { id: 'transporte', nome: 'Transporte', icon: Car },
     { id: 'moradia', nome: 'Moradia', icon: Home },
@@ -84,6 +87,75 @@ export default function ModalEditarRegistro({
     { id: 'fitness', nome: 'Fitness', icon: Dumbbell },
     { id: 'viagem', nome: 'Viagem', icon: Plane },
   ]
+
+  // Carregar categorias personalizadas do localStorage
+  useEffect(() => {
+    const categoriasSalvas = localStorage.getItem('categorias_personalizadas')
+    if (categoriasSalvas) {
+      try {
+        const personalizadas = JSON.parse(categoriasSalvas)
+        // Converter para o formato esperado (com icon)
+        const categoriasFormatadas = personalizadas.map((cat: any) => ({
+          id: cat.id,
+          nome: cat.nome,
+          icon: Tag, // Usar Tag como ícone padrão para categorias personalizadas
+        }))
+        setCategoriasPersonalizadas(categoriasFormatadas)
+      } catch (error) {
+        console.error('Erro ao carregar categorias personalizadas:', error)
+      }
+    }
+  }, [])
+
+  const categorias = [...categoriasPadrao, ...categoriasPersonalizadas]
+
+  // Função para criar nova categoria
+  const handleCriarNovaCategoria = () => {
+    if (!novaCategoriaNome.trim()) {
+      createNotification('Digite um nome para a categoria', 'warning')
+      return
+    }
+
+    // Verificar se já existe uma categoria com esse nome
+    const nomeNormalizado = novaCategoriaNome.trim().toLowerCase()
+    const categoriaExistente = categorias.find(
+      cat => cat.nome.toLowerCase() === nomeNormalizado
+    )
+
+    if (categoriaExistente) {
+      createNotification('Já existe uma categoria com esse nome', 'warning')
+      return
+    }
+
+    // Criar nova categoria
+    const novaCategoria = {
+      id: `cat-${Date.now()}`,
+      nome: novaCategoriaNome.trim(),
+      icone: 'Tag',
+      cor: '#00C2FF',
+      tipo: 'personalizada' as const,
+    }
+
+    // Salvar no localStorage
+    const categoriasSalvas = localStorage.getItem('categorias_personalizadas')
+    const personalizadas = categoriasSalvas ? JSON.parse(categoriasSalvas) : []
+    personalizadas.push(novaCategoria)
+    localStorage.setItem('categorias_personalizadas', JSON.stringify(personalizadas))
+
+    // Atualizar estado local
+    setCategoriasPersonalizadas([
+      ...categoriasPersonalizadas,
+      { id: novaCategoria.id, nome: novaCategoria.nome, icon: Tag }
+    ])
+
+    // Selecionar a nova categoria automaticamente
+    setFormData({ ...formData, categoria: novaCategoria.id })
+
+    // Fechar modal e limpar
+    setShowModalNovaCategoria(false)
+    setNovaCategoriaNome('')
+    createNotification('Categoria criada com sucesso!', 'success')
+  }
 
   // Cores para categorias (cada categoria tem sua própria cor)
   const categoriaColors: Record<string, string> = {
@@ -682,6 +754,16 @@ export default function ModalEditarRegistro({
                   </button>
                 )
               })}
+              {/* Botão para criar nova categoria */}
+              <button
+                type="button"
+                onClick={() => setShowModalNovaCategoria(true)}
+                className="flex flex-col items-center justify-center gap-2 px-2 py-3 rounded-lg font-medium transition-smooth min-h-[90px] border-2 border-dashed border-gray-300 dark:border-white/20 bg-gray-50 dark:bg-brand-midnight/30 hover:bg-gray-100 dark:hover:bg-brand-midnight/50 hover:border-brand-aqua dark:hover:border-brand-aqua text-gray-600 dark:text-gray-400 hover:text-brand-aqua dark:hover:text-brand-aqua"
+                title="Criar nova categoria"
+              >
+                <Plus size={24} strokeWidth={2.5} className="flex-shrink-0" />
+                <span className="text-xs font-medium text-center leading-tight">Nova</span>
+              </button>
             </div>
           </div>
 
@@ -1031,6 +1113,70 @@ export default function ModalEditarRegistro({
         }}
         selectedUserId={formData.user_id}
       />
+
+      {/* Modal para criar nova categoria */}
+      {showModalNovaCategoria && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10001] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl max-w-md w-full shadow-2xl animate-slide-up overflow-hidden border-2 border-brand-aqua/30 dark:border-brand-aqua/40">
+            <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-6 py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal rounded-t-3xl">
+              <h2 className="text-xl font-display font-bold text-white dark:text-brand-clean">
+                Nova Categoria
+              </h2>
+              <button
+                onClick={() => {
+                  setShowModalNovaCategoria(false)
+                  setNovaCategoriaNome('')
+                }}
+                className="p-2 hover:bg-white/20 dark:hover:bg-white/10 rounded-xl transition-smooth"
+              >
+                <X size={20} className="text-white dark:text-brand-clean" strokeWidth={2.5} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-brand-midnight dark:text-brand-clean mb-2">
+                  Nome da Categoria *
+                </label>
+                <input
+                  type="text"
+                  value={novaCategoriaNome}
+                  onChange={(e) => setNovaCategoriaNome(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleCriarNovaCategoria()
+                    }
+                  }}
+                  placeholder="Ex: Sorvete, Comida, etc."
+                  className="w-full px-4 py-2.5 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModalNovaCategoria(false)
+                    setNovaCategoriaNome('')
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-brand-royal text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-smooth font-medium text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCriarNovaCategoria}
+                  disabled={!novaCategoriaNome.trim()}
+                  className="flex-1 px-4 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg hover:bg-brand-aqua/90 transition-smooth font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Criar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
