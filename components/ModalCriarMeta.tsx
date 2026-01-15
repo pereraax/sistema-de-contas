@@ -133,11 +133,11 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
       >
         {/* Modal - Compacto e Organizado */}
         <div 
-          className="bg-white dark:bg-brand-royal rounded-2xl w-full max-w-md shadow-2xl border border-gray-200 dark:border-white/10 animate-slide-up max-h-[85vh] flex flex-col"
+          className="bg-white dark:bg-brand-royal rounded-3xl w-full max-w-md shadow-2xl border border-gray-200 dark:border-white/10 animate-slide-up max-h-[85vh] flex flex-col overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header Fixo */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-brand-aqua/20 dark:border-white/10 flex-shrink-0 bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-brand-aqua/20 dark:border-white/10 flex-shrink-0 bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal rounded-t-3xl">
             <div className="flex items-center gap-2">
               <div className="p-1.5 bg-white/20 rounded-lg">
                 <Target size={16} className="text-white" />
@@ -313,7 +313,7 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
             </div>
 
             {/* Botões Fixos */}
-            <div className="flex gap-2 px-5 py-4 border-t border-gray-200 dark:border-white/10 flex-shrink-0 bg-white dark:bg-brand-midnight">
+            <div className="flex gap-2 px-5 py-4 border-t border-gray-200 dark:border-white/10 flex-shrink-0 bg-white dark:bg-brand-midnight rounded-b-3xl">
               <button
                 type="button"
                 onClick={onClose}
