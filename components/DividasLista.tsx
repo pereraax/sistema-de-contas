@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { Registro, User } from '@/lib/types'
-import { Edit, Trash2, Plus, Search, Repeat, Download, FileText, AlertCircle, TrendingUp, Trophy } from 'lucide-react'
+import { Edit, Trash2, Plus, Search, Repeat, Download, FileText, AlertCircle, TrendingUp, Trophy, CheckCircle, XCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import { excluirRegistro, obterDividas } from '@/lib/actions'
@@ -652,6 +652,9 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                       Categoria
                     </th>
                     <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Etiquetas
                     </th>
                     <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
@@ -735,9 +738,26 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                         )}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">
-                          {divida.categoria || '-'}
-                        </span>
+                        {divida.categoria ? (
+                          <span className="inline-block px-3 py-1.5 text-sm font-medium text-brand-midnight dark:text-brand-clean bg-blue-100 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800/50">
+                            {divida.categoria}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-brand-midnight/40 dark:text-brand-clean/40">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        {divida.parcelas_pagas >= divida.parcelas_totais ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm font-medium border border-green-200 dark:border-green-800/50">
+                            <CheckCircle size={16} />
+                            Pago
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg text-sm font-medium border border-orange-200 dark:border-orange-800/50">
+                            <XCircle size={16} />
+                            Pendente
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap gap-1">
