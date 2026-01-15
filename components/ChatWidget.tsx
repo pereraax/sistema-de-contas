@@ -600,7 +600,7 @@ export default function ChatWidget() {
           }`}
         >
           {/* Header do chat - FIXO (não rolável) */}
-          <div className="bg-gradient-to-r from-brand-aqua to-brand-royal dark:from-brand-midnight dark:to-brand-royal sm:rounded-t-2xl overflow-hidden flex-shrink-0">
+          <div className="bg-gradient-to-r from-brand-midnight to-brand-royal dark:from-brand-midnight dark:to-brand-royal sm:rounded-t-2xl overflow-hidden flex-shrink-0">
             <div className="p-3 sm:p-4 flex items-center justify-between">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 dark:bg-brand-aqua/20 rounded-full flex items-center justify-center flex-shrink-0">
