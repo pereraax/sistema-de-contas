@@ -744,7 +744,7 @@ export default function RegistrosLista({
         <div className="mt-4 flex gap-3">
           <button
             onClick={aplicarFiltros}
-            className="flex-1 px-6 py-3 bg-gradient-to-r from-brand-aqua to-brand-blue text-brand-midnight rounded-xl hover:from-brand-aqua/90 hover:to-brand-blue/90 transition-smooth font-bold shadow-lg hover:shadow-xl text-sm flex items-center justify-center gap-2"
+            className="px-6 py-3 bg-brand-aqua text-brand-midnight rounded-xl hover:bg-brand-aqua/90 transition-smooth font-semibold text-sm flex items-center justify-center gap-2 border-2 border-brand-aqua"
           >
             <Filter size={18} strokeWidth={2.5} />
             Aplicar Filtros
