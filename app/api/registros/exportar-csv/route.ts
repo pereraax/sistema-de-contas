@@ -24,6 +24,32 @@ export async function GET(request: NextRequest) {
     const diasParam = searchParams.get('dias')
     const dias = diasParam ? parseInt(diasParam, 10) : 0
 
+    // CRÍTICO: Buscar todos os usuários da tabela users que pertencem a este account_owner
+    // e então buscar registros desses usuários (mesma lógica de obterRegistros)
+    const { data: usuarios, error: usuariosError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('account_owner_id', user.id)
+    
+    if (usuariosError) {
+      console.error('Erro ao buscar usuários:', usuariosError)
+      return NextResponse.json(
+        { error: 'Erro ao buscar usuários' },
+        { status: 500 }
+      )
+    }
+    
+    // Se não há usuários, retornar vazio
+    if (!usuarios || usuarios.length === 0) {
+      return NextResponse.json(
+        { error: 'Nenhum registro encontrado' },
+        { status: 404 }
+      )
+    }
+    
+    // Extrair IDs dos usuários
+    const userIds = usuarios.map(u => u.id)
+
     // Calcular data de início baseado no período
     let dataInicio: Date | null = null
     if (dias > 0) {
@@ -32,7 +58,7 @@ export async function GET(request: NextRequest) {
       dataInicio.setHours(0, 0, 0, 0)
     }
 
-    // Buscar registros do usuário
+    // Buscar registros de todos os usuários do account_owner
     let query = supabase
       .from('registros')
       .select(`
@@ -49,7 +75,7 @@ export async function GET(request: NextRequest) {
         user_id,
         created_at
       `)
-      .eq('user_id', user.id)
+      .in('user_id', userIds)
       .order('data_registro', { ascending: false })
 
     // Aplicar filtro de data se necessário
@@ -74,14 +100,28 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Buscar nomes dos usuários (caso haja registros de outros usuários)
-    const userIds = Array.from(new Set(registros.map(r => r.user_id)))
-    const { data: usuarios } = await supabase
+    // Buscar nomes dos usuários
+    const registroUserIds = Array.from(new Set(registros.map(r => r.user_id)))
+    const { data: profiles } = await supabase
       .from('profiles')
       .select('id, nome')
-      .in('id', userIds)
+      .in('id', registroUserIds)
 
-    const usuariosMap = new Map(usuarios?.map(u => [u.id, u.nome]) || [])
+    const usuariosMap = new Map(profiles?.map(u => [u.id, u.nome]) || [])
+    
+    // Se não encontrar no profiles, buscar na tabela users
+    if (registroUserIds.length > usuariosMap.size) {
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, nome')
+        .in('id', registroUserIds)
+      
+      usersData?.forEach(u => {
+        if (!usuariosMap.has(u.id) && u.nome) {
+          usuariosMap.set(u.id, u.nome)
+        }
+      })
+    }
 
     // Mapear tipos
     const tipoLabels: Record<string, string> = {
