@@ -395,7 +395,7 @@ export default function RegistrosLista({
                 e.stopPropagation()
                 aplicarFiltros()
               }}
-              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-brand-aqua via-brand-aqua to-blue-500 text-white rounded-lg font-bold shadow-lg text-xs flex items-center justify-center gap-1.5 hover:shadow-xl transition-all"
+              className="px-4 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-brand-aqua/90 transition-all border-2 border-brand-aqua"
             >
               <Filter size={14} strokeWidth={2.5} />
               Aplicar
