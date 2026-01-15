@@ -677,10 +677,12 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                             Pago
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded text-xs font-medium border border-orange-200 dark:border-orange-800/50">
-                            <XCircle size={12} />
-                            Pendente
-                          </span>
+                          <button
+                            onClick={() => setDividaPagando(divida)}
+                            className="w-full px-3 py-1.5 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-xs shadow-sm"
+                          >
+                            Pagar Dívida
+                          </button>
                         )}
                       </div>
                       <div>
@@ -720,12 +722,6 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
 
                     {/* Ações */}
                     <div className="pt-2 border-t border-brand-clean/20 dark:border-white/10">
-                      <button
-                        onClick={() => setDividaPagando(divida)}
-                        className="w-full px-4 py-2 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-sm shadow-sm mb-2"
-                      >
-                        Pagar Dívida
-                      </button>
                       <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => setRegistroEditando(divida)}
@@ -867,10 +863,15 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                             Pago
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg text-sm font-medium border border-orange-200 dark:border-orange-800/50">
-                            <XCircle size={16} />
-                            Pendente
-                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDividaPagando(divida)
+                            }}
+                            className="w-full px-4 py-2 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-sm shadow-sm"
+                          >
+                            Pagar Dívida
+                          </button>
                         )}
                       </td>
                       <td className="px-4 py-4">
@@ -916,29 +917,27 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                         </div>
                       </td>
                         <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="flex flex-col gap-2">
+                          <div className="flex items-center justify-center gap-2">
                             <button
-                              onClick={() => setDividaPagando(divida)}
-                              className="w-full px-4 py-2 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-sm shadow-sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setRegistroEditando(divida)
+                              }}
+                              className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
+                              title="Editar"
                             >
-                              Pagar Dívida
+                              <Edit size={18} strokeWidth={2} />
                             </button>
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => setRegistroEditando(divida)}
-                                className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
-                                title="Editar"
-                              >
-                                <Edit size={18} strokeWidth={2} />
-                              </button>
-                              <button
-                                onClick={() => handleExcluir(divida.id)}
-                                className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
-                                title="Excluir"
-                              >
-                                <Trash2 size={18} strokeWidth={2} />
-                              </button>
-                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleExcluir(divida.id)
+                              }}
+                              className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
+                              title="Excluir"
+                            >
+                              <Trash2 size={18} strokeWidth={2} />
+                            </button>
                           </div>
                         </td>
                     </tr>
@@ -1022,6 +1021,13 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                           {format(new Date(divida.data_registro), "dd/MM/yyyy", { locale: ptBR })}
                         </p>
                       </div>
+                      <div>
+                        <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Status</p>
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs font-medium border border-green-200 dark:border-green-800/50">
+                          <CheckCircle size={12} />
+                          Pago
+                        </span>
+                      </div>
                     </div>
                     {divida.etiquetas && divida.etiquetas.length > 0 && (
                       <div>
@@ -1086,6 +1092,9 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                     </th>
                     <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
                       Data
+                    </th>
+                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                      Status
                     </th>
                     <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
                       Ações
@@ -1193,17 +1202,29 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm font-medium border border-green-200 dark:border-green-800/50">
+                          <CheckCircle size={16} />
+                          Pago
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-2">
                           <button
-                            onClick={() => setRegistroEditando(divida)}
-                            className="p-2 text-brand-aqua hover:bg-brand-aqua/10 rounded-lg transition-smooth"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setRegistroEditando(divida)
+                            }}
+                            className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
                             title="Editar"
                           >
                             <Edit size={18} strokeWidth={2} />
                           </button>
                           <button
-                            onClick={() => handleExcluir(divida.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-smooth"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleExcluir(divida.id)
+                            }}
+                            className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
                             title="Excluir"
                           >
                             <Trash2 size={18} strokeWidth={2} />
