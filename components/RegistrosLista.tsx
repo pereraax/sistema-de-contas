@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Registro, User } from '@/lib/types'
 import { Edit, Trash2, CheckCircle, X, Search, Filter, ChevronDown, Check, Calendar, Download } from 'lucide-react'
-import { format } from 'date-fns'
+import { format, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import { marcarParcelaPaga, excluirRegistro } from '@/lib/actions'
 import ModalConfirmacao from './ModalConfirmacao'
@@ -41,6 +41,7 @@ export default function RegistrosLista({
   const [modalExportarAberto, setModalExportarAberto] = useState(false)
   const [periodoExportacao, setPeriodoExportacao] = useState<number | null>(null)
   const [exportando, setExportando] = useState(false)
+  const [filtroDiasSelecionado, setFiltroDiasSelecionado] = useState<number | null>(null)
 
   const aplicarFiltros = () => {
     const params = new URLSearchParams()
@@ -62,8 +63,51 @@ export default function RegistrosLista({
       data_inicio: '',
       data_fim: '',
     })
+    setFiltroDiasSelecionado(null)
     router.push('/registros')
   }
+
+  const aplicarFiltroDias = (dias: number | null) => {
+    setFiltroDiasSelecionado(dias)
+    
+    if (dias === null) {
+      // Limpar filtro de data
+      const params = new URLSearchParams(searchParams.toString())
+      params.delete('data_inicio')
+      params.delete('data_fim')
+      router.push(`/registros?${params.toString()}`)
+      return
+    }
+
+    const hoje = new Date()
+    const dataInicio = subDays(hoje, dias)
+    const dataFim = hoje
+
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('data_inicio', format(dataInicio, 'yyyy-MM-dd'))
+    params.set('data_fim', format(dataFim, 'yyyy-MM-dd'))
+    router.push(`/registros?${params.toString()}`)
+  }
+
+  // Verificar se há filtro de dias ativo baseado nos filtros atuais
+  useEffect(() => {
+    if (filtrosAtuais.data_inicio && filtrosAtuais.data_fim) {
+      const dataInicio = new Date(filtrosAtuais.data_inicio)
+      const dataFim = new Date(filtrosAtuais.data_fim)
+      const hoje = new Date()
+      hoje.setHours(23, 59, 59, 999)
+      
+      // Verificar se a data fim é hoje
+      if (format(dataFim, 'yyyy-MM-dd') === format(hoje, 'yyyy-MM-dd')) {
+        const diasDiff = Math.ceil((hoje.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24))
+        if ([7, 30, 60, 90].includes(diasDiff)) {
+          setFiltroDiasSelecionado(diasDiff)
+        }
+      }
+    } else {
+      setFiltroDiasSelecionado(null)
+    }
+  }, [filtrosAtuais.data_inicio, filtrosAtuais.data_fim])
 
   // Associar dados do usuário aos registros
   const registrosComUsuarios = registros.map((registro) => {
@@ -918,6 +962,33 @@ export default function RegistrosLista({
                   )}
                 </div>
               </div>
+            ))}
+          </div>
+
+          {/* Desktop: Filtros Rápidos de Dias */}
+          <div className="hidden md:flex items-center gap-2 mb-4">
+            <button
+              onClick={() => aplicarFiltroDias(null)}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                filtroDiasSelecionado === null
+                  ? 'bg-gradient-to-r from-brand-aqua to-blue-500 text-white shadow-md'
+                  : 'bg-white dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border-2 border-gray-200 dark:border-white/20 hover:border-brand-aqua'
+              }`}
+            >
+              Todos
+            </button>
+            {[7, 30, 60, 90].map((dias) => (
+              <button
+                key={dias}
+                onClick={() => aplicarFiltroDias(dias)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  filtroDiasSelecionado === dias
+                    ? 'bg-gradient-to-r from-brand-aqua to-blue-500 text-white shadow-md'
+                    : 'bg-white dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border-2 border-gray-200 dark:border-white/20 hover:border-brand-aqua'
+                }`}
+              >
+                {dias} dias
+              </button>
             ))}
           </div>
 
