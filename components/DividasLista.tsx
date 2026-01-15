@@ -780,7 +780,11 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                 </thead>
                 <tbody className="bg-brand-white dark:bg-brand-royal divide-y divide-brand-clean dark:divide-white/10">
                   {dividasPendentes.map((divida) => (
-                    <tr key={divida.id} className="hover:bg-brand-clean/50 dark:hover:bg-white/5 transition-smooth">
+                    <tr 
+                      key={divida.id} 
+                      className="hover:bg-brand-clean/50 dark:hover:bg-white/5 transition-smooth cursor-pointer"
+                      onClick={() => setRegistroEditando(divida)}
+                    >
                       <td className="px-4 py-4">
                         <div>
                           <div className="flex items-center gap-2 text-sm font-medium text-brand-midnight dark:text-brand-clean">
@@ -959,7 +963,11 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
             {/* Mobile: Cards */}
             <div className="md:hidden space-y-4 p-4">
               {dividasQuitadas.map((divida) => (
-                <div key={divida.id} className="bg-brand-royal dark:bg-brand-midnight rounded-xl p-4 border border-brand-clean/20 dark:border-white/10">
+                <div 
+                  key={divida.id} 
+                  className="bg-brand-royal dark:bg-brand-midnight rounded-xl p-4 border border-brand-clean/20 dark:border-white/10 hover:shadow-md transition-shadow duration-200 cursor-pointer"
+                  onClick={() => setRegistroEditando(divida)}
+                >
                   <div className="space-y-3">
                     <div>
                       <h3 className="text-base font-semibold text-brand-midnight dark:text-brand-clean">
