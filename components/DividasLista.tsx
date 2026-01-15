@@ -1038,14 +1038,23 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                         </div>
                       </div>
                     )}
-                    <div className="flex items-center gap-2 pt-2 border-t border-brand-clean/20 dark:border-white/10">
-                      <button
-                        onClick={() => setRegistroEditando(divida)}
-                        className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
-                        title="Editar"
-                      >
-                        <Edit size={18} strokeWidth={2} />
-                      </button>
+                    <div className="pt-2 border-t border-brand-clean/20 dark:border-white/10">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => setRegistroEditando(divida)}
+                          className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
+                          title="Editar"
+                        >
+                          <Edit size={18} strokeWidth={2} />
+                        </button>
+                        <button
+                          onClick={() => handleExcluir(divida.id)}
+                          className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
+                          title="Excluir"
+                        >
+                          <Trash2 size={18} strokeWidth={2} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
