@@ -45,15 +45,15 @@ export default function ModalSelecionarTipo({
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[10000] flex items-center justify-center p-4 animate-fade-in">
       <div className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl max-w-md w-full shadow-2xl animate-slide-up overflow-hidden border-2 border-brand-aqua/30 dark:border-brand-aqua/40">
-        <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-6 py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua/10 via-brand-aqua/5 to-transparent dark:from-brand-aqua/20 dark:via-brand-aqua/10">
-          <h2 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
+        <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-6 py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal">
+          <h2 className="text-xl font-display font-bold text-white dark:text-brand-clean">
             Selecionar Tipo
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-red-500/20 dark:hover:bg-red-500/30 rounded-xl transition-smooth"
+            className="p-2 hover:bg-white/20 dark:hover:bg-red-500/30 rounded-xl transition-smooth"
           >
-            <X size={20} className="text-brand-midnight dark:text-brand-clean" strokeWidth={2.5} />
+            <X size={20} className="text-white dark:text-brand-clean" strokeWidth={2.5} />
           </button>
         </div>
 
