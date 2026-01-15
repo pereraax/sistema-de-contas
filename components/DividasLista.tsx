@@ -662,7 +662,7 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                       <div>
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Categoria</p>
                         {divida.categoria && divida.categoria.toLowerCase() !== 'entrada' && divida.categoria.toLowerCase() !== 'saida' ? (
-                          <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium border ${obterCorCategoria(divida.categoria)}`}>
+                          <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium border whitespace-nowrap ${obterCorCategoria(divida.categoria)}`}>
                             {categoriaNomes[divida.categoria.toLowerCase()] || divida.categoria}
                           </span>
                         ) : (
@@ -846,7 +846,7 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
                         {divida.categoria && divida.categoria.toLowerCase() !== 'entrada' && divida.categoria.toLowerCase() !== 'saida' ? (
-                          <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium border ${obterCorCategoria(divida.categoria)}`}>
+                          <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium border whitespace-nowrap ${obterCorCategoria(divida.categoria)}`}>
                             {categoriaNomes[divida.categoria.toLowerCase()] || divida.categoria}
                           </span>
                         ) : (

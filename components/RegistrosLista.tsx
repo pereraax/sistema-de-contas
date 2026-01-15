@@ -1131,7 +1131,7 @@ export default function RegistrosLista({
                     <div>
                       <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Categoria</p>
                       {registro.categoria && registro.categoria.toLowerCase() !== 'entrada' && registro.categoria.toLowerCase() !== 'saida' ? (
-                        <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium border ${obterCorCategoria(registro.categoria)}`}>
+                        <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium border whitespace-nowrap ${obterCorCategoria(registro.categoria)}`}>
                           {categoriaNomes[registro.categoria.toLowerCase()] || registro.categoria}
                         </span>
                       ) : (
@@ -1295,7 +1295,7 @@ export default function RegistrosLista({
                     </td>
                     <td className="px-4 py-4">
                       {registro.categoria && registro.categoria.toLowerCase() !== 'entrada' && registro.categoria.toLowerCase() !== 'saida' ? (
-                        <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium border ${obterCorCategoria(registro.categoria)}`}>
+                        <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium border whitespace-nowrap ${obterCorCategoria(registro.categoria)}`}>
                           {categoriaNomes[registro.categoria.toLowerCase()] || registro.categoria}
                         </span>
                       ) : (
