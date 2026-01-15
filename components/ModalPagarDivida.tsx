@@ -259,10 +259,8 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
                 <button
                   type="button"
                   onClick={() => {
-                    const valorFormatado = new Intl.NumberFormat('pt-BR', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }).format(valorPendente)
+                    // Formatar o valor pendente usando a mesma função de formatação
+                    const valorFormatado = formatarValorEmTempoReal(valorPendente.toFixed(2).replace('.', '').replace(',', ''))
                     setValorPagamento(valorFormatado)
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-smooth text-xs font-semibold shadow-sm"
