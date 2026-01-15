@@ -389,6 +389,36 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
     divida: 'Dívida',
   }
 
+  // Cores para categorias (cada categoria tem sua própria cor)
+  const categoriaColors: Record<string, string> = {
+    alimentacao: 'bg-amber-500 text-white border-amber-600 dark:bg-amber-600 dark:border-amber-700',
+    transporte: 'bg-blue-500 text-white border-blue-600 dark:bg-blue-600 dark:border-blue-700',
+    moradia: 'bg-purple-500 text-white border-purple-600 dark:bg-purple-600 dark:border-purple-700',
+    compras: 'bg-pink-500 text-white border-pink-600 dark:bg-pink-600 dark:border-pink-700',
+    saude: 'bg-red-400 text-white border-red-500 dark:bg-red-500 dark:border-red-600',
+    educacao: 'bg-indigo-500 text-white border-indigo-600 dark:bg-indigo-600 dark:border-indigo-700',
+    trabalho: 'bg-slate-500 text-white border-slate-600 dark:bg-slate-600 dark:border-slate-700',
+    entretenimento: 'bg-fuchsia-500 text-white border-fuchsia-600 dark:bg-fuchsia-600 dark:border-fuchsia-700',
+    fitness: 'bg-emerald-500 text-white border-emerald-600 dark:bg-emerald-600 dark:border-emerald-700',
+    viagem: 'bg-cyan-500 text-white border-cyan-600 dark:bg-cyan-600 dark:border-cyan-700',
+    outros: 'bg-yellow-500 text-white border-yellow-600 dark:bg-yellow-600 dark:border-yellow-700',
+  }
+  
+  // Mapeamento de nomes de categorias
+  const categoriaNomes: Record<string, string> = {
+    alimentacao: 'Alimentação',
+    transporte: 'Transporte',
+    moradia: 'Moradia',
+    compras: 'Compras',
+    saude: 'Saúde',
+    educacao: 'Educação',
+    trabalho: 'Trabalho',
+    entretenimento: 'Entretenimento',
+    fitness: 'Fitness',
+    viagem: 'Viagem',
+    outros: 'Outros',
+  }
+
   return (
     <div className="space-y-6">
       {/* Header com botão de registrar e filtro */}
@@ -574,9 +604,11 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                       </div>
                       <div>
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Categoria</p>
-                        {divida.categoria ? (
-                          <span className="inline-block px-2 py-1 text-xs font-medium text-brand-midnight dark:text-brand-clean bg-blue-100 dark:bg-blue-900/30 rounded border border-blue-200 dark:border-blue-800/50">
-                            {divida.categoria}
+                        {divida.categoria && divida.categoria.toLowerCase() !== 'entrada' && divida.categoria.toLowerCase() !== 'saida' ? (
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border shadow-sm ${
+                            categoriaColors[divida.categoria.toLowerCase()] || 'bg-gray-500 text-white border-gray-600 dark:bg-gray-600 dark:border-gray-700'
+                          }`}>
+                            {categoriaNomes[divida.categoria.toLowerCase()] || divida.categoria}
                           </span>
                         ) : (
                           <p className="text-brand-midnight/40 dark:text-brand-clean/40">-</p>
@@ -758,9 +790,11 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                         )}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        {divida.categoria ? (
-                          <span className="inline-block px-3 py-1.5 text-sm font-medium text-brand-midnight dark:text-brand-clean bg-blue-100 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800/50">
-                            {divida.categoria}
+                        {divida.categoria && divida.categoria.toLowerCase() !== 'entrada' && divida.categoria.toLowerCase() !== 'saida' ? (
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border shadow-sm ${
+                            categoriaColors[divida.categoria.toLowerCase()] || 'bg-gray-500 text-white border-gray-600 dark:bg-gray-600 dark:border-gray-700'
+                          }`}>
+                            {categoriaNomes[divida.categoria.toLowerCase()] || divida.categoria}
                           </span>
                         ) : (
                           <span className="text-sm text-brand-midnight/40 dark:text-brand-clean/40">-</span>
