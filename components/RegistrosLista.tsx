@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Registro, User } from '@/lib/types'
-import { Edit, Trash2, CheckCircle, X, Search, Filter, ChevronDown, Check, Calendar } from 'lucide-react'
+import { Edit, Trash2, CheckCircle, X, Search, Filter, ChevronDown, Check, Calendar, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import { marcarParcelaPaga, excluirRegistro } from '@/lib/actions'
@@ -38,6 +38,9 @@ export default function RegistrosLista({
   const [dropdownTipoAberto, setDropdownTipoAberto] = useState(false)
   const [dropdownUsuarioAberto, setDropdownUsuarioAberto] = useState(false)
   const [modalFiltrosAberto, setModalFiltrosAberto] = useState(false)
+  const [modalExportarAberto, setModalExportarAberto] = useState(false)
+  const [periodoExportacao, setPeriodoExportacao] = useState<number | null>(null)
+  const [exportando, setExportando] = useState(false)
 
   const aplicarFiltros = () => {
     const params = new URLSearchParams()
@@ -157,6 +160,39 @@ export default function RegistrosLista({
     }
     
     return observacaoLimpa
+  }
+
+  const handleExportarCSV = async () => {
+    if (!periodoExportacao) {
+      return
+    }
+
+    setExportando(true)
+    try {
+      const response = await fetch(`/api/registros/exportar-csv?dias=${periodoExportacao}`)
+      
+      if (!response.ok) {
+        throw new Error('Erro ao exportar registros')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `registros-${periodoExportacao}-dias-${format(new Date(), 'yyyy-MM-dd')}.csv`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      setModalExportarAberto(false)
+      setPeriodoExportacao(null)
+    } catch (error) {
+      console.error('Erro ao exportar:', error)
+      alert('Erro ao exportar registros. Tente novamente.')
+    } finally {
+      setExportando(false)
+    }
   }
 
   return (
@@ -373,7 +409,7 @@ export default function RegistrosLista({
         </div>
       </div>
 
-      {/* Desktop: Botão de filtro */}
+      {/* Desktop: Botões de filtro e exportação */}
       <div className="hidden md:flex items-center gap-3 mb-4 sm:mb-6">
         <button
           onClick={() => setModalFiltrosAberto(!modalFiltrosAberto)}
@@ -390,6 +426,13 @@ export default function RegistrosLista({
               {Object.values(filtrosAtuais).filter(v => v).length}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => setModalExportarAberto(true)}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 border-2 rounded-xl transition-smooth text-sm font-semibold whitespace-nowrap bg-white dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border-gray-200 dark:border-white/20 hover:border-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20"
+        >
+          <Download size={18} className="text-brand-aqua" strokeWidth={2.5} />
+          <span>Exportar CSV</span>
         </button>
       </div>
 
@@ -1064,6 +1107,100 @@ export default function RegistrosLista({
           textoConfirmar="Excluir"
           tipo="danger"
         />
+      )}
+
+      {/* Modal de Exportação CSV */}
+      {modalExportarAberto && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white dark:bg-brand-royal rounded-2xl max-w-md w-full shadow-2xl border border-gray-200 dark:border-white/10 animate-slide-up">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-brand-aqua/20 dark:bg-brand-aqua/30 rounded-xl">
+                    <Download size={24} className="text-brand-aqua" strokeWidth={2.5} />
+                  </div>
+                  <h3 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
+                    Exportar Registros
+                  </h3>
+                </div>
+                <button
+                  onClick={() => {
+                    setModalExportarAberto(false)
+                    setPeriodoExportacao(null)
+                  }}
+                  className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-smooth"
+                >
+                  <X size={20} className="text-brand-midnight dark:text-brand-clean" />
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600 dark:text-brand-clean/70 mb-6">
+                Selecione o período que deseja exportar:
+              </p>
+
+              <div className="space-y-3 mb-6">
+                {[
+                  { dias: 7, label: 'Últimos 7 dias' },
+                  { dias: 15, label: 'Últimos 15 dias' },
+                  { dias: 30, label: 'Últimos 30 dias' },
+                  { dias: 60, label: 'Últimos 60 dias' },
+                  { dias: 90, label: 'Últimos 90 dias' },
+                  { dias: 365, label: 'Último ano' },
+                  { dias: 0, label: 'Todos os registros' },
+                ].map((opcao) => (
+                  <button
+                    key={opcao.dias}
+                    type="button"
+                    onClick={() => setPeriodoExportacao(opcao.dias)}
+                    className={`w-full px-4 py-3 rounded-xl border-2 transition-all text-left ${
+                      periodoExportacao === opcao.dias
+                        ? 'border-brand-aqua bg-brand-aqua/10 dark:bg-brand-aqua/20 text-brand-aqua font-semibold'
+                        : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean hover:border-brand-aqua/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>{opcao.label}</span>
+                      {periodoExportacao === opcao.dias && (
+                        <Check size={20} className="text-brand-aqua" />
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalExportarAberto(false)
+                    setPeriodoExportacao(null)
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean rounded-xl font-semibold hover:bg-gray-200 dark:hover:bg-white/10 transition-smooth"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportarCSV}
+                  disabled={!periodoExportacao || exportando}
+                  className="flex-1 px-4 py-2.5 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {exportando ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand-midnight"></div>
+                      <span>Exportando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={18} />
+                      <span>Exportar CSV</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
