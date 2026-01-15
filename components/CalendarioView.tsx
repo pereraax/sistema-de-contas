@@ -340,7 +340,7 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
             </button>
             <button
               onClick={irParaHoje}
-              className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-aqua text-brand-midnight rounded-xl hover:bg-brand-aqua/90 transition-smooth font-semibold text-xs sm:text-sm shadow-md hover:shadow-lg flex-shrink-0"
+              className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-aqua text-white rounded-xl hover:bg-brand-aqua/90 transition-smooth font-semibold text-xs sm:text-sm shadow-md hover:shadow-lg flex-shrink-0"
             >
               Hoje
             </button>
@@ -363,7 +363,7 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
                 onClick={() => setVista(v)}
                 className={`px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-semibold text-xs sm:text-sm transition-smooth ${
                   vista === v
-                    ? 'bg-brand-aqua text-brand-midnight shadow-md'
+                    ? 'bg-brand-aqua text-white shadow-md'
                     : 'text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-white/10'
                 }`}
               >
