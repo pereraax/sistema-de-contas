@@ -27,6 +27,11 @@ const NotificationPopup = dynamicImport(() => import('@/components/NotificationP
   loading: () => null,
 })
 
+const FacebookPixelWrapper = dynamicImport(() => import('@/components/FacebookPixelWrapper'), {
+  ssr: false,
+  loading: () => null,
+})
+
 // Forçar renderização dinâmica no layout para evitar prerendering
 // Isso ajuda a evitar erros de Context durante o build
 export const dynamic = 'force-dynamic'
@@ -79,6 +84,7 @@ export default function RootLayout({
             <ChatWidget />
             <PlenAssistant />
             <NotificationPopup />
+            <FacebookPixelWrapper />
           </MenuProvider>
         </ThemeProvider>
       </body>

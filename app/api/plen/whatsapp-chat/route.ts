@@ -755,6 +755,32 @@ async function processarComando(mensagem: string) {
   const msgLower = mensagem.toLowerCase().trim()
   const msgOriginal = mensagem.trim() // Preservar mensagem original para extração de nomes
   
+  // CRÍTICO: Verificar desativação PRIMEIRO, antes de qualquer outro processamento
+  const deactivationKeywords = [
+    'parar assistente plen',
+    'para assistente plen',
+    'desativar assistente plen',
+    'parar plen',
+    'desativar plen',
+    'para plen',
+    'silenciar assistente',
+    'silenciar plen',
+    'pare assistente',
+    'pare plen',
+  ]
+  
+  const isDeactivation = deactivationKeywords.some(keyword => msgLower.includes(keyword)) ||
+    (msgLower.includes('parar') && msgLower.includes('assistente') && msgLower.includes('plen')) ||
+    (msgLower.includes('para') && msgLower.includes('assistente') && msgLower.includes('plen'))
+  
+  if (isDeactivation) {
+    console.log('🛑 [PLEN WhatsApp] ==========================================')
+    console.log('🛑 [PLEN WhatsApp] COMANDO "DESATIVAR ASSISTENTE" DETECTADO!')
+    console.log('🛑 [PLEN WhatsApp] Mensagem original:', mensagem)
+    console.log('🛑 [PLEN WhatsApp] ==========================================')
+    return { tipo: 'desativar_assistente', dados: {} }
+  }
+  
   // CRÍTICO: Verificar "verificar conta" PRIMEIRO, antes de qualquer outro processamento
   // Verificar se contém palavras-chave relacionadas a verificar conta
   const msgLowerTrim = msgLower.trim()
@@ -2544,6 +2570,17 @@ export async function POST(request: NextRequest) {
     if (comando.tipo === 'total_saidas') {
       return NextResponse.json({
         response: `💸 Total de saídas: R$ ${totalSaidas.toFixed(2)}`,
+      })
+    }
+
+    // Desativar assistente - retornar mensagem criativa
+    if (comando.tipo === 'desativar_assistente') {
+      console.log('🛑 [PLEN WhatsApp] ==========================================')
+      console.log('🛑 [PLEN WhatsApp] PROCESSANDO DESATIVAÇÃO DO ASSISTENTE')
+      console.log('🛑 [PLEN WhatsApp] ==========================================')
+      
+      return NextResponse.json({
+        response: `☕ Ok, vou beber um cafezinho enquanto isso! 😊\n\nQuando precisar é só mandar "chamar assistente plen" que eu já volto! 👋\n\nAté logo! ☕✨`,
       })
     }
 

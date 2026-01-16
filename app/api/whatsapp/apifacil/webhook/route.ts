@@ -1327,9 +1327,29 @@ export async function POST(request: NextRequest) {
         try {
           const { addLog } = await import('@/lib/server-logs')
           addLog('info', `🔄 [Apifacil Webhook] Processando mensagem: ${text?.substring(0, 100) || 'sem texto'}`)
+          addLog('info', `🔍 [PLEN WhatsApp] VERIFICANDO DESATIVAÇÃO ANTES DE PROCESSAR - Text: ${text?.substring(0, 200) || 'sem texto'}`)
         } catch (e) {
           console.error('Erro ao adicionar log:', e)
         }
+        
+        // CRÍTICO: Logar ANTES de chamar processWhatsAppMessage
+        console.log('='.repeat(80))
+        console.log('🔍 [Apifacil Webhook] ==========================================')
+        console.log('🔍 [Apifacil Webhook] ANTES DE CHAMAR processWhatsAppMessage')
+        console.log('🔍 [Apifacil Webhook] Phone:', phoneNumber)
+        console.log('🔍 [Apifacil Webhook] Text:', text)
+        console.log('🔍 [Apifacil Webhook] Text lower:', text?.toLowerCase().trim())
+        console.log('🔍 [Apifacil Webhook] ==========================================')
+        console.log('='.repeat(80))
+        
+        // CRÍTICO: Logar no stdout também
+        process.stdout.write('\n')
+        process.stdout.write('='.repeat(80) + '\n')
+        process.stdout.write('[Apifacil Webhook] ANTES DE CHAMAR processWhatsAppMessage\n')
+        process.stdout.write('[Apifacil Webhook] Phone: ' + phoneNumber + '\n')
+        process.stdout.write('[Apifacil Webhook] Text: ' + (text || 'sem texto') + '\n')
+        process.stdout.write('[Apifacil Webhook] Text lower: ' + (text?.toLowerCase().trim() || 'sem texto') + '\n')
+        process.stdout.write('='.repeat(80) + '\n')
         
         const result = await processWhatsAppMessage(messageData)
         

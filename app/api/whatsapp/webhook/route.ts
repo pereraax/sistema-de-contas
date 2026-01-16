@@ -51,67 +51,96 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, message: 'Ignorado (mensagem sem texto)' })
       }
 
-      // Processar mensagem com PLEN (async para não bloquear resposta)
-      setTimeout(async () => {
-        try {
-          const { addLog: addLog3 } = await import('@/lib/server-logs')
-          addLog3('info', `🔄 [WhatsApp Webhook] Processando mensagem: ${text.substring(0, 100)}`)
-          
-          const result = await processWhatsAppMessage(message)
-          
-          const resultLogMsg = `📥 [WhatsApp Webhook] Resultado: Success=${result?.success}, HasMessage=${!!result?.message}`
-          console.log('📥 [WhatsApp Webhook] Resultado:', {
-            hasResult: !!result,
-            success: result?.success,
-            hasMessage: !!result?.message,
-            preview: result?.message?.substring(0, 100),
-          })
-          addLog('info', resultLogMsg)
-          
-          if (result && result.success && result.message) {
-            // Enviar resposta via whatsapp-web.js
-            const phoneNumber = message.key.remoteJid?.split('@')[0] || message.key.remoteJid
-            console.log('📤 [WhatsApp Webhook] Tentando enviar resposta para:', phoneNumber)
-            
-            // Verificar se cliente está disponível ANTES de tentar enviar
-            const clientCheck = getClientWebJS()
-            console.log('🔍 [WhatsApp Webhook] Verificação do cliente:', {
-              hasClient: !!clientCheck,
-              hasSendMessage: clientCheck ? typeof clientCheck.sendMessage === 'function' : false,
-            })
-            
-            // Aguardar um pouco para garantir que o módulo está carregado
-            await new Promise(resolve => setTimeout(resolve, 500))
-            
-            const sent = await enviarMensagemWebJS(phoneNumber, result.message)
-            
-            if (sent) {
-              console.log('✅ [WhatsApp Webhook] Resposta enviada com sucesso para:', phoneNumber)
-            } else {
-              console.error('❌ [WhatsApp Webhook] FALHOU ao enviar resposta para:', phoneNumber)
-              console.error('❌ [WhatsApp Webhook] Verifique se o cliente WhatsApp está conectado')
-              console.error('❌ [WhatsApp Webhook] Pode ser necessário reconectar o WhatsApp')
-              
-              // Tentar novamente após um segundo (pode ser problema de timing)
-              await new Promise(resolve => setTimeout(resolve, 1000))
-              console.log('🔄 [WhatsApp Webhook] Tentando enviar novamente...')
-              const retrySent = await enviarMensagemWebJS(phoneNumber, result.message)
-              if (retrySent) {
-                console.log('✅ [WhatsApp Webhook] Resposta enviada na segunda tentativa!')
-              }
-            }
-          } else {
-            console.warn('⚠️ [WhatsApp Webhook] Resultado inválido ou sem mensagem:', result)
-          }
-        } catch (error: any) {
-          console.error('❌ [WhatsApp Webhook] Erro ao processar mensagem:', {
-            message: error.message,
-            stack: error.stack?.substring(0, 300),
-          })
+      // CRÍTICO: Processar mensagem de forma SÍNCRONA para garantir que logs apareçam
+      // Logar ANTES de processar
+      console.log('='.repeat(80))
+      console.log('🔄 [WhatsApp Webhook] INICIANDO PROCESSAMENTO SÍNCRONO')
+      console.log('🔄 [WhatsApp Webhook] Phone:', phoneNumber)
+      console.log('🔄 [WhatsApp Webhook] Text:', text)
+      console.log('='.repeat(80))
+      
+      // CRÍTICO: Logar no stdout também
+      process.stdout.write('\n')
+      process.stdout.write('='.repeat(80) + '\n')
+      process.stdout.write('[WhatsApp Webhook] INICIANDO PROCESSAMENTO\n')
+      process.stdout.write('[WhatsApp Webhook] Phone: ' + phoneNumber + '\n')
+      process.stdout.write('[WhatsApp Webhook] Text: ' + text + '\n')
+      process.stdout.write('='.repeat(80) + '\n')
+      
+      try {
+        const { addLog: addLog3 } = await import('@/lib/server-logs')
+        addLog3('info', `🔄 [WhatsApp Webhook] Processando mensagem: ${text.substring(0, 100)}`)
+        
+        const result = await processWhatsAppMessage(message)
+        
+        const resultLogMsg = `📥 [WhatsApp Webhook] Resultado: Success=${result?.success}, HasMessage=${!!result?.message}`
+        console.log('📥 [WhatsApp Webhook] Resultado:', {
+          hasResult: !!result,
+          success: result?.success,
+          hasMessage: !!result?.message,
+          preview: result?.message?.substring(0, 100),
+        })
+        addLog('info', resultLogMsg)
+        
+        // CRÍTICO: Logar no stdout também
+        process.stdout.write('\n')
+        process.stdout.write('[WhatsApp Webhook] RESULTADO DO PROCESSAMENTO\n')
+        process.stdout.write('[WhatsApp Webhook] Success: ' + (result?.success ? 'true' : 'false') + '\n')
+        process.stdout.write('[WhatsApp Webhook] HasMessage: ' + (!!result?.message ? 'true' : 'false') + '\n')
+        if (result?.message) {
+          process.stdout.write('[WhatsApp Webhook] Message: ' + result.message.substring(0, 200) + '\n')
         }
-      }, 100)
+        process.stdout.write('='.repeat(80) + '\n')
+        
+        if (result && result.success && result.message) {
+          // Enviar resposta via whatsapp-web.js
+          const phoneNumberToSend = message.key.remoteJid?.split('@')[0] || message.key.remoteJid
+          console.log('📤 [WhatsApp Webhook] Tentando enviar resposta para:', phoneNumberToSend)
+          
+          // Verificar se cliente está disponível ANTES de tentar enviar
+          const clientCheck = getClientWebJS()
+          console.log('🔍 [WhatsApp Webhook] Verificação do cliente:', {
+            hasClient: !!clientCheck,
+            hasSendMessage: clientCheck ? typeof clientCheck.sendMessage === 'function' : false,
+          })
+          
+          // Aguardar um pouco para garantir que o módulo está carregado
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          const sent = await enviarMensagemWebJS(phoneNumberToSend, result.message)
+          
+          if (sent) {
+            console.log('✅ [WhatsApp Webhook] Resposta enviada com sucesso para:', phoneNumberToSend)
+            process.stdout.write('[WhatsApp Webhook] ✅ RESPOSTA ENVIADA!\n')
+          } else {
+            console.error('❌ [WhatsApp Webhook] FALHOU ao enviar resposta para:', phoneNumberToSend)
+            console.error('❌ [WhatsApp Webhook] Verifique se o cliente WhatsApp está conectado')
+            console.error('❌ [WhatsApp Webhook] Pode ser necessário reconectar o WhatsApp')
+            process.stdout.write('[WhatsApp Webhook] ❌ FALHOU AO ENVIAR RESPOSTA\n')
+            
+            // Tentar novamente após um segundo (pode ser problema de timing)
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            console.log('🔄 [WhatsApp Webhook] Tentando enviar novamente...')
+            const retrySent = await enviarMensagemWebJS(phoneNumberToSend, result.message)
+            if (retrySent) {
+              console.log('✅ [WhatsApp Webhook] Resposta enviada na segunda tentativa!')
+              process.stdout.write('[WhatsApp Webhook] ✅ RESPOSTA ENVIADA NA SEGUNDA TENTATIVA!\n')
+            }
+          }
+        } else {
+          console.warn('⚠️ [WhatsApp Webhook] Resultado inválido ou sem mensagem:', result)
+          process.stdout.write('[WhatsApp Webhook] ⚠️ RESULTADO INVÁLIDO OU SEM MENSAGEM\n')
+        }
+      } catch (error: any) {
+        console.error('❌ [WhatsApp Webhook] Erro ao processar mensagem:', {
+          message: error.message,
+          stack: error.stack?.substring(0, 300),
+        })
+        process.stdout.write('[WhatsApp Webhook] ❌ ERRO: ' + error.message + '\n')
+        addLog('error', `❌ [WhatsApp Webhook] Erro: ${error.message}`)
+      }
 
-      // Responder imediatamente
+      // Responder após processar
       return NextResponse.json({ success: true, message: 'Mensagem processada' })
     }
 

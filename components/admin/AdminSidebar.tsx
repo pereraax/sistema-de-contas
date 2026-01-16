@@ -10,7 +10,8 @@ import {
   Shield,
   MessageCircle,
   PlayCircle,
-  Image as ImageIcon
+  Image as ImageIcon,
+  TrendingUp
 } from 'lucide-react'
 import Image from 'next/image'
 
@@ -23,6 +24,7 @@ const menuItems = [
   { href: '/administracaosecr/chat', label: 'Chat de Suporte', icon: MessageCircle },
   { href: '/administracaosecr/tutoriais', label: 'Tutoriais', icon: PlayCircle },
   { href: '/administracaosecr/whatsapp', label: 'WhatsApp PLEN', icon: MessageCircle },
+  { href: '/administracaosecr/pixel', label: 'Pixel do Facebook', icon: TrendingUp },
 ]
 
 export default function AdminSidebar({ onClose }: { onClose?: () => void }) {
