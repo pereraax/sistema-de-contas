@@ -8,10 +8,10 @@ import UserProfileMenu from '@/components/UserProfileMenu'
 import Logo from '@/components/Logo'
 import FiltroRapidoDataWrapper, { FiltroDataProvider } from '@/components/FiltroRapidoDataWrapper'
 import { Suspense } from 'react'
-import dynamic from 'next/dynamic'
+import dynamicImport from 'next/dynamic'
 
 // Lazy load componentes pesados ou menos críticos para carregamento inicial
-const ReceitasDespesasDonut = dynamic(() => import('@/components/ReceitasDespesasDonut'), {
+const ReceitasDespesasDonut = dynamicImport(() => import('@/components/ReceitasDespesasDonut'), {
   ssr: false,
   loading: () => (
     <div className="bg-gradient-to-br from-white to-gray-50 dark:from-brand-royal dark:to-brand-midnight rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-white/10 animate-pulse">
@@ -20,22 +20,22 @@ const ReceitasDespesasDonut = dynamic(() => import('@/components/ReceitasDespesa
   ),
 })
 
-const BannerInformacoes = dynamic(() => import('@/components/BannerInformacoes'), {
+const BannerInformacoes = dynamicImport(() => import('@/components/BannerInformacoes'), {
   ssr: false,
   loading: () => null,
 })
 
-const AvisosAdmin = dynamic(() => import('@/components/AvisosAdmin'), {
+const AvisosAdmin = dynamicImport(() => import('@/components/AvisosAdmin'), {
   ssr: false,
   loading: () => null,
 })
 
-const AvisoEmailNaoConfirmado = dynamic(() => import('@/components/AvisoEmailNaoConfirmado'), {
+const AvisoEmailNaoConfirmado = dynamicImport(() => import('@/components/AvisoEmailNaoConfirmado'), {
   ssr: false,
   loading: () => null,
 })
 
-const EmailConfirmadoSucessoWrapper = dynamic(() => import('@/components/EmailConfirmadoSucessoWrapper'), {
+const EmailConfirmadoSucessoWrapper = dynamicImport(() => import('@/components/EmailConfirmadoSucessoWrapper'), {
   ssr: false,
   loading: () => null,
 })
