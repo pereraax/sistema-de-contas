@@ -997,6 +997,7 @@ async function authenticateWhatsAppUser(
           user_id: profile.id,
           expires_at: expiresAt.toISOString(),
           updated_at: new Date().toISOString(),
+          plen_activated: true, // Ativar automaticamente após autenticação bem-sucedida
         }, {
           onConflict: 'phone_number',
         })
