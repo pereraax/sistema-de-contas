@@ -194,6 +194,15 @@ function CadastroContent() {
         console.log('📧 Email cadastrado:', formData.email)
         console.log('📧 Email confirmado?', result?.emailConfirmado)
         
+        // Rastrear evento de cadastro no Facebook Pixel
+        try {
+          const { trackRegistration } = await import('@/lib/facebook-pixel-events')
+          trackRegistration()
+          console.log('✅ [Facebook Pixel] Evento CompleteRegistration rastreado')
+        } catch (error) {
+          console.warn('⚠️ [Facebook Pixel] Erro ao rastrear cadastro:', error)
+        }
+        
         // Email foi enviado automaticamente pelo Supabase
         // Mostrar modal pedindo para verificar email
         console.log('📧 Email de confirmação foi enviado automaticamente')
