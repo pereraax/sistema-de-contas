@@ -63,6 +63,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        {/* Preconnect para APIs externas */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+        {/* Preload de recursos críticos */}
+        <link rel="preload" href="/app_icon.png" as="image" />
+      </head>
       <body suppressHydrationWarning>
         <ThemeProvider>
           <MenuProvider>
