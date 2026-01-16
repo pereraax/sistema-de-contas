@@ -230,25 +230,111 @@ async function isDeactivationMessage(text: string): Promise<boolean> {
 
 /**
  * Verificar se o assistente PLEN está ativado para este número
+ * Verifica primeiro na memória, depois no banco de dados
  */
-function isPlenActivated(phoneNumber: string): boolean {
-  return plenActivated.get(phoneNumber) === true
+async function isPlenActivated(phoneNumber: string): Promise<boolean> {
+  // Verificar primeiro na memória (mais rápido)
+  const memoryStatus = plenActivated.get(phoneNumber)
+  if (memoryStatus !== undefined) {
+    return memoryStatus === true
+  }
+
+  // Se não está na memória, verificar no banco de dados
+  try {
+    const { createAdminClient } = await import('./supabase/server')
+    const supabaseAdmin = createAdminClient()
+
+    if (!supabaseAdmin) {
+      return false
+    }
+
+    const { data: session, error } = await supabaseAdmin
+      .from('whatsapp_sessions')
+      .select('plen_activated')
+      .eq('phone_number', phoneNumber)
+      .maybeSingle()
+
+    if (error && error.code !== 'PGRST116') {
+      console.warn('⚠️ [WhatsApp PLEN] Erro ao buscar status do assistente no banco:', error.message)
+      return false
+    }
+
+    const dbStatus = session?.plen_activated === true
+    
+    // Atualizar memória com o status do banco
+    plenActivated.set(phoneNumber, dbStatus)
+    
+    return dbStatus
+  } catch (error) {
+    console.error('❌ [WhatsApp PLEN] Erro ao verificar status do assistente no banco:', error)
+    return false
+  }
 }
 
 /**
  * Ativar assistente PLEN para este número
+ * Atualiza memória e banco de dados
  */
-function activatePlen(phoneNumber: string) {
+async function activatePlen(phoneNumber: string) {
   plenActivated.set(phoneNumber, true)
-  console.log(`✅ [WhatsApp PLEN] Assistente PLEN ativado para: ${phoneNumber}`)
+  console.log(`✅ [WhatsApp PLEN] Assistente PLEN ativado na memória para: ${phoneNumber}`)
+  
+  // Atualizar também no banco de dados
+  try {
+    const { createAdminClient } = await import('./supabase/server')
+    const supabaseAdmin = createAdminClient()
+
+    if (supabaseAdmin) {
+      const { error } = await supabaseAdmin
+        .from('whatsapp_sessions')
+        .update({ 
+          plen_activated: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('phone_number', phoneNumber)
+
+      if (error && error.code !== 'PGRST116') {
+        console.warn('⚠️ [WhatsApp PLEN] Erro ao atualizar status no banco:', error.message)
+      } else {
+        console.log(`✅ [WhatsApp PLEN] Assistente PLEN ativado no banco para: ${phoneNumber}`)
+      }
+    }
+  } catch (error) {
+    console.error('❌ [WhatsApp PLEN] Erro ao ativar assistente no banco:', error)
+  }
 }
 
 /**
  * Desativar assistente PLEN para este número
+ * Atualiza memória e banco de dados
  */
-function deactivatePlen(phoneNumber: string) {
+async function deactivatePlen(phoneNumber: string) {
   plenActivated.set(phoneNumber, false)
-  console.log(`🛑 [WhatsApp PLEN] Assistente PLEN desativado para: ${phoneNumber}`)
+  console.log(`🛑 [WhatsApp PLEN] Assistente PLEN desativado na memória para: ${phoneNumber}`)
+  
+  // Atualizar também no banco de dados
+  try {
+    const { createAdminClient } = await import('./supabase/server')
+    const supabaseAdmin = createAdminClient()
+
+    if (supabaseAdmin) {
+      const { error } = await supabaseAdmin
+        .from('whatsapp_sessions')
+        .update({ 
+          plen_activated: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('phone_number', phoneNumber)
+
+      if (error && error.code !== 'PGRST116') {
+        console.warn('⚠️ [WhatsApp PLEN] Erro ao atualizar status no banco:', error.message)
+      } else {
+        console.log(`🛑 [WhatsApp PLEN] Assistente PLEN desativado no banco para: ${phoneNumber}`)
+      }
+    }
+  } catch (error) {
+    console.error('❌ [WhatsApp PLEN] Erro ao desativar assistente no banco:', error)
+  }
 }
 
 /**
@@ -363,7 +449,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
     
     // Se a verificação rápida detectou, desativar IMEDIATAMENTE
     if (quickCheck) {
-      deactivatePlen(phoneNumber)
+      await deactivatePlen(phoneNumber)
       console.log('🛑 [WhatsApp PLEN] ==========================================')
       console.log('🛑 [WhatsApp PLEN] ASSISTENTE DESATIVADO (QUICK CHECK) - RETORNANDO IMEDIATAMENTE')
       console.log('🛑 [WhatsApp PLEN] Phone Number:', phoneNumber)
@@ -393,7 +479,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
     process.stdout.write(`\n🔍 isDeactivation (completo): ${isDeactivation}\n`)
     
     if (isDeactivation) {
-      deactivatePlen(phoneNumber)
+      await deactivatePlen(phoneNumber)
       console.log('🛑 [WhatsApp PLEN] ==========================================')
       console.log('🛑 [WhatsApp PLEN] ASSISTENTE DESATIVADO (VERIFICAÇÃO COMPLETA) - RETORNANDO IMEDIATAMENTE')
       console.log('🛑 [WhatsApp PLEN] Phone Number:', phoneNumber)
@@ -464,7 +550,7 @@ Estou por aqui pra começarmos 🚀`,
     
     // NOVA LÓGICA: Verificar se o assistente está ativado
     // Se não estiver ativado, verificar se a mensagem é uma chamada para ativar
-    const isActivated = isPlenActivated(phoneNumber)
+    const isActivated = await isPlenActivated(phoneNumber)
     const isActivation = isActivationMessage(text)
     
     console.log('🔍 [WhatsApp PLEN] Verificando status do assistente:', {
@@ -476,7 +562,7 @@ Estou por aqui pra começarmos 🚀`,
     
     // PRIORIDADE 3: Se é mensagem de ativação, ativar o assistente
     if (isActivation) {
-      activatePlen(phoneNumber)
+      await activatePlen(phoneNumber)
       console.log('✅ [WhatsApp PLEN] Assistente ativado! Respondendo com mensagem de boas-vindas')
       
       // Retornar mensagem de boas-vindas
@@ -516,7 +602,7 @@ Estou por aqui pra começarmos 🚀`,
     // Se está autenticado, verificar se assistente está ativado
     // NOTA: Não ativamos automaticamente aqui porque o usuário pode ter desativado explicitamente
     // A ativação automática só acontece após autenticação bem-sucedida (no handleWhatsAppAuthentication)
-    if (!isPlenActivated(phoneNumber)) {
+    if (!(await isPlenActivated(phoneNumber))) {
       console.log('⚠️ [WhatsApp PLEN] Assistente não está ativado para usuário autenticado - ignorando mensagem')
       return null // Não processa se não estiver ativado
     }
@@ -773,7 +859,7 @@ async function handleWhatsAppAuthentication(
       
       if (authResult.success) {
         // Ativar assistente automaticamente após autenticação bem-sucedida
-        activatePlen(phoneNumber)
+        await activatePlen(phoneNumber)
         console.log('✅ [WhatsApp PLEN] Assistente ativado automaticamente após autenticação')
         
         return {
