@@ -893,6 +893,35 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
     // Importar addLog dinamicamente para evitar problemas de circular dependency
     const { addLog } = await import('@/lib/server-logs')
     
+    // CRÍTICO: Verificar desativação ANTES de chamar a API
+    // Isso garante que mesmo se a mensagem chegar aqui, será detectada
+    if (text && typeof text === 'string') {
+      const msgLower = text.toLowerCase().trim()
+      const isDeactivation = 
+        msgLower === 'parar assistente plen' ||
+        msgLower === 'para assistente plen' ||
+        msgLower === 'pare assistente plen' ||
+        msgLower.includes('parar assistente plen') ||
+        msgLower.includes('para assistente plen') ||
+        msgLower.includes('desativar assistente plen') ||
+        (msgLower.includes('parar') && msgLower.includes('assistente') && msgLower.includes('plen')) ||
+        (msgLower.includes('para') && msgLower.includes('assistente') && msgLower.includes('plen'))
+      
+      if (isDeactivation) {
+        console.log('🛑 [WhatsApp PLEN] ==========================================')
+        console.log('🛑 [WhatsApp PLEN] DESATIVAÇÃO DETECTADA NO processWithPLEN!')
+        console.log('🛑 [WhatsApp PLEN] Text:', text)
+        console.log('🛑 [WhatsApp PLEN] ==========================================')
+        addLog('info', `🛑 [PLEN WhatsApp] DESATIVAÇÃO DETECTADA NO processWithPLEN: ${text}`)
+        process.stdout.write(`\n🛑 DESATIVAÇÃO DETECTADA NO processWithPLEN: ${text}\n`)
+        
+        return {
+          success: true,
+          message: `☕ Ok, vou beber um cafezinho enquanto isso! 😊\n\nQuando precisar, é só mandar "chamar assistente plen" que eu já volto! 👋\n\n💤 Estou descansando... zzz`,
+        }
+      }
+    }
+    
     // Chamar API especial do PLEN para WhatsApp (não precisa autenticação)
     // CRÍTICO: Em ambiente server-side, usar URL absoluta baseada no host da requisição
     // Se não tiver, usar localhost como fallback
