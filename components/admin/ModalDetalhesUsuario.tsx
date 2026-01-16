@@ -1,6 +1,6 @@
 'use client'
 
-import { X, Mail, Phone, Calendar, CreditCard, Key, User, Send, Loader2, Crown, Settings, AlertTriangle, FileText, Trash2, RefreshCw } from 'lucide-react'
+import { X, Mail, Phone, Calendar, CreditCard, Key, User, Send, Loader2, Crown, Settings, AlertTriangle, FileText, Trash2, RefreshCw, MessageCircle, Power } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import { useState, useEffect } from 'react'
@@ -56,6 +56,9 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
   const [carregandoRegistros, setCarregandoRegistros] = useState(false)
   const [excluindo, setExcluindo] = useState(false)
   const [mostrarConfirmacaoExclusao, setMostrarConfirmacaoExclusao] = useState(false)
+  const [plenActivated, setPlenActivated] = useState<boolean | null>(null)
+  const [carregandoPlenStatus, setCarregandoPlenStatus] = useState(false)
+  const [alterandoPlenStatus, setAlterandoPlenStatus] = useState(false)
 
   // Atualizar usuário local quando prop usuario mudar
   useEffect(() => {
@@ -119,6 +122,34 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
     }
 
     buscarContagemRegistros()
+  }, [usuarioLocal?.id])
+
+  // Buscar status do assistente PLEN quando o usuário mudar
+  useEffect(() => {
+    const buscarStatusPlen = async () => {
+      if (!usuarioLocal?.id) {
+        return
+      }
+
+      setCarregandoPlenStatus(true)
+      try {
+        const response = await fetch(`/api/admin/usuario/plen-assistant?userId=${usuarioLocal.id}`)
+        const data = await response.json()
+        
+        if (response.ok && data.success) {
+          setPlenActivated(data.plenActivated)
+        } else {
+          setPlenActivated(null)
+        }
+      } catch (error) {
+        console.error('Erro ao buscar status do assistente PLEN:', error)
+        setPlenActivated(null)
+      } finally {
+        setCarregandoPlenStatus(false)
+      }
+    }
+
+    buscarStatusPlen()
   }, [usuarioLocal?.id])
 
   // Resetar novoPlano quando usuario mudar ou quando abrir modal de alteração
@@ -321,6 +352,56 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
     } finally {
       setExcluindo(false)
       setMostrarConfirmacaoExclusao(false)
+    }
+  }
+
+  const handleTogglePlenAssistant = async () => {
+    if (!usuarioLocal?.id) {
+      return
+    }
+
+    const novoStatus = !plenActivated
+    setAlterandoPlenStatus(true)
+    setMensagem(null)
+
+    try {
+      const response = await fetch('/api/admin/usuario/plen-assistant', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: usuarioLocal.id,
+          activated: novoStatus,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setMensagem({
+          tipo: 'error',
+          texto: data.error || 'Erro ao alterar status do assistente PLEN',
+        })
+      } else {
+        setPlenActivated(novoStatus)
+        setMensagem({
+          tipo: 'success',
+          texto: data.message || `Assistente PLEN ${novoStatus ? 'ativado' : 'desativado'} com sucesso!`,
+        })
+        
+        setTimeout(() => {
+          setMensagem(null)
+        }, 3000)
+      }
+    } catch (error: any) {
+      console.error('Erro ao alterar status do assistente PLEN:', error)
+      setMensagem({
+        tipo: 'error',
+        texto: `Erro ao conectar com o servidor: ${error.message || 'Erro desconhecido'}`,
+      })
+    } finally {
+      setAlterandoPlenStatus(false)
     }
   }
 
@@ -550,6 +631,50 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
                   <span className="text-xs text-brand-midnight/40 dark:text-brand-clean/40">Nenhum contato cadastrado</span>
                 )}
               </div>
+            </div>
+
+            {/* Assistente PLEN */}
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <MessageCircle size={16} className="text-brand-aqua" />
+                  <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Assistente PLEN</label>
+                </div>
+                {carregandoPlenStatus ? (
+                  <Loader2 size={14} className="text-brand-aqua animate-spin" />
+                ) : plenActivated !== null ? (
+                  <button
+                    onClick={handleTogglePlenAssistant}
+                    disabled={alterandoPlenStatus}
+                    className={`px-3 py-1.5 rounded-lg transition-smooth text-xs font-medium flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      plenActivated
+                        ? 'bg-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/30'
+                        : 'bg-gray-200 dark:bg-brand-midnight/50 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-white/20'
+                    }`}
+                  >
+                    {alterandoPlenStatus ? (
+                      <>
+                        <Loader2 size={12} className="animate-spin" />
+                        {plenActivated ? 'Desativando...' : 'Ativando...'}
+                      </>
+                    ) : (
+                      <>
+                        <Power size={12} />
+                        {plenActivated ? 'Ativado' : 'Desativado'}
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <span className="text-xs text-brand-midnight/40 dark:text-brand-clean/40">Sem sessão WhatsApp</span>
+                )}
+              </div>
+              <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">
+                {plenActivated === null
+                  ? 'Usuário precisa autenticar via WhatsApp primeiro'
+                  : plenActivated
+                  ? 'O assistente PLEN está ativo e responderá mensagens do usuário no WhatsApp'
+                  : 'O assistente PLEN está desativado e não responderá mensagens do usuário'}
+              </p>
             </div>
 
             {/* Plano */}
