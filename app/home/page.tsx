@@ -5,14 +5,40 @@ import QuickActionCard from '@/components/QuickActionCard'
 import SupportPanel from '@/components/SupportPanel'
 import NotificationBell from '@/components/NotificationBell'
 import UserProfileMenu from '@/components/UserProfileMenu'
-import BannerInformacoes from '@/components/BannerInformacoes'
-import AvisosAdmin from '@/components/AvisosAdmin'
-import AvisoEmailNaoConfirmado from '@/components/AvisoEmailNaoConfirmado'
-import EmailConfirmadoSucessoWrapper from '@/components/EmailConfirmadoSucessoWrapper'
 import Logo from '@/components/Logo'
 import FiltroRapidoDataWrapper, { FiltroDataProvider } from '@/components/FiltroRapidoDataWrapper'
-import ReceitasDespesasDonut from '@/components/ReceitasDespesasDonut'
 import { Suspense } from 'react'
+import dynamic from 'next/dynamic'
+
+// Lazy load componentes pesados ou menos críticos para carregamento inicial
+const ReceitasDespesasDonut = dynamic(() => import('@/components/ReceitasDespesasDonut'), {
+  ssr: false,
+  loading: () => (
+    <div className="bg-gradient-to-br from-white to-gray-50 dark:from-brand-royal dark:to-brand-midnight rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-white/10 animate-pulse">
+      <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+    </div>
+  ),
+})
+
+const BannerInformacoes = dynamic(() => import('@/components/BannerInformacoes'), {
+  ssr: false,
+  loading: () => null,
+})
+
+const AvisosAdmin = dynamic(() => import('@/components/AvisosAdmin'), {
+  ssr: false,
+  loading: () => null,
+})
+
+const AvisoEmailNaoConfirmado = dynamic(() => import('@/components/AvisoEmailNaoConfirmado'), {
+  ssr: false,
+  loading: () => null,
+})
+
+const EmailConfirmadoSucessoWrapper = dynamic(() => import('@/components/EmailConfirmadoSucessoWrapper'), {
+  ssr: false,
+  loading: () => null,
+})
 
 export const dynamic = 'force-dynamic'
 

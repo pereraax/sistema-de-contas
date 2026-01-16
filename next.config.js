@@ -9,6 +9,24 @@ const nextConfig = {
     unoptimized: true,
   },
   
+  // Otimizações de bundle e code splitting
+  modularizeImports: {
+    'lucide-react': {
+      transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}',
+      skipDefaultConversion: true,
+    },
+    'recharts': {
+      transform: 'recharts/{{member}}',
+    },
+  },
+  
+  // Otimizações de compilação
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn'],
+    } : false,
+  },
+  
   // Configuração experimental
   experimental: {
     // Desabilitar otimização de CSS para evitar erros no Vercel
@@ -18,6 +36,35 @@ const nextConfig = {
       bodySizeLimit: '2mb',
     },
   },
+  
+  // Redirecionamentos - TEMPORARIAMENTE DESABILITADO para evitar erro DEPLOYMENT_NOT_FOUND
+  // Ambos os domínios devem funcionar diretamente
+  // async redirects() {
+  //   return [
+  //     {
+  //       source: '/',
+  //       has: [
+  //         {
+  //           type: 'host',
+  //           value: 'plenipay.com',
+  //         },
+  //       ],
+  //       destination: 'https://www.plenipay.com',
+  //       permanent: true,
+  //     },
+  //     {
+  //       source: '/:path*',
+  //       has: [
+  //         {
+  //           type: 'host',
+  //           value: 'plenipay.com',
+  //         },
+  //       ],
+  //       destination: 'https://www.plenipay.com/:path*',
+  //       permanent: true,
+  //     },
+  //   ]
+  // },
   
   // Headers de segurança (apenas em produção)
   async headers() {
@@ -119,11 +166,55 @@ const nextConfig = {
     pagesBufferLength: 2,
   },
   
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
     // Configurar paths do TypeScript (@/*)
     config.resolve.alias = {
       ...config.resolve.alias,
       '@': require('path').resolve(__dirname),
+    }
+    
+    // Otimizações de bundle para produção
+    if (!dev && !isServer) {
+      config.optimization = {
+        ...config.optimization,
+        moduleIds: 'deterministic',
+        runtimeChunk: 'single',
+        splitChunks: {
+          chunks: 'all',
+          cacheGroups: {
+            default: false,
+            vendors: false,
+            // Vendor chunks separados para melhor cache
+            vendor: {
+              name: 'vendor',
+              chunks: 'all',
+              test: /node_modules/,
+              priority: 20,
+            },
+            // Recharts em chunk separado (biblioteca pesada)
+            recharts: {
+              name: 'recharts',
+              test: /[\\/]node_modules[\\/]recharts[\\/]/,
+              chunks: 'all',
+              priority: 30,
+            },
+            // React e React-DOM em chunk separado
+            react: {
+              name: 'react',
+              test: /[\\/]node_modules[\\/](react|react-dom)[\\/]/,
+              chunks: 'all',
+              priority: 40,
+            },
+            // Supabase em chunk separado
+            supabase: {
+              name: 'supabase',
+              test: /[\\/]node_modules[\\/]@supabase[\\/]/,
+              chunks: 'all',
+              priority: 25,
+            },
+          },
+        },
+      }
     }
     
     // Resolver problemas com módulos ESM do @supabase/ssr

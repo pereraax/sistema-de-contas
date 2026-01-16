@@ -2,12 +2,30 @@ import type { Metadata } from 'next'
 import './animations.css'
 import './globals.css'
 import ThemeProvider from '@/components/ThemeProvider'
-import ChatWidget from '@/components/ChatWidget'
-import PlenAssistant from '@/components/PlenAssistant'
 import { MenuProvider } from '@/components/MobileMenu'
 import MobileMenu from '@/components/MobileMenu'
-import VisitorTrackingWrapper from '@/components/VisitorTrackingWrapper'
-import NotificationPopup from '@/components/NotificationPopup'
+import dynamic from 'next/dynamic'
+
+// Lazy load componentes pesados para melhorar performance inicial
+const ChatWidget = dynamic(() => import('@/components/ChatWidget'), {
+  ssr: false,
+  loading: () => null,
+})
+
+const PlenAssistant = dynamic(() => import('@/components/PlenAssistant'), {
+  ssr: false,
+  loading: () => null,
+})
+
+const VisitorTrackingWrapper = dynamic(() => import('@/components/VisitorTrackingWrapper'), {
+  ssr: false,
+  loading: () => null,
+})
+
+const NotificationPopup = dynamic(() => import('@/components/NotificationPopup'), {
+  ssr: false,
+  loading: () => null,
+})
 
 // Forçar renderização dinâmica no layout para evitar prerendering
 // Isso ajuda a evitar erros de Context durante o build
@@ -28,6 +46,13 @@ export const metadata: Metadata = {
       { url: '/app_icon.png', type: 'image/png', sizes: '180x180' },
     ],
     shortcut: '/app_icon.png',
+  },
+  // Otimizações de performance
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com'),
+  openGraph: {
+    type: 'website',
+    locale: 'pt_BR',
+    siteName: 'PLENIPAY',
   },
 }
 
