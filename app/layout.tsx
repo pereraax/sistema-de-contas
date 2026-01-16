@@ -4,25 +4,25 @@ import './globals.css'
 import ThemeProvider from '@/components/ThemeProvider'
 import { MenuProvider } from '@/components/MobileMenu'
 import MobileMenu from '@/components/MobileMenu'
-import dynamic from 'next/dynamic'
+import dynamicImport from 'next/dynamic'
 
 // Lazy load componentes pesados para melhorar performance inicial
-const ChatWidget = dynamic(() => import('@/components/ChatWidget'), {
+const ChatWidget = dynamicImport(() => import('@/components/ChatWidget'), {
   ssr: false,
   loading: () => null,
 })
 
-const PlenAssistant = dynamic(() => import('@/components/PlenAssistant'), {
+const PlenAssistant = dynamicImport(() => import('@/components/PlenAssistant'), {
   ssr: false,
   loading: () => null,
 })
 
-const VisitorTrackingWrapper = dynamic(() => import('@/components/VisitorTrackingWrapper'), {
+const VisitorTrackingWrapper = dynamicImport(() => import('@/components/VisitorTrackingWrapper'), {
   ssr: false,
   loading: () => null,
 })
 
-const NotificationPopup = dynamic(() => import('@/components/NotificationPopup'), {
+const NotificationPopup = dynamicImport(() => import('@/components/NotificationPopup'), {
   ssr: false,
   loading: () => null,
 })
