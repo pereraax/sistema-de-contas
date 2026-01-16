@@ -438,6 +438,11 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       process.stdout.write(`\n👋 MENSAGEM DE BOAS-VINDAS DETECTADA: ${text}\n`)
       
       // Retornar mensagem de boas-vindas exata
+      // CRÍTICO: Quebrar o link para evitar pré-visualização do WhatsApp
+      // Usando zero-width space (U+200B) antes do link para desabilitar preview
+      const zeroWidthSpace = '\u200B'
+      const link = `${zeroWidthSpace}https://plenipay.com/`
+      
       return {
         success: true,
         message: `👋 Oi! Seja bem-vindo(a) à PleniPay
@@ -446,7 +451,7 @@ Eu sou a Plen, sua assistente financeira 🤖💙
 Estou aqui pra te ajudar a registrar seus gastos e ganhos de forma simples e acompanhar como está o seu controle financeiro no dia a dia, sem planilhas e sem complicação.
 
 ✨ Você pode começar gratuitamente agora mesmo
-👉 Crie sua conta aqui: https://plenipay.com/
+👉 Crie sua conta aqui: ${link}
 
 Depois do cadastro, é só me mandar mensagens pelo WhatsApp que eu te ajudo a registrar tudo de forma rápida e organizada 📊💬
 
