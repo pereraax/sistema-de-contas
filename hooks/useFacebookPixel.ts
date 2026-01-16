@@ -50,26 +50,23 @@ export function useFacebookPixel() {
     if (!pixelId || typeof window === 'undefined') return
 
     try {
-      // Verificar se fbq já existe
-      if (window.fbq) {
-        window.fbq('init', pixelId)
-        window.fbq('track', 'PageView')
-        return
+      // Inicializar fbq ANTES de carregar o script (padrão do Facebook)
+      if (!window.fbq) {
+        window.fbq = function() {
+          // @ts-ignore
+          (window.fbq.q = window.fbq.q || []).push(arguments)
+        }
+        // @ts-ignore
+        window.fbq.l = +new Date()
+        // @ts-ignore
+        window.fbq.version = '2.0'
       }
 
       // Verificar se o script já foi adicionado
       if (document.getElementById('facebook-pixel-base-script')) {
-        // Script existe mas fbq ainda não está pronto, aguardar
-        const checkInterval = setInterval(() => {
-          if (window.fbq) {
-            window.fbq('init', pixelId)
-            window.fbq('track', 'PageView')
-            clearInterval(checkInterval)
-          }
-        }, 100)
-
-        // Limpar após 5 segundos se não carregar
-        setTimeout(() => clearInterval(checkInterval), 5000)
+        // Script já existe, apenas inicializar
+        window.fbq('init', pixelId)
+        window.fbq('track', 'PageView')
         return
       }
 
@@ -80,33 +77,29 @@ export function useFacebookPixel() {
       script.src = 'https://connect.facebook.net/en_US/fbevents.js'
       
       script.onload = () => {
-        // Inicializar fbq se ainda não existir
-        if (!window.fbq) {
-          window.fbq = function() {
-            // @ts-ignore
-            (window.fbq.q = window.fbq.q || []).push(arguments)
-          }
-          // @ts-ignore
-          window.fbq.l = +new Date()
-          // @ts-ignore
-          window.fbq.version = '2.0'
-        }
-        // Inicializar o pixel
+        // Inicializar o pixel após o script carregar
         if (window.fbq) {
           window.fbq('init', pixelId)
           window.fbq('track', 'PageView')
+          console.log('✅ [Facebook Pixel] Pixel inicializado:', pixelId)
         }
       }
 
       script.onerror = () => {
-        // Silenciar erro de carregamento
-        console.error('Erro ao carregar script do Facebook Pixel')
+        console.error('❌ [Facebook Pixel] Erro ao carregar script do Facebook Pixel')
       }
 
+      // Adicionar script ao head
       document.head.appendChild(script)
+
+      // Inicializar imediatamente (antes do script carregar) - padrão do Facebook
+      // Isso garante que eventos sejam capturados mesmo se o script demorar
+      window.fbq('init', pixelId)
+      window.fbq('track', 'PageView')
+      
+      console.log('✅ [Facebook Pixel] Pixel configurado:', pixelId)
     } catch (error) {
-      // Silenciar erros para não quebrar a aplicação
-      console.error('Erro ao inicializar Facebook Pixel:', error)
+      console.error('❌ [Facebook Pixel] Erro ao inicializar Facebook Pixel:', error)
     }
   }, [pixelId])
 }

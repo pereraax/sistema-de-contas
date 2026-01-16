@@ -4,6 +4,8 @@ import { verifyAdminToken } from '@/lib/admin-middleware'
 
 /**
  * GET - Obter valor de uma configuração global
+ * NOTA: Para configurações públicas como facebook_pixel_id, não requer autenticação
+ * Para outras configurações sensíveis, verificar autenticação
  */
 export async function GET(request: NextRequest) {
   try {
@@ -15,6 +17,21 @@ export async function GET(request: NextRequest) {
         { error: 'Parâmetro "key" é obrigatório' },
         { status: 400 }
       )
+    }
+
+    // Configurações públicas que não precisam de autenticação
+    const publicKeys = ['facebook_pixel_id', 'facebook_pixel_token']
+    const isPublic = publicKeys.includes(key)
+
+    // Se não for pública, verificar autenticação
+    if (!isPublic) {
+      const admin = await verifyAdminToken()
+      if (!admin) {
+        return NextResponse.json(
+          { error: 'Não autorizado' },
+          { status: 401 }
+        )
+      }
     }
 
     const supabase = await createClient()
