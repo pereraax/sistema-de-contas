@@ -416,6 +416,47 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       }
     }
 
+    // PRIORIDADE 2: Verificar mensagem de boas-vindas específica
+    // Esta mensagem deve ser respondida ANTES de qualquer outra verificação
+    const welcomeMessage = text.toLowerCase().trim()
+    const isWelcomeMessage = 
+      welcomeMessage === 'olá! quero começar a usar a plenipay, pode me explicar?' ||
+      welcomeMessage === 'olá quero começar a usar a plenipay, pode me explicar?' ||
+      welcomeMessage === 'ola! quero começar a usar a plenipay, pode me explicar?' ||
+      welcomeMessage === 'ola quero começar a usar a plenipay, pode me explicar?' ||
+      welcomeMessage.includes('quero começar a usar a plenipay') ||
+      welcomeMessage.includes('quero começar a usar plenipay') ||
+      (welcomeMessage.includes('quero começar') && welcomeMessage.includes('plenipay'))
+    
+    if (isWelcomeMessage) {
+      console.log('👋 [WhatsApp PLEN] ==========================================')
+      console.log('👋 [WhatsApp PLEN] MENSAGEM DE BOAS-VINDAS DETECTADA!')
+      console.log('👋 [WhatsApp PLEN] Text:', text)
+      console.log('👋 [WhatsApp PLEN] ==========================================')
+      
+      addLog('info', `👋 [PLEN WhatsApp] MENSAGEM DE BOAS-VINDAS DETECTADA: ${text}`)
+      process.stdout.write(`\n👋 MENSAGEM DE BOAS-VINDAS DETECTADA: ${text}\n`)
+      
+      // Retornar mensagem de boas-vindas exata
+      return {
+        success: true,
+        message: `👋 Oi! Seja bem-vindo(a) à PleniPay
+
+Eu sou a Plen, sua assistente financeira 🤖💙
+Estou aqui pra te ajudar a registrar seus gastos e ganhos de forma simples e acompanhar como está o seu controle financeiro no dia a dia, sem planilhas e sem complicação.
+
+✨ Você pode começar gratuitamente agora mesmo
+👉 Crie sua conta aqui: https://plenipay.com/
+
+Depois do cadastro, é só me mandar mensagens pelo WhatsApp que eu te ajudo a registrar tudo de forma rápida e organizada 📊💬
+
+Se tiver qualquer dúvida, pode falar comigo por aqui. E, se precisar, eu chamo nosso suporte humano pra te ajudar 😉
+
+Pronto(a) pra começar a entender melhor para onde seu dinheiro está indo e organizar sua vida financeira com mais clareza?
+Estou por aqui pra começarmos 🚀`,
+      }
+    }
+    
     // NOVA LÓGICA: Verificar se o assistente está ativado
     // Se não estiver ativado, verificar se a mensagem é uma chamada para ativar
     const isActivated = isPlenActivated(phoneNumber)
@@ -428,7 +469,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       isDeactivation: false, // Já verificamos acima
     })
     
-    // PRIORIDADE 2: Se é mensagem de ativação, ativar o assistente
+    // PRIORIDADE 3: Se é mensagem de ativação, ativar o assistente
     if (isActivation) {
       activatePlen(phoneNumber)
       console.log('✅ [WhatsApp PLEN] Assistente ativado! Respondendo com mensagem de boas-vindas')
