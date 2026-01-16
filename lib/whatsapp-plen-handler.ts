@@ -558,14 +558,38 @@ function extractPhoneNumber(remoteJid: string): string {
  * Extrair texto da mensagem
  */
 function extractMessageText(message: WhatsAppMessage): string {
-  if (message.message.conversation) {
-    return message.message.conversation
+  // CRÍTICO: Logar para debug
+  console.log('🔍 [WhatsApp PLEN] Extraindo texto da mensagem:', {
+    hasConversation: !!message.message?.conversation,
+    hasExtendedText: !!message.message?.extendedTextMessage?.text,
+    messageKeys: message.message ? Object.keys(message.message) : [],
+  })
+  
+  if (message.message?.conversation) {
+    const text = message.message.conversation
+    console.log('✅ [WhatsApp PLEN] Texto extraído de conversation:', text.substring(0, 100))
+    return text
   }
   
-  if (message.message.extendedTextMessage?.text) {
-    return message.message.extendedTextMessage.text
+  if (message.message?.extendedTextMessage?.text) {
+    const text = message.message.extendedTextMessage.text
+    console.log('✅ [WhatsApp PLEN] Texto extraído de extendedTextMessage:', text.substring(0, 100))
+    return text
   }
   
+  // Tentar extrair de outros campos possíveis
+  const messageObj = message.message as any
+  if (messageObj?.text) {
+    console.log('✅ [WhatsApp PLEN] Texto extraído de text:', messageObj.text.substring(0, 100))
+    return messageObj.text
+  }
+  
+  if (messageObj?.body) {
+    console.log('✅ [WhatsApp PLEN] Texto extraído de body:', messageObj.body.substring(0, 100))
+    return messageObj.body
+  }
+  
+  console.log('⚠️ [WhatsApp PLEN] Nenhum texto encontrado na mensagem')
   return ''
 }
 
