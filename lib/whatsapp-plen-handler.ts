@@ -124,11 +124,13 @@ function isActivationMessage(text: string): boolean {
 async function isDeactivationMessage(text: string): Promise<boolean> {
   if (!text || typeof text !== 'string') {
     console.log('❌ [WhatsApp PLEN] isDeactivationMessage: text inválido')
+    process.stdout.write(`\n❌ isDeactivationMessage: text inválido\n`)
     return false
   }
   
   const lowerText = text.toLowerCase().trim()
   console.log(`🔍 [WhatsApp PLEN] isDeactivationMessage: verificando "${lowerText}"`)
+  process.stdout.write(`\n🔍 isDeactivationMessage: verificando "${lowerText}"\n`)
   
   // Importar addLog dinamicamente
   const { addLog } = await import('@/lib/server-logs')
@@ -136,14 +138,31 @@ async function isDeactivationMessage(text: string): Promise<boolean> {
   
   // CRÍTICO: Verificação SIMPLES e DIRETA primeiro (mais comum)
   // "parar assistente plen" - formato exato mais comum
-  if (lowerText === 'parar assistente plen' || 
-      lowerText === 'para assistente plen' ||
-      lowerText === 'pare assistente plen' ||
-      lowerText === 'parar assistente plenipay' ||
-      lowerText === 'para assistente plenipay') {
+  // Verificar EXATAMENTE primeiro (sem espaços extras)
+  const exactMatches = [
+    'parar assistente plen',
+    'para assistente plen',
+    'pare assistente plen',
+    'parar assistente plenipay',
+    'para assistente plenipay',
+    'pare assistente plenipay',
+  ]
+  
+  if (exactMatches.includes(lowerText)) {
     console.log(`🛑 [WhatsApp PLEN] ✅ DESATIVAÇÃO DETECTADA (exato): "${lowerText}"`)
     process.stdout.write(`\n🛑✅ DESATIVAÇÃO DETECTADA (exato): "${lowerText}"\n`)
     addLog('info', `🛑 [PLEN WhatsApp] ✅ DESATIVAÇÃO DETECTADA (exato): "${lowerText}"`)
+    return true
+  }
+  
+  // Verificar se CONTÉM a frase (mesmo com texto adicional)
+  if (lowerText.includes('parar assistente plen') || 
+      lowerText.includes('para assistente plen') ||
+      lowerText.includes('pare assistente plen') ||
+      lowerText.includes('desativar assistente plen')) {
+    console.log(`🛑 [WhatsApp PLEN] ✅ DESATIVAÇÃO DETECTADA (contém): "${lowerText}"`)
+    process.stdout.write(`\n🛑✅ DESATIVAÇÃO DETECTADA (contém): "${lowerText}"\n`)
+    addLog('info', `🛑 [PLEN WhatsApp] ✅ DESATIVAÇÃO DETECTADA (contém): "${lowerText}"`)
     return true
   }
   
@@ -291,21 +310,56 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
 
     // CRÍTICO: Verificar desativação PRIMEIRO, antes de qualquer outra coisa
     // Isso garante que mesmo usuários autenticados possam desativar
-    // VERIFICAÇÃO SIMPLES E DIRETA PRIMEIRO (sem await para ser mais rápido)
+    // VERIFICAÇÃO ULTRA SIMPLES E DIRETA PRIMEIRO (sem await para ser mais rápido)
     const lowerTextForCheck = text.toLowerCase().trim()
-    const quickCheck = lowerTextForCheck === 'parar assistente plen' || 
-                      lowerTextForCheck === 'para assistente plen' ||
-                      lowerTextForCheck === 'pare assistente plen' ||
-                      lowerTextForCheck.includes('parar assistente plen') ||
-                      lowerTextForCheck.includes('para assistente plen') ||
-                      lowerTextForCheck.includes('desativar assistente plen')
+    
+    // Lista de todas as variações possíveis (exatas e parciais)
+    const deactivationPhrases = [
+      'parar assistente plen',
+      'para assistente plen',
+      'pare assistente plen',
+      'parar assistente plenipay',
+      'para assistente plenipay',
+      'pare assistente plenipay',
+      'desativar assistente plen',
+      'desativar assistente plenipay',
+    ]
+    
+    // Verificar EXATO primeiro
+    const exactMatch = deactivationPhrases.includes(lowerTextForCheck)
+    
+    // Verificar se CONTÉM alguma frase
+    const containsMatch = deactivationPhrases.some(phrase => lowerTextForCheck.includes(phrase))
+    
+    // Verificar combinação de palavras (parar + assistente + plen)
+    const hasParar = lowerTextForCheck.includes('parar') || lowerTextForCheck.includes('para') || lowerTextForCheck.includes('pare')
+    const hasAssistente = lowerTextForCheck.includes('assistente')
+    const hasPlen = lowerTextForCheck.includes('plen')
+    const combinationMatch = hasParar && hasAssistente && hasPlen
+    
+    const quickCheck = exactMatch || containsMatch || combinationMatch
     
     console.log('🔍 [WhatsApp PLEN] ==========================================')
     console.log('🔍 [WhatsApp PLEN] VERIFICANDO DESATIVAÇÃO')
-    console.log('🔍 [WhatsApp PLEN] Text:', text)
+    console.log('🔍 [WhatsApp PLEN] Text original:', text)
     console.log('🔍 [WhatsApp PLEN] Text lower:', lowerTextForCheck)
-    console.log('🔍 [WhatsApp PLEN] Quick check:', quickCheck)
+    console.log('🔍 [WhatsApp PLEN] Exact match:', exactMatch)
+    console.log('🔍 [WhatsApp PLEN] Contains match:', containsMatch)
+    console.log('🔍 [WhatsApp PLEN] Combination match:', combinationMatch, `(parar: ${hasParar}, assistente: ${hasAssistente}, plen: ${hasPlen})`)
+    console.log('🔍 [WhatsApp PLEN] Quick check final:', quickCheck)
     console.log('🔍 [WhatsApp PLEN] ==========================================')
+    
+    // CRÍTICO: Logar no stdout também
+    process.stdout.write('\n')
+    process.stdout.write('='.repeat(80) + '\n')
+    process.stdout.write('[WhatsApp PLEN] VERIFICANDO DESATIVAÇÃO\n')
+    process.stdout.write('[WhatsApp PLEN] Text: ' + text + '\n')
+    process.stdout.write('[WhatsApp PLEN] Text lower: ' + lowerTextForCheck + '\n')
+    process.stdout.write('[WhatsApp PLEN] Exact match: ' + exactMatch + '\n')
+    process.stdout.write('[WhatsApp PLEN] Contains match: ' + containsMatch + '\n')
+    process.stdout.write('[WhatsApp PLEN] Combination match: ' + combinationMatch + '\n')
+    process.stdout.write('[WhatsApp PLEN] Quick check: ' + quickCheck + '\n')
+    process.stdout.write('='.repeat(80) + '\n')
     
     // Se a verificação rápida detectou, desativar IMEDIATAMENTE
     if (quickCheck) {
@@ -322,7 +376,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       // CRÍTICO: Logar no stdout também
       process.stdout.write('\n')
       process.stdout.write('='.repeat(80) + '\n')
-      process.stdout.write('[WhatsApp PLEN] ASSISTENTE DESATIVADO (QUICK CHECK)!\n')
+      process.stdout.write('[WhatsApp PLEN] ✅✅✅ ASSISTENTE DESATIVADO (QUICK CHECK)! ✅✅✅\n')
       process.stdout.write('[WhatsApp PLEN] Phone: ' + phoneNumber + '\n')
       process.stdout.write('[WhatsApp PLEN] Message: ' + text + '\n')
       process.stdout.write('='.repeat(80) + '\n')
@@ -336,6 +390,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
     // Verificação completa (para outras variações)
     const isDeactivation = await isDeactivationMessage(text)
     console.log('🔍 [WhatsApp PLEN] isDeactivation (completo):', isDeactivation)
+    process.stdout.write(`\n🔍 isDeactivation (completo): ${isDeactivation}\n`)
     
     if (isDeactivation) {
       deactivatePlen(phoneNumber)
@@ -350,7 +405,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       // CRÍTICO: Logar no stdout também
       process.stdout.write('\n')
       process.stdout.write('='.repeat(80) + '\n')
-      process.stdout.write('[WhatsApp PLEN] ASSISTENTE DESATIVADO (VERIFICAÇÃO COMPLETA)!\n')
+      process.stdout.write('[WhatsApp PLEN] ✅✅✅ ASSISTENTE DESATIVADO (VERIFICAÇÃO COMPLETA)! ✅✅✅\n')
       process.stdout.write('[WhatsApp PLEN] Phone: ' + phoneNumber + '\n')
       process.stdout.write('[WhatsApp PLEN] Message: ' + text + '\n')
       process.stdout.write('='.repeat(80) + '\n')
