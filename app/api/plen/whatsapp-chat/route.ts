@@ -1513,6 +1513,35 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // CRÍTICO: Verificar desativação ANTES de qualquer processamento
+    // Isso garante que funcione mesmo se a mensagem chegar diretamente na API
+    if (message && typeof message === 'string') {
+      const msgLower = message.toLowerCase().trim()
+      const isDeactivation = 
+        msgLower === 'parar assistente plen' ||
+        msgLower === 'para assistente plen' ||
+        msgLower === 'pare assistente plen' ||
+        msgLower.includes('parar assistente plen') ||
+        msgLower.includes('para assistente plen') ||
+        msgLower.includes('desativar assistente plen') ||
+        (msgLower.includes('parar') && msgLower.includes('assistente') && msgLower.includes('plen')) ||
+        (msgLower.includes('para') && msgLower.includes('assistente') && msgLower.includes('plen'))
+      
+      if (isDeactivation) {
+        console.log('🛑 [PLEN WhatsApp] ==========================================')
+        console.log('🛑 [PLEN WhatsApp] DESATIVAÇÃO DETECTADA NO INÍCIO DA API!')
+        console.log('🛑 [PLEN WhatsApp] Message:', message)
+        console.log('🛑 [PLEN WhatsApp] ==========================================')
+        addLog('info', `🛑 [PLEN WhatsApp] DESATIVAÇÃO DETECTADA NO INÍCIO DA API: ${message}`)
+        process.stdout.write('\n🛑 DESATIVAÇÃO DETECTADA NO INÍCIO DA API!\n')
+        process.stdout.write(`🛑 Message: ${message}\n`)
+        
+        return NextResponse.json({
+          response: `☕ Ok, vou beber um cafezinho enquanto isso! 😊\n\nQuando precisar, é só mandar "chamar assistente plen" que eu já volto! 👋\n\n💤 Estou descansando... zzz`,
+        })
+      }
+    }
+
     // Criar cliente admin para buscar dados do usuário sem autenticação
     const supabaseAdmin = createAdminClient()
     if (!supabaseAdmin) {
