@@ -19,27 +19,37 @@ export function useFacebookPixel() {
     const carregarPixel = async () => {
       try {
         // Buscar Pixel ID da configuração global
-        const responseId = await fetch('/api/admin/platform-config?key=facebook_pixel_id')
+        const responseId = await fetch('/api/admin/platform-config?key=facebook_pixel_id', {
+          cache: 'no-store', // Sempre buscar versão mais recente
+        })
         
         if (responseId.ok) {
           const dataId = await responseId.json()
           if (dataId.value && typeof dataId.value === 'string' && dataId.value.trim() !== '') {
-            setPixelId(dataId.value.trim())
+            const id = dataId.value.trim()
+            setPixelId(id)
+            console.log('✅ [Facebook Pixel] Pixel ID carregado:', id)
+          } else {
+            console.log('⚠️ [Facebook Pixel] Nenhum Pixel ID configurado')
           }
+        } else {
+          console.warn('⚠️ [Facebook Pixel] Erro ao buscar Pixel ID:', responseId.status)
         }
 
         // Buscar Pixel Token da configuração global (opcional)
-        const responseToken = await fetch('/api/admin/platform-config?key=facebook_pixel_token')
+        const responseToken = await fetch('/api/admin/platform-config?key=facebook_pixel_token', {
+          cache: 'no-store',
+        })
         
         if (responseToken.ok) {
           const dataToken = await responseToken.json()
           if (dataToken.value && typeof dataToken.value === 'string' && dataToken.value.trim() !== '') {
             setPixelToken(dataToken.value.trim())
+            console.log('✅ [Facebook Pixel] Pixel Token carregado')
           }
         }
       } catch (error) {
-        // Silenciar todos os erros para não quebrar a aplicação
-        console.error('Erro ao carregar configurações do Pixel:', error)
+        console.error('❌ [Facebook Pixel] Erro ao carregar configurações do Pixel:', error)
       }
     }
 
@@ -47,10 +57,16 @@ export function useFacebookPixel() {
   }, [])
 
   useEffect(() => {
-    if (!pixelId || typeof window === 'undefined') return
+    if (!pixelId || typeof window === 'undefined') {
+      console.log('⚠️ [Facebook Pixel] Aguardando Pixel ID...')
+      return
+    }
 
     try {
+      console.log('🚀 [Facebook Pixel] Inicializando Pixel ID:', pixelId)
+
       // Inicializar fbq ANTES de carregar o script (padrão do Facebook)
+      // Isso é CRÍTICO para a extensão detectar o pixel
       if (!window.fbq) {
         window.fbq = function() {
           // @ts-ignore
@@ -60,15 +76,24 @@ export function useFacebookPixel() {
         window.fbq.l = +new Date()
         // @ts-ignore
         window.fbq.version = '2.0'
+        console.log('✅ [Facebook Pixel] Função fbq criada')
       }
 
       // Verificar se o script já foi adicionado
-      if (document.getElementById('facebook-pixel-base-script')) {
-        // Script já existe, apenas inicializar
+      const existingScript = document.getElementById('facebook-pixel-base-script')
+      if (existingScript) {
+        // Script já existe, apenas inicializar novamente
+        console.log('✅ [Facebook Pixel] Script já existe, reinicializando...')
         window.fbq('init', pixelId)
         window.fbq('track', 'PageView')
         return
       }
+
+      // Inicializar ANTES de carregar o script (padrão do Facebook)
+      // Isso garante que a extensão detecte o pixel imediatamente
+      window.fbq('init', pixelId)
+      window.fbq('track', 'PageView')
+      console.log('✅ [Facebook Pixel] Pixel inicializado ANTES do script carregar:', pixelId)
 
       // Carregar script do Facebook Pixel
       const script = document.createElement('script')
@@ -77,11 +102,12 @@ export function useFacebookPixel() {
       script.src = 'https://connect.facebook.net/en_US/fbevents.js'
       
       script.onload = () => {
-        // Inicializar o pixel após o script carregar
+        console.log('✅ [Facebook Pixel] Script fbevents.js carregado com sucesso')
+        // Re-inicializar após o script carregar (garantir que está ativo)
         if (window.fbq) {
           window.fbq('init', pixelId)
           window.fbq('track', 'PageView')
-          console.log('✅ [Facebook Pixel] Pixel inicializado:', pixelId)
+          console.log('✅ [Facebook Pixel] Pixel reinicializado após script carregar')
         }
       }
 
@@ -91,13 +117,8 @@ export function useFacebookPixel() {
 
       // Adicionar script ao head
       document.head.appendChild(script)
-
-      // Inicializar imediatamente (antes do script carregar) - padrão do Facebook
-      // Isso garante que eventos sejam capturados mesmo se o script demorar
-      window.fbq('init', pixelId)
-      window.fbq('track', 'PageView')
+      console.log('✅ [Facebook Pixel] Script adicionado ao head')
       
-      console.log('✅ [Facebook Pixel] Pixel configurado:', pixelId)
     } catch (error) {
       console.error('❌ [Facebook Pixel] Erro ao inicializar Facebook Pixel:', error)
     }
