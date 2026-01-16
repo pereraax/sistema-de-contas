@@ -5,6 +5,7 @@ import ThemeProvider from '@/components/ThemeProvider'
 import { MenuProvider } from '@/components/MobileMenu'
 import MobileMenu from '@/components/MobileMenu'
 import dynamicImport from 'next/dynamic'
+import FacebookPixelScript from '@/components/FacebookPixelScript'
 
 // Lazy load componentes pesados para melhorar performance inicial
 const ChatWidget = dynamicImport(() => import('@/components/ChatWidget'), {
@@ -72,8 +73,11 @@ export default function RootLayout({
         {/* Preconnect para APIs externas */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://connect.facebook.net" />
         {/* Preload de recursos críticos */}
         <link rel="preload" href="/app_icon.png" as="image" />
+        {/* Facebook Pixel - Injetado server-side para detecção imediata */}
+        <FacebookPixelScript />
       </head>
       <body suppressHydrationWarning>
         <ThemeProvider>
