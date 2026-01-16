@@ -71,10 +71,16 @@ export function useFacebookPixel() {
     }
 
     try {
-      console.log('🚀 [Facebook Pixel] Inicializando Pixel ID:', pixelId)
+      // Verificar se o Pixel já foi inicializado pelo componente server-side
+      // Se já existe fbq e já foi inicializado, não fazer nada (evitar duplicação)
+      if (window.fbq && window.fbq.loaded) {
+        console.log('✅ [Facebook Pixel] Pixel já inicializado pelo server-side, pulando inicialização client-side')
+        return
+      }
 
-      // CRÍTICO: Inicializar fbq ANTES de qualquer coisa (padrão oficial do Facebook)
-      // Isso é ESSENCIAL para a extensão Meta Pixel Helper detectar o pixel
+      console.log('🚀 [Facebook Pixel] Inicializando Pixel ID (client-side fallback):', pixelId)
+
+      // Se fbq não existe, criar (fallback caso server-side não tenha funcionado)
       if (!window.fbq) {
         window.fbq = function() {
           // @ts-ignore
@@ -84,14 +90,16 @@ export function useFacebookPixel() {
         window.fbq.l = +new Date()
         // @ts-ignore
         window.fbq.version = '2.0'
-        console.log('✅ [Facebook Pixel] Função fbq criada')
+        console.log('✅ [Facebook Pixel] Função fbq criada (client-side)')
       }
 
-      // Verificar se o script já foi adicionado
-      const existingScript = document.getElementById('facebook-pixel-base-script')
+      // Verificar se o script já foi adicionado (pelo server-side ou anteriormente)
+      const existingScript = document.getElementById('facebook-pixel-init') || 
+                            document.getElementById('facebook-pixel-base-script')
+      
       if (existingScript) {
-        // Script já existe, apenas reinicializar
-        console.log('✅ [Facebook Pixel] Script já existe, reinicializando...')
+        // Script já existe, apenas garantir que está inicializado
+        console.log('✅ [Facebook Pixel] Script já existe, garantindo inicialização...')
         if (window.fbq) {
           window.fbq('init', pixelId)
           window.fbq('track', 'PageView')
@@ -99,28 +107,26 @@ export function useFacebookPixel() {
         return
       }
 
-      // CRÍTICO: Inicializar o pixel ANTES de carregar o script
-      // Isso garante que a extensão Meta Pixel Helper detecte imediatamente
+      // Se chegou aqui, o server-side não funcionou, então inicializar client-side
+      // Inicializar o pixel ANTES de carregar o script
       if (window.fbq) {
         window.fbq('init', pixelId)
         window.fbq('track', 'PageView')
-        console.log('✅ [Facebook Pixel] Pixel inicializado ANTES do script carregar:', pixelId)
+        console.log('✅ [Facebook Pixel] Pixel inicializado (client-side fallback):', pixelId)
       }
 
-      // Carregar script do Facebook Pixel
+      // Carregar script do Facebook Pixel (apenas se não existir)
       const script = document.createElement('script')
       script.id = 'facebook-pixel-base-script'
       script.async = true
-      script.defer = false // Não usar defer para garantir carregamento imediato
       script.src = 'https://connect.facebook.net/en_US/fbevents.js'
       
       script.onload = () => {
-        console.log('✅ [Facebook Pixel] Script fbevents.js carregado com sucesso')
-        // Re-inicializar após o script carregar (garantir que está ativo)
+        console.log('✅ [Facebook Pixel] Script fbevents.js carregado (client-side)')
+        // Re-inicializar após o script carregar
         if (window.fbq) {
           window.fbq('init', pixelId)
           window.fbq('track', 'PageView')
-          console.log('✅ [Facebook Pixel] Pixel reinicializado após script carregar')
         }
       }
 
@@ -128,9 +134,9 @@ export function useFacebookPixel() {
         console.error('❌ [Facebook Pixel] Erro ao carregar script do Facebook Pixel')
       }
 
-      // Adicionar script ao head (não ao body)
+      // Adicionar script ao head
       document.head.appendChild(script)
-      console.log('✅ [Facebook Pixel] Script adicionado ao head')
+      console.log('✅ [Facebook Pixel] Script adicionado ao head (client-side)')
       
     } catch (error) {
       console.error('❌ [Facebook Pixel] Erro ao inicializar Facebook Pixel:', error)
