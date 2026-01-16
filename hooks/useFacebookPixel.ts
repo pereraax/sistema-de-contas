@@ -10,6 +10,7 @@ declare global {
 
 export function useFacebookPixel() {
   const [pixelId, setPixelId] = useState<string | null>(null)
+  const [pixelToken, setPixelToken] = useState<string | null>(null)
 
   useEffect(() => {
     // Só executa no cliente
@@ -18,21 +19,27 @@ export function useFacebookPixel() {
     const carregarPixel = async () => {
       try {
         // Buscar Pixel ID da configuração global
-        const response = await fetch('/api/admin/platform-config?key=facebook_pixel_id')
+        const responseId = await fetch('/api/admin/platform-config?key=facebook_pixel_id')
         
-        if (!response.ok) {
-          // Silenciar erro se a API não existir ainda ou não houver Pixel configurado
-          return
+        if (responseId.ok) {
+          const dataId = await responseId.json()
+          if (dataId.value && typeof dataId.value === 'string' && dataId.value.trim() !== '') {
+            setPixelId(dataId.value.trim())
+          }
         }
 
-        const data = await response.json()
+        // Buscar Pixel Token da configuração global (opcional)
+        const responseToken = await fetch('/api/admin/platform-config?key=facebook_pixel_token')
         
-        if (data.value && typeof data.value === 'string' && data.value.trim() !== '') {
-          setPixelId(data.value.trim())
+        if (responseToken.ok) {
+          const dataToken = await responseToken.json()
+          if (dataToken.value && typeof dataToken.value === 'string' && dataToken.value.trim() !== '') {
+            setPixelToken(dataToken.value.trim())
+          }
         }
       } catch (error) {
         // Silenciar todos os erros para não quebrar a aplicação
-        console.error('Erro ao carregar Pixel ID:', error)
+        console.error('Erro ao carregar configurações do Pixel:', error)
       }
     }
 

@@ -16,7 +16,9 @@ CREATE INDEX IF NOT EXISTS idx_platform_config_key ON platform_config(key);
 
 -- Inserir registro inicial para Pixel do Facebook
 INSERT INTO platform_config (key, value, description)
-VALUES ('facebook_pixel_id', NULL, 'ID do Pixel do Facebook para rastreamento global da plataforma')
+VALUES 
+  ('facebook_pixel_id', NULL, 'ID do Pixel do Facebook para rastreamento global da plataforma'),
+  ('facebook_pixel_token', NULL, 'Token de acesso do Pixel do Facebook (opcional)')
 ON CONFLICT (key) DO NOTHING;
 
 -- Comentários
