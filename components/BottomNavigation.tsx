@@ -19,7 +19,7 @@ const openPlenAssistant = () => {
 export default function BottomNavigation() {
   const pathname = usePathname()
   const router = useRouter()
-  const { setIsOpen: setMobileMenuOpen } = useMenuContext()
+  const { isOpen: isMobileMenuOpen, setIsOpen: setMobileMenuOpen } = useMenuContext()
 
   // Verificar se está em uma página autenticada
   const isAuthenticatedPage = pathname?.startsWith('/home') || 
@@ -42,7 +42,7 @@ export default function BottomNavigation() {
   }
 
   const handleMoreClick = () => {
-    setMobileMenuOpen(true)
+    setMobileMenuOpen(!isMobileMenuOpen)
   }
 
   const isActive = (href: string) => {
