@@ -91,6 +91,24 @@ export default function PlenAssistant() {
     }
   }, [])
 
+  // Escutar evento customizado para abrir via bottom nav
+  useEffect(() => {
+    const handleOpenPlen = () => {
+      if (isAuthenticated && !isCheckingAuth) {
+        setIsOpen(true)
+        // Focar no input após abrir
+        setTimeout(() => {
+          inputRef.current?.focus()
+        }, 300)
+      }
+    }
+    
+    window.addEventListener('open-plen-assistant', handleOpenPlen)
+    return () => {
+      window.removeEventListener('open-plen-assistant', handleOpenPlen)
+    }
+  }, [isAuthenticated, isCheckingAuth])
+
   // Scroll para última mensagem
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
