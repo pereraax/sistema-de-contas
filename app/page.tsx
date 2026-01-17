@@ -36,8 +36,11 @@ export default function LandingPage() {
       attributeFilter: ['class']
     })
     
-    // Verificar autenticação
+    // Verificar autenticação - com delay para não bloquear carregamento inicial
     const checkAuth = async () => {
+      // Delay de 500ms para não bloquear renderização inicial
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       try {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
