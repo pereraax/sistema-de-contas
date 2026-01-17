@@ -20,25 +20,7 @@ import { useMenuContext } from './MobileMenu'
 
 // Função para abrir o PLEN Assistant
 const openPlenAssistant = () => {
-  // Tentar encontrar o botão do PlenAssistant
-  const plenButton = document.querySelector('button[aria-label*="PLEN"], button[aria-label*="assistente"], button[data-plen-button]') as HTMLElement
-  if (plenButton) {
-    plenButton.click()
-    return
-  }
-  
-  // Fallback: tentar encontrar pelo texto ou classe
-  const allButtons = Array.from(document.querySelectorAll('button'))
-  for (const btn of allButtons) {
-    const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || ''
-    const textContent = btn.textContent?.toLowerCase() || ''
-    if (ariaLabel.includes('plen') || ariaLabel.includes('assistente') || textContent.includes('plen')) {
-      btn.click()
-      return
-    }
-  }
-  
-  // Se não encontrar, tentar abrir diretamente via evento customizado
+  // Disparar evento customizado para abrir o PLEN
   window.dispatchEvent(new CustomEvent('open-plen-assistant'))
 }
 
