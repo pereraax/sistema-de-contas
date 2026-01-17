@@ -8,6 +8,12 @@ import { ArrowRight, Target, FolderTree, BarChart3, CheckCircle2, Star, ChevronD
 import { createClient } from '@/lib/supabase/client'
 import AnimateOnScroll from '@/components/AnimateOnScroll'
 
+// Exportar metadata para SEO (mesmo sendo client component, o Next.js 13+ suporta)
+export const metadata = {
+  title: 'PLENIPAY - Controle Financeiro Pessoal | Sistema de Gestão Financeira',
+  description: 'Controle suas finanças pessoais de forma simples e eficiente. Gerencie receitas, despesas, dívidas e metas financeiras com a PleniPay. Comece grátis hoje mesmo!',
+}
+
 export default function LandingPage() {
   const router = useRouter()
   const [isVisible, setIsVisible] = useState(false)
