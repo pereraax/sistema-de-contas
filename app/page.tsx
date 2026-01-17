@@ -1298,7 +1298,7 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ */}
-      <section className="bg-white py-8 sm:py-12 md:py-20">
+      <section id="faq" className="bg-white py-8 sm:py-12 md:py-20 scroll-mt-20">
         <div className="container mx-auto px-3 sm:px-6 lg:px-8 max-w-3xl">
           <div className="text-center mb-8 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold text-[#0D1B2A] mb-3 sm:mb-4">
