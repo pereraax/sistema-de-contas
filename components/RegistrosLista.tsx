@@ -340,8 +340,36 @@ export default function RegistrosLista({
         </div>
       </div>
 
-      {/* Mobile: Filtros sempre abertos */}
-      <div className="md:hidden mb-4 bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-xl p-3 shadow-lg border border-brand-aqua/20 dark:border-brand-aqua/30">
+      {/* Mobile: Botão de Filtro */}
+      <div className="md:hidden mb-4">
+        <button
+          type="button"
+          onClick={() => setModalFiltrosAberto(!modalFiltrosAberto)}
+          className={`w-full px-4 py-3 bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-xl shadow-lg border border-brand-aqua/20 dark:border-brand-aqua/30 flex items-center justify-between transition-all ${
+            modalFiltrosAberto ? 'border-brand-aqua' : ''
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Filter size={18} className="text-brand-aqua" />
+            <span className="text-sm font-semibold text-brand-midnight dark:text-brand-clean">
+              Filtros
+            </span>
+            {temFiltrosAtivos && (
+              <span className="px-2 py-0.5 bg-brand-aqua text-white text-xs font-bold rounded-full">
+                {Object.values(filtrosAtuais).filter(v => v && v !== filtrosAtuais.data_inicio && v !== filtrosAtuais.data_fim).length}
+              </span>
+            )}
+          </div>
+          <ChevronDown 
+            size={18} 
+            className={`text-brand-aqua transition-transform ${modalFiltrosAberto ? 'rotate-180' : ''}`} 
+          />
+        </button>
+      </div>
+
+      {/* Mobile: Filtros (ocultos por padrão, aparecem ao clicar no botão) */}
+      {modalFiltrosAberto && (
+        <div className="md:hidden mb-4 bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-xl p-3 shadow-lg border border-brand-aqua/20 dark:border-brand-aqua/30 animate-in slide-in-from-top-2 duration-200">
         <div className="space-y-2.5">
           {/* Tipo */}
           <div className="relative">
@@ -590,6 +618,7 @@ export default function RegistrosLista({
           </div>
         </div>
       </div>
+      )}
 
       {/* Desktop: Botões de filtro e exportação */}
       <div className="hidden md:flex items-center gap-3 mb-4 sm:mb-6">
