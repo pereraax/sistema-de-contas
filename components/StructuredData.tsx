@@ -1,8 +1,8 @@
 /**
- * Componente para adicionar dados estruturados (JSON-LD) para SEO
+ * Componente Server-Side para adicionar dados estruturados (JSON-LD) para SEO
  * Isso ajuda o Google a entender melhor o conteúdo do site
  */
-export default function StructuredData() {
+export default async function StructuredData() {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com'
 
   const organizationSchema = {
