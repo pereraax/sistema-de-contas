@@ -41,10 +41,10 @@ export const runtime = 'nodejs'
 
 export const metadata: Metadata = {
   title: {
-    default: 'PLENIPAY - Sistema de Controle Financeiro Pessoal',
-    template: '%s | PLENIPAY',
+    default: 'PleniPay - Sistema de Controle Financeiro Pessoal | plenipay.com',
+    template: '%s | PleniPay',
   },
-  description: 'Controle suas finanças pessoais de forma simples e eficiente. Gerencie receitas, despesas, dívidas e metas financeiras com a PleniPay. Sistema completo de controle financeiro pessoal.',
+  description: 'PleniPay é o sistema completo de controle financeiro pessoal. Gerencie receitas, despesas, dívidas e metas financeiras de forma simples e eficiente. PleniPay - A melhor plataforma de gestão financeira do Brasil. Acesse plenipay.com e comece grátis hoje mesmo.',
   keywords: ['controle financeiro', 'gestão financeira', 'organização financeira', 'controle de gastos', 'finanças pessoais', 'dívidas', 'receitas', 'despesas', 'plenipay'],
   authors: [{ name: 'PleniPay' }],
   creator: 'PleniPay',

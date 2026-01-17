@@ -221,13 +221,13 @@ export default function LandingPage() {
                 <span className="text-xs sm:text-sm font-medium text-[#00C2FF]">Plataforma #1 em Controle Financeiro</span>
               </div>
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-6xl font-display font-bold text-[#0D1B2A] mb-4 sm:mb-5 leading-tight">
-                Controle Financeiro
+                <span className="text-[#00C2FF]">PleniPay</span> - Controle Financeiro
                 <br />
                 <span className="text-[#00C2FF]">Simplificado</span>
               </h1>
               <p className="text-base sm:text-lg md:text-xl text-gray-700 mb-6 sm:mb-8 leading-relaxed">
-                Gerencie suas finanças pessoais, dívidas e empréstimos de forma inteligente e organizada. 
-                <span className="text-[#00C2FF] font-semibold"> Tudo em um só lugar</span>, com design moderno e intuitivo.
+                <strong>PleniPay</strong> é o sistema completo de controle financeiro pessoal. Gerencie suas finanças pessoais, dívidas e empréstimos de forma inteligente e organizada. 
+                <span className="text-[#00C2FF] font-semibold"> Tudo em um só lugar</span>, com design moderno e intuitivo. <strong>PleniPay</strong> - A melhor plataforma de gestão financeira do Brasil.
               </p>
               <div className="flex justify-center md:justify-start mt-4 sm:mt-6">
                 <a
