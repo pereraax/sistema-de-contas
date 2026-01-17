@@ -139,7 +139,9 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://connect.facebook.net" />
         <link rel="dns-prefetch" href="https://www.google.com" />
         {/* Preconnect para Supabase (crítico para autenticação) */}
-        <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL || ''} crossOrigin="anonymous" />
+        {process.env.NEXT_PUBLIC_SUPABASE_URL && (
+          <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} crossOrigin="anonymous" />
+        )}
         {/* Preload de recursos críticos - apenas o essencial */}
         <link rel="preload" href="/app_icon.png" as="image" type="image/png" />
         {/* Favicon adicional para melhor compatibilidade */}

@@ -5,7 +5,7 @@
  */
 const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com'
 
-export default async function StructuredData() {
+export default function StructuredData() {
 
   const organizationSchema = {
     '@context': 'https://schema.org',

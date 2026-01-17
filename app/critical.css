@@ -20,12 +20,14 @@ html.dark body {
   color: #ffffff;
 }
 
-/* Prevenir FOUC (Flash of Unstyled Content) */
-body:not(.loaded) {
-  visibility: hidden;
+/* Otimização: renderizar imediatamente sem FOUC */
+body {
+  visibility: visible;
+  opacity: 1;
 }
 
-body.loaded {
-  visibility: visible;
+/* Prevenir layout shift */
+* {
+  box-sizing: border-box;
 }
 

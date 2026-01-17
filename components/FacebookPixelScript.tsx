@@ -24,7 +24,10 @@ export default async function FacebookPixelScript() {
     }
   } catch (error) {
     // Silenciar erro - o hook client-side fará fallback
-    console.error('Erro ao buscar Pixel ID no servidor:', error)
+    // Não logar em produção para não poluir logs
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Erro ao buscar Pixel ID no servidor:', error)
+    }
   }
 
   // Se não tiver Pixel ID, não renderizar nada
