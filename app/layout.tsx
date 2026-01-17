@@ -4,6 +4,7 @@ import './animations.css'
 import './globals.css'
 import ThemeProvider from '@/components/ThemeProvider'
 import { MenuProvider } from '@/components/MobileMenu'
+import BottomNavigation from '@/components/BottomNavigation'
 import dynamicImport from 'next/dynamic'
 import FacebookPixelScript from '@/components/FacebookPixelScript'
 import StructuredData from '@/components/StructuredData'
@@ -163,6 +164,7 @@ export default function RootLayout({
             {children}
             {/* Componentes de UI - carregar após conteúdo */}
             <MobileMenu />
+            <BottomNavigation />
             <ChatWidget />
             <PlenAssistant />
             <NotificationPopup />
