@@ -1,8 +1,6 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
-import Link from 'next/link'
 import { 
   Home, 
   FileText, 
@@ -17,23 +15,6 @@ const openPlenAssistant = () => {
   window.dispatchEvent(new CustomEvent('open-plen-assistant'))
 }
 
-// Itens principais do bottom nav
-const mainNavItems = [
-  { href: '/home', label: 'Principal', icon: Home },
-  { href: '/registros', label: 'Transações', icon: FileText },
-  { href: '/calendario', label: 'Calendário', icon: Calendar },
-]
-
-// Itens do menu "Mais" (restantes do sidebar)
-const moreMenuItems = [
-  { href: '/dividas', label: 'Dívidas', icon: CreditCard },
-  { href: '/lembretes', label: 'Lembretes', icon: Clock },
-  { href: '/minhas-metas', label: 'Minhas Metas', icon: PiggyBank },
-  { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
-  { href: '/categorias', label: 'Categorias', icon: Tag },
-  { href: '/tutoriais', label: 'Tutoriais', icon: PlayCircle },
-  { href: '/configuracoes', label: 'Configurações', icon: Settings },
-]
 
 export default function BottomNavigation() {
   const pathname = usePathname()
