@@ -386,10 +386,12 @@ export default function PlenAssistant() {
 
   return (
     <>
-      {/* Botão Flutuante PLEN */}
-      <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center justify-center lg:flex hidden">
+      {/* Botão Flutuante PLEN - Escondido em mobile (usa bottom nav) */}
+      <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] hidden lg:flex items-center justify-center">
           <button
             onClick={() => setIsOpen(!isOpen)}
+            data-plen-button
+            aria-label="Abrir PLEN Assistant"
           className={`relative w-16 h-16 rounded-full bg-gradient-to-r from-brand-aqua to-blue-500 text-white shadow-2xl hover:shadow-3xl transition-all duration-300 flex items-center justify-center hover:scale-110 overflow-hidden ${
             isOpen ? '' : 'animate-plen-glow'
             }`}
