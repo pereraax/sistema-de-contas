@@ -102,6 +102,13 @@ function CadastroContent() {
     console.log('🚀 ========== FORMULÁRIO SUBMETIDO ==========')
     console.log('📋 Dados do formulário:', formData)
     console.log('📦 Plano selecionado:', plano)
+    
+    // Verificar se já está carregando (evitar duplo submit)
+    if (loading) {
+      console.log('⚠️ Já está processando, ignorando submit duplicado')
+      return
+    }
+    
     setLoading(true)
 
     // Validações
