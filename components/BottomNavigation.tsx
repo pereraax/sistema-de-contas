@@ -7,14 +7,7 @@ import {
   Home, 
   FileText, 
   Calendar, 
-  MoreVertical,
-  CreditCard,
-  Clock,
-  PiggyBank,
-  BarChart3,
-  Tag,
-  PlayCircle,
-  Settings
+  MoreVertical
 } from 'lucide-react'
 import { useMenuContext } from './MobileMenu'
 
@@ -46,7 +39,6 @@ export default function BottomNavigation() {
   const pathname = usePathname()
   const router = useRouter()
   const { setIsOpen: setMobileMenuOpen } = useMenuContext()
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
 
   // Verificar se está em uma página autenticada
   const isAuthenticatedPage = pathname?.startsWith('/home') || 
@@ -66,7 +58,10 @@ export default function BottomNavigation() {
 
   const handleNavClick = (href: string) => {
     router.push(href)
-    setMoreMenuOpen(false)
+  }
+
+  const handleMoreClick = () => {
+    setMobileMenuOpen(true)
   }
 
   const isActive = (href: string) => {
@@ -175,20 +170,52 @@ export default function BottomNavigation() {
 
           {/* Mais */}
           <button
-            onClick={() => setMoreMenuOpen(!moreMenuOpen)}
-            className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all relative ${
-              moreMenuOpen
+            onClick={handleMoreClick}
+            className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all ${
+              pathname?.startsWith('/dividas') || 
+              pathname?.startsWith('/lembretes') || 
+              pathname?.startsWith('/minhas-metas') || 
+              pathname?.startsWith('/dashboard') || 
+              pathname?.startsWith('/categorias') || 
+              pathname?.startsWith('/tutoriais') || 
+              pathname?.startsWith('/configuracoes')
                 ? 'bg-orange-100 dark:bg-orange-900/30'
                 : 'hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
             }`}
           >
             <MoreVertical 
               size={24} 
-              className={moreMenuOpen ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-gray-400'} 
-              strokeWidth={moreMenuOpen ? 2.5 : 2}
+              className={
+                pathname?.startsWith('/dividas') || 
+                pathname?.startsWith('/lembretes') || 
+                pathname?.startsWith('/minhas-metas') || 
+                pathname?.startsWith('/dashboard') || 
+                pathname?.startsWith('/categorias') || 
+                pathname?.startsWith('/tutoriais') || 
+                pathname?.startsWith('/configuracoes')
+                  ? 'text-orange-600 dark:text-orange-400' 
+                  : 'text-gray-600 dark:text-gray-400'
+              } 
+              strokeWidth={
+                pathname?.startsWith('/dividas') || 
+                pathname?.startsWith('/lembretes') || 
+                pathname?.startsWith('/minhas-metas') || 
+                pathname?.startsWith('/dashboard') || 
+                pathname?.startsWith('/categorias') || 
+                pathname?.startsWith('/tutoriais') || 
+                pathname?.startsWith('/configuracoes')
+                  ? 2.5 
+                  : 2
+              }
             />
             <span className={`text-xs font-medium ${
-              moreMenuOpen 
+              pathname?.startsWith('/dividas') || 
+              pathname?.startsWith('/lembretes') || 
+              pathname?.startsWith('/minhas-metas') || 
+              pathname?.startsWith('/dashboard') || 
+              pathname?.startsWith('/categorias') || 
+              pathname?.startsWith('/tutoriais') || 
+              pathname?.startsWith('/configuracoes')
                 ? 'text-orange-600 dark:text-orange-400' 
                 : 'text-gray-600 dark:text-gray-400'
             }`}>
@@ -196,39 +223,6 @@ export default function BottomNavigation() {
             </span>
           </button>
         </div>
-
-        {/* Menu "Mais" - Dropdown */}
-        {moreMenuOpen && (
-          <>
-            <div
-              className="fixed inset-0 bg-black/20 z-40 lg:hidden"
-              onClick={() => setMoreMenuOpen(false)}
-            />
-            <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-brand-royal rounded-2xl shadow-2xl border border-gray-200 dark:border-brand-midnight z-50 max-h-[60vh] overflow-y-auto">
-              <div className="p-2">
-                {moreMenuItems.map((item) => {
-                  const Icon = item.icon
-                  const active = isActive(item.href)
-                  
-                  return (
-                    <button
-                      key={item.href}
-                      onClick={() => handleNavClick(item.href)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                        active
-                          ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
-                          : 'text-gray-700 dark:text-brand-clean hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
-                      }`}
-                    >
-                      <Icon size={20} strokeWidth={2} />
-                      <span className="font-medium">{item.label}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </>
-        )}
       </nav>
 
       {/* Espaçamento no final da página para não ficar coberto pelo bottom nav */}
