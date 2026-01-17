@@ -1,0 +1,28 @@
+{
+  "name": "PLENIPAY - Sistema de Controle Financeiro",
+  "short_name": "PLENIPAY",
+  "description": "Controle suas finanças pessoais de forma simples e eficiente",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#007A99",
+  "theme_color": "#00C2FF",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/app_icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/app_icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "productivity", "business"],
+  "lang": "pt-BR",
+  "dir": "ltr"
+}
+
