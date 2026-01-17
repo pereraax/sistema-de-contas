@@ -289,7 +289,18 @@ function CadastroContent() {
               </p>
             </div>
 
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form 
+            onSubmit={(e) => {
+              console.log('📝 Form onSubmit disparado')
+              handleSubmit(e).catch((error) => {
+                console.error('❌ Erro não capturado no handleSubmit:', error)
+                createNotification('Erro ao processar formulário. Tente novamente.', 'warning')
+                setLoading(false)
+              })
+            }} 
+            className="space-y-3"
+            noValidate
+          >
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Nome Completo *
