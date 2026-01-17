@@ -37,9 +37,10 @@ export default async function FacebookPixelScript() {
   return (
     <>
       {/* Inicializar fbq ANTES do script carregar (padrão oficial do Facebook) */}
+      {/* Usar strategy="lazyOnload" para não bloquear carregamento inicial */}
       <Script
         id="facebook-pixel-init"
-        strategy="afterInteractive"
+        strategy="lazyOnload"
         dangerouslySetInnerHTML={{
           __html: `
             !function(f,b,e,v,n,t,s)

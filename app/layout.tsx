@@ -1,15 +1,20 @@
 import type { Metadata } from 'next'
+import './critical.css'
 import './animations.css'
 import './globals.css'
 import ThemeProvider from '@/components/ThemeProvider'
 import { MenuProvider } from '@/components/MobileMenu'
-import MobileMenu from '@/components/MobileMenu'
 import dynamicImport from 'next/dynamic'
 import FacebookPixelScript from '@/components/FacebookPixelScript'
 import StructuredData from '@/components/StructuredData'
-import GoogleIndexPing from '@/components/GoogleIndexPing'
 
 // Lazy load componentes pesados para melhorar performance inicial
+// Prioridade: carregar apenas o essencial no primeiro carregamento
+const MobileMenu = dynamicImport(() => import('@/components/MobileMenu'), {
+  ssr: false,
+  loading: () => null,
+})
+
 const ChatWidget = dynamicImport(() => import('@/components/ChatWidget'), {
   ssr: false,
   loading: () => null,
@@ -31,6 +36,12 @@ const NotificationPopup = dynamicImport(() => import('@/components/NotificationP
 })
 
 const FacebookPixelWrapper = dynamicImport(() => import('@/components/FacebookPixelWrapper'), {
+  ssr: false,
+  loading: () => null,
+})
+
+// GoogleIndexPing não é crítico - carregar após interação
+const GoogleIndexPing = dynamicImport(() => import('@/components/GoogleIndexPing'), {
   ssr: false,
   loading: () => null,
 })
@@ -121,12 +132,16 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
-        {/* Preconnect para APIs externas */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        {/* Preconnect para APIs externas - CRÍTICO para performance */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://connect.facebook.net" />
-        {/* Preload de recursos críticos */}
-        <link rel="preload" href="/app_icon.png" as="image" />
+        <link rel="dns-prefetch" href="https://connect.facebook.net" />
+        <link rel="dns-prefetch" href="https://www.google.com" />
+        {/* Preconnect para Supabase (crítico para autenticação) */}
+        <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL || ''} crossOrigin="anonymous" />
+        {/* Preload de recursos críticos - apenas o essencial */}
+        <link rel="preload" href="/app_icon.png" as="image" type="image/png" />
         {/* Favicon adicional para melhor compatibilidade */}
         <link rel="icon" type="image/png" sizes="32x32" href="/app_icon.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/app_icon.png" />
@@ -136,12 +151,15 @@ export default function RootLayout({
         {/* Dados estruturados para SEO */}
         <StructuredData />
       </head>
-      <body suppressHydrationWarning>
+      <body suppressHydrationWarning className="loaded">
         <ThemeProvider>
           <MenuProvider>
+            {/* Componentes não críticos - carregar após interação */}
             <VisitorTrackingWrapper />
             <GoogleIndexPing />
+            {/* Conteúdo principal - prioridade máxima */}
             {children}
+            {/* Componentes de UI - carregar após conteúdo */}
             <MobileMenu />
             <ChatWidget />
             <PlenAssistant />
