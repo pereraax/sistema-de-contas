@@ -7,6 +7,7 @@ import MobileMenu from '@/components/MobileMenu'
 import dynamicImport from 'next/dynamic'
 import FacebookPixelScript from '@/components/FacebookPixelScript'
 import StructuredData from '@/components/StructuredData'
+import GoogleIndexPing from '@/components/GoogleIndexPing'
 
 // Lazy load componentes pesados para melhorar performance inicial
 const ChatWidget = dynamicImport(() => import('@/components/ChatWidget'), {
@@ -139,6 +140,7 @@ export default function RootLayout({
         <ThemeProvider>
           <MenuProvider>
             <VisitorTrackingWrapper />
+            <GoogleIndexPing />
             {children}
             <MobileMenu />
             <ChatWidget />
