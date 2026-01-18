@@ -15,6 +15,7 @@ export interface UserProfile {
 }
 
 // Função helper para obter a URL correta do site
+// IMPORTANTE: Para links de email, SEMPRE usar URL de produção, nunca localhost
 // Deve ser async porque está em arquivo com 'use server'
 export async function getSiteUrl(): Promise<string> {
   console.log('🔍 [getSiteUrl] Detectando URL do site...')
@@ -24,14 +25,15 @@ export async function getSiteUrl(): Promise<string> {
   console.log('🔍 [getSiteUrl] VERCEL_URL:', process.env.VERCEL_URL || 'NÃO CONFIGURADO')
   
   // 1. Tentar usar variável de ambiente (prioridade máxima)
+  // IMPORTANTE: Se contém localhost, ignorar - links de email nunca devem usar localhost
   if (process.env.NEXT_PUBLIC_SITE_URL) {
     const url = process.env.NEXT_PUBLIC_SITE_URL.trim()
-    // Garantir que não seja localhost em produção
+    // NUNCA usar localhost para links de email (mesmo em desenvolvimento)
     if (url && !url.includes('localhost') && !url.includes('127.0.0.1')) {
       console.log('✅ [getSiteUrl] Usando NEXT_PUBLIC_SITE_URL:', url)
       return url
     } else {
-      console.log('⚠️ [getSiteUrl] NEXT_PUBLIC_SITE_URL contém localhost, ignorando em produção')
+      console.log('⚠️ [getSiteUrl] NEXT_PUBLIC_SITE_URL contém localhost, ignorando (links de email devem usar produção)')
     }
   }
   
@@ -58,19 +60,13 @@ export async function getSiteUrl(): Promise<string> {
     return url
   }
   
-  // 5. Verificar se está em produção e usar URL padrão
-  if (process.env.NODE_ENV === 'production') {
-    // Em produção, nunca usar localhost
-    // Usar URL padrão de produção
-    const productionUrl = 'https://plenipay.com.br'
-    console.log('✅ [getSiteUrl] Em produção, usando URL padrão:', productionUrl)
-    return productionUrl
-  }
-  
-  // 6. Em desenvolvimento, usar localhost
-  const devUrl = 'http://localhost:3000'
-  console.log('✅ [getSiteUrl] Em desenvolvimento, usando:', devUrl)
-  return devUrl
+  // 5. SEMPRE usar URL de produção para links de email
+  // IMPORTANTE: Mesmo em desenvolvimento local, links de email devem apontar para produção
+  // porque o email será aberto em qualquer lugar, não necessariamente no localhost
+  const productionUrl = 'https://plenipay.com.br'
+  console.log('✅ [getSiteUrl] Usando URL de produção para links de email:', productionUrl)
+  console.log('ℹ️ [getSiteUrl] Nota: Links de email sempre usam produção, mesmo em desenvolvimento local')
+  return productionUrl
 }
 
 export async function signUp(email: string, password: string, nome: string, telefone: string, whatsapp: string, plano: 'teste' | 'basico' | 'premium') {
