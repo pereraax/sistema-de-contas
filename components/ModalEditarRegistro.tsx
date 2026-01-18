@@ -74,6 +74,68 @@ export default function ModalEditarRegistro({
     data_registro: '',
   })
   const [temParcelas, setTemParcelas] = useState(false)
+  
+  // Funções para formatar data DD/MM/AAAA (mais simples que calendário)
+  const formatDateToDisplay = (isoString: string) => {
+    if (!isoString) {
+      const now = new Date()
+      const dia = String(now.getDate()).padStart(2, '0')
+      const mes = String(now.getMonth() + 1).padStart(2, '0')
+      const ano = now.getFullYear()
+      return `${dia}/${mes}/${ano}`
+    }
+    const date = new Date(isoString)
+    const dia = String(date.getDate()).padStart(2, '0')
+    const mes = String(date.getMonth() + 1).padStart(2, '0')
+    const ano = date.getFullYear()
+    return `${dia}/${mes}/${ano}`
+  }
+
+  const formatTimeToDisplay = (isoString: string) => {
+    if (!isoString) return new Date().toTimeString().slice(0, 5)
+    const date = new Date(isoString)
+    return date.toTimeString().slice(0, 5)
+  }
+
+  const parseDateFromDisplay = (dateStr: string): string | null => {
+    // Aceitar formato DD/MM/AAAA
+    const match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+    if (match) {
+      const [, dia, mes, ano] = match
+      const date = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia))
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().slice(0, 10)
+      }
+    }
+    return null
+  }
+
+  const combineDateTimeToISO = (dateStr: string, time: string) => {
+    const dateISO = parseDateFromDisplay(dateStr) || new Date().toISOString().slice(0, 10)
+    if (!time) time = new Date().toTimeString().slice(0, 5)
+    return new Date(`${dateISO}T${time}`).toISOString().slice(0, 16)
+  }
+
+  const formatDateInput = (value: string) => {
+    // Remove tudo que não é número
+    const numbers = value.replace(/\D/g, '')
+    
+    // Aplica a máscara DD/MM/AAAA
+    if (numbers.length <= 2) {
+      return numbers
+    } else if (numbers.length <= 4) {
+      return `${numbers.slice(0, 2)}/${numbers.slice(2)}`
+    } else {
+      return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`
+    }
+  }
+
+  const initialDateTime = {
+    date: formatDateToDisplay(new Date().toISOString()),
+    time: formatTimeToDisplay(new Date().toISOString())
+  }
+  const [dataInput, setDataInput] = useState(initialDateTime.date)
+  const [horaInput, setHoraInput] = useState(initialDateTime.time)
 
   const categoriasPadrao = [
     { id: 'alimentacao', nome: 'Alimentação', icon: UtensilsCrossed },
@@ -159,17 +221,17 @@ export default function ModalEditarRegistro({
 
   // Cores para categorias (cada categoria tem sua própria cor)
   const categoriaColors: Record<string, string> = {
-    alimentacao: 'bg-amber-500 text-white border-amber-600 dark:bg-amber-600 dark:border-amber-700',
-    transporte: 'bg-blue-500 text-white border-blue-600 dark:bg-blue-600 dark:border-blue-700',
-    moradia: 'bg-purple-500 text-white border-purple-600 dark:bg-purple-600 dark:border-purple-700',
-    compras: 'bg-pink-500 text-white border-pink-600 dark:bg-pink-600 dark:border-pink-700',
-    saude: 'bg-red-400 text-white border-red-500 dark:bg-red-500 dark:border-red-600',
-    educacao: 'bg-indigo-500 text-white border-indigo-600 dark:bg-indigo-600 dark:border-indigo-700',
-    trabalho: 'bg-slate-500 text-white border-slate-600 dark:bg-slate-600 dark:border-slate-700',
-    entretenimento: 'bg-fuchsia-500 text-white border-fuchsia-600 dark:bg-fuchsia-600 dark:border-fuchsia-700',
-    fitness: 'bg-emerald-500 text-white border-emerald-600 dark:bg-emerald-600 dark:border-emerald-700',
-    viagem: 'bg-cyan-500 text-white border-cyan-600 dark:bg-cyan-600 dark:border-cyan-700',
-    outros: 'bg-yellow-500 text-white border-yellow-600 dark:bg-yellow-600 dark:border-yellow-700',
+    alimentacao: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800/50',
+    transporte: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800/50',
+    moradia: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800/50',
+    compras: 'bg-pink-100 text-pink-700 border-pink-200 dark:bg-pink-900/30 dark:text-pink-300 dark:border-pink-800/50',
+    saude: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800/50',
+    educacao: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800/50',
+    trabalho: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/30 dark:text-slate-300 dark:border-slate-700/50',
+    entretenimento: 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-900/30 dark:text-fuchsia-300 dark:border-fuchsia-800/50',
+    fitness: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800/50',
+    viagem: 'bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800/50',
+    outros: 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800/50',
   }
 
   // Função para extrair histórico de pagamentos da observação
@@ -280,6 +342,12 @@ export default function ModalEditarRegistro({
         valor_parcelas: valorParcelas > 0 ? formatarValorEmTempoReal(valorParcelas.toString()) : '',
         data_registro: new Date(registro.data_registro).toISOString().slice(0, 16),
       })
+      const dateTime = {
+        date: formatDateToDisplay(new Date(registro.data_registro).toISOString()),
+        time: formatTimeToDisplay(new Date(registro.data_registro).toISOString())
+      }
+      setDataInput(dateTime.date)
+      setHoraInput(dateTime.time)
       setTemParcelas(parcelasTotais > 1 || parcelasPagas > 0)
       setEtiquetas(registro.etiquetas?.filter((e: string) => !['pix', 'cartao', 'dinheiro'].includes(e)) || [])
       if (registro.user) {
@@ -307,6 +375,13 @@ export default function ModalEditarRegistro({
         valor_parcelas: '',
         data_registro: new Date().toISOString().slice(0, 16),
       })
+      const now = new Date()
+      const newDateTime = {
+        date: formatDateToDisplay(now.toISOString()),
+        time: formatTimeToDisplay(now.toISOString())
+      }
+      setDataInput(newDateTime.date)
+      setHoraInput(newDateTime.time)
       setTemParcelas(false)
       setEtiquetas([])
       setUsuarioSelecionado(null)
@@ -1073,12 +1148,30 @@ export default function ModalEditarRegistro({
             <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
               Data e hora
             </label>
-            <input
-              type="datetime-local"
-              value={formData.data_registro}
-              onChange={(e) => setFormData({ ...formData, data_registro: e.target.value })}
-              className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm"
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={dataInput}
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value)
+                  setDataInput(formatted)
+                  const isoDate = combineDateTimeToISO(formatted, horaInput)
+                  setFormData({ ...formData, data_registro: isoDate })
+                }}
+                placeholder="DD/MM/AAAA"
+                maxLength={10}
+                className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50"
+              />
+              <input
+                type="time"
+                value={horaInput}
+                onChange={(e) => {
+                  setHoraInput(e.target.value)
+                  setFormData({ ...formData, data_registro: combineDateTimeToISO(dataInput, e.target.value) })
+                }}
+                className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm"
+              />
+            </div>
           </div>
 
           </div>

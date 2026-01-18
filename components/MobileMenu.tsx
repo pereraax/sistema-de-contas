@@ -119,8 +119,8 @@ export default function MobileMenu() {
             className="fixed inset-0 bg-black/50 dark:bg-brand-midnight/50 z-40 lg:hidden animate-fade-in"
             onClick={() => setIsOpen(false)}
           />
-          <aside className="fixed left-0 top-0 h-screen w-64 bg-white dark:bg-brand-royal border-r border-gray-200 dark:border-brand-midnight shadow-lg z-40 lg:hidden animate-slide-in-from-left">
-            <div className="p-6 pt-20">
+          <aside className="fixed left-0 top-0 h-screen w-64 bg-white dark:bg-brand-royal border-r border-gray-200 dark:border-brand-midnight shadow-lg z-40 lg:hidden animate-slide-in-from-left overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="p-6 pt-20 pb-6">
               <div className="mb-8">
                 <Logo />
               </div>

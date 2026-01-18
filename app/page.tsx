@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, Target, FolderTree, BarChart3, CheckCircle2, Star, ChevronDown, Users, TrendingUp, Calendar, FileText, MessageCircle, Smartphone, ChevronLeft, ChevronRight, Bot, Monitor, Sparkles, DollarSign, Menu, X } from 'lucide-react'
+import { ArrowRight, Target, FolderTree, BarChart3, CheckCircle2, Star, ChevronDown, Users, TrendingUp, Calendar, FileText, MessageCircle, Smartphone, ChevronLeft, ChevronRight, Bot, Monitor, Sparkles, DollarSign } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import AnimateOnScroll from '@/components/AnimateOnScroll'
 
@@ -17,7 +17,6 @@ export default function LandingPage() {
   const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0)
   const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('right')
   const [isDarkMode, setIsDarkMode] = useState(false)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     setIsVisible(true)
@@ -153,7 +152,6 @@ export default function LandingPage() {
                 href="#funcionalidades"
                 onClick={(e) => {
                   e.preventDefault()
-                  setMobileMenuOpen(false)
                   document.getElementById('funcionalidades')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }}
                 className="text-sm lg:text-base text-gray-300 hover:text-[#00C2FF] transition-colors duration-300 font-medium"
@@ -164,7 +162,6 @@ export default function LandingPage() {
                 href="#como-funciona"
                 onClick={(e) => {
                   e.preventDefault()
-                  setMobileMenuOpen(false)
                   document.getElementById('como-funciona')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }}
                 className="text-sm lg:text-base text-gray-300 hover:text-[#00C2FF] transition-colors duration-300 font-medium"
@@ -175,7 +172,6 @@ export default function LandingPage() {
                 href="#planos"
                 onClick={(e) => {
                   e.preventDefault()
-                  setMobileMenuOpen(false)
                   document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }}
                 className="text-sm lg:text-base text-gray-300 hover:text-[#00C2FF] transition-colors duration-300 font-medium"
@@ -186,7 +182,6 @@ export default function LandingPage() {
                 href="#faq"
                 onClick={(e) => {
                   e.preventDefault()
-                  setMobileMenuOpen(false)
                   document.getElementById('faq')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }}
                 className="text-sm lg:text-base text-gray-300 hover:text-[#00C2FF] transition-colors duration-300 font-medium"
@@ -194,15 +189,6 @@ export default function LandingPage() {
                 FAQ
               </a>
             </nav>
-
-            {/* Botão Menu Mobile */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 text-gray-300 hover:text-[#00C2FF] transition-colors"
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
 
             {/* Botões de Ação */}
             {isAuthenticated ? (
@@ -235,57 +221,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Menu Mobile */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-[#2a2a2a] bg-[#1a1a1a]">
-            <nav className="container mx-auto px-4 py-4 flex flex-col gap-4">
-              <a
-                href="#funcionalidades"
-                onClick={(e) => {
-                  e.preventDefault()
-                  setMobileMenuOpen(false)
-                  document.getElementById('funcionalidades')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }}
-                className="text-base text-gray-300 hover:text-[#00C2FF] transition-colors duration-300 font-medium py-2"
-              >
-                Funcionalidades
-              </a>
-              <a
-                href="#como-funciona"
-                onClick={(e) => {
-                  e.preventDefault()
-                  setMobileMenuOpen(false)
-                  document.getElementById('como-funciona')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }}
-                className="text-base text-gray-300 hover:text-[#00C2FF] transition-colors duration-300 font-medium py-2"
-              >
-                Como funciona
-              </a>
-              <a
-                href="#planos"
-                onClick={(e) => {
-                  e.preventDefault()
-                  setMobileMenuOpen(false)
-                  document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }}
-                className="text-base text-gray-300 hover:text-[#00C2FF] transition-colors duration-300 font-medium py-2"
-              >
-                Planos
-              </a>
-              <a
-                href="#faq"
-                onClick={(e) => {
-                  e.preventDefault()
-                  setMobileMenuOpen(false)
-                  document.getElementById('faq')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }}
-                className="text-base text-gray-300 hover:text-[#00C2FF] transition-colors duration-300 font-medium py-2"
-              >
-                FAQ
-              </a>
-            </nav>
-          </div>
-        )}
       </header>
 
       {/* Hero Section com Imagem da Mulher */}
@@ -1145,7 +1080,11 @@ export default function LandingPage() {
                 </div>
               </div>
               <button
-                onClick={() => handleSelecionarPlano('teste')}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  router.push('/cadastro?plano=teste')
+                }}
                 className="block w-full text-center py-3 text-sm sm:text-base bg-gray-100 hover:bg-gray-200 text-[#0D1B2A] rounded-xl font-bold transition-all duration-300"
               >
                 Começar Grátis

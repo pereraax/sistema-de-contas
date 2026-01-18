@@ -5,7 +5,8 @@ import {
   Home, 
   FileText, 
   Calendar, 
-  MoreVertical
+  Menu,
+  Sparkles
 } from 'lucide-react'
 import { useMenuContext } from './MobileMenu'
 
@@ -62,18 +63,18 @@ export default function BottomNavigation() {
             onClick={() => handleNavClick('/home')}
             className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all ${
               isActive('/home')
-                ? 'bg-orange-100 dark:bg-orange-900/30'
+                ? 'bg-brand-aqua/10 dark:bg-brand-aqua/20'
                 : 'hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
             }`}
           >
             <Home 
               size={24} 
-              className={isActive('/home') ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-gray-400'} 
+              className={isActive('/home') ? 'text-brand-aqua dark:text-brand-aqua' : 'text-gray-600 dark:text-gray-400'} 
               strokeWidth={isActive('/home') ? 2.5 : 2}
             />
             <span className={`text-xs font-medium ${
               isActive('/home') 
-                ? 'text-orange-600 dark:text-orange-400' 
+                ? 'text-brand-aqua dark:text-brand-aqua' 
                 : 'text-gray-600 dark:text-gray-400'
             }`}>
               Principal
@@ -85,18 +86,18 @@ export default function BottomNavigation() {
             onClick={() => handleNavClick('/registros')}
             className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all ${
               isActive('/registros')
-                ? 'bg-orange-100 dark:bg-orange-900/30'
+                ? 'bg-brand-aqua/10 dark:bg-brand-aqua/20'
                 : 'hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
             }`}
           >
             <FileText 
               size={24} 
-              className={isActive('/registros') ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-gray-400'} 
+              className={isActive('/registros') ? 'text-brand-aqua dark:text-brand-aqua' : 'text-gray-600 dark:text-gray-400'} 
               strokeWidth={isActive('/registros') ? 2.5 : 2}
             />
             <span className={`text-xs font-medium ${
               isActive('/registros') 
-                ? 'text-orange-600 dark:text-orange-400' 
+                ? 'text-brand-aqua dark:text-brand-aqua' 
                 : 'text-gray-600 dark:text-gray-400'
             }`}>
               Transações
@@ -106,24 +107,34 @@ export default function BottomNavigation() {
           {/* Botão PLEN (Central) */}
           <button
             onClick={openPlenAssistant}
-            className="flex items-center justify-center w-14 h-14 bg-gradient-to-br from-[#00C2FF] to-[#0099CC] rounded-full shadow-lg hover:shadow-xl transition-all transform hover:scale-110 active:scale-95 -mt-6 relative"
+            className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-[#00C2FF] to-[#0099CC] rounded-full shadow-lg hover:shadow-xl transition-all transform hover:scale-110 active:scale-95 overflow-hidden animate-plen-glow"
             aria-label="Abrir PLEN Assistant"
             data-plen-bottom-button
           >
-            <svg 
-              width="24" 
-              height="24" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="white" 
-              strokeWidth="2.5" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            >
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
+            {/* Efeito de brilho sobreposto - shimmer */}
+            <div 
+              className="absolute inset-0 rounded-full pointer-events-none"
+              style={{
+                background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.5) 50%, transparent 100%)',
+                backgroundSize: '200% 100%',
+                animation: 'plenShine 3s ease-in-out infinite',
+              }}
+            ></div>
+            
+            {/* Ícone com rotação suave */}
+            <div className="relative z-10">
+              <Sparkles 
+                size={24} 
+                strokeWidth={2.5} 
+                className="text-white"
+                style={{ 
+                  animation: 'plenRotate 8s linear infinite',
+                  filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.6))'
+                }}
+              />
+            </div>
             {/* Indicador de notificação (se houver) */}
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-brand-royal"></span>
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-brand-royal z-20"></span>
           </button>
 
           {/* Calendário */}
@@ -131,18 +142,18 @@ export default function BottomNavigation() {
             onClick={() => handleNavClick('/calendario')}
             className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all ${
               isActive('/calendario')
-                ? 'bg-orange-100 dark:bg-orange-900/30'
+                ? 'bg-brand-aqua/10 dark:bg-brand-aqua/20'
                 : 'hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
             }`}
           >
             <Calendar 
               size={24} 
-              className={isActive('/calendario') ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-gray-400'} 
+              className={isActive('/calendario') ? 'text-brand-aqua dark:text-brand-aqua' : 'text-gray-600 dark:text-gray-400'} 
               strokeWidth={isActive('/calendario') ? 2.5 : 2}
             />
             <span className={`text-xs font-medium ${
               isActive('/calendario') 
-                ? 'text-orange-600 dark:text-orange-400' 
+                ? 'text-brand-aqua dark:text-brand-aqua' 
                 : 'text-gray-600 dark:text-gray-400'
             }`}>
               Calendário
@@ -160,11 +171,11 @@ export default function BottomNavigation() {
               pathname?.startsWith('/categorias') || 
               pathname?.startsWith('/tutoriais') || 
               pathname?.startsWith('/configuracoes')
-                ? 'bg-orange-100 dark:bg-orange-900/30'
+                ? 'bg-brand-aqua/10 dark:bg-brand-aqua/20'
                 : 'hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
             }`}
           >
-            <MoreVertical 
+            <Menu 
               size={24} 
               className={
                 pathname?.startsWith('/dividas') || 
@@ -174,7 +185,7 @@ export default function BottomNavigation() {
                 pathname?.startsWith('/categorias') || 
                 pathname?.startsWith('/tutoriais') || 
                 pathname?.startsWith('/configuracoes')
-                  ? 'text-orange-600 dark:text-orange-400' 
+                  ? 'text-brand-aqua dark:text-brand-aqua' 
                   : 'text-gray-600 dark:text-gray-400'
               } 
               strokeWidth={
@@ -197,7 +208,7 @@ export default function BottomNavigation() {
               pathname?.startsWith('/categorias') || 
               pathname?.startsWith('/tutoriais') || 
               pathname?.startsWith('/configuracoes')
-                ? 'text-orange-600 dark:text-orange-400' 
+                ? 'text-brand-aqua dark:text-brand-aqua' 
                 : 'text-gray-600 dark:text-gray-400'
             }`}>
               Mais

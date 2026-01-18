@@ -20,7 +20,7 @@ import { useState, useEffect } from 'react'
 import { useFiltroData } from './FiltroRapidoDataWrapper'
 import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight } from 'lucide-react'
 
-export default function ReceitasDespesasDonut() {
+export default function ReceitasDespesasDonut({ hideTitle = false }: { hideTitle?: boolean }) {
   const { dataInicio, dataFim } = useFiltroData()
   const [stats, setStats] = useState<{
     totalEntradas: number
@@ -121,46 +121,48 @@ export default function ReceitasDespesasDonut() {
 
   return (
     <div className="bg-gradient-to-br from-white to-gray-50 dark:from-brand-royal dark:to-brand-midnight rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-white/10 hover:shadow-xl transition-all duration-300">
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-brand-clean">
-            Receitas x Despesas
-          </h2>
-          <div className="flex items-center gap-2">
-            {saldoAtual >= 0 ? (
-              <TrendingUp className="text-green-500" size={20} />
-            ) : (
-              <TrendingDown className="text-red-500" size={20} />
-            )}
-            {/* Botões de navegação */}
-            <div className="flex items-center gap-1 bg-gray-100 dark:bg-brand-midnight/50 rounded-lg p-1">
-              <button
-                onClick={() => setViewMode('donut')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
-                  viewMode === 'donut'
-                    ? 'bg-brand-aqua text-white shadow-md'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-brand-midnight'
-                }`}
-              >
-                Donut
-              </button>
-              <button
-                onClick={() => setViewMode('bar')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
-                  viewMode === 'bar'
-                    ? 'bg-brand-aqua text-white shadow-md'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-brand-midnight'
-                }`}
-              >
-                Comparativo
-              </button>
+      {!hideTitle && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-brand-clean">
+              Receitas x Despesas
+            </h2>
+            <div className="flex items-center gap-2">
+              {saldoAtual >= 0 ? (
+                <TrendingUp className="text-green-500" size={20} />
+              ) : (
+                <TrendingDown className="text-red-500" size={20} />
+              )}
+              {/* Botões de navegação */}
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-brand-midnight/50 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('donut')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
+                    viewMode === 'donut'
+                      ? 'bg-brand-aqua text-white shadow-md'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-brand-midnight'
+                  }`}
+                >
+                  Donut
+                </button>
+                <button
+                  onClick={() => setViewMode('bar')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
+                    viewMode === 'bar'
+                      ? 'bg-brand-aqua text-white shadow-md'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-brand-midnight'
+                  }`}
+                >
+                  Comparativo
+                </button>
+              </div>
             </div>
           </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {periodoTexto}
+          </p>
         </div>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          {periodoTexto}
-        </p>
-      </div>
+      )}
 
       {/* Conteúdo baseado no modo de visualização */}
       {viewMode === 'donut' ? (

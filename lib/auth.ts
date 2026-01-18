@@ -55,17 +55,24 @@ export async function signUp(email: string, password: string, nome: string, tele
     console.log('   - Session criada:', !!authData?.session)
     console.log('   - Erro:', authError?.message || 'Nenhum')
     
-    // IMPORTANTE: Se não houver erro mas também não houver session,
-    // significa que o email foi enviado (Supabase não cria session até confirmar email)
-    if (authData?.user && !authData?.session && !authData?.user?.email_confirmed_at) {
-      console.log('✅ Email de confirmação DEVE ter sido enviado (sem session = aguardando confirmação)')
-    } else if (authData?.user && authData?.session) {
-      console.log('⚠️ ATENÇÃO: Session foi criada - email pode não ter sido enviado ou já estava confirmado')
-    }
-    
+    // Verificar se há erro PRIMEIRO
+    let teveErroEmail = false
     if (authError) {
-      console.error('❌ Erro ao criar conta:', authError)
-      return { error: authError.message || 'Erro ao criar conta' }
+      const errorMsg = authError.message.toLowerCase()
+      const isEmailError = errorMsg.includes('email') || errorMsg.includes('sending') || errorMsg.includes('confirmation')
+      
+      // Se o usuário foi criado mas houve erro no envio de email
+      if (authData?.user && isEmailError) {
+        console.warn('⚠️ Usuário criado mas erro ao enviar email:', authError.message)
+        console.log('🔄 Processando normalmente - email será enviado via Admin API...')
+        teveErroEmail = true
+        // IMPORTANTE: Continuar processamento normalmente mesmo com erro de email
+        // O email será enviado via Admin API depois
+      } else {
+        // Outros erros (não relacionados a email) - erro real
+        console.error('❌ Erro ao criar conta:', authError)
+        return { error: authError.message || 'Erro ao criar conta' }
+      }
     }
     
     if (!authData.user) {
@@ -73,11 +80,123 @@ export async function signUp(email: string, password: string, nome: string, tele
       return { error: 'Erro ao criar usuário. Tente novamente.' }
     }
     
+    // Se chegou aqui, usuário foi criado com sucesso
+    // Sempre tentar garantir que o email seja enviado usando Admin API diretamente
+    // Verificar se precisa confirmar email (não tem session e não está confirmado)
+    const precisaConfirmarEmail = !authData.session && !authData.user.email_confirmed_at
+    
+    // IMPORTANTE: Se não houver erro mas também não houver session,
+    // significa que o email foi enviado (Supabase não cria session até confirmar email)
+    if (authData.user && !authData.session && !authData.user.email_confirmed_at) {
+      console.log('✅ Email de confirmação DEVE ter sido enviado pelo Supabase (sem session = aguardando confirmação)')
+      console.log('✅ Mas vamos garantir enviando via Admin API também...')
+    } else if (authData.user && authData.session) {
+      console.log('⚠️ ATENÇÃO: Session foi criada - email pode não ter sido enviado ou já estava confirmado')
+      console.log('⚠️ Se session foi criada sem confirmação, pode haver problema na configuração')
+    }
+    
+    // SEMPRE tentar enviar via Admin API se precisa confirmar OU teve erro de email
+    if (precisaConfirmarEmail || teveErroEmail) {
+      console.log('📧 ========== TENTANDO GARANTIR ENVIO DE EMAIL ==========')
+      console.log('   - Precisa confirmar email:', precisaConfirmarEmail)
+      console.log('   - Teve erro de email:', teveErroEmail)
+      console.log('   - User ID:', authData.user.id)
+      
+      try {
+        // Verificar se SERVICE_ROLE_KEY está configurada
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        if (!serviceRoleKey) {
+          console.error('❌ CRÍTICO: SUPABASE_SERVICE_ROLE_KEY não está configurada!')
+          console.error('❌ Não é possível enviar email via Admin API sem a Service Role Key')
+          console.error('❌ Configure SUPABASE_SERVICE_ROLE_KEY nas variáveis de ambiente')
+        } else {
+          console.log('✅ SUPABASE_SERVICE_ROLE_KEY encontrada (primeiros 10 chars):', serviceRoleKey.substring(0, 10) + '...')
+        }
+        
+        // Usar Admin API diretamente em vez de fetch para garantir que funcione
+        const { createAdminClient } = await import('./supabase/server')
+        const supabaseAdmin = createAdminClient()
+        
+        if (!supabaseAdmin) {
+          console.error('❌ ERRO: createAdminClient retornou null!')
+          console.error('❌ Verifique se SUPABASE_SERVICE_ROLE_KEY está configurada corretamente')
+          console.error('❌ Email NÃO será enviado via Admin API')
+        } else {
+          console.log('✅ Admin client criado com sucesso')
+          
+          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+          const redirectTo = `${siteUrl}/auth/callback?next=/home`
+          
+          console.log('🔗 Configurações do envio:')
+          console.log('   - Site URL:', siteUrl)
+          console.log('   - Redirect To:', redirectTo)
+          console.log('   - Email destinatário:', email)
+          
+          console.log('📤 Chamando inviteUserByEmail...')
+          
+          // Usar inviteUserByEmail que sempre envia email
+          const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+            email,
+            {
+              redirectTo: redirectTo,
+              data: {
+                nome,
+                telefone,
+                whatsapp,
+                plano,
+                email,
+              }
+            }
+          )
+          
+          console.log('📬 Resultado do inviteUserByEmail:')
+          console.log('   - Tem dados:', !!inviteData)
+          console.log('   - Tem erro:', !!inviteError)
+          
+          if (inviteError) {
+            console.error('❌ Erro ao enviar via inviteUserByEmail:')
+            console.error('   - Mensagem:', inviteError.message)
+            console.error('   - Status:', inviteError.status)
+            console.error('   - Erro completo:', JSON.stringify(inviteError, null, 2))
+            
+            const errorMsg = inviteError.message.toLowerCase()
+            // Se for erro de "already exists", o email ainda pode ter sido enviado
+            if (errorMsg.includes('already exists') || errorMsg.includes('already registered')) {
+              console.log('✅ Email pode ter sido enviado (usuário já existe é esperado)')
+              console.log('✅ Isso é normal - usuário foi criado pelo signUp, então já existe')
+            } else {
+              console.error('❌ Erro diferente - email provavelmente NÃO foi enviado')
+              console.error('❌ Verifique os logs do Supabase Dashboard')
+              console.error('❌ Usuário precisará usar o botão "Reenviar link" no modal')
+            }
+          } else {
+            console.log('✅✅✅ SUCESSO! Email de confirmação enviado via inviteUserByEmail!')
+            console.log('✅ Dados retornados:', JSON.stringify(inviteData, null, 2))
+          }
+        }
+      } catch (apiError: any) {
+        console.error('❌❌❌ ERRO INESPERADO ao enviar email via Admin API:')
+        console.error('   - Mensagem:', apiError.message)
+        console.error('   - Stack:', apiError.stack)
+        console.error('   - Erro completo:', JSON.stringify(apiError, null, 2))
+        console.error('⚠️ Continuando mesmo assim - usuário pode usar botão no modal')
+      }
+      
+      console.log('📧 ========== FIM DA TENTATIVA DE ENVIO ==========')
+    } else {
+      console.log('⚠️ NÃO tentando enviar email via Admin API:')
+      console.log('   - precisaConfirmarEmail:', precisaConfirmarEmail)
+      console.log('   - teveErroEmail:', teveErroEmail)
+    }
+    
     console.log('✅ Usuário criado com sucesso via signUp normal')
-    console.log('📧 Email de confirmação foi enviado automaticamente pelo Supabase')
     console.log('📧 Email do usuário:', email)
     console.log('📧 User ID:', authData.user.id)
     console.log('📧 Email confirmado?', authData.user.email_confirmed_at ? 'SIM' : 'NÃO')
+    
+    // Sempre tentar garantir envio de email via API quando precisa confirmar
+    // Isso garante que mesmo se o Supabase não enviar, nossa API tenta
+    
     console.log('⚠️ IMPORTANTE: Se o email não chegar, verifique:')
     console.log('   1. SMTP configurado no Supabase Dashboard')
     console.log('   2. Template de email configurado com {{ .ConfirmationURL }}')
@@ -138,10 +257,10 @@ export async function signUp(email: string, password: string, nome: string, tele
     // Verificar se o email foi confirmado (NÃO deve estar confirmado - usuário precisa verificar primeiro)
     const emailConfirmado = authData.user.email_confirmed_at !== null
     
-    console.log('✅ Usuário criado com sucesso!')
+    console.log('✅✅✅ Usuário criado com sucesso!')
     console.log('📧 Email:', authData.user.email)
     console.log('✅ Email confirmado:', emailConfirmado ? 'SIM' : 'NÃO')
-    console.log('📬 Email de confirmação foi enviado automaticamente')
+    console.log('📬 Email de confirmação:', teveErroEmail ? 'Tentado enviar via Admin API' : 'Pode ter sido enviado pelo Supabase')
     console.log('🔒 Usuário precisa verificar email ANTES de fazer login')
     
     // NÃO criar sessão - usuário precisa verificar email primeiro
@@ -150,7 +269,14 @@ export async function signUp(email: string, password: string, nome: string, tele
       session: null
     }
     
-    return { data: authDataFinal, emailConfirmado }
+    // IMPORTANTE: Mesmo se teve erro de email, retornar dados se o usuário foi criado
+    // O email será enviado via Admin API ou o usuário pode usar o botão de reenvio
+    console.log('📤 Retornando dados para o frontend...')
+    console.log('   - Tem data:', !!authDataFinal)
+    console.log('   - Email confirmado:', emailConfirmado)
+    console.log('   - Teve erro de email:', teveErroEmail)
+    
+    return { data: authDataFinal, emailConfirmado, teveErroEmail: teveErroEmail }
   } catch (error: any) {
     console.error('Erro inesperado no signUp:', error)
     return { error: error.message || 'Erro inesperado ao criar conta' }

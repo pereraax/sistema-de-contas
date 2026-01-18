@@ -7,6 +7,7 @@ import NotificationBell from '@/components/NotificationBell'
 import UserProfileMenu from '@/components/UserProfileMenu'
 import Logo from '@/components/Logo'
 import FiltroRapidoDataWrapper, { FiltroDataProvider } from '@/components/FiltroRapidoDataWrapper'
+import HomeLayoutNovo from '@/components/HomeLayoutNovo'
 import { Suspense } from 'react'
 import dynamicImport from 'next/dynamic'
 
@@ -58,20 +59,6 @@ export default async function HomePage() {
             </div>
           </div>
 
-          {/* Header com notificações */}
-          <div className="flex items-center justify-between gap-4 mb-4 sm:mb-6">
-            <div className="flex items-center gap-3">
-              <MenuButton />
-              <h1 className="text-2xl sm:text-3xl font-display font-bold text-brand-midnight dark:text-brand-clean leading-none">
-                Home
-              </h1>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-3">
-              <NotificationBell />
-              <UserProfileMenu />
-            </div>
-          </div>
-
           {/* Avisos Administrativos (Popup) */}
           <AvisosAdmin />
 
@@ -81,16 +68,11 @@ export default async function HomePage() {
           {/* Popup de sucesso quando email é confirmado */}
           <EmailConfirmadoSucessoWrapper />
 
-          {/* Dashboard Horizontal - ATUALIZA AUTOMATICAMENTE A CADA 10 SEGUNDOS */}
-          <DashboardHorizontalWrapper />
-
-          {/* Gráfico de Donut - Receitas x Despesas */}
-          <div className="mb-6">
-            <ReceitasDespesasDonut />
-          </div>
+          {/* Novo Layout da Home */}
+          <HomeLayoutNovo />
 
           {/* Conteúdo Principal - Cards de Ação Rápida */}
-          <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex flex-col lg:flex-row gap-6 lg:mt-4">
             {/* Coluna Esquerda - Ações Rápidas */}
             <div className="flex-1 lg:w-2/3 space-y-6 sm:space-y-8 md:space-y-10">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 items-stretch">

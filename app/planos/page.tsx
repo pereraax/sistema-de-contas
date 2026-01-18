@@ -297,7 +297,11 @@ export default function PlanosPage() {
               </div>
             </div>
             <button
-              onClick={() => handleSelecionarPlano('teste')}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                router.push('/cadastro?plano=teste')
+              }}
               disabled={loadingCheckout === 'teste'}
               className="w-full text-center py-3 text-sm sm:text-base bg-gray-100 hover:bg-gray-200 text-[#0D1B2A] rounded-xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >

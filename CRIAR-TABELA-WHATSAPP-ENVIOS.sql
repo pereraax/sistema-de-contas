@@ -26,3 +26,5 @@ CREATE POLICY "Sistema pode inserir envios"
   FOR INSERT
   WITH CHECK (true);
 
+
+

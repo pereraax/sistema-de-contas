@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@/lib/types'
 import { obterUsuarios, criarUsuario, resetarTodosRegistros, atualizarImagemPerfilUsuario } from '@/lib/actions'
-import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown, Download, Smartphone, Share2, ArrowRight, Lightbulb, Copy, Check, Camera } from 'lucide-react'
+import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown, Download, Smartphone, Share2, ArrowRight, Lightbulb, Copy, Check, Camera, Star } from 'lucide-react'
 import { createNotification } from './NotificationBell'
 import { atualizarSenha, reenviarEmailConfirmacao, signOut, limparBypassEmailConfirmacao } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/client'
@@ -37,8 +37,9 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
   const [touchEnd, setTouchEnd] = useState<number | null>(null)
   
   // Estados para perfil
+  // Se tiver initialProfileData, começar sem loading para mostrar imediatamente
   const [userProfile, setUserProfile] = useState<any>(null)
-  const [loadingProfile, setLoadingProfile] = useState(true)
+  const [loadingProfile, setLoadingProfile] = useState(!initialProfileData)
   const [showRedefinirSenha, setShowRedefinirSenha] = useState(false)
   const [senhaAtual, setSenhaAtual] = useState('')
   const [novaSenha, setNovaSenha] = useState('')
@@ -72,9 +73,9 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
   const [showWhatsappKey, setShowWhatsappKey] = useState(false)
   const [copiedKey, setCopiedKey] = useState(false)
 
-  // Inicializar dados do perfil se fornecidos pelo servidor (apenas uma vez)
+  // Inicializar dados do perfil se fornecidos pelo servidor IMEDIATAMENTE (antes de qualquer loading)
   useEffect(() => {
-    if (initialProfileData && !userProfile && !loadingProfile) {
+    if (initialProfileData) {
       const { user, profile, whatsappKey } = initialProfileData
       
       // Montar estrutura de userProfile
@@ -118,15 +119,16 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
       setTabAtivo('perfil') // Padrão agora é Perfil ao invés de Geral
     }
     carregarUsuarios()
-    // Carregar perfil apenas se não houver dados iniciais e estiver na aba de perfil
-    if (tab === 'perfil' && !userProfile?.error && !initialProfileData) {
+    // NUNCA carregar perfil se já tiver initialProfileData do servidor
+    // Carregar perfil apenas se não houver dados iniciais E não houver userProfile
+    if (tab === 'perfil' && !initialProfileData && !userProfile && !userProfile?.error) {
       carregarPerfil()
     }
-    // Carregar chave WhatsApp apenas se não foi fornecida pelo servidor
-    if (tab === 'perfil' && !initialProfileData?.whatsappKey) {
+    // Carregar chave WhatsApp apenas se não foi fornecida pelo servidor e não existir
+    if (tab === 'perfil' && !initialProfileData?.whatsappKey && !whatsappKey) {
       carregarWhatsappKey()
     }
-  }, [searchParams, userProfile?.error, initialProfileData])
+  }, [searchParams, initialProfileData])
   
   // Função para carregar chave WhatsApp
   const carregarWhatsappKey = async () => {
@@ -193,15 +195,14 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
   }, [tabAtivo, carregandoPerfil, loadingProfile])
 
   // Recarregar perfil quando a aba de perfil for ativada
-  // CRÍTICO: Não incluir userProfile nas dependências para evitar loop infinito
-  // NÃO recarregar se já houver erro de sessão
+  // CRÍTICO: NÃO recarregar se já tiver initialProfileData do servidor
   useEffect(() => {
-    if (tabAtivo === 'perfil' && !userProfile && !loadingProfile && !carregandoPerfil) {
-      console.log('🔄 Recarregando perfil porque está na aba perfil e não há userProfile')
+    if (tabAtivo === 'perfil' && !initialProfileData && !userProfile && !loadingProfile && !carregandoPerfil) {
+      console.log('🔄 Recarregando perfil porque está na aba perfil e não há userProfile nem initialProfileData')
       carregarPerfil()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabAtivo]) // Apenas tabAtivo como dependência
+  }, [tabAtivo, initialProfileData]) // Adicionar initialProfileData para evitar recarregamento
 
   // Debug: monitorar mudanças no userProfile
   useEffect(() => {
@@ -1787,7 +1788,12 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                         </div>
                       )}
                       <div>
-                        <p className="font-medium text-brand-midnight dark:text-brand-clean">{user.nome}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium text-brand-midnight dark:text-brand-clean">{user.nome}</p>
+                          {userProfile?.id === user.id && (
+                            <Star size={14} className="text-yellow-500 fill-yellow-500" strokeWidth={2.5} />
+                          )}
+                        </div>
                         <p className="text-xs text-brand-midnight dark:text-brand-clean/50">
                           Criado em {new Date(user.created_at).toLocaleDateString('pt-BR')}
                         </p>

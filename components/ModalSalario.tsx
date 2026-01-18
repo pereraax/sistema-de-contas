@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { criarRegistro, obterUsuarios } from '@/lib/actions'
 import { User } from '@/lib/types'
 import { X, Plus, User as UserIcon, CreditCard, Wallet, Smartphone } from 'lucide-react'
@@ -21,6 +21,7 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
   const [usuarios, setUsuarios] = useState<User[]>([])
   const [showModalUsuario, setShowModalUsuario] = useState(false)
   const [usuarioSelecionado, setUsuarioSelecionado] = useState<User | null>(null)
+  const usuarioButtonRef = useRef<HTMLButtonElement>(null)
   const [planoAtual, setPlanoAtual] = useState<'teste' | 'basico' | 'premium'>('teste')
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
 
@@ -138,11 +139,12 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
             </div>
           </div>
 
-          <div>
+          <div className="relative">
             <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
               Usuário
             </label>
             <button
+              ref={usuarioButtonRef}
               type="button"
               onClick={() => setShowModalUsuario(true)}
               className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 focus:outline-none focus:border-brand-aqua transition-smooth flex items-center justify-between text-left"
@@ -166,6 +168,18 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
               </div>
               <Plus size={18} className="text-brand-aqua" />
             </button>
+            
+            {/* Dropdown de seleção de usuário */}
+            <ModalSelecionarUsuario
+              isOpen={showModalUsuario}
+              onClose={() => setShowModalUsuario(false)}
+              onSelect={(user) => {
+                setUsuarioSelecionado(user)
+                setFormData({ ...formData, user_id: user.id })
+              }}
+              selectedUserId={formData.user_id}
+              buttonRef={usuarioButtonRef}
+            />
           </div>
 
           <div>
@@ -246,16 +260,6 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
           </div>
         </form>
       </div>
-
-      <ModalSelecionarUsuario
-        isOpen={showModalUsuario}
-        onClose={() => setShowModalUsuario(false)}
-        onSelect={(user) => {
-          setUsuarioSelecionado(user)
-          setFormData({ ...formData, user_id: user.id })
-        }}
-        selectedUserId={formData.user_id}
-      />
     </div>
   )
 }
