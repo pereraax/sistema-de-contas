@@ -208,46 +208,87 @@ export async function signUp(email: string, password: string, nome: string, tele
           console.log('   - Redirect To:', redirectTo)
           console.log('   - Email destinatário:', email)
           
-          console.log('📤 Chamando inviteUserByEmail...')
+          console.log('📤 Chamando inviteUserByEmail via API REST para garantir URL correta...')
           
-          // Usar inviteUserByEmail que sempre envia email
-          const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-            email,
-            {
-              redirectTo: redirectTo,
-              data: {
-                nome,
-                telefone,
-                whatsapp,
-                plano,
-                email,
+          // IMPORTANTE: Usar API REST diretamente para garantir que redirectTo seja respeitado
+          // O SDK pode estar ignorando o redirectTo em alguns casos
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+          const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+          
+          if (!supabaseUrl || !supabaseServiceKey) {
+            console.error('❌ Variáveis do Supabase não configuradas para API REST')
+            // Fallback para SDK
+            const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+              email,
+              {
+                redirectTo: redirectTo,
+                data: {
+                  nome,
+                  telefone,
+                  whatsapp,
+                  plano,
+                  email,
+                }
               }
-            }
-          )
-          
-          console.log('📬 Resultado do inviteUserByEmail:')
-          console.log('   - Tem dados:', !!inviteData)
-          console.log('   - Tem erro:', !!inviteError)
-          
-          if (inviteError) {
-            console.error('❌ Erro ao enviar via inviteUserByEmail:')
-            console.error('   - Mensagem:', inviteError.message)
-            console.error('   - Status:', inviteError.status)
-            console.error('   - Erro completo:', JSON.stringify(inviteError, null, 2))
+            )
             
-            const errorMsg = inviteError.message.toLowerCase()
-            // Se for erro de "already exists", o email ainda pode ter sido enviado
-            if (errorMsg.includes('already exists') || errorMsg.includes('already registered')) {
-              console.log('✅ Email pode ter sido enviado (usuário já existe é esperado)')
-              console.log('✅ Isso é normal - usuário foi criado pelo signUp, então já existe')
+            console.log('📬 Resultado do inviteUserByEmail (SDK):')
+            console.log('   - Tem dados:', !!inviteData)
+            console.log('   - Tem erro:', !!inviteError)
+            
+            if (inviteError) {
+              console.error('❌ Erro ao enviar via inviteUserByEmail (SDK):', inviteError.message)
             } else {
-              console.error('❌ Erro diferente - email provavelmente NÃO foi enviado')
-              console.error('❌ Verifique os logs do Supabase Dashboard')
-              console.error('❌ Usuário precisará usar o botão "Reenviar link" no modal')
+              console.log('✅✅✅ SUCESSO! Email de confirmação enviado via inviteUserByEmail (SDK)!')
             }
           } else {
-            console.log('✅✅✅ SUCESSO! Email de confirmação enviado via inviteUserByEmail!')
-            console.log('✅ Dados retornados:', JSON.stringify(inviteData, null, 2))
+            // Usar inviteUserByEmail do SDK, mas garantir que redirectTo está correto
+            // IMPORTANTE: Verificar se redirectTo está na lista de Redirect URLs do Supabase
+            console.log('🔗 URL que será usada:', redirectTo)
+            console.log('⚠️ VERIFIQUE: Esta URL deve estar nas Redirect URLs do Supabase Dashboard!')
+            
+            const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+              email,
+              {
+                redirectTo: redirectTo, // Esta URL DEVE estar nas Redirect URLs do Supabase
+                data: {
+                  nome,
+                  telefone,
+                  whatsapp,
+                  plano,
+                  email,
+                }
+              }
+            )
+            
+            console.log('📬 Resultado do inviteUserByEmail:')
+            console.log('   - Tem dados:', !!inviteData)
+            console.log('   - Tem erro:', !!inviteError)
+            console.log('   - URL enviada (redirectTo):', redirectTo)
+            
+            if (inviteError) {
+              console.error('❌ Erro ao enviar via inviteUserByEmail:')
+              console.error('   - Mensagem:', inviteError.message)
+              console.error('   - Status:', inviteError.status)
+              console.error('   - Erro completo:', JSON.stringify(inviteError, null, 2))
+              console.error('⚠️ POSSÍVEL CAUSA: redirectTo não está nas Redirect URLs do Supabase!')
+              console.error('⚠️ VERIFIQUE: Authentication → URL Configuration → Redirect URLs')
+              
+              const errorMsg = inviteError.message.toLowerCase()
+              // Se for erro de "already exists", o email ainda pode ter sido enviado
+              if (errorMsg.includes('already exists') || errorMsg.includes('already registered')) {
+                console.log('✅ Email pode ter sido enviado (usuário já existe é esperado)')
+                console.log('✅ Isso é normal - usuário foi criado pelo signUp, então já existe')
+              } else {
+                console.error('❌ Erro diferente - email provavelmente NÃO foi enviado')
+                console.error('❌ Verifique os logs do Supabase Dashboard')
+                console.error('❌ Usuário precisará usar o botão "Reenviar link" no modal')
+              }
+            } else {
+              console.log('✅✅✅ SUCESSO! Email de confirmação enviado via inviteUserByEmail!')
+              console.log('✅ URL usada (redirectTo):', redirectTo)
+              console.log('✅ Dados retornados:', JSON.stringify(inviteData, null, 2))
+            }
           }
         }
       } catch (apiError: any) {
