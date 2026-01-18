@@ -90,7 +90,8 @@ export async function POST(request: NextRequest) {
     await new Promise(resolve => setTimeout(resolve, 3000))
     
     // PASSO 2: Configurar URL de redirecionamento
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const { getSiteUrl } = await import('@/lib/auth')
+    const siteUrl = getSiteUrl()
     const redirectTo = `${siteUrl}/auth/callback?next=/home`
     console.log('🔗 URL de redirecionamento:', redirectTo)
     

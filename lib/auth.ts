@@ -14,11 +14,55 @@ export interface UserProfile {
   created_at: string
 }
 
+// Função helper para obter a URL correta do site
+export function getSiteUrl(): string {
+  // 1. Tentar usar variável de ambiente (prioridade máxima)
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    const url = process.env.NEXT_PUBLIC_SITE_URL.trim()
+    // Garantir que não seja localhost em produção
+    if (url && !url.includes('localhost') && !url.includes('127.0.0.1')) {
+      return url
+    }
+  }
+  
+  // 2. Tentar usar RENDER_EXTERNAL_URL (se estiver no Render)
+  if (process.env.RENDER_EXTERNAL_URL) {
+    const url = process.env.RENDER_EXTERNAL_URL.trim()
+    if (url && !url.includes('localhost')) {
+      return url
+    }
+  }
+  
+  // 3. Tentar usar VERCEL_URL (se estiver no Vercel)
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`
+  }
+  
+  // 4. Tentar usar RAILWAY_PUBLIC_DOMAIN (se estiver no Railway)
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+  }
+  
+  // 5. Verificar se está em produção e usar URL padrão
+  if (process.env.NODE_ENV === 'production') {
+    // Em produção, nunca usar localhost
+    // Usar URL padrão de produção
+    return 'https://plenipay.com.br'
+  }
+  
+  // 6. Em desenvolvimento, usar localhost
+  return 'http://localhost:3000'
+}
+
 export async function signUp(email: string, password: string, nome: string, telefone: string, whatsapp: string, plano: 'teste' | 'basico' | 'premium') {
   try {
     const supabase = await createClient()
     
     console.log('📝 Criando conta usando signUp normal do Supabase (envia email automaticamente)...')
+    
+    // Obter URL correta do site
+    const siteUrl = getSiteUrl()
+    const redirectUrl = `${siteUrl}/auth/callback?next=/home`
     
     // USAR SIGNUP NORMAL DO SUPABASE - ENVIA EMAIL AUTOMATICAMENTE
     // IMPORTANTE: O Supabase só envia email se:
@@ -26,7 +70,8 @@ export async function signUp(email: string, password: string, nome: string, tele
     // 2. SMTP estiver configurado (ou usar SMTP padrão)
     // 3. Template de email estiver configurado
     console.log('📧 Configurações de email:')
-    console.log('   - emailRedirectTo:', `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback?next=/home`)
+    console.log('   - Site URL:', siteUrl)
+    console.log('   - emailRedirectTo:', redirectUrl)
     console.log('   - Email:', email)
     
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -40,7 +85,7 @@ export async function signUp(email: string, password: string, nome: string, tele
           plano,
           email,
         },
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback?next=/home`,
+        emailRedirectTo: redirectUrl,
       }
     })
     
@@ -124,7 +169,7 @@ export async function signUp(email: string, password: string, nome: string, tele
         } else {
           console.log('✅ Admin client criado com sucesso')
           
-          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+          const siteUrl = getSiteUrl()
           const redirectTo = `${siteUrl}/auth/callback?next=/home`
           
           console.log('🔗 Configurações do envio:')
@@ -586,7 +631,7 @@ export async function reenviarCodigoEmail(email: string) {
     }
     
     // Configurar URL de redirecionamento
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const siteUrl = getSiteUrl()
     const redirectTo = `${siteUrl}/auth/callback?next=/home`
     console.log('🔗 URL de redirecionamento:', redirectTo)
     

@@ -58,7 +58,8 @@ export async function POST(request: NextRequest) {
     
     // Teste 1: Tentar inviteUserByEmail
     console.log('📤 TESTE 1: Tentando inviteUserByEmail...')
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const { getSiteUrl } = await import('@/lib/auth')
+    const siteUrl = getSiteUrl()
     const redirectTo = `${siteUrl}/auth/callback?next=/home`
     
     let inviteError: any = null

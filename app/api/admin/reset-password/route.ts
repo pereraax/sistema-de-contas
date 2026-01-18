@@ -45,7 +45,9 @@ export async function POST(request: NextRequest) {
 
     console.log('📧 ========== INICIANDO ENVIO DE LINK DE RECUPERAÇÃO ==========')
     console.log('📧 Email destinatário:', email)
-    console.log('🔗 URL de redirecionamento:', `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/reset-password`)
+    const { getSiteUrl } = await import('@/lib/auth')
+    const siteUrl = getSiteUrl()
+    console.log('🔗 URL de redirecionamento:', `${siteUrl}/auth/reset-password`)
     console.log('🌐 Supabase URL:', supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : 'NÃO CONFIGURADO')
     console.log('🔑 Service Role Key:', supabaseServiceKey ? 'CONFIGURADO' : 'NÃO CONFIGURADO')
     
@@ -76,7 +78,7 @@ export async function POST(request: NextRequest) {
     
     console.log('📤 Enviando requisição para Supabase...')
     const { data, error } = await supabasePublic.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/reset-password`,
+      redirectTo: `${siteUrl}/auth/reset-password`,
     })
 
     if (error) {
