@@ -90,8 +90,11 @@ export async function signUp(email: string, password: string, nome: string, tele
     console.log('📧 Email destinatário:', email)
     console.log('📧 ⚠️ IMPORTANTE: Verifique se a Site URL no Supabase Dashboard está configurada!')
     console.log('📧 ⚠️ O Supabase pode usar a Site URL do dashboard em vez do emailRedirectTo')
+    console.log('📧 ⚠️ VERIFIQUE: Template de email deve usar {{ .ConfirmationURL }} e não {{ .SiteURL }}')
     console.log('📧 ==========================================')
     
+    // IMPORTANTE: O Supabase pode ignorar emailRedirectTo se a Site URL do dashboard estiver errada
+    // OU se o template de email estiver usando {{ .SiteURL }} em vez de {{ .ConfirmationURL }}
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -103,9 +106,13 @@ export async function signUp(email: string, password: string, nome: string, tele
           plano,
           email,
         },
-        emailRedirectTo: redirectUrl,
+        emailRedirectTo: redirectUrl, // Esta URL deve ser usada, mas o Supabase pode ignorar se Site URL estiver errada
       }
     })
+    
+    // Log adicional para debug
+    console.log('📧 [DEBUG] emailRedirectTo enviado para Supabase:', redirectUrl)
+    console.log('📧 [DEBUG] Verifique se o template de email usa {{ .ConfirmationURL }} e não {{ .SiteURL }}')
     
     // Verificar se o email foi realmente enviado
     // O Supabase pode criar o usuário mas não enviar email se:
