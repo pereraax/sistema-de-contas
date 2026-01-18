@@ -151,26 +151,32 @@ export async function signUp(email: string, password: string, nome: string, tele
     }
     
     // Se chegou aqui, usuário foi criado com sucesso
-    // Sempre tentar garantir que o email seja enviado usando Admin API diretamente
+    // IMPORTANTE: O Supabase signUp pode ignorar o emailRedirectTo e usar a Site URL do dashboard
+    // Para garantir que o email seja enviado com a URL correta, SEMPRE usar inviteUserByEmail
     // Verificar se precisa confirmar email (não tem session e não está confirmado)
     const precisaConfirmarEmail = !authData.session && !authData.user.email_confirmed_at
     
     // IMPORTANTE: Se não houver erro mas também não houver session,
     // significa que o email foi enviado (Supabase não cria session até confirmar email)
+    // MAS pode ter sido enviado com a URL errada (Site URL do dashboard)
     if (authData.user && !authData.session && !authData.user.email_confirmed_at) {
       console.log('✅ Email de confirmação DEVE ter sido enviado pelo Supabase (sem session = aguardando confirmação)')
-      console.log('✅ Mas vamos garantir enviando via Admin API também...')
+      console.log('⚠️ MAS pode ter sido enviado com URL errada (Site URL do dashboard)')
+      console.log('✅ Vamos garantir enviando via Admin API com URL correta...')
     } else if (authData.user && authData.session) {
       console.log('⚠️ ATENÇÃO: Session foi criada - email pode não ter sido enviado ou já estava confirmado')
       console.log('⚠️ Se session foi criada sem confirmação, pode haver problema na configuração')
     }
     
-    // SEMPRE tentar enviar via Admin API se precisa confirmar OU teve erro de email
-    if (precisaConfirmarEmail || teveErroEmail) {
-      console.log('📧 ========== TENTANDO GARANTIR ENVIO DE EMAIL ==========')
+    // SEMPRE tentar enviar via Admin API para garantir URL correta
+    // Mesmo que o Supabase tenha enviado, vamos reenviar com a URL correta
+    if (precisaConfirmarEmail || teveErroEmail || true) { // true = sempre enviar via Admin API
+      console.log('📧 ========== GARANTINDO ENVIO DE EMAIL COM URL CORRETA ==========')
       console.log('   - Precisa confirmar email:', precisaConfirmarEmail)
       console.log('   - Teve erro de email:', teveErroEmail)
       console.log('   - User ID:', authData.user.id)
+      console.log('   - ⚠️ IMPORTANTE: Sempre usando inviteUserByEmail para garantir URL correta')
+      console.log('   - ⚠️ O Supabase signUp pode ignorar emailRedirectTo, mas inviteUserByEmail respeita redirectTo')
       
       try {
         // Verificar se SERVICE_ROLE_KEY está configurada
@@ -253,11 +259,8 @@ export async function signUp(email: string, password: string, nome: string, tele
       }
       
       console.log('📧 ========== FIM DA TENTATIVA DE ENVIO ==========')
-    } else {
-      console.log('⚠️ NÃO tentando enviar email via Admin API:')
-      console.log('   - precisaConfirmarEmail:', precisaConfirmarEmail)
-      console.log('   - teveErroEmail:', teveErroEmail)
     }
+    // Sempre tentamos enviar via Admin API para garantir URL correta
     
     console.log('✅ Usuário criado com sucesso via signUp normal')
     console.log('📧 Email do usuário:', email)
