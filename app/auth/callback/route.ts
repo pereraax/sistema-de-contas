@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,6 +10,16 @@ export async function GET(request: NextRequest) {
   const token_hash = requestUrl.searchParams.get('token_hash')
   const type = requestUrl.searchParams.get('type')
   const next = requestUrl.searchParams.get('next') || '/home'
+
+  // Log detalhado de todos os parâmetros
+  console.log('🔍 [Callback] ==========================================')
+  console.log('🔍 [Callback] URL completa:', requestUrl.toString())
+  console.log('🔍 [Callback] Parâmetros da URL:')
+  console.log('   - token_hash:', token_hash ? token_hash.substring(0, 20) + '...' : 'NÃO ENCONTRADO')
+  console.log('   - type:', type || 'NÃO ENCONTRADO')
+  console.log('   - next:', next)
+  console.log('🔍 [Callback] Todos os parâmetros:', Object.fromEntries(requestUrl.searchParams.entries()))
+  console.log('🔍 [Callback] ==========================================')
 
   if (token_hash && type) {
     const cookieStore = await cookies()
@@ -38,10 +49,19 @@ export async function GET(request: NextRequest) {
       
       // Para links de confirmação, usar verifyOtp com token_hash
       // Isso confirma o email E cria uma sessão se possível
+      console.log('🔍 [Callback] Tentando verifyOtp com:')
+      console.log('   - type:', type)
+      console.log('   - token_hash (primeiros 20 chars):', token_hash.substring(0, 20) + '...')
+      
       const { data, error } = await supabase.auth.verifyOtp({
         type: type as any,
         token_hash,
       })
+
+      console.log('📬 [Callback] Resultado do verifyOtp:')
+      console.log('   - Tem data:', !!data)
+      console.log('   - Tem error:', !!error)
+      console.log('   - Error completo:', error ? JSON.stringify(error, null, 2) : 'Nenhum')
 
       if (!error && data?.user) {
         console.log('✅ [Callback] Email confirmado com sucesso via callback')
@@ -49,6 +69,30 @@ export async function GET(request: NextRequest) {
         console.log('📧 [Callback] Email:', data.user.email)
         console.log('📧 [Callback] Email confirmado:', !!data.user.email_confirmed_at)
         console.log('🔑 [Callback] Sessão criada:', !!data.session)
+        
+        // IMPORTANTE: Se o email NÃO foi confirmado mesmo após verifyOtp, confirmar via Admin API
+        if (!data.user.email_confirmed_at) {
+          console.log('⚠️ [Callback] Email NÃO confirmado após verifyOtp - tentando confirmar via Admin API...')
+          
+          try {
+            const supabaseAdmin = createAdminClient()
+            if (supabaseAdmin) {
+              const { error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
+                email_confirm: true
+              })
+              
+              if (!confirmError) {
+                console.log('✅ [Callback] Email confirmado com sucesso via Admin API')
+              } else {
+                console.error('❌ [Callback] Erro ao confirmar email via Admin API:', confirmError.message)
+              }
+            } else {
+              console.error('❌ [Callback] Admin client não disponível')
+            }
+          } catch (adminError: any) {
+            console.error('❌ [Callback] Erro inesperado ao confirmar via Admin API:', adminError.message)
+          }
+        }
         
         // Se há sessão, redirecionar para home
         if (data.session) {
