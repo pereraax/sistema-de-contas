@@ -112,10 +112,30 @@ export async function POST(request: NextRequest) {
           if (sent) {
             console.log('✅ [WhatsApp Webhook] Resposta enviada com sucesso para:', phoneNumberToSend)
             process.stdout.write('[WhatsApp Webhook] ✅ RESPOSTA ENVIADA!\n')
+            const { addLog: addLogSuccess } = await import('@/lib/server-logs')
+            addLogSuccess('info', `✅ [WhatsApp Webhook] Resposta enviada para ${phoneNumberToSend}`)
           } else {
             console.error('❌ [WhatsApp Webhook] FALHOU ao enviar resposta para:', phoneNumberToSend)
             console.error('❌ [WhatsApp Webhook] Verifique se o cliente WhatsApp está conectado')
             console.error('❌ [WhatsApp Webhook] Pode ser necessário reconectar o WhatsApp')
+            
+            // Fazer diagnóstico detalhado
+            const { isConnectedWebJS, getClientInfoWebJS } = await import('@/lib/whatsapp-webjs')
+            const connected = isConnectedWebJS()
+            const clientInfo = getClientInfoWebJS()
+            const clientCheck = getClientWebJS()
+            
+            console.error('🔍 [WhatsApp Webhook] Diagnóstico:', {
+              connected,
+              hasClient: !!clientCheck,
+              hasSendMessage: clientCheck ? typeof clientCheck.sendMessage === 'function' : false,
+              hasPupPage: clientCheck ? !!(clientCheck as any).pupPage : false,
+              phoneNumber: clientInfo?.wid || null,
+            })
+            
+            const { addLog: addLogError } = await import('@/lib/server-logs')
+            addLogError('error', `❌ [WhatsApp Webhook] Falhou ao enviar para ${phoneNumberToSend}. Connected: ${connected}, HasClient: ${!!clientCheck}`)
+            
             process.stdout.write('[WhatsApp Webhook] ❌ FALHOU AO ENVIAR RESPOSTA\n')
             
             // Tentar novamente após um segundo (pode ser problema de timing)
@@ -125,6 +145,11 @@ export async function POST(request: NextRequest) {
             if (retrySent) {
               console.log('✅ [WhatsApp Webhook] Resposta enviada na segunda tentativa!')
               process.stdout.write('[WhatsApp Webhook] ✅ RESPOSTA ENVIADA NA SEGUNDA TENTATIVA!\n')
+              const { addLog: addLogRetry } = await import('@/lib/server-logs')
+              addLogRetry('info', `✅ [WhatsApp Webhook] Resposta enviada na segunda tentativa para ${phoneNumberToSend}`)
+            } else {
+              const { addLog: addLogRetryFail } = await import('@/lib/server-logs')
+              addLogRetryFail('error', `❌ [WhatsApp Webhook] Falhou também na segunda tentativa para ${phoneNumberToSend}`)
             }
           }
         } else {

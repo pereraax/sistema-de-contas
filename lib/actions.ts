@@ -562,6 +562,37 @@ export async function atualizarImagemPerfilUsuario(userId: string, imagemUrl: st
   return { data }
 }
 
+export async function atualizarImagemProprioPerfil(imagemUrl: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'Não autenticado' }
+  }
+
+  console.log('🖼️ [Atualizar Próprio Perfil] Atualizando imagem_url para:', user.id.substring(0, 8) + '...')
+  console.log('🖼️ [Atualizar Próprio Perfil] URL da imagem:', imagemUrl)
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ imagem_url: imagemUrl })
+    .eq('id', user.id)
+    .select('id, nome, imagem_url')
+    .single()
+
+  if (error) {
+    console.error('❌ Erro ao atualizar imagem do próprio perfil:', error)
+    return { error: error.message }
+  }
+
+  console.log('✅ [Atualizar Próprio Perfil] Imagem atualizada com sucesso:', data)
+
+  revalidatePath('/')
+  revalidatePath('/configuracoes')
+
+  return { data }
+}
+
 export async function resetarTodosRegistros() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
