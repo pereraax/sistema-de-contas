@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     console.log('📧 ========== INICIANDO ENVIO DE LINK DE RECUPERAÇÃO ==========')
     console.log('📧 Email destinatário:', email)
     const { getSiteUrl } = await import('@/lib/auth')
-    const siteUrl = getSiteUrl()
+    const siteUrl = await getSiteUrl()
     console.log('🔗 URL de redirecionamento:', `${siteUrl}/auth/reset-password`)
     console.log('🌐 Supabase URL:', supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : 'NÃO CONFIGURADO')
     console.log('🔑 Service Role Key:', supabaseServiceKey ? 'CONFIGURADO' : 'NÃO CONFIGURADO')

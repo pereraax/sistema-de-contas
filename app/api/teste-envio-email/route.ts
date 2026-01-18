@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     // Teste 1: Tentar inviteUserByEmail
     console.log('📤 TESTE 1: Tentando inviteUserByEmail...')
     const { getSiteUrl } = await import('@/lib/auth')
-    const siteUrl = getSiteUrl()
+    const siteUrl = await getSiteUrl()
     const redirectTo = `${siteUrl}/auth/callback?next=/home`
     
     let inviteError: any = null

@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     
     // PASSO 2: Configurar URL de redirecionamento
     const { getSiteUrl } = await import('@/lib/auth')
-    const siteUrl = getSiteUrl()
+    const siteUrl = await getSiteUrl()
     const redirectTo = `${siteUrl}/auth/callback?next=/home`
     console.log('🔗 URL de redirecionamento:', redirectTo)
     

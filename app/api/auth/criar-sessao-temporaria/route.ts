@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
           type: 'magiclink',
           email: email,
           options: {
-            redirectTo: `${(await import('@/lib/auth')).getSiteUrl()}/home`
+            redirectTo: `${await (await import('@/lib/auth')).getSiteUrl()}/home`
           }
         })
 

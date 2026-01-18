@@ -15,7 +15,8 @@ export interface UserProfile {
 }
 
 // Função helper para obter a URL correta do site
-export function getSiteUrl(): string {
+// Deve ser async porque está em arquivo com 'use server'
+export async function getSiteUrl(): Promise<string> {
   // 1. Tentar usar variável de ambiente (prioridade máxima)
   if (process.env.NEXT_PUBLIC_SITE_URL) {
     const url = process.env.NEXT_PUBLIC_SITE_URL.trim()
@@ -61,7 +62,7 @@ export async function signUp(email: string, password: string, nome: string, tele
     console.log('📝 Criando conta usando signUp normal do Supabase (envia email automaticamente)...')
     
     // Obter URL correta do site
-    const siteUrl = getSiteUrl()
+    const siteUrl = await getSiteUrl()
     const redirectUrl = `${siteUrl}/auth/callback?next=/home`
     
     // USAR SIGNUP NORMAL DO SUPABASE - ENVIA EMAIL AUTOMATICAMENTE
@@ -169,7 +170,7 @@ export async function signUp(email: string, password: string, nome: string, tele
         } else {
           console.log('✅ Admin client criado com sucesso')
           
-          const siteUrl = getSiteUrl()
+          const siteUrl = await getSiteUrl()
           const redirectTo = `${siteUrl}/auth/callback?next=/home`
           
           console.log('🔗 Configurações do envio:')
@@ -631,7 +632,7 @@ export async function reenviarCodigoEmail(email: string) {
     }
     
     // Configurar URL de redirecionamento
-    const siteUrl = getSiteUrl()
+    const siteUrl = await getSiteUrl()
     const redirectTo = `${siteUrl}/auth/callback?next=/home`
     console.log('🔗 URL de redirecionamento:', redirectTo)
     
