@@ -63,7 +63,7 @@ export async function getSiteUrl(): Promise<string> {
   // 5. SEMPRE usar URL de produção para links de email
   // IMPORTANTE: Mesmo em desenvolvimento local, links de email devem apontar para produção
   // porque o email será aberto em qualquer lugar, não necessariamente no localhost
-  const productionUrl = 'https://plenipay.com.br'
+  const productionUrl = 'https://plenipay.com'
   console.log('✅ [getSiteUrl] Usando URL de produção para links de email:', productionUrl)
   console.log('ℹ️ [getSiteUrl] Nota: Links de email sempre usam produção, mesmo em desenvolvimento local')
   return productionUrl
