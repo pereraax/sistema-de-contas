@@ -17,12 +17,21 @@ export interface UserProfile {
 // Função helper para obter a URL correta do site
 // Deve ser async porque está em arquivo com 'use server'
 export async function getSiteUrl(): Promise<string> {
+  console.log('🔍 [getSiteUrl] Detectando URL do site...')
+  console.log('🔍 [getSiteUrl] NODE_ENV:', process.env.NODE_ENV)
+  console.log('🔍 [getSiteUrl] NEXT_PUBLIC_SITE_URL:', process.env.NEXT_PUBLIC_SITE_URL || 'NÃO CONFIGURADO')
+  console.log('🔍 [getSiteUrl] RENDER_EXTERNAL_URL:', process.env.RENDER_EXTERNAL_URL || 'NÃO CONFIGURADO')
+  console.log('🔍 [getSiteUrl] VERCEL_URL:', process.env.VERCEL_URL || 'NÃO CONFIGURADO')
+  
   // 1. Tentar usar variável de ambiente (prioridade máxima)
   if (process.env.NEXT_PUBLIC_SITE_URL) {
     const url = process.env.NEXT_PUBLIC_SITE_URL.trim()
     // Garantir que não seja localhost em produção
     if (url && !url.includes('localhost') && !url.includes('127.0.0.1')) {
+      console.log('✅ [getSiteUrl] Usando NEXT_PUBLIC_SITE_URL:', url)
       return url
+    } else {
+      console.log('⚠️ [getSiteUrl] NEXT_PUBLIC_SITE_URL contém localhost, ignorando em produção')
     }
   }
   
@@ -30,29 +39,38 @@ export async function getSiteUrl(): Promise<string> {
   if (process.env.RENDER_EXTERNAL_URL) {
     const url = process.env.RENDER_EXTERNAL_URL.trim()
     if (url && !url.includes('localhost')) {
+      console.log('✅ [getSiteUrl] Usando RENDER_EXTERNAL_URL:', url)
       return url
     }
   }
   
   // 3. Tentar usar VERCEL_URL (se estiver no Vercel)
   if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`
+    const url = `https://${process.env.VERCEL_URL}`
+    console.log('✅ [getSiteUrl] Usando VERCEL_URL:', url)
+    return url
   }
   
   // 4. Tentar usar RAILWAY_PUBLIC_DOMAIN (se estiver no Railway)
   if (process.env.RAILWAY_PUBLIC_DOMAIN) {
-    return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+    const url = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+    console.log('✅ [getSiteUrl] Usando RAILWAY_PUBLIC_DOMAIN:', url)
+    return url
   }
   
   // 5. Verificar se está em produção e usar URL padrão
   if (process.env.NODE_ENV === 'production') {
     // Em produção, nunca usar localhost
     // Usar URL padrão de produção
-    return 'https://plenipay.com.br'
+    const productionUrl = 'https://plenipay.com.br'
+    console.log('✅ [getSiteUrl] Em produção, usando URL padrão:', productionUrl)
+    return productionUrl
   }
   
   // 6. Em desenvolvimento, usar localhost
-  return 'http://localhost:3000'
+  const devUrl = 'http://localhost:3000'
+  console.log('✅ [getSiteUrl] Em desenvolvimento, usando:', devUrl)
+  return devUrl
 }
 
 export async function signUp(email: string, password: string, nome: string, telefone: string, whatsapp: string, plano: 'teste' | 'basico' | 'premium') {
@@ -70,10 +88,13 @@ export async function signUp(email: string, password: string, nome: string, tele
     // 1. "Enable email confirmations" estiver habilitado
     // 2. SMTP estiver configurado (ou usar SMTP padrão)
     // 3. Template de email estiver configurado
-    console.log('📧 Configurações de email:')
-    console.log('   - Site URL:', siteUrl)
-    console.log('   - emailRedirectTo:', redirectUrl)
-    console.log('   - Email:', email)
+    console.log('📧 ========== CONFIGURAÇÕES DE EMAIL ==========')
+    console.log('📧 Site URL detectada:', siteUrl)
+    console.log('📧 emailRedirectTo:', redirectUrl)
+    console.log('📧 Email destinatário:', email)
+    console.log('📧 ⚠️ IMPORTANTE: Verifique se a Site URL no Supabase Dashboard está configurada!')
+    console.log('📧 ⚠️ O Supabase pode usar a Site URL do dashboard em vez do emailRedirectTo')
+    console.log('📧 ==========================================')
     
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
