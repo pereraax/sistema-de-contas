@@ -100,8 +100,14 @@ function CadastroContent() {
   const senhasCoincidem = temSenha && temConfirmacao && formData.senha === formData.confirmarSenha
 
   const handleSubmit = async (e: React.FormEvent) => {
+    // Prevenir comportamento padrão IMEDIATAMENTE para evitar interferência do iOS
     e.preventDefault()
     e.stopPropagation()
+    
+    // Bloquear qualquer outra ação do navegador
+    if (e.nativeEvent) {
+      e.nativeEvent.stopImmediatePropagation()
+    }
     
     console.log('🚀 ========== FORMULÁRIO SUBMETIDO ==========')
     console.log('📋 Dados do formulário:', formData)
@@ -113,7 +119,17 @@ function CadastroContent() {
       return
     }
     
+    // Marcar como carregando IMEDIATAMENTE para bloquear cliques adicionais
     setLoading(true)
+    
+    // Usar requestAnimationFrame para garantir que o estado foi atualizado
+    // e processar o submit no próximo frame, evitando interferência do iOS
+    requestAnimationFrame(() => {
+      processarCadastro()
+    })
+  }
+  
+  const processarCadastro = async () => {
 
     // Validações
     if (!formData.nome.trim()) {
@@ -357,6 +373,8 @@ function CadastroContent() {
             }} 
             className="space-y-3"
             noValidate
+            autoComplete="off"
+            data-form-type="other"
           >
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -381,6 +399,8 @@ function CadastroContent() {
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                autoComplete="email"
+                data-form-type="other"
                 className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#00C2FF] focus:ring-1 focus:ring-[#00C2FF]/20 transition-all"
                 placeholder="seu@email.com"
               />
@@ -396,6 +416,8 @@ function CadastroContent() {
                   required
                   value={formData.senha}
                   onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
+                  autoComplete="new-password"
+                  data-form-type="other"
                   className={`w-full px-3 py-2 bg-white border rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none transition-all pr-10 ${
                     formData.senha && !senhaValida
                       ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/20'
@@ -451,6 +473,8 @@ function CadastroContent() {
                 required
                 value={formData.confirmarSenha}
                 onChange={(e) => setFormData({ ...formData, confirmarSenha: e.target.value })}
+                autoComplete="new-password"
+                data-form-type="other"
                 className={`w-full px-3 py-2 bg-white border rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none transition-all ${
                   senhasNaoCoincidem
                     ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/20'
@@ -501,6 +525,27 @@ function CadastroContent() {
             <button
               type="submit"
               disabled={loading}
+              onClick={(e) => {
+                // Forçar submit imediatamente sem esperar pelo gerenciador de senhas do iOS
+                // Prevenir qualquer comportamento padrão que possa interferir
+                e.preventDefault()
+                e.stopPropagation()
+                
+                // Bloquear propagação imediata
+                if (e.nativeEvent) {
+                  e.nativeEvent.stopImmediatePropagation()
+                }
+                
+                // Se não está carregando, processar imediatamente
+                if (!loading) {
+                  // Chamar handleSubmit diretamente, que já previne default e processa
+                  handleSubmit(e as any).catch((error) => {
+                    console.error('❌ Erro não capturado no handleSubmit:', error)
+                    createNotification('Erro ao processar formulário. Tente novamente.', 'warning')
+                    setLoading(false)
+                  })
+                }
+              }}
               className="w-full px-4 py-2.5 bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] text-white rounded-lg text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-2xl hover:shadow-[#00C2FF]/50 transform hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-2"
             >
               {loading ? (
