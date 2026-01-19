@@ -315,8 +315,51 @@ export async function signUp(email: string, password: string, nome: string, tele
       console.log('✅ SignUp enviou email automaticamente - não precisa forçar resend')
     }
     
+    // Se ainda não foi enviado, tentar via Admin API como último recurso
+    if (!emailEnviado && supabaseAdmin) {
+      console.log('📤 Última tentativa: Usando Admin API para gerar link...')
+      try {
+        // Gerar link via Admin API (não envia email, mas gera o link)
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'signup',
+          email: email,
+          options: {
+            redirectTo: redirectUrl
+          }
+        })
+        
+        if (!linkError && linkData?.properties?.action_link) {
+          console.log('✅ Link gerado via Admin API')
+          console.log('⚠️ IMPORTANTE: generateLink NÃO envia email automaticamente')
+          console.log('⚠️ O link foi gerado, mas precisa ser enviado manualmente ou via resend')
+          console.log('📧 Link gerado:', linkData.properties.action_link.substring(0, 100) + '...')
+          
+          // Tentar resend novamente após gerar link
+          console.log('📤 Tentando resend novamente após gerar link...')
+          const { error: resendRetryError } = await supabase.auth.resend({
+            type: 'signup',
+            email: email,
+            options: {
+              emailRedirectTo: redirectUrl,
+            }
+          })
+          
+          if (!resendRetryError) {
+            console.log('✅ Resend funcionou após gerar link!')
+            emailEnviado = true
+          } else {
+            console.error('❌ Resend ainda falhou após gerar link:', resendRetryError.message)
+          }
+        } else {
+          console.error('❌ Erro ao gerar link via Admin API:', linkError?.message || 'Erro desconhecido')
+        }
+      } catch (adminError: any) {
+        console.error('❌ Erro ao usar Admin API:', adminError.message)
+      }
+    }
+    
     if (!emailEnviado) {
-      console.error('❌ Email NÃO foi enviado')
+      console.error('❌ Email NÃO foi enviado após todas as tentativas')
       console.error('❌ SignUp não enviou automaticamente e resend também falhou')
       console.error('❌ Erro do último resend:', ultimoErro?.message || 'Nenhum erro específico')
       console.error('⚠️ IMPORTANTE: Verifique se:')
@@ -324,6 +367,7 @@ export async function signUp(email: string, password: string, nome: string, tele
       console.error('   2. Template de email "Confirm signup" está configurado')
       console.error('   3. "Enable email confirmations" está habilitado')
       console.error('   4. Verifique logs do Supabase (Authentication → Logs)')
+      console.error('   5. O usuário pode usar o botão "Reenviar link" no modal')
       teveErroEmail = true
     } else {
       teveErroEmail = false
