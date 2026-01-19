@@ -143,10 +143,13 @@ export async function POST(request: NextRequest) {
     }
     
     // PASSO 4: Se resend falhou, tentar gerar link manualmente via Admin API
+    // IMPORTANTE: generateLink NÃO envia email, apenas gera o link
+    // Mas podemos verificar se o link gerado tem a URL correta
     console.log('📤 PASSO 4: Resend falhou, tentando gerar link manualmente via Admin API...')
+    console.log('⚠️ IMPORTANTE: generateLink NÃO envia email, apenas gera o link para diagnóstico')
     
     try {
-      // Gerar link de confirmação manualmente
+      // Gerar link de confirmação manualmente para verificar se a URL está correta
       const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
         type: 'signup',
         email: email,
@@ -156,27 +159,36 @@ export async function POST(request: NextRequest) {
       })
       
       if (!linkError && linkData?.properties?.action_link) {
+        const generatedLink = linkData.properties.action_link
         console.log('✅ Link gerado com sucesso via Admin API!')
-        console.log('📧 Link:', linkData.properties.action_link.substring(0, 50) + '...')
+        console.log('📧 Link completo:', generatedLink)
+        console.log('🔍 Verificando URL no link gerado...')
         
-        // IMPORTANTE: O link foi gerado, mas não foi enviado automaticamente
-        // O Supabase não envia email quando gera link manualmente
-        // Precisamos informar o usuário que o link foi gerado mas não enviado
-        // OU tentar usar outro método para enviar
+        // Verificar se o link contém a URL correta
+        if (generatedLink.includes('plenipay.com')) {
+          console.log('✅ Link gerado contém URL correta (plenipay.com)')
+        } else if (generatedLink.includes('0.0.0.0') || generatedLink.includes('10000')) {
+          console.error('❌ PROBLEMA ENCONTRADO: Link gerado contém 0.0.0.0:10000!')
+          console.error('❌ Isso significa que o Supabase está usando Site URL do dashboard em vez do redirectTo')
+          console.error('❌ Link gerado:', generatedLink)
+          console.error('❌ redirectTo passado:', redirectTo)
+          console.error('⚠️ SOLUÇÃO: Verifique Site URL no Supabase Dashboard (Authentication → URL Configuration)')
+        } else {
+          console.warn('⚠️ Link gerado não contém plenipay.com nem 0.0.0.0:10000')
+          console.warn('⚠️ Link:', generatedLink.substring(0, 100) + '...')
+        }
         
-        // Por enquanto, retornar sucesso mas avisar que precisa verificar
-        return NextResponse.json({
-          success: true,
-          message: 'Link de confirmação gerado! Verifique sua caixa de entrada.',
-          method: 'generate_link',
-          note: 'Se não receber o email, o link foi gerado mas pode não ter sido enviado automaticamente. Verifique logs do Supabase.',
-          warning: 'Link gerado mas email pode não ter sido enviado. Verifique configuração SMTP.'
-        })
+        // IMPORTANTE: generateLink NÃO envia email automaticamente
+        // Retornar erro informando que resend falhou
+        console.error('❌ generateLink não envia email automaticamente')
+        console.error('❌ Resend falhou, então não foi possível enviar o email')
       } else {
         console.error('❌ Erro ao gerar link:', linkError?.message || 'Erro desconhecido')
+        console.error('❌ Erro completo:', JSON.stringify(linkError, null, 2))
       }
     } catch (linkException: any) {
       console.error('❌ Exceção ao gerar link:', linkException.message)
+      console.error('❌ Stack:', linkException.stack)
     }
     
     // Se chegou aqui, todos os métodos falharam
