@@ -236,13 +236,18 @@ export async function POST(request: NextRequest) {
     
     // Se chegou aqui, todos os métodos falharam
     console.error('❌ Todos os métodos falharam. Erro do resend:')
-    console.error('  - Mensagem:', resendError?.message || 'Nenhum')
+    console.error('  - Mensagem:', resendError?.message || 'Nenhum erro específico')
     console.error('  - Status:', resendError?.status || 'Nenhum')
-    console.error('  - Erro completo:', JSON.stringify(resendError, null, 2))
+    console.error('  - Erro completo:', resendError ? JSON.stringify(resendError, null, 2) : 'Nenhum erro capturado')
     
     // Verificar tipo de erro específico
-    const errorMsg = resendError?.message?.toLowerCase() || ''
+    const errorMsg = (resendError?.message || '').toLowerCase()
     let errorDetails = 'Erro desconhecido ao enviar email de confirmação.'
+    
+    // Se não há erro específico do resend, pode ser problema de configuração
+    if (!resendError) {
+      errorDetails = 'O resend não retornou erro, mas também não enviou o email. Isso geralmente indica problema de configuração SMTP ou template de email no Supabase.'
+    }
     
     if (errorMsg.includes('email not found') || errorMsg.includes('user not found')) {
       errorDetails = 'Usuário não encontrado. Verifique se o email está correto.'
