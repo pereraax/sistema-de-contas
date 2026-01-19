@@ -129,31 +129,42 @@ export async function POST(request: NextRequest) {
         console.log('  - Erro:', resendError?.message || 'Nenhum')
         console.log('  - Código do erro:', resendError?.status || 'Nenhum')
         console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
+        console.log('  - Tem dados:', !!resendData)
+        console.log('  - Tem erro:', !!resendError)
         
+        // IMPORTANTE: Se não há erro, considerar sucesso
+        // Mesmo que não haja dados, se não há erro, o Supabase aceitou a requisição
+        // O email pode ter sido enviado (depende de SMTP estar configurado)
         if (!resendError) {
-          // Resend retornou sucesso
+          // Resend retornou sucesso (sem erro)
           // IMPORTANTE: Isso NÃO garante que o email foi enviado
           // O Supabase pode retornar sucesso mesmo se SMTP não estiver configurado
+          // Mas se não há erro, a requisição foi aceita
           console.log(`✅ Resend retornou sucesso com type: ${tipo}!`)
           console.log('⚠️ IMPORTANTE: Sucesso no resend NÃO garante que email foi enviado')
           console.log('⚠️ Se o email não chegar, verifique SMTP no Supabase Dashboard')
           console.log('⚠️ Project Settings → Auth → SMTP Settings → Enable Custom SMTP')
           console.log('📧 Email DEVE ter sido enviado pelo Supabase (se SMTP estiver configurado)')
           tipoUsado = tipo
+          resendError = null // Garantir que resendError é null
           break // Sucesso, não precisa tentar outros tipos
         } else {
           console.warn(`⚠️ Resend falhou com type: ${tipo}, erro: ${resendError.message}`)
+          ultimoErro = resendError // Guardar último erro
           // Continuar para tentar próximo tipo
         }
       } catch (resendException: any) {
         console.error(`❌ Exceção ao tentar resend (type: ${tipo}):`, resendException.message)
         resendError = resendException
+        ultimoErro = resendException
         // Continuar para tentar próximo tipo
       }
     }
     
     // Se algum tipo funcionou, retornar sucesso
-    if (!resendError && tipoUsado) {
+    // IMPORTANTE: Verificar se tipoUsado foi definido (indica que resend retornou sucesso)
+    if (tipoUsado) {
+      console.log(`✅ Resend funcionou com type: ${tipoUsado} - retornando sucesso`)
       return NextResponse.json({
         success: true,
         message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
@@ -161,6 +172,10 @@ export async function POST(request: NextRequest) {
         note: 'Se não receber, verifique spam e logs do Supabase (Authentication → Logs)'
       })
     }
+    
+    // Se chegou aqui, nenhum tipo funcionou
+    console.error('❌ Nenhum tipo de resend funcionou')
+    console.error('❌ Último erro:', ultimoErro?.message || 'Nenhum erro capturado')
     
     // PASSO 4: Se resend falhou, tentar gerar link manualmente via Admin API
     // IMPORTANTE: generateLink NÃO envia email, apenas gera o link
@@ -241,16 +256,16 @@ export async function POST(request: NextRequest) {
     
     // Se chegou aqui, todos os métodos falharam
     console.error('❌ Todos os métodos falharam. Erro do resend:')
-    console.error('  - Mensagem:', resendError?.message || 'Nenhum erro específico')
-    console.error('  - Status:', resendError?.status || 'Nenhum')
-    console.error('  - Erro completo:', resendError ? JSON.stringify(resendError, null, 2) : 'Nenhum erro capturado')
+    console.error('  - Mensagem:', ultimoErro?.message || resendError?.message || 'Nenhum erro específico')
+    console.error('  - Status:', ultimoErro?.status || resendError?.status || 'Nenhum')
+    console.error('  - Erro completo:', ultimoErro || resendError ? JSON.stringify(ultimoErro || resendError, null, 2) : 'Nenhum erro capturado')
     
     // Verificar tipo de erro específico
-    const errorMsg = (resendError?.message || '').toLowerCase()
+    const errorMsg = ((ultimoErro || resendError)?.message || '').toLowerCase()
     let errorDetails = 'Erro desconhecido ao enviar email de confirmação.'
     
     // Se não há erro específico do resend, pode ser problema de configuração
-    if (!resendError) {
+    if (!ultimoErro && !resendError) {
       errorDetails = 'O resend não retornou erro, mas também não enviou o email. Isso geralmente indica problema de configuração SMTP ou template de email no Supabase.'
     }
     
@@ -284,7 +299,7 @@ export async function POST(request: NextRequest) {
         suggestion: `Erro específico: ${errorDetails}. Verifique logs do console e do Supabase para mais detalhes.`,
         methodsTried: ['resend_signup', 'resend_email'],
         errorDetails: errorDetails,
-        resendError: resendError?.message || 'Erro desconhecido do resend'
+        resendError: (ultimoErro || resendError)?.message || 'Erro desconhecido do resend'
       },
       { status: 500 }
     )
