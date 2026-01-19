@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     
     console.log('✅ Usuário encontrado:', user.id)
     console.log('📋 Email confirmado:', user.email_confirmed_at ? 'SIM' : 'NÃO')
-    console.log('📋 Data de confirmação:', user.email_confirmed_at || 'NÃO CONFIRMADO')
+    console.log('📋 Data de confirmação:', user.email_confirmed_at || 'NÃO CONFIRMADO') user.email_confirmed_at || 'NÃO CONFIRMADO')
     
     // IMPORTANTE: Sempre permitir reenvio, mesmo se já confirmado
     // Motivo: O link anterior pode ter sido gerado com URL errada (0.0.0.0:10000)
@@ -397,10 +397,6 @@ export async function POST(request: NextRequest) {
             { status: 500 }
           )
         }
-      } else {
-        console.error('❌ Erro ao gerar link:', linkError?.message || 'Erro desconhecido')
-        console.error('❌ Erro completo:', JSON.stringify(linkError, null, 2))
-      }
       } else {
         console.error('❌ Erro ao gerar link:', linkError?.message || 'Erro desconhecido')
         console.error('❌ Erro completo:', JSON.stringify(linkError, null, 2))
