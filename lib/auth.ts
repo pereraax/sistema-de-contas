@@ -213,51 +213,55 @@ export async function signUp(email: string, password: string, nome: string, tele
           console.log('   - ⚠️ IMPORTANTE: URL forçada para produção (https://plenipay.com)')
           console.log('   - ⚠️ VERIFIQUE: Esta URL deve estar nas Redirect URLs do Supabase Dashboard!')
           
-          console.log('📤 Chamando inviteUserByEmail...')
+          console.log('📤 Enviando email de confirmação usando resend (type: signup)...')
           
-          // Usar inviteUserByEmail que sempre envia email
-          // IMPORTANTE: redirectTo DEVE estar nas Redirect URLs do Supabase Dashboard
-          const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-            email,
-            {
-              redirectTo: redirectTo, // URL forçada para produção
-              data: {
-                nome,
-                telefone,
-                whatsapp,
-                plano,
-                email,
-              }
+          // IMPORTANTE: Usar resend com type='signup' para enviar email de CONFIRMAÇÃO
+          // inviteUserByEmail envia email de "invite", não de confirmação de signup
+          const { data: resendData, error: resendError } = await supabase.auth.resend({
+            type: 'signup',
+            email: email,
+            options: {
+              emailRedirectTo: redirectTo, // URL forçada para produção
             }
-          )
+          })
           
-          console.log('📬 Resultado do inviteUserByEmail:')
-          console.log('   - Tem dados:', !!inviteData)
-          console.log('   - Tem erro:', !!inviteError)
-          console.log('   - URL enviada (redirectTo):', redirectTo)
+          console.log('📬 Resultado do resend (signup):')
+          console.log('   - Tem dados:', !!resendData)
+          console.log('   - Tem erro:', !!resendError)
+          console.log('   - URL enviada (emailRedirectTo):', redirectTo)
           
-          if (inviteError) {
-            console.error('❌ Erro ao enviar via inviteUserByEmail:')
-            console.error('   - Mensagem:', inviteError.message)
-            console.error('   - Status:', inviteError.status)
-            console.error('   - Erro completo:', JSON.stringify(inviteError, null, 2))
-            console.error('⚠️ POSSÍVEL CAUSA: redirectTo não está nas Redirect URLs do Supabase!')
-            console.error('⚠️ VERIFIQUE: Authentication → URL Configuration → Redirect URLs')
+          if (resendError) {
+            console.error('❌ Erro ao enviar via resend:')
+            console.error('   - Mensagem:', resendError.message)
+            console.error('   - Status:', resendError.status)
+            console.error('   - Erro completo:', JSON.stringify(resendError, null, 2))
             
-            const errorMsg = inviteError.message.toLowerCase()
-            // Se for erro de "already exists", o email ainda pode ter sido enviado
-            if (errorMsg.includes('already exists') || errorMsg.includes('already registered')) {
-              console.log('✅ Email pode ter sido enviado (usuário já existe é esperado)')
-              console.log('✅ Isso é normal - usuário foi criado pelo signUp, então já existe')
-            } else {
-              console.error('❌ Erro diferente - email provavelmente NÃO foi enviado')
-              console.error('❌ Verifique os logs do Supabase Dashboard')
+            // Se resend falhar, tentar inviteUserByEmail como fallback
+            console.log('🔄 Tentando inviteUserByEmail como fallback...')
+            const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+              email,
+              {
+                redirectTo: redirectTo,
+                data: {
+                  nome,
+                  telefone,
+                  whatsapp,
+                  plano,
+                  email,
+                }
+              }
+            )
+            
+            if (inviteError) {
+              console.error('❌ Erro também no inviteUserByEmail:', inviteError.message)
               console.error('❌ Usuário precisará usar o botão "Reenviar link" no modal')
+            } else {
+              console.log('⚠️ Email enviado via inviteUserByEmail (fallback - será email de invite)')
             }
           } else {
-            console.log('✅✅✅ SUCESSO! Email de confirmação enviado via inviteUserByEmail!')
-            console.log('✅ URL usada (redirectTo):', redirectTo)
-            console.log('✅ Dados retornados:', JSON.stringify(inviteData, null, 2))
+            console.log('✅✅✅ SUCESSO! Email de confirmação enviado via resend (signup)!')
+            console.log('✅ URL usada (emailRedirectTo):', redirectTo)
+            console.log('✅ Dados retornados:', JSON.stringify(resendData, null, 2))
           }
         }
       } catch (apiError: any) {
