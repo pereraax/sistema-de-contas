@@ -305,7 +305,7 @@ export async function POST(request: NextRequest) {
     // PASSO 5: Tentar gerar link manualmente via Admin API para diagnóstico
     // IMPORTANTE: generateLink NÃO envia email, apenas gera o link
     // Mas podemos verificar se o link gerado tem a URL correta
-    console.log('📤 PASSO 5: inviteUserByEmail também falhou, tentando gerar link manualmente via Admin API...')
+    console.log('📤 PASSO 5: Resend falhou - tentando gerar link manualmente via Admin API para diagnóstico...')
     console.log('⚠️ IMPORTANTE: generateLink NÃO envia email, apenas gera o link para diagnóstico')
     
     try {
