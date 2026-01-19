@@ -98,99 +98,122 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      // Se verifyOtp falhou ou não confirmou o email, confirmar via Admin API
-      if (!verifySuccess || !emailConfirmed) {
-        console.log('⚠️ [Callback] verifyOtp falhou ou não confirmou - tentando confirmar via Admin API...')
-        
-        // Se não temos userId, precisamos obter pelo token_hash ou email
-        if (!userId && token_hash) {
-          // Tentar obter usuário pelo email se disponível na URL
-          const emailParam = requestUrl.searchParams.get('email')
-          if (emailParam) {
-            try {
-              const supabaseAdmin = createAdminClient()
-              if (supabaseAdmin) {
-                const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
-                const user = usersData?.users?.find((u: any) => u.email === emailParam)
-                if (user) {
-                  userId = user.id
-                  userEmail = user.email
-                }
-              }
-            } catch (err) {
-              console.error('❌ [Callback] Erro ao buscar usuário por email:', err)
-            }
-          }
-        }
-        
-        // Confirmar via Admin API se temos userId
-        if (userId) {
+      // SEMPRE confirmar via Admin API, mesmo se verifyOtp funcionou
+      // Isso garante que o email seja confirmado independente do verifyOtp
+      console.log('🔧 [Callback] SEMPRE confirmando via Admin API para garantir confirmação...')
+      
+      // Se não temos userId do verifyOtp, buscar por email ou token
+      if (!userId) {
+        // Tentar obter usuário pelo email se disponível na URL
+        const emailParam = requestUrl.searchParams.get('email')
+        if (emailParam) {
           try {
             const supabaseAdmin = createAdminClient()
             if (supabaseAdmin) {
-              console.log(`🔧 [Callback] Confirmando email via Admin API para usuário: ${userId}`)
-              
-              // IMPORTANTE: Confirmar email E atualizar email_confirmed_at
-              const { data: updateData, error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-                email_confirm: true,
-                // Forçar atualização do email_confirmed_at
+              console.log(`🔍 [Callback] Buscando usuário por email: ${emailParam}`)
+              const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
+              const user = usersData?.users?.find((u: any) => u.email === emailParam)
+              if (user) {
+                userId = user.id
+                userEmail = user.email
+                console.log(`✅ [Callback] Usuário encontrado por email: ${userId}`)
+              }
+            }
+          } catch (err) {
+            console.error('❌ [Callback] Erro ao buscar usuário por email:', err)
+          }
+        }
+        
+        // Se ainda não temos userId, tentar buscar todos os usuários não confirmados recentes
+        if (!userId) {
+          try {
+            const supabaseAdmin = createAdminClient()
+            if (supabaseAdmin) {
+              console.log('🔍 [Callback] Buscando usuários não confirmados recentes...')
+              const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
+              // Buscar usuários não confirmados criados nas últimas 24 horas
+              const recentUnconfirmed = usersData?.users?.filter((u: any) => {
+                const created = new Date(u.created_at)
+                const now = new Date()
+                const hoursDiff = (now.getTime() - created.getTime()) / (1000 * 60 * 60)
+                return !u.email_confirmed_at && hoursDiff < 24
               })
               
-              if (!confirmError) {
-                console.log('✅ [Callback] Email confirmado com sucesso via Admin API!')
-                console.log('✅ [Callback] Dados atualizados:', JSON.stringify(updateData, null, 2))
-                
-                // Verificar novamente se foi confirmado
-                const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId)
-                if (userData?.user) {
-                  emailConfirmed = !!userData.user.email_confirmed_at
-                  console.log('✅ [Callback] Verificação final - Email confirmado:', emailConfirmed)
-                  console.log('✅ [Callback] email_confirmed_at:', userData.user.email_confirmed_at)
-                }
-              } else {
-                console.error('❌ [Callback] Erro ao confirmar email via Admin API:', confirmError.message)
-                console.error('❌ [Callback] Erro completo:', JSON.stringify(confirmError, null, 2))
+              if (recentUnconfirmed && recentUnconfirmed.length === 1) {
+                // Se há apenas um usuário não confirmado recente, provavelmente é ele
+                userId = recentUnconfirmed[0].id
+                userEmail = recentUnconfirmed[0].email
+                console.log(`✅ [Callback] Usuário encontrado (único não confirmado recente): ${userId}`)
               }
-            } else {
-              console.error('❌ [Callback] Admin client não disponível')
             }
-          } catch (adminError: any) {
-            console.error('❌ [Callback] Erro inesperado ao confirmar via Admin API:', adminError.message)
-            console.error('❌ [Callback] Stack:', adminError.stack)
+          } catch (err) {
+            console.error('❌ [Callback] Erro ao buscar usuários não confirmados:', err)
           }
-        } else {
-          console.error('❌ [Callback] Não foi possível obter userId para confirmar via Admin API')
-          console.error('❌ [Callback] Tentando buscar usuário pelo email da URL...')
-          
-          // Tentar buscar por email se disponível
-          const emailParam = requestUrl.searchParams.get('email')
-          if (emailParam) {
-            try {
-              const supabaseAdmin = createAdminClient()
-              if (supabaseAdmin) {
-                const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
-                const user = usersData?.users?.find((u: any) => u.email === emailParam)
-                if (user) {
-                  console.log(`✅ [Callback] Usuário encontrado por email: ${user.id}`)
-                  userId = user.id
-                  userEmail = user.email
+        }
+      }
+      
+      // Confirmar via Admin API se temos userId
+      if (userId) {
+        try {
+          const supabaseAdmin = createAdminClient()
+          if (supabaseAdmin) {
+            console.log(`🔧 [Callback] Confirmando email via Admin API para usuário: ${userId}`)
+            
+            // IMPORTANTE: Confirmar email
+            const { data: updateData, error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+              email_confirm: true
+            })
+            
+            if (!confirmError) {
+              console.log('✅ [Callback] Email confirmado com sucesso via Admin API!')
+              
+              // Aguardar um pouco para garantir que a atualização foi processada
+              await new Promise(resolve => setTimeout(resolve, 1000))
+              
+              // Verificar novamente se foi confirmado
+              const { data: userData, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(userId)
+              if (!getUserError && userData?.user) {
+                emailConfirmed = !!userData.user.email_confirmed_at
+                console.log('✅ [Callback] Verificação final - Email confirmado:', emailConfirmed)
+                console.log('✅ [Callback] email_confirmed_at:', userData.user.email_confirmed_at)
+                console.log('✅ [Callback] email_confirm:', userData.user.email_confirm)
+                
+                if (!emailConfirmed) {
+                  console.error('⚠️ [Callback] Email ainda não confirmado após Admin API!')
+                  console.error('⚠️ [Callback] Tentando novamente...')
                   
-                  // Confirmar agora
-                  const { error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+                  // Tentar novamente
+                  const { error: retryError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
                     email_confirm: true
                   })
                   
-                  if (!confirmError) {
-                    console.log('✅ [Callback] Email confirmado via Admin API após busca por email!')
-                    emailConfirmed = true
+                  if (!retryError) {
+                    await new Promise(resolve => setTimeout(resolve, 1000))
+                    const { data: retryUserData } = await supabaseAdmin.auth.admin.getUserById(userId)
+                    if (retryUserData?.user) {
+                      emailConfirmed = !!retryUserData.user.email_confirmed_at
+                      console.log('✅ [Callback] Após retry - Email confirmado:', emailConfirmed)
+                    }
                   }
                 }
+              } else {
+                console.error('❌ [Callback] Erro ao verificar usuário após confirmação:', getUserError?.message)
               }
-            } catch (err) {
-              console.error('❌ [Callback] Erro ao buscar usuário por email:', err)
+            } else {
+              console.error('❌ [Callback] Erro ao confirmar email via Admin API:', confirmError.message)
+              console.error('❌ [Callback] Erro completo:', JSON.stringify(confirmError, null, 2))
             }
+          } else {
+            console.error('❌ [Callback] Admin client não disponível')
           }
+        } catch (adminError: any) {
+          console.error('❌ [Callback] Erro inesperado ao confirmar via Admin API:', adminError.message)
+          console.error('❌ [Callback] Stack:', adminError.stack)
         }
+      } else {
+        console.error('❌ [Callback] Não foi possível obter userId para confirmar via Admin API')
+        console.error('❌ [Callback] Token hash:', token_hash ? token_hash.substring(0, 20) + '...' : 'NÃO DISPONÍVEL')
+        console.error('❌ [Callback] Type:', type)
       }
       
       // Redirecionar com status
