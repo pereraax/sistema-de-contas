@@ -272,9 +272,9 @@ export async function POST(request: NextRequest) {
           '6. Teste manualmente: Authentication → Users → Selecione usuário → "Send password recovery"'
         ],
         suggestion: `Erro específico: ${errorDetails}. Verifique logs do console e do Supabase para mais detalhes.`,
-        methodsTried: ['resend_signup'],
+        methodsTried: ['resend_signup', 'resend_email'],
         errorDetails: errorDetails,
-        resendError: resendError.message
+        resendError: resendError?.message || 'Erro desconhecido do resend'
       },
       { status: 500 }
     )
