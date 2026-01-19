@@ -268,14 +268,16 @@ export async function signUp(email: string, password: string, nome: string, tele
         if (inviteError) {
           const errorMsg = inviteError.message.toLowerCase()
           console.warn('⚠️ Erro ao enviar via inviteUserByEmail:', inviteError.message)
+          console.warn('⚠️ Erro completo:', JSON.stringify(inviteError, null, 2))
           
           // Se for erro de "já existe", o email ainda pode ter sido enviado
           if (errorMsg.includes('already exists') || errorMsg.includes('already registered')) {
             console.log('⚠️ Usuário já existe, mas email pode ter sido enviado pelo inviteUserByEmail')
+            console.log('⚠️ IMPORTANTE: Verifique os logs do Supabase (Authentication → Logs) para confirmar se o email foi enviado')
           } else {
             // Tentar resend como fallback
             console.log('📤 Tentando resend como fallback...')
-            const { error: resendError } = await supabase.auth.resend({
+            const { error: resendError, data: resendData } = await supabase.auth.resend({
               type: 'signup',
               email: email,
               options: {
@@ -283,15 +285,32 @@ export async function signUp(email: string, password: string, nome: string, tele
               }
             })
             
+            console.log('📬 Resposta do resend:')
+            console.log('  - Erro:', resendError?.message || 'Nenhum')
+            console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
+            
             if (resendError) {
               console.error('❌ Erro ao enviar via resend:', resendError.message)
+              console.error('❌ Erro completo do resend:', JSON.stringify(resendError, null, 2))
               teveErroEmail = true
             } else {
               console.log('✅ Email enviado via resend com sucesso!')
+              console.log('⚠️ IMPORTANTE: Se o email não chegar, verifique:')
+              console.log('   1. SMTP configurado no Supabase Dashboard (Project Settings → Auth → SMTP Settings)')
+              console.log('   2. Template de email configurado (Authentication → Email Templates → "Confirm signup")')
+              console.log('   3. Logs do Supabase (Authentication → Logs) para ver erros de SMTP')
+              console.log('   4. Pasta de spam do email')
             }
           }
         } else {
-          console.log('✅ Email enviado via inviteUserByEmail com sucesso!')
+          console.log('✅ inviteUserByEmail executado com sucesso!')
+          console.log('📧 Email DEVE ter sido enviado pelo Supabase')
+          console.log('⚠️ IMPORTANTE: Se o email não chegar, verifique:')
+          console.log('   1. SMTP configurado no Supabase Dashboard (Project Settings → Auth → SMTP Settings)')
+          console.log('   2. Template de email configurado (Authentication → Email Templates → "Confirm signup")')
+          console.log('   3. Logs do Supabase (Authentication → Logs) para ver erros de SMTP')
+          console.log('   4. Pasta de spam do email')
+          console.log('   5. Teste manualmente: Authentication → Users → Selecione usuário → "Send password recovery"')
         }
       } catch (emailError: any) {
         console.error('❌ Erro inesperado ao enviar email:', emailError.message)
