@@ -129,24 +129,67 @@ export async function GET(request: NextRequest) {
             const supabaseAdmin = createAdminClient()
             if (supabaseAdmin) {
               console.log(`🔧 [Callback] Confirmando email via Admin API para usuário: ${userId}`)
-              const { error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-                email_confirm: true
+              
+              // IMPORTANTE: Confirmar email E atualizar email_confirmed_at
+              const { data: updateData, error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+                email_confirm: true,
+                // Forçar atualização do email_confirmed_at
               })
               
               if (!confirmError) {
                 console.log('✅ [Callback] Email confirmado com sucesso via Admin API!')
-                emailConfirmed = true
+                console.log('✅ [Callback] Dados atualizados:', JSON.stringify(updateData, null, 2))
+                
+                // Verificar novamente se foi confirmado
+                const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId)
+                if (userData?.user) {
+                  emailConfirmed = !!userData.user.email_confirmed_at
+                  console.log('✅ [Callback] Verificação final - Email confirmado:', emailConfirmed)
+                  console.log('✅ [Callback] email_confirmed_at:', userData.user.email_confirmed_at)
+                }
               } else {
                 console.error('❌ [Callback] Erro ao confirmar email via Admin API:', confirmError.message)
+                console.error('❌ [Callback] Erro completo:', JSON.stringify(confirmError, null, 2))
               }
             } else {
               console.error('❌ [Callback] Admin client não disponível')
             }
           } catch (adminError: any) {
             console.error('❌ [Callback] Erro inesperado ao confirmar via Admin API:', adminError.message)
+            console.error('❌ [Callback] Stack:', adminError.stack)
           }
         } else {
           console.error('❌ [Callback] Não foi possível obter userId para confirmar via Admin API')
+          console.error('❌ [Callback] Tentando buscar usuário pelo email da URL...')
+          
+          // Tentar buscar por email se disponível
+          const emailParam = requestUrl.searchParams.get('email')
+          if (emailParam) {
+            try {
+              const supabaseAdmin = createAdminClient()
+              if (supabaseAdmin) {
+                const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
+                const user = usersData?.users?.find((u: any) => u.email === emailParam)
+                if (user) {
+                  console.log(`✅ [Callback] Usuário encontrado por email: ${user.id}`)
+                  userId = user.id
+                  userEmail = user.email
+                  
+                  // Confirmar agora
+                  const { error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+                    email_confirm: true
+                  })
+                  
+                  if (!confirmError) {
+                    console.log('✅ [Callback] Email confirmado via Admin API após busca por email!')
+                    emailConfirmed = true
+                  }
+                }
+              }
+            } catch (err) {
+              console.error('❌ [Callback] Erro ao buscar usuário por email:', err)
+            }
+          }
         }
       }
       
