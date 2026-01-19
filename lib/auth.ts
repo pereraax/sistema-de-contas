@@ -129,6 +129,42 @@ export async function signUp(email: string, password: string, nome: string, tele
     authData = signUpResult.data
     authError = signUpResult.error
     
+    // Tratar erro de rate limiting específico do Supabase
+    if (authError && (authError.message?.includes('2 seconds') || authError.message?.includes('For security purposes'))) {
+      console.log('⏳ Rate limiting detectado - aguardando 2.5 segundos antes de retentar...')
+      await new Promise(resolve => setTimeout(resolve, 2500))
+      
+      // Tentar novamente após aguardar
+      console.log('🔄 Retentando criar conta após rate limiting...')
+      signUpResult = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            nome,
+            telefone,
+            whatsapp,
+            plano,
+            email,
+          },
+          emailRedirectTo: redirectUrl,
+        }
+      })
+      
+      authData = signUpResult.data
+      authError = signUpResult.error
+      
+      // Se ainda der erro de rate limiting, considerar sucesso se houver usuário criado
+      if (authError && (authError.message?.includes('2 seconds') || authError.message?.includes('For security purposes'))) {
+        console.log('⚠️ Rate limiting ainda ativo, mas verificando se usuário foi criado...')
+        if (authData?.user) {
+          console.log('✅ Usuário foi criado apesar do erro de rate limiting - email provavelmente foi enviado')
+          // Limpar o erro para continuar o processamento
+          authError = null
+        }
+      }
+    }
+    
     // Log adicional para debug
     console.log('📧 [DEBUG] emailRedirectTo enviado para Supabase:', redirectUrl)
     console.log('📧 [DEBUG] Verifique se o template de email usa {{ .ConfirmationURL }} e não {{ .SiteURL }}')
