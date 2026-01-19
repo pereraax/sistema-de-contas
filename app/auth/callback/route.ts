@@ -14,11 +14,27 @@ export async function GET(request: NextRequest) {
   // Log detalhado de todos os parâmetros
   console.log('🔍 [Callback] ==========================================')
   console.log('🔍 [Callback] URL completa:', requestUrl.toString())
+  console.log('🔍 [Callback] Host:', requestUrl.host)
+  console.log('🔍 [Callback] Origin:', requestUrl.origin)
   console.log('🔍 [Callback] Parâmetros da URL:')
   console.log('   - token_hash:', token_hash ? token_hash.substring(0, 20) + '...' : 'NÃO ENCONTRADO')
   console.log('   - type:', type || 'NÃO ENCONTRADO')
   console.log('   - next:', next)
   console.log('🔍 [Callback] Todos os parâmetros:', Object.fromEntries(requestUrl.searchParams.entries()))
+  
+  // Verificar se a URL é inválida (0.0.0.0:10000)
+  if (requestUrl.host.includes('0.0.0.0') || requestUrl.host.includes('10000')) {
+    console.error('❌ [Callback] URL INVÁLIDA DETECTADA: 0.0.0.0:10000')
+    console.error('❌ [Callback] Este link foi gerado com Site URL incorreta no Supabase')
+    console.error('❌ [Callback] Redirecionando para login com mensagem de erro')
+    
+    // Redirecionar para login com mensagem específica
+    const redirectUrl = new URL('/login', requestUrl.origin)
+    redirectUrl.searchParams.set('error', 'Link de confirmação inválido. O link foi gerado com URL incorreta. Por favor, solicite um novo link de confirmação.')
+    redirectUrl.searchParams.set('invalidLink', 'true')
+    return NextResponse.redirect(redirectUrl)
+  }
+  
   console.log('🔍 [Callback] ==========================================')
 
   if (token_hash && type) {

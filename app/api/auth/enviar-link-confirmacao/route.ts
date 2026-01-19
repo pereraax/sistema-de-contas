@@ -58,30 +58,26 @@ export async function POST(request: NextRequest) {
     
     console.log('✅ Usuário encontrado:', user.id)
     console.log('📋 Email confirmado:', user.email_confirmed_at ? 'SIM' : 'NÃO')
+    console.log('📋 Data de confirmação:', user.email_confirmed_at || 'NÃO CONFIRMADO')
     
-    // Verificar se já está confirmado (definitivamente)
-    if (user.email_confirmed_at) {
-      const confirmedDate = new Date(user.email_confirmed_at)
-      const createdDate = new Date(user.created_at)
-      const diffSeconds = Math.abs((confirmedDate.getTime() - createdDate.getTime()) / 1000)
-      
-      if (diffSeconds >= 30) {
-        console.log('⚠️ Email já confirmado há mais de 30 segundos')
-        return NextResponse.json(
-          { error: 'Este email já foi confirmado.' },
-          { status: 400 }
-        )
-      }
-    }
+    // IMPORTANTE: Sempre permitir reenvio, mesmo se já confirmado
+    // Motivo: O link anterior pode ter sido gerado com URL errada (0.0.0.0:10000)
+    // e o usuário precisa receber um novo link com a URL correta
+    console.log('⚠️ IMPORTANTE: Permitindo reenvio mesmo se já confirmado')
+    console.log('⚠️ Motivo: Link anterior pode ter sido gerado com URL errada (0.0.0.0:10000)')
     
     // PASSO 1: Sempre limpar confirmação para forçar novo envio
+    // Isso permite que o usuário receba um novo link mesmo se o anterior foi "confirmado"
     console.log('🔧 PASSO 1: Limpando confirmação de email para forçar novo envio...')
+    console.log('🔧 Isso permite reenvio mesmo se link anterior foi gerado com URL errada')
+    
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, { 
       email_confirm: false
     })
     
     if (updateError) {
       console.error('⚠️ Erro ao limpar confirmação:', updateError.message)
+      console.warn('⚠️ Continuando mesmo com erro - tentando reenviar de qualquer forma')
     } else {
       console.log('✅ Confirmação limpa com sucesso')
     }
