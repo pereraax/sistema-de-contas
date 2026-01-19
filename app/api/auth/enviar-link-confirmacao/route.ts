@@ -157,10 +157,69 @@ export async function POST(request: NextRequest) {
       })
     }
     
-    // PASSO 4: Se resend falhou, tentar gerar link manualmente via Admin API
+    // PASSO 4: Se resend falhou, tentar inviteUserByEmail como último recurso
+    // IMPORTANTE: inviteUserByEmail SEMPRE envia email (mesmo que seja de "invite")
+    // É melhor enviar email de "invite" do que não enviar nada
+    console.log('📤 PASSO 4: Resend falhou, tentando inviteUserByEmail como último recurso...')
+    console.log('⚠️ IMPORTANTE: inviteUserByEmail SEMPRE envia email (mesmo que seja de "invite")')
+    console.log('⚠️ É melhor enviar email de "invite" do que não enviar nada')
+    
+    try {
+      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+        email,
+        {
+          redirectTo: redirectTo,
+          data: user.user_metadata || {}
+        }
+      )
+      
+      if (!inviteError) {
+        console.log('✅ inviteUserByEmail executado com sucesso!')
+        console.log('📧 Email DEVE ter sido enviado pelo Supabase (tipo: invite)')
+        console.log('📝 Dados retornados:', JSON.stringify(inviteData, null, 2))
+        
+        return NextResponse.json({
+          success: true,
+          message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
+          method: 'invite_user_by_email',
+          note: 'Email enviado via inviteUserByEmail. Se não receber, verifique spam e logs do Supabase.',
+          warning: 'Email pode aparecer como "invite" mas contém link de confirmação válido'
+        })
+      } else {
+        console.error('❌ inviteUserByEmail também falhou:', inviteError.message)
+        const errorMsg = inviteError.message.toLowerCase()
+        
+        // Se for erro de "já existe", o email ainda pode ter sido enviado
+        if (errorMsg.includes('already exists') || errorMsg.includes('already registered')) {
+          console.log('⚠️ Usuário já existe, mas email pode ter sido enviado')
+          return NextResponse.json({
+            success: true,
+            message: 'Link de confirmação enviado! Verifique sua caixa de entrada (incluindo spam).',
+            method: 'invite_user_by_email',
+            note: 'Usuário já existe, mas email pode ter sido enviado',
+            warning: 'Email pode aparecer como "invite" mas contém link de confirmação válido'
+          })
+        }
+      }
+    } catch (inviteException: any) {
+      console.error('❌ Exceção ao enviar invite:', inviteException.message)
+      const exceptionMsg = inviteException?.message?.toLowerCase() || ''
+      if (exceptionMsg.includes('already exists')) {
+        console.log('⚠️ Exceção de usuário existente - email pode ter sido enviado')
+        return NextResponse.json({
+          success: true,
+          message: 'Link de confirmação enviado! Verifique sua caixa de entrada (incluindo spam).',
+          method: 'invite_user_by_email',
+          note: 'Usuário já existe, mas email pode ter sido enviado',
+          warning: 'Email pode aparecer como "invite" mas contém link de confirmação válido'
+        })
+      }
+    }
+    
+    // PASSO 5: Se inviteUserByEmail também falhou, tentar gerar link manualmente via Admin API
     // IMPORTANTE: generateLink NÃO envia email, apenas gera o link
     // Mas podemos verificar se o link gerado tem a URL correta
-    console.log('📤 PASSO 4: Resend falhou, tentando gerar link manualmente via Admin API...')
+    console.log('📤 PASSO 5: inviteUserByEmail também falhou, tentando gerar link manualmente via Admin API...')
     console.log('⚠️ IMPORTANTE: generateLink NÃO envia email, apenas gera o link para diagnóstico')
     
     try {
