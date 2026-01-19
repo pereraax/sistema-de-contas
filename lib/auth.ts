@@ -684,9 +684,12 @@ export async function reenviarCodigoEmail(email: string) {
     }
     
     // Configurar URL de redirecionamento
-    const siteUrl = await getSiteUrl()
+    // IMPORTANTE: SEMPRE usar https://plenipay.com explicitamente
+    // Não confiar em getSiteUrl() que pode retornar URL errada
+    const siteUrl = 'https://plenipay.com' // FORÇAR URL de produção sempre
     const redirectTo = `${siteUrl}/auth/callback?next=/home`
-    console.log('🔗 URL de redirecionamento:', redirectTo)
+    console.log('🔗 URL de redirecionamento (FORÇADA):', redirectTo)
+    console.log('⚠️ IMPORTANTE: URL forçada para produção (https://plenipay.com)')
     
     // MÉTODO 1: Tentar resend (type: signup) - NÃO usar inviteUserByEmail
     // inviteUserByEmail envia email de "invite", não de confirmação

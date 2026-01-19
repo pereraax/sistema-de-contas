@@ -90,10 +90,12 @@ export async function POST(request: NextRequest) {
     await new Promise(resolve => setTimeout(resolve, 3000))
     
     // PASSO 2: Configurar URL de redirecionamento
-    const { getSiteUrl } = await import('@/lib/auth')
-    const siteUrl = await getSiteUrl()
+    // IMPORTANTE: SEMPRE usar https://plenipay.com explicitamente
+    // Não confiar em getSiteUrl() que pode retornar URL errada
+    const siteUrl = 'https://plenipay.com' // FORÇAR URL de produção sempre
     const redirectTo = `${siteUrl}/auth/callback?next=/home`
-    console.log('🔗 URL de redirecionamento:', redirectTo)
+    console.log('🔗 URL de redirecionamento (FORÇADA):', redirectTo)
+    console.log('⚠️ IMPORTANTE: URL forçada para produção (https://plenipay.com)')
     
     // PASSO 3: Tentar resend (type: signup) primeiro
     console.log('📤 PASSO 3: Tentando resend (type: signup)...')
