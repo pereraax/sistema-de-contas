@@ -200,6 +200,7 @@ export async function POST(request: NextRequest) {
     let resendError: any = null
     let resendData: any = null
     let tipoUsado: string | null = null
+    let ultimoErro: any = null // IMPORTANTE: Declarar ultimoErro antes de usar
     
     for (const tipo of tiposParaTentar) {
       try {
