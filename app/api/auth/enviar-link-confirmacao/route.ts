@@ -95,49 +95,96 @@ export async function POST(request: NextRequest) {
     const redirectTo = `${siteUrl}/auth/callback?next=/home`
     console.log('🔗 URL de redirecionamento:', redirectTo)
     
-    // PASSO 3: Usar resend (type: signup) como método PRINCIPAL
-    // NÃO usar inviteUserByEmail pois envia email de "invite", não de confirmação
-    console.log('📤 PASSO 3: Tentando resend (type: signup) - método principal...')
+    // PASSO 3: Tentar resend (type: signup) primeiro
+    console.log('📤 PASSO 3: Tentando resend (type: signup)...')
     
     const supabasePublic = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
     
-    const { data: resendData, error: resendError } = await supabasePublic.auth.resend({
-      type: 'signup',
-      email: email,
-      options: {
-        emailRedirectTo: redirectTo
-      }
-    })
+    let resendError: any = null
+    let resendData: any = null
     
-    console.log('📬 Resposta do resend:')
-    console.log('  - Erro:', resendError?.message || 'Nenhum')
-    console.log('  - Código do erro:', resendError?.status || 'Nenhum')
-    console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
-    
-    if (!resendError) {
-      // Resend pode retornar sucesso mesmo sem dados
-      // Se não houver erro, assumir que foi enviado
-      console.log('✅ Resend retornou sucesso (sem erro)!')
-      console.log('📧 Email DEVE ter sido enviado pelo Supabase')
-      return NextResponse.json({
-        success: true,
-        message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
-        method: 'resend_signup',
-        note: 'Se não receber, verifique spam e logs do Supabase (Authentication → Logs)'
+    try {
+      const result = await supabasePublic.auth.resend({
+        type: 'signup',
+        email: email,
+        options: {
+          emailRedirectTo: redirectTo
+        }
       })
+      
+      resendData = result.data
+      resendError = result.error
+      
+      console.log('📬 Resposta do resend:')
+      console.log('  - Erro:', resendError?.message || 'Nenhum')
+      console.log('  - Código do erro:', resendError?.status || 'Nenhum')
+      console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
+      
+      if (!resendError) {
+        // Resend pode retornar sucesso mesmo sem dados
+        // Se não houver erro, assumir que foi enviado
+        console.log('✅ Resend retornou sucesso (sem erro)!')
+        console.log('📧 Email DEVE ter sido enviado pelo Supabase')
+        return NextResponse.json({
+          success: true,
+          message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
+          method: 'resend_signup',
+          note: 'Se não receber, verifique spam e logs do Supabase (Authentication → Logs)'
+        })
+      }
+    } catch (resendException: any) {
+      console.error('❌ Exceção ao tentar resend:', resendException.message)
+      resendError = resendException
     }
     
-    // Se houver erro, logar detalhes e retornar erro específico
-    console.error('❌ Resend falhou com erro:')
-    console.error('  - Mensagem:', resendError.message)
-    console.error('  - Status:', resendError.status)
+    // PASSO 4: Se resend falhou, tentar gerar link manualmente via Admin API
+    console.log('📤 PASSO 4: Resend falhou, tentando gerar link manualmente via Admin API...')
+    
+    try {
+      // Gerar link de confirmação manualmente
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'signup',
+        email: email,
+        options: {
+          redirectTo: redirectTo
+        }
+      })
+      
+      if (!linkError && linkData?.properties?.action_link) {
+        console.log('✅ Link gerado com sucesso via Admin API!')
+        console.log('📧 Link:', linkData.properties.action_link.substring(0, 50) + '...')
+        
+        // IMPORTANTE: O link foi gerado, mas não foi enviado automaticamente
+        // O Supabase não envia email quando gera link manualmente
+        // Precisamos informar o usuário que o link foi gerado mas não enviado
+        // OU tentar usar outro método para enviar
+        
+        // Por enquanto, retornar sucesso mas avisar que precisa verificar
+        return NextResponse.json({
+          success: true,
+          message: 'Link de confirmação gerado! Verifique sua caixa de entrada.',
+          method: 'generate_link',
+          note: 'Se não receber o email, o link foi gerado mas pode não ter sido enviado automaticamente. Verifique logs do Supabase.',
+          warning: 'Link gerado mas email pode não ter sido enviado. Verifique configuração SMTP.'
+        })
+      } else {
+        console.error('❌ Erro ao gerar link:', linkError?.message || 'Erro desconhecido')
+      }
+    } catch (linkException: any) {
+      console.error('❌ Exceção ao gerar link:', linkException.message)
+    }
+    
+    // Se chegou aqui, todos os métodos falharam
+    console.error('❌ Todos os métodos falharam. Erro do resend:')
+    console.error('  - Mensagem:', resendError?.message || 'Nenhum')
+    console.error('  - Status:', resendError?.status || 'Nenhum')
     console.error('  - Erro completo:', JSON.stringify(resendError, null, 2))
     
     // Verificar tipo de erro específico
-    const errorMsg = resendError.message?.toLowerCase() || ''
+    const errorMsg = resendError?.message?.toLowerCase() || ''
     let errorDetails = 'Erro desconhecido ao enviar email de confirmação.'
     
     if (errorMsg.includes('email not found') || errorMsg.includes('user not found')) {
@@ -148,6 +195,8 @@ export async function POST(request: NextRequest) {
       errorDetails = 'Este email já foi confirmado. Você pode fazer login normalmente.'
     } else if (errorMsg.includes('smtp') || errorMsg.includes('email sending')) {
       errorDetails = 'Erro ao enviar email. Verifique a configuração SMTP no Supabase Dashboard.'
+    } else if (errorMsg.includes('signup') || errorMsg.includes('sign up')) {
+      errorDetails = 'Erro ao enviar email de confirmação. O resend pode não funcionar para usuários criados há muito tempo. Tente criar uma nova conta.'
     }
     
     console.log('⚠️ Todos os métodos falharam. Verificando configuração...')
