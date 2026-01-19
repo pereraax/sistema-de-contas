@@ -137,6 +137,10 @@ export async function signUp(email: string, password: string, nome: string, tele
     
     // Criar usuário COM confirmação de email automática
     // O Supabase enviará o email automaticamente com o emailRedirectTo
+    let authData: any = null
+    let authError: any = null
+    
+    // Primeira tentativa de criar conta
     let signUpResult = await supabase.auth.signUp({
       email,
       password,
@@ -152,8 +156,8 @@ export async function signUp(email: string, password: string, nome: string, tele
       }
     })
     
-    let authData = signUpResult.data
-    let authError = signUpResult.error
+    authData = signUpResult.data
+    authError = signUpResult.error
     
     // Log adicional para debug
     console.log('📧 [DEBUG] emailRedirectTo enviado para Supabase:', redirectUrl)
