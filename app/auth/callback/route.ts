@@ -28,16 +28,27 @@ export async function GET(request: NextRequest) {
   console.log('   - next:', next)
   console.log('🔍 [Callback] Todos os parâmetros:', Object.fromEntries(requestUrl.searchParams.entries()))
   
-  // Verificar se a URL é inválida (0.0.0.0:10000)
+  // CRÍTICO: Se a URL é inválida (0.0.0.0:10000), redirecionar IMEDIATAMENTE
+  // Isso acontece quando o link no email tem 0.0.0.0:10000
+  // O navegador tenta abrir essa URL e falha, mas se conseguir chegar aqui, redirecionamos
   if (requestUrl.host.includes('0.0.0.0') || requestUrl.host.includes('10000')) {
     console.error('❌ [Callback] URL INVÁLIDA DETECTADA: 0.0.0.0:10000')
     console.error('❌ [Callback] Este link foi gerado com Site URL incorreta no Supabase')
-    console.error('❌ [Callback] Redirecionando para login com URL correta (https://plenipay.com)')
+    console.error('❌ [Callback] Redirecionando IMEDIATAMENTE para login com URL correta')
     
-    // Redirecionar para login com mensagem específica usando URL de produção
-    const redirectUrl = new URL('/login', productionUrl)
-    redirectUrl.searchParams.set('error', 'Link de confirmação inválido. O link foi gerado com URL incorreta. Por favor, solicite um novo link de confirmação.')
-    redirectUrl.searchParams.set('invalidLink', 'true')
+    // IMPORTANTE: Preservar token_hash e type se existirem para processar depois
+    // Mas redirecionar para o domínio correto primeiro
+    const redirectUrl = new URL('/auth/callback', productionUrl)
+    
+    // Copiar todos os parâmetros da URL original
+    requestUrl.searchParams.forEach((value, key) => {
+      redirectUrl.searchParams.set(key, value)
+    })
+    
+    // Adicionar flag para indicar que foi redirecionado
+    redirectUrl.searchParams.set('redirected', 'true')
+    
+    console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
     return NextResponse.redirect(redirectUrl)
   }
   
