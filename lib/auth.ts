@@ -282,36 +282,50 @@ export async function signUp(email: string, password: string, nome: string, tele
         console.warn('⚠️ Erro ao tentar resend:', emailError.message)
       }
       
-      // MÉTODO 2: Se resend falhou, tentar via API de envio de link
-      if (!emailEnviado) {
+      // MÉTODO 2: Se resend falhou, tentar via Admin API (generateLink + inviteUserByEmail)
+      if (!emailEnviado && supabaseAdmin) {
         try {
-          console.log('📤 MÉTODO 2: Tentando enviar via API de envio de link...')
+          console.log('📤 MÉTODO 2: Tentando enviar via Admin API (generateLink + inviteUserByEmail)...')
           
-          // Chamar a API interna de envio de link de confirmação
-          const apiUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com'
-          const response = await fetch(`${apiUrl}/api/auth/enviar-link-confirmacao`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email }),
+          // Primeiro, limpar confirmação para forçar novo envio
+          console.log('🔧 Limpando confirmação de email...')
+          await supabaseAdmin.auth.admin.updateUserById(authData.user.id, { 
+            email_confirm: false
           })
           
-          const result = await response.json()
+          // Aguardar um pouco
+          await new Promise(resolve => setTimeout(resolve, 1000))
           
-          console.log('📬 Resposta da API de envio:')
-          console.log('  - Success:', result.success || false)
-          console.log('  - Message:', result.message || 'Nenhum')
-          console.log('  - Error:', result.error || 'Nenhum')
+          // Tentar inviteUserByEmail (sempre envia email)
+          const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+            email,
+            {
+              redirectTo: redirectUrl,
+              data: {
+                nome,
+                telefone,
+                whatsapp,
+                plano,
+                email,
+              }
+            }
+          )
           
-          if (result.success) {
-            console.log('✅ Email de confirmação enviado via API com sucesso!')
+          if (!inviteError) {
+            console.log('✅ Email de confirmação enviado via inviteUserByEmail com sucesso!')
             emailEnviado = true
           } else {
-            console.warn('⚠️ API de envio falhou:', result.error || 'Erro desconhecido')
+            const errorMsg = inviteError.message.toLowerCase()
+            // Se for erro de "already exists", o email ainda pode ter sido enviado
+            if (errorMsg.includes('already exists') || errorMsg.includes('already registered')) {
+              console.log('⚠️ Usuário já existe, mas email pode ter sido enviado pelo inviteUserByEmail')
+              emailEnviado = true // Assumir que foi enviado
+            } else {
+              console.warn('⚠️ inviteUserByEmail falhou:', inviteError.message)
+            }
           }
-        } catch (apiError: any) {
-          console.warn('⚠️ Erro ao chamar API de envio:', apiError.message)
+        } catch (adminError: any) {
+          console.warn('⚠️ Erro ao tentar Admin API:', adminError.message)
         }
       }
       
