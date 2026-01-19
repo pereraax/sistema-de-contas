@@ -180,6 +180,10 @@ export async function signUp(email: string, password: string, nome: string, tele
                   // Aguardar um pouco para garantir que foi deletado
                   await new Promise(resolve => setTimeout(resolve, 1500))
                   
+                  // Aguardar um pouco para evitar rate limiting antes de tentar criar novamente
+                  console.log('⏳ Aguardando 2.5 segundos antes de criar nova conta (evitar rate limiting)...')
+                  await new Promise(resolve => setTimeout(resolve, 2500))
+                  
                   // Tentar criar novamente
                   console.log('🔄 Tentando criar conta novamente após deletar usuário não confirmado...')
                   signUpResult = await supabase.auth.signUp({
@@ -200,7 +204,18 @@ export async function signUp(email: string, password: string, nome: string, tele
                   authData = signUpResult.data
                   authError = signUpResult.error
                   
-                  if (authError) {
+                  // Tratar erro de rate limiting
+                  if (authError && (authError.message?.includes('2 seconds') || authError.message?.includes('For security purposes'))) {
+                    console.log('⏳ Rate limiting ainda ativo após aguardar - verificando se usuário foi criado...')
+                    if (authData?.user) {
+                      console.log('✅ Usuário foi criado apesar do erro de rate limiting')
+                      // Limpar o erro para continuar
+                      authError = null
+                    } else {
+                      console.error('❌ Rate limiting e usuário não criado - retornando erro amigável')
+                      return { error: 'Aguarde alguns segundos e tente novamente. O limite de requisições foi atingido.' }
+                    }
+                  } else if (authError) {
                     console.error('❌ Erro ao criar conta após deletar usuário antigo:', authError.message)
                     return { error: authError.message || 'Erro ao criar conta. Tente novamente.' }
                   }

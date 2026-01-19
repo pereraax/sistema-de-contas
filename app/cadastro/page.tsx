@@ -238,8 +238,23 @@ function CadastroContent() {
         let mensagemErro = erroResult
         if (erroResult.includes('already registered') || erroResult.includes('já está cadastrado')) {
           mensagemErro = 'Este email já está cadastrado. Deseja fazer login?'
-        } else if (erroResult.includes('rate limit') || erroResult.includes('rate_limit')) {
-          mensagemErro = 'Limite de envio de emails atingido. Por favor, aguarde 10-15 minutos antes de tentar novamente.'
+        } else if (erroResult.includes('rate limit') || erroResult.includes('rate_limit') || erroResult.includes('2 seconds') || erroResult.includes('For security purposes')) {
+          // Se o erro for de rate limiting mas a conta foi criada, mostrar modal
+          if (userCreated || teveErroEmail) {
+            mensagemErro = 'Conta criada! Mas houve um pequeno atraso. Verifique seu email.'
+            const emailParaModal = formData.email
+            setEmailCadastrado(emailParaModal)
+            
+            setTimeout(() => {
+              setShowModalConfirmacao(true)
+            }, 200)
+            
+            setLoading(false)
+            createNotification(mensagemErro, 'success')
+            return
+          } else {
+            mensagemErro = 'Aguarde alguns segundos e tente novamente. O limite de requisições foi atingido temporariamente.'
+          }
         }
         
         createNotification(mensagemErro, 'warning')
