@@ -107,6 +107,10 @@ export async function signUp(email: string, password: string, nome: string, tele
     
     // Primeira tentativa de criar conta
     console.log('🔄 Tentando criar conta...')
+    console.log('📧 [SIGNUP] emailRedirectTo que será enviado:', redirectUrl)
+    console.log('📧 [SIGNUP] ⚠️ IMPORTANTE: Se o link no email tiver 0.0.0.0:10000, o Supabase está ignorando emailRedirectTo')
+    console.log('📧 [SIGNUP] ⚠️ Verifique Site URL no Supabase Dashboard (Authentication → URL Configuration)')
+    
     let signUpResult = await supabase.auth.signUp({
       email,
       password,
@@ -128,6 +132,7 @@ export async function signUp(email: string, password: string, nome: string, tele
     // Log adicional para debug
     console.log('📧 [DEBUG] emailRedirectTo enviado para Supabase:', redirectUrl)
     console.log('📧 [DEBUG] Verifique se o template de email usa {{ .ConfirmationURL }} e não {{ .SiteURL }}')
+    console.log('📧 [DEBUG] ⚠️ Se o link no email tiver 0.0.0.0:10000, o problema está na configuração do Supabase')
     
     // Verificar se o email foi realmente enviado
     // O Supabase pode criar o usuário mas não enviar email se:
