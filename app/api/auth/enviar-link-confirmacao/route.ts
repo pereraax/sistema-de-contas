@@ -109,6 +109,13 @@ export async function POST(request: NextRequest) {
     let resendData: any = null
     
     try {
+      console.log('📤 [RESEND] Parâmetros sendo enviados:')
+      console.log('  - type: signup')
+      console.log('  - email:', email)
+      console.log('  - emailRedirectTo:', redirectTo)
+      console.log('  - ⚠️ IMPORTANTE: Verifique se o Supabase está usando este emailRedirectTo')
+      console.log('  - ⚠️ Se o link gerado tiver 0.0.0.0:10000, o Supabase está ignorando emailRedirectTo')
+      
       const result = await supabasePublic.auth.resend({
         type: 'signup',
         email: email,
@@ -120,10 +127,12 @@ export async function POST(request: NextRequest) {
       resendData = result.data
       resendError = result.error
       
-      console.log('📬 Resposta do resend:')
+      console.log('📬 [RESEND] Resposta do resend:')
       console.log('  - Erro:', resendError?.message || 'Nenhum')
       console.log('  - Código do erro:', resendError?.status || 'Nenhum')
       console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
+      console.log('  - ⚠️ IMPORTANTE: O email será enviado pelo Supabase com o link gerado')
+      console.log('  - ⚠️ O link no email pode usar Site URL do dashboard se emailRedirectTo for ignorado')
       
       if (!resendError) {
         // Resend pode retornar sucesso mesmo sem dados
