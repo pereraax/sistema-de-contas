@@ -596,7 +596,7 @@ function CadastroContent() {
           key={`modal-${emailCadastrado || formData.email}`}
           email={emailCadastrado || formData.email}
           obrigatorio={false}
-          emailJaEnviado={true}
+          emailJaEnviado={false}
           onConfirmado={() => {
             console.log('✅ Email confirmado via callback - redirecionando para home...')
             setShowModalConfirmacao(false)

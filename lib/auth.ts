@@ -243,32 +243,74 @@ export async function signUp(email: string, password: string, nome: string, tele
     }
     
     // Se chegou aqui, usuário foi criado com sucesso
-    // O Supabase deve ter enviado o email automaticamente com emailRedirectTo
-    // Verificar se precisa confirmar email (não tem session e não está confirmado)
-    const precisaConfirmarEmail = !authData.session && !authData.user.email_confirmed_at
+    // IMPORTANTE: SEMPRE enviar email de confirmação via Admin API
+    // Isso garante que o email seja enviado mesmo se o Supabase não enviar automaticamente
+    console.log('📧 ========== GARANTINDO ENVIO DE EMAIL ==========')
+    console.log('📧 Sempre enviar email via Admin API após criar conta')
     
-    // IMPORTANTE: Se não houver erro mas também não houver session,
-    // significa que o email foi enviado (Supabase não cria session até confirmar email)
-    if (authData.user && !authData.session && !authData.user.email_confirmed_at) {
-      console.log('✅ Email de confirmação foi enviado pelo Supabase (sem session = aguardando confirmação)')
-      console.log('✅ O usuário receberá o email com o link de confirmação')
-    } else if (authData.user && authData.session) {
-      console.log('⚠️ ATENÇÃO: Session foi criada - email pode não ter sido enviado ou já estava confirmado')
-      console.log('⚠️ Se session foi criada sem confirmação, pode haver problema na configuração')
+    if (!authData.user.email_confirmed_at && supabaseAdmin) {
+      try {
+        console.log('📤 Enviando email de confirmação via inviteUserByEmail...')
+        const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+          email,
+          {
+            redirectTo: redirectUrl,
+            data: {
+              nome,
+              telefone,
+              whatsapp,
+              plano,
+              email,
+            }
+          }
+        )
+        
+        if (inviteError) {
+          const errorMsg = inviteError.message.toLowerCase()
+          console.warn('⚠️ Erro ao enviar via inviteUserByEmail:', inviteError.message)
+          
+          // Se for erro de "já existe", o email ainda pode ter sido enviado
+          if (errorMsg.includes('already exists') || errorMsg.includes('already registered')) {
+            console.log('⚠️ Usuário já existe, mas email pode ter sido enviado pelo inviteUserByEmail')
+          } else {
+            // Tentar resend como fallback
+            console.log('📤 Tentando resend como fallback...')
+            const { error: resendError } = await supabase.auth.resend({
+              type: 'signup',
+              email: email,
+              options: {
+                emailRedirectTo: redirectUrl,
+              }
+            })
+            
+            if (resendError) {
+              console.error('❌ Erro ao enviar via resend:', resendError.message)
+              teveErroEmail = true
+            } else {
+              console.log('✅ Email enviado via resend com sucesso!')
+            }
+          }
+        } else {
+          console.log('✅ Email enviado via inviteUserByEmail com sucesso!')
+        }
+      } catch (emailError: any) {
+        console.error('❌ Erro inesperado ao enviar email:', emailError.message)
+        teveErroEmail = true
+      }
+    } else if (authData.user.email_confirmed_at) {
+      console.log('⚠️ Email já está confirmado - não precisa enviar')
+    } else {
+      console.warn('⚠️ Admin client não disponível - não foi possível garantir envio de email')
+      teveErroEmail = true
     }
     
-    console.log('✅ Usuário criado com sucesso via signUp normal')
+    console.log('📧 ==========================================')
+    
+    console.log('✅ Usuário criado com sucesso')
     console.log('📧 Email do usuário:', email)
     console.log('📧 User ID:', authData.user.id)
     console.log('📧 Email confirmado?', authData.user.email_confirmed_at ? 'SIM' : 'NÃO')
-    
-    // Sempre tentar garantir envio de email via API quando precisa confirmar
-    // Isso garante que mesmo se o Supabase não enviar, nossa API tenta
-    
-    console.log('⚠️ IMPORTANTE: Se o email não chegar, verifique:')
-    console.log('   1. SMTP configurado no Supabase Dashboard')
-    console.log('   2. Template de email configurado com {{ .ConfirmationURL }}')
-    console.log('   3. Logs do Supabase em Authentication → Logs')
+    console.log('📧 Email enviado?', teveErroEmail ? 'Tentado (pode ter falhado)' : 'SIM')
     
     // O perfil será criado automaticamente pelo trigger no Supabase
     // Aguardar um pouco para garantir que o trigger executou
