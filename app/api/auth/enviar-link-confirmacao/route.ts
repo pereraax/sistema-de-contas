@@ -97,58 +97,68 @@ export async function POST(request: NextRequest) {
     console.log('🔗 URL de redirecionamento (FORÇADA):', redirectTo)
     console.log('⚠️ IMPORTANTE: URL forçada para produção (https://plenipay.com)')
     
-    // PASSO 3: Tentar resend (type: signup) primeiro
-    console.log('📤 PASSO 3: Tentando resend (type: signup)...')
+    // PASSO 3: Tentar resend com múltiplos tipos
+    console.log('📤 PASSO 3: Tentando resend com múltiplos tipos...')
     
     const supabasePublic = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
     
+    // Tentar múltiplos tipos: 'signup' primeiro, depois 'email'
+    const tiposParaTentar = ['signup', 'email'] as const
     let resendError: any = null
     let resendData: any = null
+    let tipoUsado: string | null = null
     
-    try {
-      console.log('📤 [RESEND] Parâmetros sendo enviados:')
-      console.log('  - type: signup')
-      console.log('  - email:', email)
-      console.log('  - emailRedirectTo:', redirectTo)
-      console.log('  - ⚠️ IMPORTANTE: Verifique se o Supabase está usando este emailRedirectTo')
-      console.log('  - ⚠️ Se o link gerado tiver 0.0.0.0:10000, o Supabase está ignorando emailRedirectTo')
-      
-      const result = await supabasePublic.auth.resend({
-        type: 'signup',
-        email: email,
-        options: {
-          emailRedirectTo: redirectTo
-        }
-      })
-      
-      resendData = result.data
-      resendError = result.error
-      
-      console.log('📬 [RESEND] Resposta do resend:')
-      console.log('  - Erro:', resendError?.message || 'Nenhum')
-      console.log('  - Código do erro:', resendError?.status || 'Nenhum')
-      console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
-      console.log('  - ⚠️ IMPORTANTE: O email será enviado pelo Supabase com o link gerado')
-      console.log('  - ⚠️ O link no email pode usar Site URL do dashboard se emailRedirectTo for ignorado')
-      
-      if (!resendError) {
-        // Resend pode retornar sucesso mesmo sem dados
-        // Se não houver erro, assumir que foi enviado
-        console.log('✅ Resend retornou sucesso (sem erro)!')
-        console.log('📧 Email DEVE ter sido enviado pelo Supabase')
-        return NextResponse.json({
-          success: true,
-          message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
-          method: 'resend_signup',
-          note: 'Se não receber, verifique spam e logs do Supabase (Authentication → Logs)'
+    for (const tipo of tiposParaTentar) {
+      try {
+        console.log(`📤 [RESEND] Tentando com type: ${tipo}...`)
+        console.log('  - email:', email)
+        console.log('  - emailRedirectTo:', redirectTo)
+        console.log('  - ⚠️ IMPORTANTE: Verifique se o Supabase está usando este emailRedirectTo')
+        
+        const result = await supabasePublic.auth.resend({
+          type: tipo as any,
+          email: email,
+          options: {
+            emailRedirectTo: redirectTo
+          }
         })
+        
+        resendData = result.data
+        resendError = result.error
+        
+        console.log(`📬 [RESEND] Resposta do resend (type: ${tipo}):`)
+        console.log('  - Erro:', resendError?.message || 'Nenhum')
+        console.log('  - Código do erro:', resendError?.status || 'Nenhum')
+        console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
+        
+        if (!resendError) {
+          // Resend retornou sucesso
+          console.log(`✅ Resend retornou sucesso com type: ${tipo}!`)
+          console.log('📧 Email DEVE ter sido enviado pelo Supabase')
+          tipoUsado = tipo
+          break // Sucesso, não precisa tentar outros tipos
+        } else {
+          console.warn(`⚠️ Resend falhou com type: ${tipo}, erro: ${resendError.message}`)
+          // Continuar para tentar próximo tipo
+        }
+      } catch (resendException: any) {
+        console.error(`❌ Exceção ao tentar resend (type: ${tipo}):`, resendException.message)
+        resendError = resendException
+        // Continuar para tentar próximo tipo
       }
-    } catch (resendException: any) {
-      console.error('❌ Exceção ao tentar resend:', resendException.message)
-      resendError = resendException
+    }
+    
+    // Se algum tipo funcionou, retornar sucesso
+    if (!resendError && tipoUsado) {
+      return NextResponse.json({
+        success: true,
+        message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
+        method: `resend_${tipoUsado}`,
+        note: 'Se não receber, verifique spam e logs do Supabase (Authentication → Logs)'
+      })
     }
     
     // PASSO 4: Se resend falhou, tentar gerar link manualmente via Admin API
