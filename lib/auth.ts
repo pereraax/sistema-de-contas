@@ -243,20 +243,18 @@ export async function signUp(email: string, password: string, nome: string, tele
     }
     
     // Se chegou aqui, usuário foi criado com sucesso
-    // IMPORTANTE: SEMPRE enviar email de confirmação
-    // Isso garante que o email seja enviado toda vez que o usuário cria conta
+    // IMPORTANTE: SEMPRE enviar email de confirmação via resend (type: signup)
+    // NÃO usar inviteUserByEmail pois envia email de "invite", não de confirmação
     console.log('📧 ========== GARANTINDO ENVIO DE EMAIL ==========')
     console.log('📧 Sempre enviar email de confirmação após criar conta')
-    console.log('📧 Email será enviado mesmo se já existir usuário não confirmado')
+    console.log('📧 Usando apenas resend (type: signup) para garantir email correto')
     
     if (!authData.user.email_confirmed_at) {
       // Aguardar um pouco para garantir que o usuário foi criado completamente
       await new Promise(resolve => setTimeout(resolve, 1000))
       
-      // MÉTODO 1: Tentar resend primeiro
-      let emailEnviado = false
       try {
-        console.log('📤 MÉTODO 1: Tentando enviar via resend (type: signup)...')
+        console.log('📤 Enviando email de confirmação via resend (type: signup)...')
         console.log('📧 Email:', email)
         console.log('📧 Redirect URL:', redirectUrl)
         
@@ -272,69 +270,23 @@ export async function signUp(email: string, password: string, nome: string, tele
         console.log('  - Erro:', resendError?.message || 'Nenhum')
         console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
         
-        if (!resendError) {
-          console.log('✅ Email de confirmação enviado via resend com sucesso!')
-          emailEnviado = true
+        if (resendError) {
+          console.error('❌ Erro ao enviar via resend:', resendError.message)
+          console.error('❌ Erro completo do resend:', JSON.stringify(resendError, null, 2))
+          console.error('⚠️ IMPORTANTE: Verifique se:')
+          console.error('   1. SMTP está configurado no Supabase Dashboard')
+          console.error('   2. Template de email "Confirm signup" está configurado')
+          console.error('   3. "Enable email confirmations" está habilitado')
+          console.error('   4. Verifique logs do Supabase (Authentication → Logs)')
+          teveErroEmail = true
         } else {
-          console.warn('⚠️ Resend falhou:', resendError.message)
+          console.log('✅ Email de confirmação enviado via resend com sucesso!')
+          console.log('✅ O usuário receberá o email de confirmação (não email de invite)')
         }
       } catch (emailError: any) {
-        console.warn('⚠️ Erro ao tentar resend:', emailError.message)
-      }
-      
-      // MÉTODO 2: Se resend falhou, tentar via Admin API (generateLink + inviteUserByEmail)
-      if (!emailEnviado && supabaseAdmin) {
-        try {
-          console.log('📤 MÉTODO 2: Tentando enviar via Admin API (generateLink + inviteUserByEmail)...')
-          
-          // Primeiro, limpar confirmação para forçar novo envio
-          console.log('🔧 Limpando confirmação de email...')
-          await supabaseAdmin.auth.admin.updateUserById(authData.user.id, { 
-            email_confirm: false
-          })
-          
-          // Aguardar um pouco
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          
-          // Tentar inviteUserByEmail (sempre envia email)
-          const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-            email,
-            {
-              redirectTo: redirectUrl,
-              data: {
-                nome,
-                telefone,
-                whatsapp,
-                plano,
-                email,
-              }
-            }
-          )
-          
-          if (!inviteError) {
-            console.log('✅ Email de confirmação enviado via inviteUserByEmail com sucesso!')
-            emailEnviado = true
-          } else {
-            const errorMsg = inviteError.message.toLowerCase()
-            // Se for erro de "already exists", o email ainda pode ter sido enviado
-            if (errorMsg.includes('already exists') || errorMsg.includes('already registered')) {
-              console.log('⚠️ Usuário já existe, mas email pode ter sido enviado pelo inviteUserByEmail')
-              emailEnviado = true // Assumir que foi enviado
-            } else {
-              console.warn('⚠️ inviteUserByEmail falhou:', inviteError.message)
-            }
-          }
-        } catch (adminError: any) {
-          console.warn('⚠️ Erro ao tentar Admin API:', adminError.message)
-        }
-      }
-      
-      if (!emailEnviado) {
-        console.error('❌ Nenhum método conseguiu enviar o email')
+        console.error('❌ Erro inesperado ao enviar email:', emailError.message)
+        console.error('❌ Stack:', emailError.stack)
         teveErroEmail = true
-      } else {
-        console.log('✅ Email de confirmação enviado com sucesso!')
-        console.log('✅ O usuário receberá o email com o link de confirmação')
       }
     } else {
       console.log('⚠️ Email já está confirmado - não precisa enviar')
