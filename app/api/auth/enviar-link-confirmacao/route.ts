@@ -186,12 +186,40 @@ export async function POST(request: NextRequest) {
         // Verificar se o link contém a URL correta
         if (generatedLink.includes('plenipay.com')) {
           console.log('✅ Link gerado contém URL correta (plenipay.com)')
+          
+          // IMPORTANTE: generateLink NÃO envia email automaticamente
+          // Mas podemos usar o link gerado para criar um email manualmente
+          // Por enquanto, retornar erro informando que resend falhou
+          console.error('❌ generateLink não envia email automaticamente')
+          console.error('❌ Resend falhou, então não foi possível enviar o email')
+          console.error('⚠️ O link foi gerado corretamente, mas precisa ser enviado manualmente')
         } else if (generatedLink.includes('0.0.0.0') || generatedLink.includes('10000')) {
-          console.error('❌ PROBLEMA ENCONTRADO: Link gerado contém 0.0.0.0:10000!')
+          console.error('❌ PROBLEMA CRÍTICO: Link gerado contém 0.0.0.0:10000!')
           console.error('❌ Isso significa que o Supabase está usando Site URL do dashboard em vez do redirectTo')
           console.error('❌ Link gerado:', generatedLink)
           console.error('❌ redirectTo passado:', redirectTo)
-          console.error('⚠️ SOLUÇÃO: Verifique Site URL no Supabase Dashboard (Authentication → URL Configuration)')
+          console.error('❌ ⚠️ SOLUÇÃO OBRIGATÓRIA: Verifique Site URL no Supabase Dashboard')
+          console.error('❌ ⚠️ Authentication → URL Configuration → Site URL deve ser https://plenipay.com')
+          console.error('❌ ⚠️ NÃO pode ser 0.0.0.0:10000 ou vazio')
+          
+          // Retornar erro específico sobre Site URL
+          return NextResponse.json(
+            {
+              error: 'Link gerado está usando URL incorreta (0.0.0.0:10000).',
+              details: 'O Supabase está usando a Site URL do dashboard em vez do emailRedirectTo.',
+              solution: 'Corrija a Site URL no Supabase Dashboard:',
+              steps: [
+                '1. Acesse: Authentication → URL Configuration',
+                '2. Verifique "Site URL" - deve ser https://plenipay.com',
+                '3. Se estiver como 0.0.0.0:10000 ou vazio, MUDE PARA https://plenipay.com',
+                '4. SALVE as alterações',
+                '5. Tente novamente'
+              ],
+              redirectToPassed: redirectTo,
+              generatedLink: generatedLink.substring(0, 200) + '...'
+            },
+            { status: 500 }
+          )
         } else {
           console.warn('⚠️ Link gerado não contém plenipay.com nem 0.0.0.0:10000')
           console.warn('⚠️ Link:', generatedLink.substring(0, 100) + '...')
