@@ -137,7 +137,7 @@ export async function signUp(email: string, password: string, nome: string, tele
     
     // Criar usuário COM confirmação de email automática
     // O Supabase enviará o email automaticamente com o emailRedirectTo
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    let signUpResult = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -151,6 +151,9 @@ export async function signUp(email: string, password: string, nome: string, tele
         emailRedirectTo: redirectUrl, // URL forçada para produção
       }
     })
+    
+    let authData = signUpResult.data
+    let authError = signUpResult.error
     
     // Log adicional para debug
     console.log('📧 [DEBUG] emailRedirectTo enviado para Supabase:', redirectUrl)
@@ -196,6 +199,7 @@ export async function signUp(email: string, password: string, nome: string, tele
                 
                 if (deleteError) {
                   console.error('⚠️ Erro ao deletar usuário antigo:', deleteError.message)
+                  return { error: 'Erro ao processar conta existente. Tente novamente.' }
                 } else {
                   console.log('✅ Usuário não confirmado deletado com sucesso')
                   // Aguardar um pouco para garantir que foi deletado
@@ -203,7 +207,7 @@ export async function signUp(email: string, password: string, nome: string, tele
                   
                   // Tentar criar novamente
                   console.log('🔄 Tentando criar conta novamente após deletar usuário não confirmado...')
-                  const { data: retryAuthData, error: retryAuthError } = await supabase.auth.signUp({
+                  signUpResult = await supabase.auth.signUp({
                     email,
                     password,
                     options: {
@@ -218,21 +222,20 @@ export async function signUp(email: string, password: string, nome: string, tele
                     }
                   })
                   
-                  if (retryAuthError) {
-                    console.error('❌ Erro ao criar conta após deletar usuário antigo:', retryAuthError.message)
-                    return { error: retryAuthError.message || 'Erro ao criar conta. Tente novamente.' }
+                  authData = signUpResult.data
+                  authError = signUpResult.error
+                  
+                  if (authError) {
+                    console.error('❌ Erro ao criar conta após deletar usuário antigo:', authError.message)
+                    return { error: authError.message || 'Erro ao criar conta. Tente novamente.' }
                   }
                   
-                  if (!retryAuthData?.user) {
+                  if (!authData?.user) {
                     console.error('❌ Usuário não foi criado após retry')
                     return { error: 'Erro ao criar usuário. Tente novamente.' }
                   }
                   
-                  // Usar os dados do retry - substituir authData
                   console.log('✅ Conta criada com sucesso após deletar usuário não confirmado')
-                  // Substituir authData pelos dados do retry para continuar o fluxo normal
-                  authData.user = retryAuthData.user
-                  authData.session = retryAuthData.session
                   // Limpar o erro para continuar processamento
                   authError = null
                 }
