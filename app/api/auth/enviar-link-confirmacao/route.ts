@@ -295,38 +295,14 @@ export async function POST(request: NextRequest) {
     console.error('❌ Nenhum tipo de resend funcionou ou retornou sucesso mas sem dados')
     console.error('❌ Último erro:', ultimoErro?.message || 'Nenhum erro capturado')
     
-    // PASSO 4: Se resend não funcionou, tentar inviteUserByEmail como fallback
-    console.log('📤 PASSO 4: Resend não funcionou - tentando inviteUserByEmail como fallback...')
-    console.log('⚠️ NOTA: inviteUserByEmail envia email de "invite", mas funciona mesmo se resend falhar')
+    // PASSO 4: Se resend não funcionou, não usar inviteUserByEmail
+    // IMPORTANTE: inviteUserByEmail envia email de "invite", não de "confirmação"
+    // Isso confunde o usuário e não é o comportamento desejado
+    console.log('📤 PASSO 4: Resend não funcionou - NÃO usando inviteUserByEmail (envia email de invite, não confirmação)')
+    console.log('⚠️ NOTA: inviteUserByEmail envia email de "invite", não de "confirmação de signup"')
+    console.log('⚠️ Vamos tentar gerar link manualmente para diagnóstico')
     
-    try {
-      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-        redirectTo: redirectTo,
-        data: {
-          // Manter dados do usuário
-        }
-      })
-      
-      if (!inviteError && inviteData?.user) {
-        console.log('✅ inviteUserByEmail funcionou!')
-        console.log('⚠️ NOTA: Este método envia email de "invite", não de "confirmação"')
-        console.log('⚠️ Mas o link funciona para confirmar o email')
-        
-        return NextResponse.json({
-          success: true,
-          message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
-          method: 'inviteUserByEmail',
-          note: 'Email enviado via inviteUserByEmail. Se não receber, verifique spam e logs do Supabase (Authentication → Logs)',
-          warning: 'Este método envia email de "invite", mas o link funciona para confirmar o email.'
-        })
-      } else {
-        console.error('❌ inviteUserByEmail também falhou:', inviteError?.message || 'Erro desconhecido')
-      }
-    } catch (inviteException: any) {
-      console.error('❌ Exceção ao tentar inviteUserByEmail:', inviteException.message)
-    }
-    
-    // PASSO 5: Se inviteUserByEmail também falhou, tentar gerar link manualmente via Admin API
+    // PASSO 5: Tentar gerar link manualmente via Admin API para diagnóstico
     // IMPORTANTE: generateLink NÃO envia email, apenas gera o link
     // Mas podemos verificar se o link gerado tem a URL correta
     console.log('📤 PASSO 5: inviteUserByEmail também falhou, tentando gerar link manualmente via Admin API...')
