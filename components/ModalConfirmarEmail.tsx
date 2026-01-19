@@ -72,11 +72,44 @@ export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obri
 
       if (!response.ok) {
         console.error('❌ [AUTO] Resposta HTTP não OK:', response.status)
-        const errorData = result.error || 'Erro ao enviar link de confirmação'
-        setErro(errorData)
-        createNotification(`Erro: ${errorData}`, 'warning')
+        
+        // Se tem correctedLink, significa que link foi gerado mas não enviado
+        if (result.correctedLink) {
+          console.log('⚠️ [AUTO] Link foi gerado e corrigido, mas email não foi enviado')
+          console.log('⚠️ [AUTO] Link corrigido disponível:', result.correctedLink.substring(0, 100) + '...')
+          
+          // Copiar link para área de transferência
+          try {
+            await navigator.clipboard.writeText(result.correctedLink)
+            setErro('Link foi gerado e corrigido, mas email não foi enviado. Link copiado para área de transferência - cole no navegador para confirmar.')
+            createNotification('Link gerado! Cole no navegador para confirmar o email.', 'info')
+          } catch (clipError) {
+            setErro(`Link foi gerado mas email não foi enviado. Link: ${result.correctedLink.substring(0, 100)}...`)
+            createNotification('Link gerado, mas email não foi enviado. Verifique os logs.', 'warning')
+          }
+        } else {
+          const errorData = result.error || 'Erro ao enviar link de confirmação'
+          setErro(errorData)
+          createNotification(`Erro: ${errorData}`, 'warning')
+        }
       } else if (result.success || result.linkGenerated) {
         console.log('✅ [AUTO] Link enviado com sucesso!')
+        
+        // Se tem correctedLink, significa que link foi gerado mas email pode não ter sido enviado
+        if (result.correctedLink && !result.emailSent) {
+          console.log('⚠️ [AUTO] Link foi gerado e corrigido, mas email pode não ter sido enviado')
+          console.log('⚠️ [AUTO] Link corrigido disponível:', result.correctedLink.substring(0, 100) + '...')
+          
+          // Copiar link para área de transferência
+          try {
+            await navigator.clipboard.writeText(result.correctedLink)
+            setErro('Link foi gerado e corrigido. Link copiado para área de transferência - cole no navegador para confirmar.')
+            createNotification('Link gerado! Cole no navegador para confirmar o email.', 'info')
+          } catch (clipError) {
+            // Não mostrar erro se não conseguir copiar, apenas logar
+            console.warn('⚠️ Não foi possível copiar link para área de transferência:', clipError)
+          }
+        }
         setLinkEnviado(true)
         createNotification('Link de confirmação enviado! Verifique seu email (incluindo spam).', 'success')
         setTempoRestante(60) // Cooldown de 60 segundos
