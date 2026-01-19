@@ -690,7 +690,7 @@ export async function reenviarCodigoEmail(email: string) {
     
     // MÉTODO 1: Tentar resend (type: signup) - NÃO usar inviteUserByEmail
     // inviteUserByEmail envia email de "invite", não de confirmação
-    console.log('📤 Tentando resend como fallback...')
+    console.log('📤 Tentando resend (type: signup) - método principal...')
     const { createClient } = await import('./supabase/server')
     const supabase = await createClient()
     
