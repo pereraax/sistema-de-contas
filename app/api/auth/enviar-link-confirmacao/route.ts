@@ -93,6 +93,86 @@ export async function POST(request: NextRequest) {
     console.log('🔗 URL de redirecionamento (FORÇADA):', redirectTo)
     console.log('⚠️ IMPORTANTE: URL forçada para produção (https://plenipay.com)')
     
+    // PASSO 2.5: VERIFICAR URL ANTES DE ENVIAR (SOLUÇÃO PARA BUG DO SUPABASE)
+    // IMPORTANTE: Gerar link primeiro para verificar se Supabase está usando Site URL correta
+    // Se o link tiver 0.0.0.0:10000, BLOQUEAR envio e retornar erro com instruções
+    console.log('🔍 PASSO 2.5: Verificando URL do link antes de enviar email...')
+    console.log('🔍 Isso detecta o bug do Supabase onde resend() ignora emailRedirectTo')
+    
+    let linkGeradoComUrlCorreta = false
+    let linkGerado: string | null = null
+    let linkTemUrlIncorreta = false
+    
+    try {
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'signup',
+        email: email,
+        options: {
+          redirectTo: redirectTo
+        }
+      })
+      
+      if (!linkError && linkData?.properties?.action_link) {
+        linkGerado = linkData.properties.action_link
+        console.log('📧 Link gerado via Admin API:', linkGerado.substring(0, 150) + '...')
+        
+        // Verificar se o link contém a URL correta
+        if (linkGerado.includes('plenipay.com')) {
+          console.log('✅ Link gerado contém URL correta (plenipay.com)')
+          linkGeradoComUrlCorreta = true
+          linkTemUrlIncorreta = false
+        } else if (linkGerado.includes('0.0.0.0') || linkGerado.includes('10000')) {
+          console.error('❌ PROBLEMA CRÍTICO: Link gerado contém 0.0.0.0:10000!')
+          console.error('❌ Isso confirma que o Supabase está usando Site URL do dashboard')
+          console.error('❌ redirectTo passado:', redirectTo)
+          console.error('❌ ⚠️ BLOQUEANDO ENVIO - Site URL precisa ser corrigida primeiro')
+          linkGeradoComUrlCorreta = false
+          linkTemUrlIncorreta = true
+        } else {
+          console.warn('⚠️ Link gerado não contém plenipay.com nem 0.0.0.0:10000')
+          console.warn('⚠️ Link:', linkGerado.substring(0, 100) + '...')
+          // Se não tem nem plenipay.com nem 0.0.0.0, pode ser outra URL incorreta
+          linkGeradoComUrlCorreta = false
+          linkTemUrlIncorreta = true
+        }
+      } else {
+        console.error('❌ Erro ao gerar link:', linkError?.message || 'Erro desconhecido')
+        // Se não conseguiu gerar link, continuar (pode ser problema temporário)
+      }
+    } catch (linkException: any) {
+      console.error('❌ Exceção ao gerar link:', linkException.message)
+      // Se deu exceção, continuar (pode ser problema temporário)
+    }
+    
+    // BLOQUEAR ENVIO SE URL ESTÁ INCORRETA
+    if (linkTemUrlIncorreta && linkGerado) {
+      console.error('🚫 BLOQUEANDO ENVIO: Link tem URL incorreta')
+      console.error('🚫 Não vamos enviar email com link incorreto')
+      console.error('🚫 Site URL no Supabase Dashboard precisa ser corrigida primeiro')
+      
+      return NextResponse.json(
+        {
+          error: 'Link de confirmação está usando URL incorreta (0.0.0.0:10000).',
+          details: 'O Supabase está usando a Site URL do dashboard em vez do emailRedirectTo devido a um bug conhecido.',
+          solution: 'Corrija a Site URL no Supabase Dashboard ANTES de tentar novamente:',
+          steps: [
+            '1. Acesse: https://app.supabase.com/project/[SEU-PROJETO]/auth/url-configuration',
+            '2. Encontre o campo "Site URL"',
+            '3. Se estiver como "0.0.0.0:10000" ou vazio, MUDE PARA: https://plenipay.com',
+            '4. IMPORTANTE: Sem barra final (não use https://plenipay.com/)',
+            '5. Clique em "Save"',
+            '6. Aguarde 2-3 minutos para as alterações serem aplicadas',
+            '7. Tente novamente criar a conta'
+          ],
+          redirectToPassed: redirectTo,
+          linkGenerated: linkGerado.substring(0, 200) + '...',
+          bugInfo: 'Há um bug conhecido no Supabase (issue #802) onde resend() ignora emailRedirectTo e usa Site URL do dashboard. A solução é garantir que a Site URL esteja correta.',
+          templateCheck: 'Também verifique o template de email: Authentication → Email Templates → "Confirm signup" → Deve usar {{ .ConfirmationURL }} e não {{ .SiteURL }}'
+        },
+        { status: 500 }
+      )
+    }
+    
     // PASSO 3: Tentar resend com múltiplos tipos
     console.log('📤 PASSO 3: Tentando resend com múltiplos tipos...')
     
