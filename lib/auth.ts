@@ -224,7 +224,7 @@ export async function signUp(email: string, password: string, nome: string, tele
           return { error: 'Erro ao verificar conta existente. Tente novamente.' }
         }
       } else if (authData?.user && isEmailError) {
-        // Se o usuário foi criado mas houve erro no envio de email
+      // Se o usuário foi criado mas houve erro no envio de email
         console.warn('⚠️ Usuário criado mas erro ao enviar email:', authError.message)
         console.log('🔄 Processando normalmente - email será enviado via Admin API...')
         teveErroEmail = true
@@ -688,60 +688,8 @@ export async function reenviarCodigoEmail(email: string) {
     const redirectTo = `${siteUrl}/auth/callback?next=/home`
     console.log('🔗 URL de redirecionamento:', redirectTo)
     
-    // MÉTODO 1: Tentar usar inviteUserByEmail (sempre envia email)
-    console.log('📤 Tentando inviteUserByEmail...')
-    try {
-      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-        email,
-        {
-          redirectTo: redirectTo,
-          data: {
-            ...user.user_metadata
-          }
-        }
-      )
-      
-      if (inviteError) {
-        console.error('❌ Erro ao enviar convite:', inviteError.message)
-        
-        const errorMsg = inviteError.message.toLowerCase()
-        
-        // Se for erro de "já existe", o email ainda pode ter sido enviado
-        if (errorMsg.includes('already exists') || errorMsg.includes('already registered')) {
-          console.log('⚠️ Usuário já existe, mas email pode ter sido enviado')
-          return {
-            success: true,
-            message: 'Link de confirmação enviado! Verifique sua caixa de entrada (incluindo spam).',
-            linkGenerated: true,
-            warning: 'Usuário já existe, mas email pode ter sido enviado'
-          }
-        }
-        
-        // Se inviteUserByEmail falhou, tentar resend
-        console.log('⚠️ inviteUserByEmail falhou, tentando resend...')
-      } else {
-        console.log('✅ Invite executado com sucesso!')
-        return {
-          success: true,
-          message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
-          linkGenerated: true
-        }
-      }
-    } catch (inviteException: any) {
-      console.error('❌ Exceção ao enviar convite:', inviteException)
-      
-      const exceptionMsg = inviteException?.message?.toLowerCase() || ''
-      if (exceptionMsg.includes('already exists')) {
-        console.log('⚠️ Exceção de usuário existente - email pode ter sido enviado')
-        return {
-          success: true,
-          message: 'Link de confirmação enviado! Verifique sua caixa de entrada (incluindo spam).',
-          linkGenerated: true
-        }
-      }
-    }
-    
-    // MÉTODO 2: Tentar resend (fallback)
+    // MÉTODO 1: Tentar resend (type: signup) - NÃO usar inviteUserByEmail
+    // inviteUserByEmail envia email de "invite", não de confirmação
     console.log('📤 Tentando resend como fallback...')
     const { createClient } = await import('./supabase/server')
     const supabase = await createClient()
