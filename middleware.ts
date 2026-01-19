@@ -125,6 +125,8 @@ export const config = {
      * - favicon.ico (favicon file)
      * - robots.txt
      * - sitemap.xml
+     * 
+     * IMPORTANTE: Incluir /auth/confirm para interceptar links de email
      */
     '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)',
   ],

@@ -353,17 +353,33 @@ export async function POST(request: NextRequest) {
           console.warn('⚠️ generateLink não envia email automaticamente')
           console.warn('⚠️ Mas o link foi gerado e corrigido - pode ser usado manualmente')
           
+          // IMPORTANTE: Se o link foi gerado e corrigido, substituir URL base também
+          // O Supabase pode ter gerado com 0.0.0.0:10000 na URL base, precisamos substituir TUDO
+          let finalCorrectedLink = generatedLink
+          
+          // Substituir também a URL base do Supabase se tiver 0.0.0.0:10000
+          finalCorrectedLink = finalCorrectedLink.replace(
+            /https?:\/\/0\.0\.0\.0:10000\/auth\/v1\/verify/g,
+            'https://plenipay.com/auth/callback'
+          )
+          
+          // Substituir qualquer ocorrência remanescente de 0.0.0.0:10000
+          finalCorrectedLink = finalCorrectedLink.replace(/0\.0\.0\.0:10000/g, 'plenipay.com')
+          
           // IMPORTANTE: Se o link foi gerado e corrigido, considerar sucesso parcial
           // O usuário pode usar o link corrigido para confirmar o email
           console.log('✅ Link foi gerado e corrigido - retornando sucesso parcial')
+          console.log('📧 Link final corrigido:', finalCorrectedLink.substring(0, 200) + '...')
+          
           return NextResponse.json({
             success: true,
             message: 'Link de confirmação gerado e corrigido com sucesso!',
             details: 'O link foi gerado e a URL foi corrigida. O email pode não ter sido enviado automaticamente.',
-            correctedLink: generatedLink,
+            correctedLink: finalCorrectedLink,
             emailSent: false,
             note: 'Você pode usar o link acima para confirmar seu email. A solução definitiva é corrigir a Site URL no Supabase Dashboard (Authentication → URL Configuration → Site URL = https://plenipay.com)',
-            redirectToPassed: redirectTo
+            redirectToPassed: redirectTo,
+            instructions: 'Copie e cole o link corrigido no navegador para confirmar seu email.'
           }, { status: 200 })
         } else {
           console.error('❌ Link ainda contém URL incorreta após tentativa de correção')
