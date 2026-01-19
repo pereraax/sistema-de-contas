@@ -28,9 +28,42 @@ export async function GET(request: NextRequest) {
   }
   
   const requestUrl = new URL(requestUrlString)
-  const token_hash = requestUrl.searchParams.get('token_hash')
-  const type = requestUrl.searchParams.get('type')
-  const next = requestUrl.searchParams.get('next') || '/home'
+  
+  // IMPORTANTE: O Supabase pode colocar parâmetros tanto na query string quanto no hash
+  // Extrair de ambos os lugares
+  let token_hash = requestUrl.searchParams.get('token_hash')
+  let type = requestUrl.searchParams.get('type')
+  let next = requestUrl.searchParams.get('next') || '/home'
+  
+  // Se não encontrou na query string, tentar extrair do hash
+  if (!token_hash && requestUrl.hash) {
+    try {
+      const hashParams = new URLSearchParams(requestUrl.hash.substring(1))
+      token_hash = hashParams.get('token_hash') || token_hash
+      type = hashParams.get('type') || type
+      next = hashParams.get('next') || next
+      
+      // Se encontrou no hash, copiar para query params também para facilitar processamento
+      if (token_hash && !requestUrl.searchParams.has('token_hash')) {
+        requestUrl.searchParams.set('token_hash', token_hash)
+      }
+      if (type && !requestUrl.searchParams.has('type')) {
+        requestUrl.searchParams.set('type', type)
+      }
+      
+      console.log('🔍 [Callback] Parâmetros extraídos do hash:', { token_hash: token_hash ? token_hash.substring(0, 20) + '...' : null, type, next })
+    } catch (hashError) {
+      console.warn('⚠️ [Callback] Erro ao processar hash:', hashError)
+    }
+  }
+  
+  // Log dos parâmetros encontrados
+  console.log('🔍 [Callback] Parâmetros finais:', { 
+    token_hash: token_hash ? token_hash.substring(0, 20) + '...' : null, 
+    type, 
+    next,
+    hash: requestUrl.hash ? requestUrl.hash.substring(0, 100) + '...' : null
+  })
 
   // IMPORTANTE: SEMPRE usar https://plenipay.com para redirecionamentos
   // Não usar requestUrl.origin que pode ser 0.0.0.0:10000
