@@ -252,51 +252,69 @@ export async function signUp(email: string, password: string, nome: string, tele
     // NÃO usar inviteUserByEmail pois envia email de "invite", não de confirmação
     console.log('📧 ========== GARANTINDO ENVIO DE EMAIL ==========')
     console.log('📧 Sempre enviar email de confirmação após criar conta')
-    console.log('📧 Usando apenas resend (type: signup) para garantir email correto')
+    console.log('📧 Usando resend (type: signup) para garantir email correto')
+    console.log('📧 ⚠️ IMPORTANTE: O Supabase signUp pode enviar email automaticamente, mas vamos garantir com resend')
     
-    if (!authData.user.email_confirmed_at) {
-      // Aguardar um pouco para garantir que o usuário foi criado completamente
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
+    // IMPORTANTE: Sempre tentar enviar, mesmo se já estiver confirmado
+    // Isso garante que o usuário receba o email mesmo se o signUp não enviou
+    // Aguardar um pouco para garantir que o usuário foi criado completamente
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    
+    // Tentar múltiplos tipos para garantir envio
+    const tiposParaTentar = ['signup', 'email'] as const
+    let emailEnviado = false
+    let ultimoErro: any = null
+    
+    for (const tipo of tiposParaTentar) {
       try {
-        console.log('📤 Enviando email de confirmação via resend (type: signup)...')
+        console.log(`📤 Tentando enviar email via resend (type: ${tipo})...`)
         console.log('📧 Email:', email)
         console.log('📧 Redirect URL (FORÇADA):', redirectUrl)
         console.log('📧 ⚠️ IMPORTANTE: Se o link no email tiver 0.0.0.0:10000, o Supabase está ignorando emailRedirectTo')
         console.log('📧 ⚠️ Verifique Site URL no Supabase Dashboard (Authentication → URL Configuration)')
         
         const { error: resendError, data: resendData } = await supabase.auth.resend({
-          type: 'signup',
+          type: tipo as any,
           email: email,
           options: {
             emailRedirectTo: redirectUrl,
           }
         })
         
-        console.log('📬 Resposta do resend:')
+        console.log(`📬 Resposta do resend (type: ${tipo}):`)
         console.log('  - Erro:', resendError?.message || 'Nenhum')
+        console.log('  - Código do erro:', resendError?.status || 'Nenhum')
         console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
         
-        if (resendError) {
-          console.error('❌ Erro ao enviar via resend:', resendError.message)
-          console.error('❌ Erro completo do resend:', JSON.stringify(resendError, null, 2))
-          console.error('⚠️ IMPORTANTE: Verifique se:')
-          console.error('   1. SMTP está configurado no Supabase Dashboard')
-          console.error('   2. Template de email "Confirm signup" está configurado')
-          console.error('   3. "Enable email confirmations" está habilitado')
-          console.error('   4. Verifique logs do Supabase (Authentication → Logs)')
-          teveErroEmail = true
+        if (!resendError) {
+          console.log(`✅ Email de confirmação enviado via resend (type: ${tipo}) com sucesso!`)
+          console.log('✅ O usuário receberá o email de confirmação')
+          emailEnviado = true
+          break // Sucesso, não precisa tentar outros tipos
         } else {
-          console.log('✅ Email de confirmação enviado via resend com sucesso!')
-          console.log('✅ O usuário receberá o email de confirmação (não email de invite)')
+          console.warn(`⚠️ Resend falhou com type: ${tipo}, erro: ${resendError.message}`)
+          ultimoErro = resendError
+          // Continuar para tentar próximo tipo
         }
       } catch (emailError: any) {
-        console.error('❌ Erro inesperado ao enviar email:', emailError.message)
+        console.error(`❌ Erro inesperado ao enviar email (type: ${tipo}):`, emailError.message)
         console.error('❌ Stack:', emailError.stack)
-        teveErroEmail = true
+        ultimoErro = emailError
+        // Continuar para tentar próximo tipo
       }
+    }
+    
+    if (!emailEnviado) {
+      console.error('❌ Todos os tipos de resend falharam')
+      console.error('❌ Erro do último resend:', ultimoErro?.message || 'Nenhum erro específico')
+      console.error('⚠️ IMPORTANTE: Verifique se:')
+      console.error('   1. SMTP está configurado no Supabase Dashboard')
+      console.error('   2. Template de email "Confirm signup" está configurado')
+      console.error('   3. "Enable email confirmations" está habilitado')
+      console.error('   4. Verifique logs do Supabase (Authentication → Logs)')
+      teveErroEmail = true
     } else {
-      console.log('⚠️ Email já está confirmado - não precisa enviar')
+      teveErroEmail = false
     }
     
     console.log('📧 ==========================================')
