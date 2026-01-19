@@ -319,57 +319,88 @@ export async function POST(request: NextRequest) {
       })
       
       if (!linkError && linkData?.properties?.action_link) {
-        const generatedLink = linkData.properties.action_link
+        let generatedLink = linkData.properties.action_link
         console.log('✅ Link gerado com sucesso via Admin API!')
-        console.log('📧 Link completo:', generatedLink)
+        console.log('📧 Link completo (original):', generatedLink)
         console.log('🔍 Verificando URL no link gerado...')
         
-        // Verificar se o link contém a URL correta
+        // SOLUÇÃO AGRESSIVA: Substituir URL incorreta no link gerado
+        // Se o link contém 0.0.0.0:10000, substituir por plenipay.com
+        if (generatedLink.includes('0.0.0.0') || generatedLink.includes('10000')) {
+          console.error('❌ PROBLEMA CRÍTICO: Link gerado contém 0.0.0.0:10000!')
+          console.error('❌ Isso significa que o Supabase está usando Site URL do dashboard')
+          console.error('❌ Tentando CORRIGIR o link substituindo a URL...')
+          
+          // Substituir todas as ocorrências de 0.0.0.0:10000 por plenipay.com
+          const linkCorrigido = generatedLink
+            .replace(/https?:\/\/0\.0\.0\.0:10000/g, 'https://plenipay.com')
+            .replace(/https?:\/\/0\.0\.0\.0\/auth/g, 'https://plenipay.com/auth')
+            .replace(/redirect_to=https%3A%2F%2F0\.0\.0\.0:10000/g, `redirect_to=${encodeURIComponent(redirectTo)}`)
+            .replace(/redirect_to=https%3A%2F%2F0\.0\.0\.0/g, `redirect_to=${encodeURIComponent(redirectTo)}`)
+          
+          if (linkCorrigido !== generatedLink) {
+            console.log('✅ Link corrigido!')
+            console.log('📧 Link original:', generatedLink.substring(0, 200) + '...')
+            console.log('📧 Link corrigido:', linkCorrigido.substring(0, 200) + '...')
+            generatedLink = linkCorrigido
+          } else {
+            console.error('❌ Não foi possível corrigir o link automaticamente')
+          }
+        }
+        
+        // Verificar se o link contém a URL correta após correção
         if (generatedLink.includes('plenipay.com')) {
-          console.log('✅ Link gerado contém URL correta (plenipay.com)')
+          console.log('✅ Link contém URL correta (plenipay.com) após verificação')
           
           // IMPORTANTE: generateLink NÃO envia email automaticamente
-          // Mas podemos usar o link gerado para criar um email manualmente
-          // Por enquanto, retornar erro informando que resend falhou
-          console.error('❌ generateLink não envia email automaticamente')
-          console.error('❌ Resend falhou, então não foi possível enviar o email')
-          console.error('⚠️ O link foi gerado corretamente, mas precisa ser enviado manualmente')
-        } else if (generatedLink.includes('0.0.0.0') || generatedLink.includes('10000')) {
-          console.error('❌ PROBLEMA CRÍTICO: Link gerado contém 0.0.0.0:10000!')
-          console.error('❌ Isso significa que o Supabase está usando Site URL do dashboard em vez do redirectTo')
-          console.error('❌ Link gerado:', generatedLink)
-          console.error('❌ redirectTo passado:', redirectTo)
-          console.error('❌ ⚠️ SOLUÇÃO OBRIGATÓRIA: Verifique Site URL no Supabase Dashboard')
-          console.error('❌ ⚠️ Authentication → URL Configuration → Site URL deve ser https://plenipay.com')
-          console.error('❌ ⚠️ NÃO pode ser 0.0.0.0:10000 ou vazio')
+          // Mas podemos retornar o link corrigido para o usuário usar manualmente
+          // OU tentar usar o link corrigido de alguma forma
+          console.warn('⚠️ generateLink não envia email automaticamente')
+          console.warn('⚠️ Mas o link foi gerado e corrigido - pode ser usado manualmente')
+          
+          // Retornar o link corrigido para diagnóstico
+          return NextResponse.json({
+            error: 'Resend falhou, mas link foi gerado e corrigido.',
+            details: 'O Supabase não conseguiu enviar o email, mas o link foi gerado e a URL foi corrigida.',
+            correctedLink: generatedLink,
+            instructions: [
+              '1. Copie o link corrigido acima',
+              '2. Cole no navegador para confirmar o email',
+              '3. OU corrija a Site URL no Supabase Dashboard e tente novamente',
+              '4. Authentication → URL Configuration → Site URL = https://plenipay.com'
+            ],
+            redirectToPassed: redirectTo,
+            note: 'Este é um workaround. A solução definitiva é corrigir a Site URL no Supabase Dashboard.'
+          }, { status: 500 })
+        } else {
+          console.error('❌ Link ainda contém URL incorreta após tentativa de correção')
+          console.error('❌ Link:', generatedLink.substring(0, 200) + '...')
           
           // Retornar erro específico sobre Site URL
           return NextResponse.json(
             {
-              error: 'Link gerado está usando URL incorreta (0.0.0.0:10000).',
+              error: 'Link gerado está usando URL incorreta (0.0.0.0:10000) e não foi possível corrigir automaticamente.',
               details: 'O Supabase está usando a Site URL do dashboard em vez do emailRedirectTo.',
               solution: 'Corrija a Site URL no Supabase Dashboard:',
               steps: [
                 '1. Acesse: Authentication → URL Configuration',
                 '2. Verifique "Site URL" - deve ser https://plenipay.com',
                 '3. Se estiver como 0.0.0.0:10000 ou vazio, MUDE PARA https://plenipay.com',
-                '4. SALVE as alterações',
-                '5. Tente novamente'
+                '4. IMPORTANTE: Aguarde 5-10 minutos após salvar (Supabase pode usar cache)',
+                '5. Verifique o template de email: Authentication → Email Templates → "Confirm signup" → Deve usar {{ .ConfirmationURL }}',
+                '6. Tente novamente criar a conta'
               ],
               redirectToPassed: redirectTo,
-              generatedLink: generatedLink.substring(0, 200) + '...'
+              generatedLink: generatedLink.substring(0, 200) + '...',
+              cacheNote: 'O Supabase pode estar usando cache. Aguarde alguns minutos após mudar a Site URL.'
             },
             { status: 500 }
           )
-        } else {
-          console.warn('⚠️ Link gerado não contém plenipay.com nem 0.0.0.0:10000')
-          console.warn('⚠️ Link:', generatedLink.substring(0, 100) + '...')
         }
-        
-        // IMPORTANTE: generateLink NÃO envia email automaticamente
-        // Retornar erro informando que resend falhou
-        console.error('❌ generateLink não envia email automaticamente')
-        console.error('❌ Resend falhou, então não foi possível enviar o email')
+      } else {
+        console.error('❌ Erro ao gerar link:', linkError?.message || 'Erro desconhecido')
+        console.error('❌ Erro completo:', JSON.stringify(linkError, null, 2))
+      }
       } else {
         console.error('❌ Erro ao gerar link:', linkError?.message || 'Erro desconhecido')
         console.error('❌ Erro completo:', JSON.stringify(linkError, null, 2))
