@@ -165,12 +165,22 @@ export async function POST(request: NextRequest) {
     // IMPORTANTE: Verificar se tipoUsado foi definido (indica que resend retornou sucesso)
     if (tipoUsado) {
       console.log(`✅ Resend funcionou com type: ${tipoUsado} - retornando sucesso`)
-      return NextResponse.json({
+      
+      // Se o link gerado tinha URL incorreta, adicionar aviso
+      const response: any = {
         success: true,
         message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
         method: `resend_${tipoUsado}`,
         note: 'Se não receber, verifique spam e logs do Supabase (Authentication → Logs)'
-      })
+      }
+      
+      if (!linkGeradoComUrlCorreta && linkGerado) {
+        response.warning = 'O link pode ter URL incorreta (0.0.0.0:10000). Verifique Site URL no Supabase Dashboard.'
+        response.linkGenerated = linkGerado.substring(0, 200) + '...'
+        response.solution = 'Authentication → URL Configuration → Site URL deve ser https://plenipay.com'
+      }
+      
+      return NextResponse.json(response)
     }
     
     // Se chegou aqui, nenhum tipo funcionou
