@@ -11,11 +11,17 @@ export async function GET(request: NextRequest) {
   const type = requestUrl.searchParams.get('type')
   const next = requestUrl.searchParams.get('next') || '/home'
 
+  // IMPORTANTE: SEMPRE usar https://plenipay.com para redirecionamentos
+  // Não usar requestUrl.origin que pode ser 0.0.0.0:10000
+  const productionUrl = 'https://plenipay.com'
+
   // Log detalhado de todos os parâmetros
   console.log('🔍 [Callback] ==========================================')
   console.log('🔍 [Callback] URL completa:', requestUrl.toString())
   console.log('🔍 [Callback] Host:', requestUrl.host)
-  console.log('🔍 [Callback] Origin:', requestUrl.origin)
+  console.log('🔍 [Callback] Origin (requestUrl):', requestUrl.origin)
+  console.log('🔍 [Callback] Origin (FORÇADO):', productionUrl)
+  console.log('🔍 [Callback] ⚠️ IMPORTANTE: Todos os redirecionamentos usarão', productionUrl)
   console.log('🔍 [Callback] Parâmetros da URL:')
   console.log('   - token_hash:', token_hash ? token_hash.substring(0, 20) + '...' : 'NÃO ENCONTRADO')
   console.log('   - type:', type || 'NÃO ENCONTRADO')
@@ -26,10 +32,10 @@ export async function GET(request: NextRequest) {
   if (requestUrl.host.includes('0.0.0.0') || requestUrl.host.includes('10000')) {
     console.error('❌ [Callback] URL INVÁLIDA DETECTADA: 0.0.0.0:10000')
     console.error('❌ [Callback] Este link foi gerado com Site URL incorreta no Supabase')
-    console.error('❌ [Callback] Redirecionando para login com mensagem de erro')
+    console.error('❌ [Callback] Redirecionando para login com URL correta (https://plenipay.com)')
     
-    // Redirecionar para login com mensagem específica
-    const redirectUrl = new URL('/login', requestUrl.origin)
+    // Redirecionar para login com mensagem específica usando URL de produção
+    const redirectUrl = new URL('/login', productionUrl)
     redirectUrl.searchParams.set('error', 'Link de confirmação inválido. O link foi gerado com URL incorreta. Por favor, solicite um novo link de confirmação.')
     redirectUrl.searchParams.set('invalidLink', 'true')
     return NextResponse.redirect(redirectUrl)
@@ -99,13 +105,13 @@ export async function GET(request: NextRequest) {
           console.log('📧 [Callback] Email confirmado pelo verifyOtp:', emailConfirmed)
           console.log('🔑 [Callback] Sessão criada:', !!data.session)
           
-          // Se há sessão, redirecionar para home
-          if (data.session) {
-            console.log('✅ [Callback] Sessão criada - redirecionando para home')
-            const redirectUrl = new URL(next, requestUrl.origin)
-            redirectUrl.searchParams.set('emailConfirmed', 'true')
-            return NextResponse.redirect(redirectUrl)
-          }
+                // Se há sessão, redirecionar para home
+                if (data.session) {
+                  console.log('✅ [Callback] Sessão criada - redirecionando para home')
+                  const redirectUrl = new URL(next, productionUrl)
+                  redirectUrl.searchParams.set('emailConfirmed', 'true')
+                  return NextResponse.redirect(redirectUrl)
+                }
           
           break // Sucesso, não precisa tentar outros tipos
         } else if (error) {
@@ -235,7 +241,7 @@ export async function GET(request: NextRequest) {
       // Redirecionar com status
       if (emailConfirmed) {
         console.log('✅ [Callback] Email confirmado - redirecionando para login')
-        const redirectUrl = new URL('/login', requestUrl.origin)
+        const redirectUrl = new URL('/login', productionUrl)
         redirectUrl.searchParams.set('emailConfirmed', 'true')
         if (userEmail) {
           redirectUrl.searchParams.set('email', userEmail)
@@ -246,7 +252,7 @@ export async function GET(request: NextRequest) {
         
         // Se o token expirou, redirecionar com mensagem específica
         if (lastError.message.includes('expired') || lastError.message.includes('expirado')) {
-          const redirectUrl = new URL('/login', requestUrl.origin)
+          const redirectUrl = new URL('/login', productionUrl)
           redirectUrl.searchParams.set('error', 'Link de confirmação expirado. Por favor, solicite um novo link.')
           if (userEmail) {
             redirectUrl.searchParams.set('email', userEmail)
@@ -268,11 +274,11 @@ export async function GET(request: NextRequest) {
         console.log('🔑 Sessão criada:', !!data.session)
         
         if (data.session) {
-          const redirectUrl = new URL(next, requestUrl.origin)
+          const redirectUrl = new URL(next, productionUrl)
           redirectUrl.searchParams.set('emailConfirmed', 'true')
           return NextResponse.redirect(redirectUrl)
         } else {
-          const redirectUrl = new URL('/login', requestUrl.origin)
+          const redirectUrl = new URL('/login', productionUrl)
           redirectUrl.searchParams.set('emailConfirmed', 'true')
           redirectUrl.searchParams.set('email', data.user.email || '')
           return NextResponse.redirect(redirectUrl)
@@ -282,7 +288,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Se houver erro ou parâmetros inválidos, redirecionar para login
-  const redirectUrl = new URL('/login', requestUrl.origin)
+  const redirectUrl = new URL('/login', productionUrl)
   redirectUrl.searchParams.set('error', 'Erro ao confirmar email. O link pode ter expirado.')
   return NextResponse.redirect(redirectUrl)
 }
