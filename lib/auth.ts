@@ -243,17 +243,20 @@ export async function signUp(email: string, password: string, nome: string, tele
     }
     
     // Se chegou aqui, usuário foi criado com sucesso
-    // IMPORTANTE: SEMPRE enviar email de confirmação via resend
-    // Isso garante que o email seja enviado mesmo se o signUp não enviar automaticamente
+    // IMPORTANTE: SEMPRE enviar email de confirmação
+    // Isso garante que o email seja enviado toda vez que o usuário cria conta
     console.log('📧 ========== GARANTINDO ENVIO DE EMAIL ==========')
     console.log('📧 Sempre enviar email de confirmação após criar conta')
+    console.log('📧 Email será enviado mesmo se já existir usuário não confirmado')
     
     if (!authData.user.email_confirmed_at) {
       // Aguardar um pouco para garantir que o usuário foi criado completamente
       await new Promise(resolve => setTimeout(resolve, 1000))
       
+      // MÉTODO 1: Tentar resend primeiro
+      let emailEnviado = false
       try {
-        console.log('📤 Enviando email de confirmação via resend (type: signup)...')
+        console.log('📤 MÉTODO 1: Tentando enviar via resend (type: signup)...')
         console.log('📧 Email:', email)
         console.log('📧 Redirect URL:', redirectUrl)
         
@@ -269,18 +272,55 @@ export async function signUp(email: string, password: string, nome: string, tele
         console.log('  - Erro:', resendError?.message || 'Nenhum')
         console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
         
-        if (resendError) {
-          console.error('❌ Erro ao enviar via resend:', resendError.message)
-          console.error('❌ Erro completo do resend:', JSON.stringify(resendError, null, 2))
-          teveErroEmail = true
-        } else {
+        if (!resendError) {
           console.log('✅ Email de confirmação enviado via resend com sucesso!')
-          console.log('✅ O usuário receberá o email com o link de confirmação')
+          emailEnviado = true
+        } else {
+          console.warn('⚠️ Resend falhou:', resendError.message)
         }
       } catch (emailError: any) {
-        console.error('❌ Erro inesperado ao enviar email:', emailError.message)
-        console.error('❌ Stack:', emailError.stack)
+        console.warn('⚠️ Erro ao tentar resend:', emailError.message)
+      }
+      
+      // MÉTODO 2: Se resend falhou, tentar via API de envio de link
+      if (!emailEnviado) {
+        try {
+          console.log('📤 MÉTODO 2: Tentando enviar via API de envio de link...')
+          
+          // Chamar a API interna de envio de link de confirmação
+          const apiUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com'
+          const response = await fetch(`${apiUrl}/api/auth/enviar-link-confirmacao`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email }),
+          })
+          
+          const result = await response.json()
+          
+          console.log('📬 Resposta da API de envio:')
+          console.log('  - Success:', result.success || false)
+          console.log('  - Message:', result.message || 'Nenhum')
+          console.log('  - Error:', result.error || 'Nenhum')
+          
+          if (result.success) {
+            console.log('✅ Email de confirmação enviado via API com sucesso!')
+            emailEnviado = true
+          } else {
+            console.warn('⚠️ API de envio falhou:', result.error || 'Erro desconhecido')
+          }
+        } catch (apiError: any) {
+          console.warn('⚠️ Erro ao chamar API de envio:', apiError.message)
+        }
+      }
+      
+      if (!emailEnviado) {
+        console.error('❌ Nenhum método conseguiu enviar o email')
         teveErroEmail = true
+      } else {
+        console.log('✅ Email de confirmação enviado com sucesso!')
+        console.log('✅ O usuário receberá o email com o link de confirmação')
       }
     } else {
       console.log('⚠️ Email já está confirmado - não precisa enviar')
