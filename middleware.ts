@@ -20,25 +20,34 @@ export function middleware(request: NextRequest) {
     console.error('🚫 [Middleware] URL INVÁLIDA DETECTADA: 0.0.0.0:10000')
     console.error('🚫 [Middleware] Host:', url.host)
     console.error('🚫 [Middleware] Pathname:', pathname)
+    console.error('🚫 [Middleware] URL completa:', url.toString())
     console.error('🚫 [Middleware] Redirecionando para:', PRODUCTION_URL)
     
     // Criar URL correta preservando todos os parâmetros
     const redirectUrl = new URL(pathname, PRODUCTION_URL)
     
-    // Copiar todos os parâmetros da query string
+    // Copiar todos os parâmetros da query string (incluindo token_hash, type, etc.)
     url.searchParams.forEach((value, key) => {
       redirectUrl.searchParams.set(key, value)
     })
     
-    // Copiar hash se existir
+    // Copiar hash se existir (pode conter parâmetros importantes)
     if (url.hash) {
+      // Extrair parâmetros do hash também (ex: #error=access_denied&error_code=otp_expired)
+      const hashParams = new URLSearchParams(url.hash.substring(1))
+      hashParams.forEach((value, key) => {
+        redirectUrl.searchParams.set(key, value)
+      })
+      // Manter hash original também
       redirectUrl.hash = url.hash
     }
     
     console.log('🔄 [Middleware] Redirecionando para:', redirectUrl.toString())
     console.log('🔄 [Middleware] Parâmetros preservados:', Object.fromEntries(redirectUrl.searchParams.entries()))
+    console.log('🔄 [Middleware] Hash:', url.hash)
     
-    // Redirecionar para URL correta (307 para preservar método GET)
+    // IMPORTANTE: Usar 307 (Temporary Redirect) para preservar método GET e parâmetros
+    // Isso garante que o callback handler receba todos os parâmetros necessários
     return NextResponse.redirect(redirectUrl, { status: 307 })
   }
   
