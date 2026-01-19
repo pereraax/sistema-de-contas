@@ -29,12 +29,12 @@ export async function GET(request: NextRequest) {
   console.log('🔍 [Callback] Todos os parâmetros:', Object.fromEntries(requestUrl.searchParams.entries()))
   
   // CRÍTICO: Se a URL é inválida (0.0.0.0:10000), redirecionar IMEDIATAMENTE
-  // Isso acontece quando o link no email tem 0.0.0.0:10000
-  // O navegador tenta abrir essa URL e falha, mas se conseguir chegar aqui, redirecionamos
+  // Isso acontece quando o Supabase redireciona usando Site URL incorreta em vez do redirect_to
+  // O Supabase ignora o redirect_to do link e usa a Site URL do dashboard
   if (requestUrl.host.includes('0.0.0.0') || requestUrl.host.includes('10000')) {
     console.error('❌ [Callback] URL INVÁLIDA DETECTADA: 0.0.0.0:10000')
-    console.error('❌ [Callback] Este link foi gerado com Site URL incorreta no Supabase')
-    console.error('❌ [Callback] Redirecionando IMEDIATAMENTE para login com URL correta')
+    console.error('❌ [Callback] O Supabase redirecionou usando Site URL incorreta em vez do redirect_to')
+    console.error('❌ [Callback] Redirecionando IMEDIATAMENTE para URL correta (plenipay.com)')
     
     // IMPORTANTE: Preservar token_hash e type se existirem para processar depois
     // Mas redirecionar para o domínio correto primeiro
@@ -49,7 +49,25 @@ export async function GET(request: NextRequest) {
     redirectUrl.searchParams.set('redirected', 'true')
     
     console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
-    return NextResponse.redirect(redirectUrl)
+    console.log('🔄 [Callback] Todos os parâmetros preservados:', Object.fromEntries(redirectUrl.searchParams.entries()))
+    
+    // IMPORTANTE: Usar redirect 307 (Temporary Redirect) para preservar método GET e parâmetros
+    return NextResponse.redirect(redirectUrl, { status: 307 })
+  }
+  
+  // IMPORTANTE: Verificar também se o referer ou origin veio de 0.0.0.0:10000
+  // Isso pode acontecer se o Supabase redirecionou mas o navegador manteve o referer
+  const referer = request.headers.get('referer')
+  const origin = request.headers.get('origin')
+  
+  if (referer && (referer.includes('0.0.0.0') || referer.includes('10000'))) {
+    console.warn('⚠️ [Callback] Referer contém 0.0.0.0:10000:', referer)
+    console.warn('⚠️ [Callback] Continuando processamento, mas redirecionamentos usarão plenipay.com')
+  }
+  
+  if (origin && (origin.includes('0.0.0.0') || origin.includes('10000'))) {
+    console.warn('⚠️ [Callback] Origin contém 0.0.0.0:10000:', origin)
+    console.warn('⚠️ [Callback] Continuando processamento, mas redirecionamentos usarão plenipay.com')
   }
   
   console.log('🔍 [Callback] ==========================================')
