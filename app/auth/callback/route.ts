@@ -6,7 +6,28 @@ import { createAdminClient } from '@/lib/supabase/server'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
-  const requestUrl = new URL(request.url)
+  // CRÍTICO: Interceptar PRIMEIRO antes de criar URL object
+  // Se o request.url contém 0.0.0.0:10000, substituir IMEDIATAMENTE
+  let requestUrlString = request.url
+  
+  if (requestUrlString.includes('0.0.0.0') || requestUrlString.includes(':10000')) {
+    console.error('❌ [Callback] URL INVÁLIDA DETECTADA no request.url:', requestUrlString)
+    console.error('❌ [Callback] Substituindo 0.0.0.0:10000 por plenipay.com...')
+    
+    // Substituir todas as ocorrências de 0.0.0.0:10000 por plenipay.com
+    requestUrlString = requestUrlString
+      .replace(/https?:\/\/0\.0\.0\.0:10000/g, 'https://plenipay.com')
+      .replace(/https?:\/\/0\.0\.0\.0\/auth/g, 'https://plenipay.com/auth')
+      .replace(/http:\/\/0\.0\.0\.0:10000/g, 'https://plenipay.com')
+      .replace(/http:\/\/0\.0\.0\.0/g, 'https://plenipay.com')
+    
+    console.log('✅ [Callback] URL corrigida:', requestUrlString)
+    
+    // Redirecionar para URL corrigida IMEDIATAMENTE
+    return NextResponse.redirect(requestUrlString, { status: 307 })
+  }
+  
+  const requestUrl = new URL(requestUrlString)
   const token_hash = requestUrl.searchParams.get('token_hash')
   const type = requestUrl.searchParams.get('type')
   const next = requestUrl.searchParams.get('next') || '/home'
@@ -28,31 +49,14 @@ export async function GET(request: NextRequest) {
   console.log('   - next:', next)
   console.log('🔍 [Callback] Todos os parâmetros:', Object.fromEntries(requestUrl.searchParams.entries()))
   
-  // CRÍTICO: Se a URL é inválida (0.0.0.0:10000), redirecionar IMEDIATAMENTE
-  // Isso acontece quando o Supabase redireciona usando Site URL incorreta em vez do redirect_to
-  // O Supabase ignora o redirect_to do link e usa a Site URL do dashboard
+  // Verificação adicional (backup)
   if (requestUrl.host.includes('0.0.0.0') || requestUrl.host.includes('10000')) {
-    console.error('❌ [Callback] URL INVÁLIDA DETECTADA: 0.0.0.0:10000')
-    console.error('❌ [Callback] O Supabase redirecionou usando Site URL incorreta em vez do redirect_to')
-    console.error('❌ [Callback] Redirecionando IMEDIATAMENTE para URL correta (plenipay.com)')
-    
-    // IMPORTANTE: Preservar token_hash e type se existirem para processar depois
-    // Mas redirecionar para o domínio correto primeiro
+    console.error('❌ [Callback] URL ainda contém 0.0.0.0:10000 após substituição')
     const redirectUrl = new URL('/auth/callback', productionUrl)
-    
-    // Copiar todos os parâmetros da URL original
     requestUrl.searchParams.forEach((value, key) => {
       redirectUrl.searchParams.set(key, value)
     })
-    
-    // Adicionar flag para indicar que foi redirecionado
-    redirectUrl.searchParams.set('redirected', 'true')
-    
-    console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
-    console.log('🔄 [Callback] Todos os parâmetros preservados:', Object.fromEntries(redirectUrl.searchParams.entries()))
-    
-    // IMPORTANTE: Usar redirect 307 (Temporary Redirect) para preservar método GET e parâmetros
-    return NextResponse.redirect(redirectUrl, { status: 307 })
+    return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
   }
   
   // IMPORTANTE: Verificar também se o referer ou origin veio de 0.0.0.0:10000
@@ -268,10 +272,33 @@ export async function GET(request: NextRequest) {
       }
       
       // Redirecionar com status
-      if (emailConfirmed) {
+      if (emailConfirmed || verifySuccess) {
+        console.log('✅ [Callback] Email confirmado - redirecionando para home')
+        
+        // Se há sessão válida, redirecionar direto para home (login automático)
+        if (verifySuccess && userId) {
+          try {
+            const supabaseAdmin = createAdminClient()
+            if (supabaseAdmin) {
+              // Verificar se usuário tem sessão válida
+              const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId)
+              if (userData?.user) {
+                console.log('✅ [Callback] Usuário autenticado - redirecionando para home')
+                const redirectUrl = new URL('/home', productionUrl)
+                redirectUrl.searchParams.set('emailConfirmed', 'true')
+                return NextResponse.redirect(redirectUrl)
+              }
+            }
+          } catch (err) {
+            console.error('⚠️ [Callback] Erro ao verificar sessão:', err)
+          }
+        }
+        
+        // Se não há sessão, redirecionar para login com email confirmado
         console.log('✅ [Callback] Email confirmado - redirecionando para login')
         const redirectUrl = new URL('/login', productionUrl)
         redirectUrl.searchParams.set('emailConfirmed', 'true')
+        redirectUrl.searchParams.set('mensagem', 'Email confirmado com sucesso! Faça login para continuar.')
         if (userEmail) {
           redirectUrl.searchParams.set('email', userEmail)
         }
