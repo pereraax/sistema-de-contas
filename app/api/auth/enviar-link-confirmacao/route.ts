@@ -95,62 +95,9 @@ export async function POST(request: NextRequest) {
     const redirectTo = `${siteUrl}/auth/callback?next=/home`
     console.log('🔗 URL de redirecionamento:', redirectTo)
     
-    // PASSO 3: Usar inviteUserByEmail como método PRINCIPAL (sempre envia email)
-    console.log('📤 PASSO 3: Tentando inviteUserByEmail (método principal - sempre envia email)...')
-    try {
-      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-        email,
-        {
-          redirectTo: redirectTo,
-          data: {
-            ...user.user_metadata
-          }
-        }
-      )
-      
-      console.log('📬 Resposta do inviteUserByEmail:')
-      console.log('  - Tem dados:', !!inviteData)
-      console.log('  - Tem erro:', !!inviteError)
-      console.log('  - Erro completo:', inviteError ? JSON.stringify(inviteError, null, 2) : 'Nenhum')
-      console.log('  - Dados completos:', inviteData ? JSON.stringify(inviteData, null, 2) : 'Nenhum')
-      
-      if (inviteError) {
-        const errorMsg = inviteError.message.toLowerCase()
-        console.error('❌ Erro completo do inviteUserByEmail:', JSON.stringify(inviteError, null, 2))
-        
-        if (errorMsg.includes('already exists') || errorMsg.includes('already registered')) {
-          console.log('⚠️ Usuário já existe (esperado), mas inviteUserByEmail pode ter enviado email mesmo assim')
-          
-          return NextResponse.json({
-            success: true,
-            message: 'Link de confirmação enviado! Verifique sua caixa de entrada (incluindo spam).',
-            method: 'invite_user_by_email',
-            note: 'Se não receber, verifique spam e logs do Supabase (Authentication → Logs)'
-          })
-        } else {
-          console.error('❌ Erro diferente de "already exists":', inviteError.message)
-          // Continuar para tentar outros métodos
-        }
-      } else {
-        console.log('✅ inviteUserByEmail executado com sucesso!')
-        console.log('📧 Email DEVE ter sido enviado pelo Supabase')
-        console.log('📝 Dados retornados:', JSON.stringify(inviteData, null, 2))
-        
-        return NextResponse.json({
-          success: true,
-          message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
-          method: 'invite_user_by_email',
-          note: 'Se não receber, verifique spam e logs do Supabase.'
-        })
-      }
-    } catch (inviteException: any) {
-      console.error('❌ Exceção ao enviar convite:', inviteException.message)
-      console.error('❌ Stack:', inviteException.stack)
-      console.error('❌ Exceção completa:', JSON.stringify(inviteException, null, 2))
-      // Continuar para tentar outros métodos
-    }
-    
-    // PASSO 5: Fallback - Tentar resend após limpar confirmação
+    // PASSO 3: Usar resend (type: signup) como método PRINCIPAL
+    // NÃO usar inviteUserByEmail pois envia email de "invite", não de confirmação
+    console.log('📤 PASSO 3: Tentando resend (type: signup) - método principal...')
     console.log('📤 PASSO 5: Tentando resend como fallback...')
     const supabasePublic = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -218,7 +165,7 @@ export async function POST(request: NextRequest) {
           '6. Teste manualmente: Authentication → Users → Selecione usuário → "Send password recovery"'
         ],
         suggestion: 'Nenhum método funcionou. Verifique logs do console e do Supabase para ver o erro real.',
-        methodsTried: ['generateLink', 'inviteUserByEmail', 'resend_signup', 'resend_email']
+        methodsTried: ['resend_signup']
       },
       { status: 500 }
     )
