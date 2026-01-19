@@ -226,22 +226,31 @@ export async function POST(request: NextRequest) {
         console.log('  - Tem dados:', !!resendData)
         console.log('  - Tem erro:', !!resendError)
         
-        // IMPORTANTE: Se não há erro, considerar sucesso
-        // Mesmo que não haja dados, se não há erro, o Supabase aceitou a requisição
-        // O email pode ter sido enviado (depende de SMTP estar configurado)
+        // IMPORTANTE: Verificar se realmente foi enviado
+        // O Supabase pode retornar sucesso (sem erro) mas não enviar email se:
+        // - SMTP não estiver configurado
+        // - Template não estiver configurado
+        // - Email confirmations não estiver habilitado
         if (!resendError) {
           // Resend retornou sucesso (sem erro)
-          // IMPORTANTE: Isso NÃO garante que o email foi enviado
-          // O Supabase pode retornar sucesso mesmo se SMTP não estiver configurado
-          // Mas se não há erro, a requisição foi aceita
           console.log(`✅ Resend retornou sucesso com type: ${tipo}!`)
-          console.log('⚠️ IMPORTANTE: Sucesso no resend NÃO garante que email foi enviado')
-          console.log('⚠️ Se o email não chegar, verifique SMTP no Supabase Dashboard')
-          console.log('⚠️ Project Settings → Auth → SMTP Settings → Enable Custom SMTP')
-          console.log('📧 Email DEVE ter sido enviado pelo Supabase (se SMTP estiver configurado)')
-          tipoUsado = tipo
-          resendError = null // Garantir que resendError é null
-          break // Sucesso, não precisa tentar outros tipos
+          console.log('📧 Verificando se email foi realmente enviado...')
+          
+          // IMPORTANTE: Mesmo sem erro, verificar se há dados na resposta
+          // Se não há dados, pode ser que o email não foi enviado
+          if (resendData) {
+            console.log('✅ Resposta contém dados - email provavelmente foi enviado')
+            tipoUsado = tipo
+            resendError = null
+            break // Sucesso, não precisa tentar outros tipos
+          } else {
+            console.warn('⚠️ Resend retornou sucesso mas SEM DADOS na resposta')
+            console.warn('⚠️ Isso pode indicar que o email NÃO foi enviado')
+            console.warn('⚠️ Possíveis causas: SMTP não configurado, template não configurado, ou email confirmations desabilitado')
+            console.warn('⚠️ Continuando para tentar próximo tipo ou método alternativo...')
+            ultimoErro = { message: 'Resend retornou sucesso mas sem dados - email pode não ter sido enviado' }
+            // Continuar para tentar próximo tipo ou método alternativo
+          }
         } else {
           console.warn(`⚠️ Resend falhou com type: ${tipo}, erro: ${resendError.message}`)
           ultimoErro = resendError // Guardar último erro
