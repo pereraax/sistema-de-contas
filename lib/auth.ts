@@ -172,16 +172,93 @@ export async function signUp(email: string, password: string, nome: string, tele
     if (authError) {
       const errorMsg = authError.message.toLowerCase()
       const isEmailError = errorMsg.includes('email') || errorMsg.includes('sending') || errorMsg.includes('confirmation')
+      const isAlreadyExists = errorMsg.includes('already exists') || errorMsg.includes('already registered') || errorMsg.includes('user already registered')
       
-      // Se o usuário foi criado mas houve erro no envio de email
-      if (authData?.user && isEmailError) {
+      // Se o erro for "email already exists", verificar se está confirmado
+      if (isAlreadyExists && !authData?.user) {
+        console.log('⚠️ Email já existe - verificando se está confirmado...')
+        
+        // Verificar se o usuário existe e se está confirmado
+        if (supabaseAdmin) {
+          try {
+            const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
+            const existingUser = usersData?.users?.find((u: any) => u.email === email)
+            
+            if (existingUser) {
+              if (existingUser.email_confirmed_at) {
+                // Email já confirmado - não pode criar novamente
+                console.log('❌ Email já está confirmado - não é possível criar conta novamente')
+                return { error: 'Este email já está cadastrado e confirmado. Faça login ou recupere sua senha.' }
+              } else {
+                // Email não confirmado - deletar e tentar criar novamente
+                console.log('🗑️ Email não confirmado - deletando usuário antigo para permitir criar novamente...')
+                const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(existingUser.id)
+                
+                if (deleteError) {
+                  console.error('⚠️ Erro ao deletar usuário antigo:', deleteError.message)
+                } else {
+                  console.log('✅ Usuário não confirmado deletado com sucesso')
+                  // Aguardar um pouco para garantir que foi deletado
+                  await new Promise(resolve => setTimeout(resolve, 1500))
+                  
+                  // Tentar criar novamente
+                  console.log('🔄 Tentando criar conta novamente após deletar usuário não confirmado...')
+                  const { data: retryAuthData, error: retryAuthError } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                      data: {
+                        nome,
+                        telefone,
+                        whatsapp,
+                        plano,
+                        email,
+                      },
+                      emailRedirectTo: redirectUrl,
+                    }
+                  })
+                  
+                  if (retryAuthError) {
+                    console.error('❌ Erro ao criar conta após deletar usuário antigo:', retryAuthError.message)
+                    return { error: retryAuthError.message || 'Erro ao criar conta. Tente novamente.' }
+                  }
+                  
+                  if (!retryAuthData?.user) {
+                    console.error('❌ Usuário não foi criado após retry')
+                    return { error: 'Erro ao criar usuário. Tente novamente.' }
+                  }
+                  
+                  // Usar os dados do retry - substituir authData
+                  console.log('✅ Conta criada com sucesso após deletar usuário não confirmado')
+                  // Substituir authData pelos dados do retry para continuar o fluxo normal
+                  authData.user = retryAuthData.user
+                  authData.session = retryAuthData.session
+                  // Limpar o erro para continuar processamento
+                  authError = null
+                }
+              }
+            } else {
+              // Usuário não encontrado - erro estranho, mas tentar continuar
+              console.warn('⚠️ Erro diz que email existe mas não encontramos o usuário')
+              return { error: 'Erro ao verificar conta existente. Tente novamente.' }
+            }
+          } catch (checkError: any) {
+            console.error('❌ Erro ao verificar usuário existente:', checkError.message)
+            return { error: 'Erro ao verificar conta existente. Tente novamente.' }
+          }
+        } else {
+          console.error('❌ Admin client não disponível para verificar usuário existente')
+          return { error: 'Erro ao verificar conta existente. Tente novamente.' }
+        }
+      } else if (authData?.user && isEmailError) {
+        // Se o usuário foi criado mas houve erro no envio de email
         console.warn('⚠️ Usuário criado mas erro ao enviar email:', authError.message)
         console.log('🔄 Processando normalmente - email será enviado via Admin API...')
         teveErroEmail = true
         // IMPORTANTE: Continuar processamento normalmente mesmo com erro de email
         // O email será enviado via Admin API depois
-      } else {
-        // Outros erros (não relacionados a email) - erro real
+      } else if (!isAlreadyExists) {
+        // Outros erros (não relacionados a email ou "already exists") - erro real
         console.error('❌ Erro ao criar conta:', authError)
         return { error: authError.message || 'Erro ao criar conta' }
       }
