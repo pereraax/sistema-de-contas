@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
     // PASSO 2.5: VERIFICAR URL ANTES DE ENVIAR (SOLUÇÃO PARA BUG DO SUPABASE)
     // IMPORTANTE: Gerar link primeiro para verificar se Supabase está usando Site URL correta
     // Se o link tiver 0.0.0.0:10000, BLOQUEAR envio e retornar erro com instruções
+    // IMPORTANTE: Só bloqueia se detectar 0.0.0.0:10000 explicitamente
     console.log('🔍 PASSO 2.5: Verificando URL do link antes de enviar email...')
     console.log('🔍 Isso detecta o bug do Supabase onde resend() ignora emailRedirectTo')
     
@@ -129,24 +130,34 @@ export async function POST(request: NextRequest) {
           linkGeradoComUrlCorreta = false
           linkTemUrlIncorreta = true
         } else {
-          console.warn('⚠️ Link gerado não contém plenipay.com nem 0.0.0.0:10000')
-          console.warn('⚠️ Link:', linkGerado.substring(0, 100) + '...')
-          // Se não tem nem plenipay.com nem 0.0.0.0, pode ser outra URL incorreta
-          linkGeradoComUrlCorreta = false
-          linkTemUrlIncorreta = true
+          // Se não tem nem plenipay.com nem 0.0.0.0:10000, pode ser outra URL válida
+          // (ex: localhost em desenvolvimento, ou outra URL de produção)
+          // NÃO bloquear neste caso - permitir envio
+          console.log('⚠️ Link gerado não contém plenipay.com nem 0.0.0.0:10000')
+          console.log('⚠️ Link:', linkGerado.substring(0, 100) + '...')
+          console.log('⚠️ Permitindo envio - pode ser URL válida (ex: localhost em desenvolvimento)')
+          linkGeradoComUrlCorreta = false // Não é plenipay.com, mas não é 0.0.0.0:10000
+          linkTemUrlIncorreta = false // NÃO bloquear - pode ser válido
         }
       } else {
-        console.error('❌ Erro ao gerar link:', linkError?.message || 'Erro desconhecido')
-        // Se não conseguiu gerar link, continuar (pode ser problema temporário)
+        console.warn('⚠️ Não foi possível gerar link para verificação:', linkError?.message || 'Erro desconhecido')
+        console.warn('⚠️ Permitindo envio mesmo assim - pode ser problema temporário')
+        // Se não conseguiu gerar link, permitir envio (pode ser problema temporário)
+        linkGeradoComUrlCorreta = false
+        linkTemUrlIncorreta = false // NÃO bloquear se não conseguiu gerar link
       }
     } catch (linkException: any) {
-      console.error('❌ Exceção ao gerar link:', linkException.message)
-      // Se deu exceção, continuar (pode ser problema temporário)
+      console.warn('⚠️ Exceção ao gerar link:', linkException.message)
+      console.warn('⚠️ Permitindo envio mesmo assim - pode ser problema temporário')
+      // Se deu exceção, permitir envio (pode ser problema temporário)
+      linkGeradoComUrlCorreta = false
+      linkTemUrlIncorreta = false // NÃO bloquear se deu exceção
     }
     
-    // BLOQUEAR ENVIO SE URL ESTÁ INCORRETA
+    // BLOQUEAR ENVIO APENAS SE DETECTAR 0.0.0.0:10000 EXPLICITAMENTE
+    // IMPORTANTE: Só bloqueia se realmente detectar o problema
     if (linkTemUrlIncorreta && linkGerado) {
-      console.error('🚫 BLOQUEANDO ENVIO: Link tem URL incorreta')
+      console.error('🚫 BLOQUEANDO ENVIO: Link tem URL incorreta (0.0.0.0:10000)')
       console.error('🚫 Não vamos enviar email com link incorreto')
       console.error('🚫 Site URL no Supabase Dashboard precisa ser corrigida primeiro')
       
@@ -172,6 +183,9 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+    
+    // Se chegou aqui, não detectou 0.0.0.0:10000, então permitir envio
+    console.log('✅ Verificação de URL concluída - permitindo envio de email')
     
     // PASSO 3: Tentar resend com múltiplos tipos
     console.log('📤 PASSO 3: Tentando resend com múltiplos tipos...')
