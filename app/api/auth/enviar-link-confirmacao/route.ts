@@ -326,12 +326,37 @@ export async function POST(request: NextRequest) {
           console.error('❌ Isso significa que o Supabase está usando Site URL do dashboard')
           console.error('❌ Tentando CORRIGIR o link substituindo a URL...')
           
-          // Substituir todas as ocorrências de 0.0.0.0:10000 por plenipay.com
-          const linkCorrigido = generatedLink
+          // Substituir TODAS as ocorrências de 0.0.0.0:10000 por plenipay.com
+          // Incluindo na URL base do Supabase e em parâmetros
+          let linkCorrigido = generatedLink
+            // Substituir URL base do Supabase (ex: https://0.0.0.0:10000/auth/v1/verify)
+            .replace(/https?:\/\/0\.0\.0\.0:10000\/auth\/v1\/verify/g, 'https://plenipay.com/auth/callback')
+            .replace(/https?:\/\/0\.0\.0\.0:10000\/auth\/v1/g, 'https://plenipay.com/auth')
+            .replace(/https?:\/\/0\.0\.0\.0:10000\/auth/g, 'https://plenipay.com/auth')
             .replace(/https?:\/\/0\.0\.0\.0:10000/g, 'https://plenipay.com')
             .replace(/https?:\/\/0\.0\.0\.0\/auth/g, 'https://plenipay.com/auth')
+            .replace(/https?:\/\/0\.0\.0\.0/g, 'https://plenipay.com')
+            // Substituir em parâmetros URL-encoded
             .replace(/redirect_to=https%3A%2F%2F0\.0\.0\.0:10000/g, `redirect_to=${encodeURIComponent(redirectTo)}`)
             .replace(/redirect_to=https%3A%2F%2F0\.0\.0\.0/g, `redirect_to=${encodeURIComponent(redirectTo)}`)
+            // Substituir em parâmetros não-encoded
+            .replace(/redirect_to=https:\/\/0\.0\.0\.0:10000/g, `redirect_to=${redirectTo}`)
+            .replace(/redirect_to=https:\/\/0\.0\.0\.0/g, `redirect_to=${redirectTo}`)
+          
+          // Se o link ainda contém o domínio do Supabase com 0.0.0.0, substituir pelo domínio do Supabase correto
+          // Extrair o domínio correto do Supabase da variável de ambiente
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+          if (supabaseUrl && linkCorrigido.includes('0.0.0.0')) {
+            // Se o link contém o domínio do Supabase com 0.0.0.0, substituir pelo domínio correto
+            const supabaseDomain = new URL(supabaseUrl).hostname
+            linkCorrigido = linkCorrigido.replace(/0\.0\.0\.0:10000/g, supabaseDomain)
+            console.log('🔧 Substituindo domínio do Supabase:', supabaseDomain)
+          }
+          
+          // Última verificação: se ainda tem 0.0.0.0, substituir por plenipay.com
+          if (linkCorrigido.includes('0.0.0.0') || linkCorrigido.includes('10000')) {
+            linkCorrigido = linkCorrigido.replace(/0\.0\.0\.0(:10000)?/g, 'plenipay.com')
+          }
           
           if (linkCorrigido !== generatedLink) {
             console.log('✅ Link corrigido!')
