@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     // PASSO 3: Usar resend (type: signup) como método PRINCIPAL
     // NÃO usar inviteUserByEmail pois envia email de "invite", não de confirmação
     console.log('📤 PASSO 3: Tentando resend (type: signup) - método principal...')
-    console.log('📤 PASSO 5: Tentando resend como fallback...')
+    
     const supabasePublic = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -114,39 +114,40 @@ export async function POST(request: NextRequest) {
     
     console.log('📬 Resposta do resend:')
     console.log('  - Erro:', resendError?.message || 'Nenhum')
+    console.log('  - Código do erro:', resendError?.status || 'Nenhum')
     console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
     
-    if (!resendError && resendData) {
-      console.log('✅ Resend retornou sucesso!')
+    if (!resendError) {
+      // Resend pode retornar sucesso mesmo sem dados
+      // Se não houver erro, assumir que foi enviado
+      console.log('✅ Resend retornou sucesso (sem erro)!')
       console.log('📧 Email DEVE ter sido enviado pelo Supabase')
       return NextResponse.json({
         success: true,
         message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
-        method: 'resend_fallback',
+        method: 'resend_signup',
         note: 'Se não receber, verifique spam e logs do Supabase (Authentication → Logs)'
       })
     }
     
-    console.log('⚠️ Resend falhou:', resendError?.message || 'Sem erro mas sem dados')
+    // Se houver erro, logar detalhes e retornar erro específico
+    console.error('❌ Resend falhou com erro:')
+    console.error('  - Mensagem:', resendError.message)
+    console.error('  - Status:', resendError.status)
+    console.error('  - Erro completo:', JSON.stringify(resendError, null, 2))
     
-    // PASSO 6: Último fallback - Tentar com type 'email'
-    console.log('📤 PASSO 6: Tentando resend com type "signup" (último fallback)...')
-    const { data: resendData2, error: resendError2 } = await supabasePublic.auth.resend({
-      type: 'signup',
-      email: email,
-      options: {
-        emailRedirectTo: redirectTo
-      }
-    })
+    // Verificar tipo de erro específico
+    const errorMsg = resendError.message?.toLowerCase() || ''
+    let errorDetails = 'Erro desconhecido ao enviar email de confirmação.'
     
-    if (!resendError2 && resendData2) {
-      console.log('✅ Resend com type "email" retornou sucesso!')
-      return NextResponse.json({
-        success: true,
-        message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
-        method: 'resend_email_type',
-        note: 'Se não receber, verifique spam e logs do Supabase'
-      })
+    if (errorMsg.includes('email not found') || errorMsg.includes('user not found')) {
+      errorDetails = 'Usuário não encontrado. Verifique se o email está correto.'
+    } else if (errorMsg.includes('rate limit') || errorMsg.includes('too many requests')) {
+      errorDetails = 'Limite de envio de emails atingido. Aguarde alguns minutos antes de tentar novamente.'
+    } else if (errorMsg.includes('email already confirmed')) {
+      errorDetails = 'Este email já foi confirmado. Você pode fazer login normalmente.'
+    } else if (errorMsg.includes('smtp') || errorMsg.includes('email sending')) {
+      errorDetails = 'Erro ao enviar email. Verifique a configuração SMTP no Supabase Dashboard.'
     }
     
     console.log('⚠️ Todos os métodos falharam. Verificando configuração...')
@@ -164,8 +165,10 @@ export async function POST(request: NextRequest) {
           '5. O email do SMTP existe e a senha está correta no seu provedor (Hostinger, etc.)',
           '6. Teste manualmente: Authentication → Users → Selecione usuário → "Send password recovery"'
         ],
-        suggestion: 'Nenhum método funcionou. Verifique logs do console e do Supabase para ver o erro real.',
-        methodsTried: ['resend_signup']
+        suggestion: `Erro específico: ${errorDetails}. Verifique logs do console e do Supabase para mais detalhes.`,
+        methodsTried: ['resend_signup'],
+        errorDetails: errorDetails,
+        resendError: resendError.message
       },
       { status: 500 }
     )
