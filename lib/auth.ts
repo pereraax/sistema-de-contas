@@ -72,55 +72,20 @@ export async function getSiteUrl(): Promise<string> {
 export async function signUp(email: string, password: string, nome: string, telefone: string, whatsapp: string, plano: 'teste' | 'basico' | 'premium') {
   try {
     const supabase = await createClient()
+    const { createAdminClient } = await import('./supabase/server')
+    const supabaseAdmin = createAdminClient()
     
-    console.log('📝 Criando conta usando signUp normal do Supabase (envia email automaticamente)...')
+    if (!supabaseAdmin) {
+      console.error('❌ ERRO: createAdminClient retornou null! Não é possível gerenciar usuários.')
+      return { error: 'Erro interno do servidor: Admin client não disponível.' }
+    }
+    
+    console.log('📝 Iniciando processo de criação de conta...')
     
     // IMPORTANTE: Sempre usar https://plenipay.com para links de email
     // Mesmo em desenvolvimento local, links de email devem apontar para produção
     const siteUrl = 'https://plenipay.com' // FORÇAR URL de produção sempre
     const redirectUrl = `${siteUrl}/auth/callback?next=/home`
-    
-    // VERIFICAR SE JÁ EXISTE USUÁRIO COM ESTE EMAIL NÃO CONFIRMADO
-    // Se existir e não estiver confirmado, deletar para permitir criar novamente
-    console.log('🔍 Verificando se já existe usuário com este email...')
-    const { createAdminClient } = await import('./supabase/server')
-    const supabaseAdmin = createAdminClient()
-    
-    if (supabaseAdmin) {
-      try {
-        const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
-        const existingUser = usersData?.users?.find((u: any) => u.email === email)
-        
-        if (existingUser) {
-          console.log('👤 Usuário existente encontrado:', existingUser.id)
-          console.log('📧 Email confirmado?', existingUser.email_confirmed_at ? 'SIM' : 'NÃO')
-          
-          if (existingUser.email_confirmed_at) {
-            // Email já confirmado - não pode criar novamente
-            console.log('❌ Email já está confirmado - não é possível criar conta novamente')
-            return { error: 'Este email já está cadastrado e confirmado. Faça login ou recupere sua senha.' }
-          } else {
-            // Email não confirmado - deletar usuário antigo para permitir criar novamente
-            console.log('🗑️ Deletando usuário não confirmado para permitir criar novamente...')
-            const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(existingUser.id)
-            
-            if (deleteError) {
-              console.error('⚠️ Erro ao deletar usuário antigo:', deleteError.message)
-              console.log('⚠️ Continuando mesmo assim - tentando criar novamente...')
-            } else {
-              console.log('✅ Usuário não confirmado deletado com sucesso')
-              // Aguardar um pouco para garantir que foi deletado
-              await new Promise(resolve => setTimeout(resolve, 1000))
-            }
-          }
-        } else {
-          console.log('✅ Nenhum usuário existente encontrado - pode criar normalmente')
-        }
-      } catch (adminError: any) {
-        console.error('⚠️ Erro ao verificar usuário existente:', adminError.message)
-        console.log('⚠️ Continuando mesmo assim - tentando criar...')
-      }
-    }
     
     // USAR SIGNUP NORMAL DO SUPABASE - ENVIA EMAIL AUTOMATICAMENTE
     // IMPORTANTE: O Supabase só envia email se:
@@ -135,12 +100,13 @@ export async function signUp(email: string, password: string, nome: string, tele
     console.log('📧 ⚠️ VERIFIQUE: Template de email deve usar {{ .ConfirmationURL }} e não {{ .SiteURL }}')
     console.log('📧 ==========================================')
     
-    // Criar usuário COM confirmação de email automática
-    // O Supabase enviará o email automaticamente com o emailRedirectTo
+    // IMPORTANTE: Tentar criar primeiro, SEM verificar antes
+    // Se der erro "already exists", aí verificamos se está confirmado
     let authData: any = null
     let authError: any = null
     
     // Primeira tentativa de criar conta
+    console.log('🔄 Tentando criar conta...')
     let signUpResult = await supabase.auth.signUp({
       email,
       password,
