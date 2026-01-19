@@ -243,23 +243,20 @@ export async function signUp(email: string, password: string, nome: string, tele
     }
     
     // Se chegou aqui, usuário foi criado com sucesso
-    // IMPORTANTE: O Supabase signUp já deve ter enviado o email automaticamente
-    // Se não tiver session, significa que o email foi enviado (aguardando confirmação)
-    console.log('📧 ========== VERIFICANDO ENVIO DE EMAIL ==========')
+    // IMPORTANTE: SEMPRE enviar email de confirmação via resend
+    // Isso garante que o email seja enviado mesmo se o signUp não enviar automaticamente
+    console.log('📧 ========== GARANTINDO ENVIO DE EMAIL ==========')
+    console.log('📧 Sempre enviar email de confirmação após criar conta')
     
-    // Verificar se o email foi enviado automaticamente pelo signUp
-    const emailFoiEnviadoAutomaticamente = !authData.session && !authData.user.email_confirmed_at
-    
-    if (emailFoiEnviadoAutomaticamente) {
-      console.log('✅ Email de confirmação foi enviado automaticamente pelo Supabase signUp')
-      console.log('✅ O usuário receberá o email com o link de confirmação')
-    } else if (authData.user.email_confirmed_at) {
-      console.log('⚠️ Email já está confirmado - não precisa enviar')
-    } else {
-      // Se não foi enviado automaticamente, tentar enviar via resend
-      console.log('⚠️ Email não foi enviado automaticamente - tentando resend...')
+    if (!authData.user.email_confirmed_at) {
+      // Aguardar um pouco para garantir que o usuário foi criado completamente
+      await new Promise(resolve => setTimeout(resolve, 1000))
       
       try {
+        console.log('📤 Enviando email de confirmação via resend (type: signup)...')
+        console.log('📧 Email:', email)
+        console.log('📧 Redirect URL:', redirectUrl)
+        
         const { error: resendError, data: resendData } = await supabase.auth.resend({
           type: 'signup',
           email: email,
@@ -277,12 +274,16 @@ export async function signUp(email: string, password: string, nome: string, tele
           console.error('❌ Erro completo do resend:', JSON.stringify(resendError, null, 2))
           teveErroEmail = true
         } else {
-          console.log('✅ Email enviado via resend com sucesso!')
+          console.log('✅ Email de confirmação enviado via resend com sucesso!')
+          console.log('✅ O usuário receberá o email com o link de confirmação')
         }
       } catch (emailError: any) {
         console.error('❌ Erro inesperado ao enviar email:', emailError.message)
+        console.error('❌ Stack:', emailError.stack)
         teveErroEmail = true
       }
+    } else {
+      console.log('⚠️ Email já está confirmado - não precisa enviar')
     }
     
     console.log('📧 ==========================================')
