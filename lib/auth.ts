@@ -261,7 +261,9 @@ export async function signUp(email: string, password: string, nome: string, tele
       try {
         console.log('📤 Enviando email de confirmação via resend (type: signup)...')
         console.log('📧 Email:', email)
-        console.log('📧 Redirect URL:', redirectUrl)
+        console.log('📧 Redirect URL (FORÇADA):', redirectUrl)
+        console.log('📧 ⚠️ IMPORTANTE: Se o link no email tiver 0.0.0.0:10000, o Supabase está ignorando emailRedirectTo')
+        console.log('📧 ⚠️ Verifique Site URL no Supabase Dashboard (Authentication → URL Configuration)')
         
         const { error: resendError, data: resendData } = await supabase.auth.resend({
           type: 'signup',
