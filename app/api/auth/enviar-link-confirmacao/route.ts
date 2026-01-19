@@ -175,9 +175,13 @@ export async function POST(request: NextRequest) {
       }
       
       if (!linkGeradoComUrlCorreta && linkGerado) {
+        console.error('⚠️ ATENÇÃO: Link gerado tinha URL incorreta!')
+        console.error('⚠️ O email foi enviado, mas o link pode ter 0.0.0.0:10000')
+        console.error('⚠️ SOLUÇÃO: Verifique Site URL no Supabase Dashboard')
         response.warning = 'O link pode ter URL incorreta (0.0.0.0:10000). Verifique Site URL no Supabase Dashboard.'
         response.linkGenerated = linkGerado.substring(0, 200) + '...'
         response.solution = 'Authentication → URL Configuration → Site URL deve ser https://plenipay.com'
+        response.bugInfo = 'Há um bug conhecido no Supabase onde resend() ignora emailRedirectTo e usa Site URL do dashboard'
       }
       
       return NextResponse.json(response)
