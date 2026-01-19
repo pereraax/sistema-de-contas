@@ -75,8 +75,9 @@ export async function signUp(email: string, password: string, nome: string, tele
     
     console.log('📝 Criando conta usando signUp normal do Supabase (envia email automaticamente)...')
     
-    // Obter URL correta do site
-    const siteUrl = await getSiteUrl()
+    // IMPORTANTE: Sempre usar https://plenipay.com para links de email
+    // Mesmo em desenvolvimento local, links de email devem apontar para produção
+    const siteUrl = 'https://plenipay.com' // FORÇAR URL de produção sempre
     const redirectUrl = `${siteUrl}/auth/callback?next=/home`
     
     // USAR SIGNUP NORMAL DO SUPABASE - ENVIA EMAIL AUTOMATICAMENTE
@@ -85,16 +86,15 @@ export async function signUp(email: string, password: string, nome: string, tele
     // 2. SMTP estiver configurado (ou usar SMTP padrão)
     // 3. Template de email estiver configurado
     console.log('📧 ========== CONFIGURAÇÕES DE EMAIL ==========')
-    console.log('📧 Site URL detectada:', siteUrl)
+    console.log('📧 Site URL (FORÇADA):', siteUrl)
     console.log('📧 emailRedirectTo:', redirectUrl)
     console.log('📧 Email destinatário:', email)
-    console.log('📧 ⚠️ IMPORTANTE: Verifique se a Site URL no Supabase Dashboard está configurada!')
-    console.log('📧 ⚠️ O Supabase pode usar a Site URL do dashboard em vez do emailRedirectTo')
+    console.log('📧 ⚠️ IMPORTANTE: URL forçada para produção (https://plenipay.com)')
     console.log('📧 ⚠️ VERIFIQUE: Template de email deve usar {{ .ConfirmationURL }} e não {{ .SiteURL }}')
     console.log('📧 ==========================================')
     
-    // IMPORTANTE: Criar usuário SEM confirmação de email automática
-    // Vamos usar inviteUserByEmail depois para garantir URL correta
+    // Criar usuário COM confirmação de email automática
+    // O Supabase enviará o email automaticamente com o emailRedirectTo
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -106,8 +106,7 @@ export async function signUp(email: string, password: string, nome: string, tele
           plano,
           email,
         },
-        // NÃO usar emailRedirectTo aqui - vamos usar inviteUserByEmail depois
-        // Isso evita conflito e garante que o email seja enviado com a URL correta
+        emailRedirectTo: redirectUrl, // URL forçada para produção
       }
     })
     
@@ -152,124 +151,19 @@ export async function signUp(email: string, password: string, nome: string, tele
     }
     
     // Se chegou aqui, usuário foi criado com sucesso
-    // IMPORTANTE: O Supabase signUp pode ignorar o emailRedirectTo e usar a Site URL do dashboard
-    // Para garantir que o email seja enviado com a URL correta, SEMPRE usar inviteUserByEmail
+    // O Supabase deve ter enviado o email automaticamente com emailRedirectTo
     // Verificar se precisa confirmar email (não tem session e não está confirmado)
     const precisaConfirmarEmail = !authData.session && !authData.user.email_confirmed_at
     
     // IMPORTANTE: Se não houver erro mas também não houver session,
     // significa que o email foi enviado (Supabase não cria session até confirmar email)
-    // MAS pode ter sido enviado com a URL errada (Site URL do dashboard)
     if (authData.user && !authData.session && !authData.user.email_confirmed_at) {
-      console.log('✅ Email de confirmação DEVE ter sido enviado pelo Supabase (sem session = aguardando confirmação)')
-      console.log('⚠️ MAS pode ter sido enviado com URL errada (Site URL do dashboard)')
-      console.log('✅ Vamos garantir enviando via Admin API com URL correta...')
+      console.log('✅ Email de confirmação foi enviado pelo Supabase (sem session = aguardando confirmação)')
+      console.log('✅ O usuário receberá o email com o link de confirmação')
     } else if (authData.user && authData.session) {
       console.log('⚠️ ATENÇÃO: Session foi criada - email pode não ter sido enviado ou já estava confirmado')
       console.log('⚠️ Se session foi criada sem confirmação, pode haver problema na configuração')
     }
-    
-    // SEMPRE tentar enviar via Admin API para garantir URL correta
-    // Mesmo que o Supabase tenha enviado, vamos reenviar com a URL correta
-    if (precisaConfirmarEmail || teveErroEmail || true) { // true = sempre enviar via Admin API
-      console.log('📧 ========== GARANTINDO ENVIO DE EMAIL COM URL CORRETA ==========')
-      console.log('   - Precisa confirmar email:', precisaConfirmarEmail)
-      console.log('   - Teve erro de email:', teveErroEmail)
-      console.log('   - User ID:', authData.user.id)
-      console.log('   - ⚠️ IMPORTANTE: Sempre usando inviteUserByEmail para garantir URL correta')
-      console.log('   - ⚠️ O Supabase signUp pode ignorar emailRedirectTo, mas inviteUserByEmail respeita redirectTo')
-      
-      try {
-        // Verificar se SERVICE_ROLE_KEY está configurada
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-        if (!serviceRoleKey) {
-          console.error('❌ CRÍTICO: SUPABASE_SERVICE_ROLE_KEY não está configurada!')
-          console.error('❌ Não é possível enviar email via Admin API sem a Service Role Key')
-          console.error('❌ Configure SUPABASE_SERVICE_ROLE_KEY nas variáveis de ambiente')
-        } else {
-          console.log('✅ SUPABASE_SERVICE_ROLE_KEY encontrada (primeiros 10 chars):', serviceRoleKey.substring(0, 10) + '...')
-        }
-        
-        // Usar Admin API diretamente em vez de fetch para garantir que funcione
-        const { createAdminClient } = await import('./supabase/server')
-        const supabaseAdmin = createAdminClient()
-        
-        if (!supabaseAdmin) {
-          console.error('❌ ERRO: createAdminClient retornou null!')
-          console.error('❌ Verifique se SUPABASE_SERVICE_ROLE_KEY está configurada corretamente')
-          console.error('❌ Email NÃO será enviado via Admin API')
-        } else {
-          console.log('✅ Admin client criado com sucesso')
-          
-          // IMPORTANTE: Sempre usar https://plenipay.com para links de email
-          // Mesmo em desenvolvimento local, links de email devem apontar para produção
-          const siteUrl = 'https://plenipay.com' // FORÇAR URL de produção sempre
-          const redirectTo = `${siteUrl}/auth/callback?next=/home`
-          
-          console.log('🔗 Configurações do envio:')
-          console.log('   - Site URL (FORÇADA):', siteUrl)
-          console.log('   - Redirect To:', redirectTo)
-          console.log('   - Email destinatário:', email)
-          console.log('   - ⚠️ IMPORTANTE: URL forçada para produção (https://plenipay.com)')
-          console.log('   - ⚠️ VERIFIQUE: Esta URL deve estar nas Redirect URLs do Supabase Dashboard!')
-          
-          // Aguardar um pouco para garantir que o usuário foi criado no Supabase
-          console.log('⏳ Aguardando 2 segundos para garantir que usuário foi criado...')
-          await new Promise(resolve => setTimeout(resolve, 2000))
-          
-          // MÉTODO 1: Tentar inviteUserByEmail primeiro (sempre funciona)
-          console.log('📤 MÉTODO 1: Tentando inviteUserByEmail (sempre funciona)...')
-          const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-            email,
-            {
-              redirectTo: redirectTo,
-              data: {
-                nome,
-                telefone,
-                whatsapp,
-                plano,
-                email,
-              }
-            }
-          )
-          
-          if (!inviteError) {
-            console.log('✅✅✅ SUCESSO! Email enviado via inviteUserByEmail!')
-            console.log('✅ URL usada (redirectTo):', redirectTo)
-            console.log('⚠️ NOTA: Este email será do tipo "invite", mas o link funcionará corretamente')
-          } else {
-            console.error('❌ Erro ao enviar via inviteUserByEmail:', inviteError.message)
-            console.log('🔄 Tentando resend como fallback...')
-            
-            // MÉTODO 2: Se inviteUserByEmail falhar, tentar resend
-            const { data: resendData, error: resendError } = await supabase.auth.resend({
-              type: 'signup',
-              email: email,
-              options: {
-                emailRedirectTo: redirectTo,
-              }
-            })
-            
-            if (!resendError) {
-              console.log('✅✅✅ SUCESSO! Email de confirmação enviado via resend (signup)!')
-              console.log('✅ URL usada (emailRedirectTo):', redirectTo)
-            } else {
-              console.error('❌ Erro também no resend:', resendError.message)
-              console.error('❌ Usuário precisará usar o botão "Reenviar link" no modal')
-            }
-          }
-        }
-      } catch (apiError: any) {
-        console.error('❌❌❌ ERRO INESPERADO ao enviar email via Admin API:')
-        console.error('   - Mensagem:', apiError.message)
-        console.error('   - Stack:', apiError.stack)
-        console.error('   - Erro completo:', JSON.stringify(apiError, null, 2))
-        console.error('⚠️ Continuando mesmo assim - usuário pode usar botão no modal')
-      }
-      
-      console.log('📧 ========== FIM DA TENTATIVA DE ENVIO ==========')
-    }
-    // Sempre tentamos enviar via Admin API para garantir URL correta
     
     console.log('✅ Usuário criado com sucesso via signUp normal')
     console.log('📧 Email do usuário:', email)
