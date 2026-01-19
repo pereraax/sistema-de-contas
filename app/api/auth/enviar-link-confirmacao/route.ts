@@ -132,8 +132,13 @@ export async function POST(request: NextRequest) {
         
         if (!resendError) {
           // Resend retornou sucesso
+          // IMPORTANTE: Isso NÃO garante que o email foi enviado
+          // O Supabase pode retornar sucesso mesmo se SMTP não estiver configurado
           console.log(`✅ Resend retornou sucesso com type: ${tipo}!`)
-          console.log('📧 Email DEVE ter sido enviado pelo Supabase')
+          console.log('⚠️ IMPORTANTE: Sucesso no resend NÃO garante que email foi enviado')
+          console.log('⚠️ Se o email não chegar, verifique SMTP no Supabase Dashboard')
+          console.log('⚠️ Project Settings → Auth → SMTP Settings → Enable Custom SMTP')
+          console.log('📧 Email DEVE ter sido enviado pelo Supabase (se SMTP estiver configurado)')
           tipoUsado = tipo
           break // Sucesso, não precisa tentar outros tipos
         } else {
