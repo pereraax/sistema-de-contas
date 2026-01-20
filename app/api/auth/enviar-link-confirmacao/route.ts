@@ -213,31 +213,74 @@ export async function POST(request: NextRequest) {
     }
     
     // PASSO 3: Se SMTP do app estiver configurado e temos correctedLink, enviar email por SMTP (solução definitiva)
-    console.log('🔍 Verificando SMTP configurado:', isSmtpConfigured())
-    console.log('🔍 correctedLink disponível:', !!correctedLink)
-    if (correctedLink && isSmtpConfigured()) {
-      console.log('📨 SMTP configurado - enviando email de confirmação pelo SMTP do app (link 100% plenipay.com)')
-      const html = `
-        <div style="font-family: Arial, sans-serif; line-height: 1.5; padding: 16px;">
-          <h2>Confirme seu email</h2>
-          <p>Clique no link abaixo para confirmar seu email:</p>
-          <p><a href="${correctedLink}">${correctedLink}</a></p>
-          <p style="color:#666;font-size:12px;">Se você não solicitou este cadastro, ignore este email.</p>
-        </div>
-      `
-      await sendMail({
-        to: email,
-        subject: 'Confirme seu email - Plenipay',
-        html,
-      })
+    console.log('🔍 ========== VERIFICANDO SMTP ==========')
+    const smtpConfigurado = isSmtpConfigured()
+    console.log('🔍 SMTP configurado?', smtpConfigurado)
+    console.log('🔍 correctedLink disponível?', !!correctedLink)
+    console.log('🔍 correctedLink:', correctedLink ? correctedLink.substring(0, 100) + '...' : 'NÃO DISPONÍVEL')
+    
+    if (correctedLink && smtpConfigurado) {
+      console.log('📨 ========== ENVIANDO VIA SMTP PRÓPRIO ==========')
+      console.log('📨 Email destinatário:', email)
+      console.log('📨 Link que será enviado:', correctedLink)
+      
+      try {
+        const html = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #1B263B 0%, #0D1B2A 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+              <h1 style="color: #fff; margin: 0;">Confirme seu Email</h1>
+            </div>
+            <div style="background: #fff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
+              <p style="font-size: 16px;">Olá! 👋</p>
+              <p style="font-size: 16px;">Bem-vindo(a) à Plenipay! Para ativar sua conta, clique no botão abaixo:</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${correctedLink}" style="display: inline-block; padding: 15px 40px; background: linear-gradient(135deg, #00C2FF 0%, #0099CC 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(0, 194, 255, 0.3);">
+                  Confirmar Email
+                </a>
+              </div>
+              <p style="font-size: 14px; color: #666;">Ou copie e cole este link no seu navegador:</p>
+              <p style="font-size: 12px; color: #00C2FF; word-break: break-all; background: #f5f5f5; padding: 10px; border-radius: 5px;">${correctedLink}</p>
+              <p style="font-size: 12px; color: #999; margin-top: 30px;">Este link é válido por 24 horas. Se você não solicitou este cadastro, ignore este email.</p>
+            </div>
+          </body>
+          </html>
+        `
+        
+        await sendMail({
+          to: email,
+          subject: 'Confirme seu email - Plenipay',
+          html,
+        })
 
-      return NextResponse.json({
-        success: true,
-        message: 'Email de confirmação enviado (SMTP próprio) com link correto!',
-        correctedLink,
-        emailSent: true,
-        method: 'smtp_custom',
-      })
+        console.log('✅ Email enviado com sucesso via SMTP próprio!')
+        console.log('✅ Link enviado:', correctedLink)
+
+        return NextResponse.json({
+          success: true,
+          message: 'Email de confirmação enviado (SMTP próprio) com link correto!',
+          correctedLink,
+          emailSent: true,
+          method: 'smtp_custom',
+        })
+      } catch (smtpError: any) {
+        console.error('❌ Erro ao enviar email via SMTP próprio:', smtpError.message)
+        console.error('❌ Stack:', smtpError.stack)
+        console.warn('⚠️ Vamos tentar fallback via Supabase...')
+        // Continuar para tentar Supabase como fallback
+      }
+    } else {
+      if (!smtpConfigurado) {
+        console.warn('⚠️ SMTP não configurado - usando Supabase como fallback')
+      }
+      if (!correctedLink) {
+        console.warn('⚠️ correctedLink não disponível - usando Supabase como fallback')
+      }
     }
 
     // PASSO 4: fallback - Tentar resend com múltiplos tipos (Supabase)
