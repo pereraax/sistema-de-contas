@@ -187,9 +187,9 @@ export async function POST(request: NextRequest) {
     // Se chegou aqui, não detectou 0.0.0.0:10000, então permitir envio
     console.log('✅ Verificação de URL concluída - permitindo envio de email')
     
-    // CRÍTICO: Gerar correctedLink SEMPRE (extrair token_hash do linkGerado se disponível)
-    let correctedLink: string | null = null
-    if (linkGerado) {
+    // CRÍTICO: Se correctedLink ainda não foi gerado, tentar gerar agora
+    // (pode não ter sido gerado se o linkGerado não tinha token_hash)
+    if (!correctedLink && linkGerado) {
       // Tentar extrair token_hash do link gerado
       const tokenHashMatch = linkGerado.match(/token_hash=([^&]+)/i) || 
                              linkGerado.match(/token_hash=([^#]+)/i) ||
