@@ -31,10 +31,13 @@ function getSmtpConfig() {
     return null
   }
 
-  // Hostinger normalmente usa 465 (secure) ou 587 (STARTTLS)
+  // Hostinger normalmente usa 465 (SSL) ou 587 (STARTTLS)
+  // Porta 465 = secure: true (SSL direto)
+  // Porta 587 = secure: false (usa STARTTLS)
   const secure = port === 465
 
   console.log('✅ [SMTP] Configuração SMTP válida!')
+  console.log(`  - Porta: ${port} (${secure ? 'SSL' : 'STARTTLS'})`)
   return { host, port, secure, auth: { user, pass }, from }
 }
 
@@ -51,8 +54,9 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
   const transporter = nodemailer.createTransport({
     host: cfg.host,
     port: cfg.port,
-    secure: cfg.secure,
+    secure: cfg.secure, // true para 465 (SSL), false para 587 (STARTTLS)
     auth: cfg.auth,
+    // Para porta 587 (STARTTLS), não precisa de requireTLS, nodemailer faz automaticamente
   })
 
   await transporter.sendMail({
