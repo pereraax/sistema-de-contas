@@ -19,6 +19,11 @@ export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obri
   const [linkEnviado, setLinkEnviado] = useState(false)
   const [tempoRestante, setTempoRestante] = useState(0) // Tempo em segundos
   const linkEnviadoAutomaticamente = useRef<boolean>(false)
+  
+  // Estados para OTP (código de 6 dígitos)
+  const [codigoOTP, setCodigoOTP] = useState('')
+  const [verificando, setVerificando] = useState(false)
+  const [usarOTP, setUsarOTP] = useState(true) // Mudar para OTP por padrão
 
   const formatarTempo = (segundos: number) => {
     if (segundos < 60) {
@@ -88,9 +93,9 @@ export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obri
             createNotification('Link gerado, mas email não foi enviado. Verifique os logs.', 'warning')
           }
         } else {
-          const errorData = result.error || 'Erro ao enviar link de confirmação'
-          setErro(errorData)
-          createNotification(`Erro: ${errorData}`, 'warning')
+        const errorData = result.error || 'Erro ao enviar link de confirmação'
+        setErro(errorData)
+        createNotification(`Erro: ${errorData}`, 'warning')
         }
       } else if (result.success || result.linkGenerated) {
         console.log('✅ [AUTO] Link enviado com sucesso!')
@@ -195,7 +200,7 @@ export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obri
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, usarOTP: usarOTP }),
       })
       
       const result = await response.json()
@@ -217,20 +222,67 @@ export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obri
         if (result.error.includes('rate limit') || result.error.includes('too many')) {
           mensagemErro = `Muitas tentativas. Aguarde ${formatarTempo(segundosCooldown)} antes de tentar novamente.`
         } else if (result.error.includes('after') || result.error.includes('seconds')) {
-          mensagemErro = `Por segurança, você só pode solicitar um novo link após ${formatarTempo(segundosCooldown)}.`
+          mensagemErro = `Por segurança, você só pode solicitar um novo código após ${formatarTempo(segundosCooldown)}.`
         }
         setErro(mensagemErro)
       } else {
-        createNotification('Link de confirmação reenviado! Verifique seu email.', 'success')
+        if (usarOTP) {
+          createNotification('Código de confirmação enviado! Verifique seu email.', 'success')
+        } else {
+          createNotification('Link de confirmação reenviado! Verifique seu email.', 'success')
+        }
         setLinkEnviado(true)
         setTempoRestante(60)
       }
     } catch (error: any) {
-      setErro('Erro ao reenviar link. Tente novamente.')
-      console.error('Erro ao reenviar link:', error)
+      setErro('Erro ao reenviar. Tente novamente.')
+      console.error('Erro ao reenviar:', error)
       setTempoRestante(60)
     } finally {
       setReenviando(false)
+    }
+  }
+
+  const handleVerificarCodigo = async () => {
+    if (!codigoOTP || codigoOTP.length < 6) {
+      setErro('Digite o código de 6 dígitos recebido por email.')
+      return
+    }
+
+    setVerificando(true)
+    setErro('')
+
+    try {
+      const { verificarCodigoEmail } = await import('@/lib/auth')
+      const result = await verificarCodigoEmail(codigoOTP, email)
+
+      if (result.error) {
+        setErro(result.error)
+        createNotification(`Erro: ${result.error}`, 'error')
+      } else if (result.success) {
+        createNotification('Email confirmado com sucesso!', 'success')
+        setCodigoOTP('')
+        if (onConfirmado) {
+          onConfirmado()
+        }
+      }
+    } catch (error: any) {
+      setErro('Erro ao verificar código. Tente novamente.')
+      console.error('Erro ao verificar código:', error)
+      createNotification('Erro ao verificar código.', 'error')
+    } finally {
+      setVerificando(false)
+    }
+  }
+
+  const handleCodigoChange = (value: string) => {
+    // Aceitar apenas números e limitar a 6 dígitos
+    const numeros = value.replace(/\D/g, '').slice(0, 6)
+    setCodigoOTP(numeros)
+    
+    // Auto-verificar quando tiver 6 dígitos
+    if (numeros.length === 6) {
+      setTimeout(() => handleVerificarCodigo(), 300)
     }
   }
 
@@ -291,29 +343,87 @@ export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obri
               <>
                 <div className="space-y-2">
                   <h3 className="text-xl font-bold text-gray-900">
-                    {emailJaEnviado ? 'Email Enviado!' : 'Link Enviado!'}
+                    {usarOTP ? 'Código Enviado!' : emailJaEnviado ? 'Email Enviado!' : 'Link Enviado!'}
                   </h3>
                   <p className="text-sm text-gray-600">
-                    {emailJaEnviado 
-                      ? 'Enviamos automaticamente um link de confirmação para:'
-                      : 'Enviamos um link de confirmação para:'}
+                    {usarOTP 
+                      ? 'Enviamos um código de 6 dígitos para:'
+                      : emailJaEnviado 
+                        ? 'Enviamos automaticamente um link de confirmação para:'
+                        : 'Enviamos um link de confirmação para:'}
                   </p>
                   <p className="text-[#00C2FF] font-semibold text-sm break-all px-2 pt-1">{email}</p>
                 </div>
                 
-                <div className="bg-blue-50 rounded-xl px-5 py-4 border border-blue-100 space-y-2.5">
-                  <div className="flex items-center justify-center gap-2">
-                    <Mail size={18} className="text-[#00C2FF]" />
-                    <p className="text-sm font-semibold text-gray-900">
-                      Verifique sua caixa de entrada
+                {usarOTP ? (
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 rounded-xl px-5 py-4 border border-blue-100 space-y-2.5">
+                      <div className="flex items-center justify-center gap-2">
+                        <Mail size={18} className="text-[#00C2FF]" />
+                        <p className="text-sm font-semibold text-gray-900">
+                          Digite o código de 6 dígitos
+                        </p>
+                      </div>
+                      <p className="text-xs text-gray-600 leading-relaxed text-center">
+                        Verifique seu email e digite o código de 6 dígitos que enviamos.
+                      </p>
+                    </div>
+                    
+                    {/* Campo de input para código OTP */}
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Código de Confirmação
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={codigoOTP}
+                        onChange={(e) => handleCodigoChange(e.target.value)}
+                        placeholder="000000"
+                        maxLength={6}
+                        className="w-full px-4 py-3 text-center text-3xl font-mono tracking-widest border-2 border-gray-300 rounded-xl focus:outline-none focus:border-[#00C2FF] transition-colors"
+                        disabled={verificando}
+                        autoFocus
+                      />
+                      <p className="text-xs text-gray-500 text-center">
+                        Digite os 6 dígitos recebidos por email
+                      </p>
+                    </div>
+                    
+                    <button
+                      onClick={handleVerificarCodigo}
+                      disabled={verificando || codigoOTP.length !== 6}
+                      className="w-full px-4 py-3 bg-gradient-to-r from-[#00C2FF] to-[#0099CC] text-white rounded-xl font-semibold hover:from-[#00B8F5] hover:to-[#0088BB] shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {verificando ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Verificando...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle size={18} />
+                          Confirmar Código
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-blue-50 rounded-xl px-5 py-4 border border-blue-100 space-y-2.5">
+                    <div className="flex items-center justify-center gap-2">
+                      <Mail size={18} className="text-[#00C2FF]" />
+                      <p className="text-sm font-semibold text-gray-900">
+                        Verifique sua caixa de entrada
+                      </p>
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed">
+                      {emailJaEnviado 
+                        ? 'Verifique seu email e clique no link de confirmação que enviamos. Após clicar no link, você será redirecionado automaticamente e poderá fazer login.'
+                        : 'Clique no link que enviamos para confirmar seu email. Após clicar, você será redirecionado automaticamente e seu email estará confirmado.'}
                     </p>
                   </div>
-                  <p className="text-xs text-gray-600 leading-relaxed">
-                    {emailJaEnviado 
-                      ? 'Verifique seu email e clique no link de confirmação que enviamos. Após clicar no link, você será redirecionado automaticamente e poderá fazer login.'
-                      : 'Clique no link que enviamos para confirmar seu email. Após clicar, você será redirecionado automaticamente e seu email estará confirmado.'}
-                  </p>
-                </div>
+                )}
               </>
             ) : (
               <>
@@ -382,11 +492,11 @@ export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obri
                 disabled={reenviando || tempoRestante > 0}
                 className="w-full text-sm text-[#00C2FF] hover:text-[#0099CC] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {reenviando ? 'Reenviando...' : tempoRestante > 0 ? `Aguarde ${formatarTempo(tempoRestante)}` : 'Não recebeu? Reenviar link'}
+                {reenviando ? 'Reenviando...' : tempoRestante > 0 ? `Aguarde ${formatarTempo(tempoRestante)}` : usarOTP ? 'Não recebeu? Reenviar código' : 'Não recebeu? Reenviar link'}
               </button>
               {tempoRestante > 0 && (
                 <p className="text-xs text-gray-500 text-center">
-                  Você pode solicitar um novo link em {formatarTempo(tempoRestante)}
+                  Você pode solicitar um novo {usarOTP ? 'código' : 'link'} em {formatarTempo(tempoRestante)}
                 </p>
               )}
             </div>
@@ -396,7 +506,11 @@ export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obri
           <div className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
             <p className="text-xs text-gray-600 text-center leading-relaxed flex items-center justify-center gap-1.5">
               <span>💡</span>
-              <span>Verifique também a pasta de spam. O link expira em 24 horas.</span>
+              <span>
+                {usarOTP 
+                  ? 'Verifique também a pasta de spam. O código expira em 1 hora.'
+                  : 'Verifique também a pasta de spam. O link expira em 24 horas.'}
+              </span>
             </p>
           </div>
         </div>

@@ -9,7 +9,7 @@ import { isSmtpConfigured, sendMail } from '@/lib/mailer'
  */
 export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json()
+    const { email, usarOTP = true } = await request.json() // Por padrão, usar OTP
 
     if (!email) {
       return NextResponse.json(
@@ -18,8 +18,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('📧 ========== API: ENVIAR LINK DE CONFIRMAÇÃO ==========')
+    console.log('📧 ========== API: ENVIAR CONFIRMAÇÃO DE EMAIL ==========')
     console.log('📧 Email:', email)
+    console.log('📧 Modo:', usarOTP ? 'OTP (código de 6 dígitos)' : 'Link')
     console.log('⏰ Timestamp:', new Date().toISOString())
 
     const supabaseAdmin = createAdminClient()
@@ -284,7 +285,7 @@ export async function POST(request: NextRequest) {
     }
 
     // PASSO 4: fallback - Tentar resend com múltiplos tipos (Supabase)
-    console.log('📤 PASSO 3: Tentando resend com múltiplos tipos...')
+    console.log('📤 PASSO 4: Tentando resend com múltiplos tipos...')
     
     const supabasePublic = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -302,16 +303,20 @@ export async function POST(request: NextRequest) {
       try {
         console.log(`📤 [RESEND] Tentando com type: ${tipo}...`)
         console.log('  - email:', email)
-        console.log('  - emailRedirectTo:', redirectTo)
-        console.log('  - ⚠️ IMPORTANTE: Verifique se o Supabase está usando este emailRedirectTo')
+        if (!usarOTP && redirectTo) {
+          console.log('  - emailRedirectTo:', redirectTo)
+          console.log('  - ⚠️ IMPORTANTE: Verifique se o Supabase está usando este emailRedirectTo')
+        } else {
+          console.log('  - Modo OTP: Não usando emailRedirectTo (código será digitado no site)')
+        }
         
         const result = await supabasePublic.auth.resend({
           type: tipo as any,
-      email: email,
-      options: {
-        emailRedirectTo: redirectTo
-      }
-    })
+          email: email,
+          options: usarOTP ? undefined : {
+            emailRedirectTo: redirectTo
+          }
+        })
     
         resendData = result.data
         resendError = result.error
