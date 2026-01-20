@@ -137,7 +137,6 @@ export async function POST(request: NextRequest) {
           linkCorrigidoManual.searchParams.set('next', '/home')
           
           linkGerado = linkCorrigidoManual.toString()
-          correctedLink = linkGerado
           console.log('✅ Link corrigido manualmente no código:', linkGerado.substring(0, 150) + '...')
           console.log('✅ Agora o link SEMPRE terá URL correta, mesmo se Supabase usar URL incorreta!')
         }
