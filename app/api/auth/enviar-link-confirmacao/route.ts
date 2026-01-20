@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
+import { isSmtpConfigured, sendMail } from '@/lib/mailer'
 
 /**
  * API Route para ENVIAR link de confirmação de email
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
     let linkGeradoComUrlCorreta = false
     let linkGerado: string | null = null
     let linkTemUrlIncorreta = false
+    let correctedLink: string | null = null
     
     try {
       const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
@@ -135,6 +137,7 @@ export async function POST(request: NextRequest) {
           linkCorrigidoManual.searchParams.set('next', '/home')
           
           linkGerado = linkCorrigidoManual.toString()
+          correctedLink = linkGerado
           console.log('✅ Link corrigido manualmente no código:', linkGerado.substring(0, 150) + '...')
           console.log('✅ Agora o link SEMPRE terá URL correta, mesmo se Supabase usar URL incorreta!')
         }
@@ -176,38 +179,42 @@ export async function POST(request: NextRequest) {
     
     // BLOQUEAR ENVIO APENAS SE DETECTAR 0.0.0.0:10000 EXPLICITAMENTE
     // IMPORTANTE: Só bloqueia se realmente detectar o problema
-    if (linkTemUrlIncorreta && linkGerado) {
-      console.error('🚫 BLOQUEANDO ENVIO: Link tem URL incorreta (0.0.0.0:10000)')
-      console.error('🚫 Não vamos enviar email com link incorreto')
-      console.error('🚫 Site URL no Supabase Dashboard precisa ser corrigida primeiro')
-      
-      return NextResponse.json(
-        {
-          error: 'Link de confirmação está usando URL incorreta (0.0.0.0:10000).',
-          details: 'O Supabase está usando a Site URL do dashboard em vez do emailRedirectTo devido a um bug conhecido.',
-          solution: 'Corrija a Site URL no Supabase Dashboard ANTES de tentar novamente:',
-          steps: [
-            '1. Acesse: https://app.supabase.com/project/[SEU-PROJETO]/auth/url-configuration',
-            '2. Encontre o campo "Site URL"',
-            '3. Se estiver como "0.0.0.0:10000" ou vazio, MUDE PARA: https://plenipay.com',
-            '4. IMPORTANTE: Sem barra final (não use https://plenipay.com/)',
-            '5. Clique em "Save"',
-            '6. Aguarde 2-3 minutos para as alterações serem aplicadas',
-            '7. Tente novamente criar a conta'
-          ],
-          redirectToPassed: redirectTo,
-          linkGenerated: linkGerado.substring(0, 200) + '...',
-          bugInfo: 'Há um bug conhecido no Supabase (issue #802) onde resend() ignora emailRedirectTo e usa Site URL do dashboard. A solução é garantir que a Site URL esteja correta.',
-          templateCheck: 'Também verifique o template de email: Authentication → Email Templates → "Confirm signup" → Deve usar {{ .ConfirmationURL }} e não {{ .SiteURL }}'
-        },
-        { status: 500 }
-      )
+    // Se detectou URL incorreta do Supabase, NÃO bloquear mais:
+    // vamos enviar um link 100% do nosso domínio (corrigido) via SMTP (se configurado)
+    if (linkTemUrlIncorreta) {
+      console.warn('⚠️ Link do Supabase veio com URL incorreta (0.0.0.0:10000). Vamos ignorar e usar link corrigido.')
     }
     
     // Se chegou aqui, não detectou 0.0.0.0:10000, então permitir envio
     console.log('✅ Verificação de URL concluída - permitindo envio de email')
     
-    // PASSO 3: Tentar resend com múltiplos tipos
+    // PASSO 3: Se SMTP do app estiver configurado e temos correctedLink, enviar email por SMTP (solução definitiva)
+    if (correctedLink && isSmtpConfigured()) {
+      console.log('📨 SMTP configurado - enviando email de confirmação pelo SMTP do app (link 100% plenipay.com)')
+      const html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.5; padding: 16px;">
+          <h2>Confirme seu email</h2>
+          <p>Clique no link abaixo para confirmar seu email:</p>
+          <p><a href="${correctedLink}">${correctedLink}</a></p>
+          <p style="color:#666;font-size:12px;">Se você não solicitou este cadastro, ignore este email.</p>
+        </div>
+      `
+      await sendMail({
+        to: email,
+        subject: 'Confirme seu email - Plenipay',
+        html,
+      })
+
+      return NextResponse.json({
+        success: true,
+        message: 'Email de confirmação enviado (SMTP próprio) com link correto!',
+        correctedLink,
+        emailSent: true,
+        method: 'smtp_custom',
+      })
+    }
+
+    // PASSO 4: fallback - Tentar resend com múltiplos tipos (Supabase)
     console.log('📤 PASSO 3: Tentando resend com múltiplos tipos...')
     
     const supabasePublic = createClient(
@@ -310,7 +317,7 @@ export async function POST(request: NextRequest) {
     console.error('❌ Nenhum tipo de resend funcionou ou retornou sucesso mas sem dados')
     console.error('❌ Último erro:', ultimoErro?.message || 'Nenhum erro capturado')
     
-    // PASSO 4: Se resend não funcionou, não usar inviteUserByEmail
+    // PASSO 4: Se resend não funcionou, não usar inviteUserByEmail (evita email de convite)
     // IMPORTANTE: inviteUserByEmail envia email de "invite", não de "confirmação"
     // Isso confunde o usuário e não é o comportamento desejado
     console.log('📤 PASSO 4: Resend não funcionou - NÃO usando inviteUserByEmail (envia email de invite, não confirmação)')
@@ -415,41 +422,6 @@ export async function POST(request: NextRequest) {
           
           finalCorrectedLink = linkCorrigidoManual.toString()
           console.log('✅ Link construído manualmente:', finalCorrectedLink)
-          
-          // TENTAR ENVIAR EMAIL COM LINK CORRIGIDO via Supabase Admin API
-          // Usar inviteUserByEmail mas com redirectTo correto
-          console.log('📤 Tentando enviar email com link corrigido via inviteUserByEmail...')
-          try {
-            const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-              email,
-              {
-                redirectTo: redirectTo,
-                data: {
-                  custom_link: finalCorrectedLink // Passar link customizado se possível
-                }
-              }
-            )
-            
-            if (!inviteError) {
-              console.log('✅ Email enviado via inviteUserByEmail com link corrigido!')
-              
-              // IMPORTANTE: O inviteUserByEmail pode usar o link padrão do Supabase
-              // Mas vamos retornar o link corrigido para o frontend exibir
-              return NextResponse.json({
-                success: true,
-                message: 'Email de confirmação enviado com link corrigido!',
-                correctedLink: finalCorrectedLink,
-                emailSent: true,
-                method: 'inviteUserByEmail_with_corrected_link',
-                note: 'O email foi enviado. Se o link no email ainda estiver incorreto, use o link corrigido fornecido abaixo.',
-                instructions: 'Copie o link corrigido se precisar confirmar manualmente.'
-              }, { status: 200 })
-            } else {
-              console.warn('⚠️ inviteUserByEmail falhou, mas temos link corrigido:', inviteError.message)
-            }
-          } catch (inviteException: any) {
-            console.warn('⚠️ Erro ao tentar inviteUserByEmail:', inviteException.message)
-          }
         }
         
         // Verificar se o link contém a URL correta após correção
