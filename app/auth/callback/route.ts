@@ -174,9 +174,11 @@ export async function GET(request: NextRequest) {
                 // Se há sessão, redirecionar para home
                 if (data.session) {
                   console.log('✅ [Callback] Sessão criada - redirecionando para home')
+                  // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
                   const redirectUrl = new URL(next, productionUrl)
                   redirectUrl.searchParams.set('emailConfirmed', 'true')
-                  return NextResponse.redirect(redirectUrl)
+                  console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
+                  return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
                 }
           
           break // Sucesso, não precisa tentar outros tipos
@@ -317,9 +319,11 @@ export async function GET(request: NextRequest) {
               const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId)
               if (userData?.user) {
                 console.log('✅ [Callback] Usuário autenticado - redirecionando para home')
+                // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
                 const redirectUrl = new URL('/home', productionUrl)
                 redirectUrl.searchParams.set('emailConfirmed', 'true')
-                return NextResponse.redirect(redirectUrl)
+                console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
+                return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
               }
             }
           } catch (err) {
@@ -329,25 +333,42 @@ export async function GET(request: NextRequest) {
         
         // Se não há sessão, redirecionar para login com email confirmado
         console.log('✅ [Callback] Email confirmado - redirecionando para login')
+        // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
         const redirectUrl = new URL('/login', productionUrl)
         redirectUrl.searchParams.set('emailConfirmed', 'true')
         redirectUrl.searchParams.set('mensagem', 'Email confirmado com sucesso! Faça login para continuar.')
         if (userEmail) {
           redirectUrl.searchParams.set('email', userEmail)
         }
-        return NextResponse.redirect(redirectUrl)
+        console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
+        return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
       } else if (lastError) {
         console.error('❌ [Callback] Erro ao verificar link de confirmação:', lastError.message)
         
         // Se o token expirou, redirecionar com mensagem específica
-        if (lastError.message.includes('expired') || lastError.message.includes('expirado')) {
+        if (lastError.message.includes('expired') || lastError.message.includes('expirado') || 
+            lastError.message.includes('invalid') || lastError.message.includes('expired')) {
+          console.log('⚠️ [Callback] Token expirado ou inválido - redirecionando para login')
+          // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
           const redirectUrl = new URL('/login', productionUrl)
-          redirectUrl.searchParams.set('error', 'Link de confirmação expirado. Por favor, solicite um novo link.')
+          redirectUrl.searchParams.set('error', 'Link de confirmação expirado ou inválido. Por favor, solicite um novo link.')
           if (userEmail) {
             redirectUrl.searchParams.set('email', userEmail)
           }
-          return NextResponse.redirect(redirectUrl)
+          console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
+          return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
         }
+        
+        // Para outros erros, também redirecionar para login
+        console.log('⚠️ [Callback] Erro desconhecido - redirecionando para login')
+        // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
+        const redirectUrl = new URL('/login', productionUrl)
+        redirectUrl.searchParams.set('error', 'Erro ao confirmar email. O link pode ter expirado. Solicite um novo link.')
+        if (userEmail) {
+          redirectUrl.searchParams.set('email', userEmail)
+        }
+        console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
+        return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
       }
     }
     
@@ -363,23 +384,31 @@ export async function GET(request: NextRequest) {
         console.log('🔑 Sessão criada:', !!data.session)
         
         if (data.session) {
+          // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
           const redirectUrl = new URL(next, productionUrl)
           redirectUrl.searchParams.set('emailConfirmed', 'true')
-          return NextResponse.redirect(redirectUrl)
+          console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
+          return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
         } else {
+          // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
           const redirectUrl = new URL('/login', productionUrl)
           redirectUrl.searchParams.set('emailConfirmed', 'true')
+          redirectUrl.searchParams.set('mensagem', 'Email confirmado com sucesso! Faça login para continuar.')
           redirectUrl.searchParams.set('email', data.user.email || '')
-          return NextResponse.redirect(redirectUrl)
+          console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
+          return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
         }
       }
     }
   }
 
   // Se houver erro ou parâmetros inválidos, redirecionar para login
+  console.log('⚠️ [Callback] Erro ou parâmetros inválidos - redirecionando para login')
+  // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
   const redirectUrl = new URL('/login', productionUrl)
-  redirectUrl.searchParams.set('error', 'Erro ao confirmar email. O link pode ter expirado.')
-  return NextResponse.redirect(redirectUrl)
+  redirectUrl.searchParams.set('error', 'Erro ao confirmar email. O link pode ter expirado. Solicite um novo link.')
+  console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
+  return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
 }
 
 
