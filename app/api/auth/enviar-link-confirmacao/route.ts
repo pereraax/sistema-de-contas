@@ -188,7 +188,34 @@ export async function POST(request: NextRequest) {
     // Se chegou aqui, não detectou 0.0.0.0:10000, então permitir envio
     console.log('✅ Verificação de URL concluída - permitindo envio de email')
     
+    // CRÍTICO: Gerar correctedLink SEMPRE (extrair token_hash do linkGerado se disponível)
+    let correctedLink: string | null = null
+    if (linkGerado) {
+      // Tentar extrair token_hash do link gerado
+      const tokenHashMatch = linkGerado.match(/token_hash=([^&]+)/i) || 
+                             linkGerado.match(/token_hash=([^#]+)/i) ||
+                             linkGerado.match(/#token_hash=([^&]+)/i) ||
+                             linkGerado.match(/token=([^&]+)/i) ||
+                             linkGerado.match(/token=([^#]+)/i)
+      
+      if (tokenHashMatch && tokenHashMatch[1]) {
+        const tokenHashExtraido = decodeURIComponent(tokenHashMatch[1])
+        console.log('✅ Token hash extraído para correctedLink:', tokenHashExtraido.substring(0, 20) + '...')
+        
+        // Construir link correto manualmente
+        const linkCorrigidoManual = new URL('/auth/callback', 'https://plenipay.com')
+        linkCorrigidoManual.searchParams.set('token_hash', tokenHashExtraido)
+        linkCorrigidoManual.searchParams.set('type', 'signup')
+        linkCorrigidoManual.searchParams.set('next', '/home')
+        
+        correctedLink = linkCorrigidoManual.toString()
+        console.log('✅ correctedLink gerado:', correctedLink.substring(0, 150) + '...')
+      }
+    }
+    
     // PASSO 3: Se SMTP do app estiver configurado e temos correctedLink, enviar email por SMTP (solução definitiva)
+    console.log('🔍 Verificando SMTP configurado:', isSmtpConfigured())
+    console.log('🔍 correctedLink disponível:', !!correctedLink)
     if (correctedLink && isSmtpConfigured()) {
       console.log('📨 SMTP configurado - enviando email de confirmação pelo SMTP do app (link 100% plenipay.com)')
       const html = `
@@ -238,19 +265,19 @@ export async function POST(request: NextRequest) {
         
         const result = await supabasePublic.auth.resend({
           type: tipo as any,
-          email: email,
-          options: {
-            emailRedirectTo: redirectTo
-          }
-        })
-        
+      email: email,
+      options: {
+        emailRedirectTo: redirectTo
+      }
+    })
+    
         resendData = result.data
         resendError = result.error
         
         console.log(`📬 [RESEND] Resposta do resend (type: ${tipo}):`)
-        console.log('  - Erro:', resendError?.message || 'Nenhum')
+    console.log('  - Erro:', resendError?.message || 'Nenhum')
         console.log('  - Código do erro:', resendError?.status || 'Nenhum')
-        console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
+    console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
         console.log('  - Tem dados:', !!resendData)
         console.log('  - Tem erro:', !!resendError)
         
@@ -333,9 +360,9 @@ export async function POST(request: NextRequest) {
     try {
       // Gerar link de confirmação manualmente para verificar se a URL está correta
       const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'signup',
-        email: email,
-        options: {
+      type: 'signup',
+      email: email,
+      options: {
           redirectTo: redirectTo
         }
       })
@@ -441,8 +468,8 @@ export async function POST(request: NextRequest) {
           console.log('✅ Link foi gerado e corrigido - retornando sucesso')
           console.log('📧 Link final corrigido:', finalCorrectedLink.substring(0, 200) + '...')
           
-          return NextResponse.json({
-            success: true,
+      return NextResponse.json({
+        success: true,
             message: 'Link de confirmação gerado e corrigido com sucesso!',
             details: 'O link foi gerado e corrigido no código. Use o link abaixo para confirmar seu email.',
             correctedLink: finalCorrectedLink,
