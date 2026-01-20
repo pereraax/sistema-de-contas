@@ -29,6 +29,26 @@ export async function GET(request: NextRequest) {
   
   const requestUrl = new URL(requestUrlString)
   
+  // CRÍTICO: Verificar se a URL base contém 0.0.0.0:10000 ANTES de processar
+  // Se o Supabase redirecionou para 0.0.0.0:10000, corrigir IMEDIATAMENTE
+  if (requestUrl.host.includes('0.0.0.0') || requestUrl.host.includes('10000')) {
+    console.error('❌ [Callback] Host contém 0.0.0.0:10000!')
+    console.error('❌ [Callback] Host:', requestUrl.host)
+    console.error('❌ [Callback] Corrigindo host para plenipay.com...')
+    
+    // Construir nova URL com host correto
+    const productionUrl = 'https://plenipay.com'
+    const redirectUrl = new URL(requestUrl.pathname + requestUrl.search, productionUrl)
+    
+    // Copiar hash se existir
+    if (requestUrl.hash) {
+      redirectUrl.hash = requestUrl.hash
+    }
+    
+    console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
+    return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
+  }
+  
   // IMPORTANTE: O Supabase pode colocar parâmetros tanto na query string quanto no hash
   // Extrair de ambos os lugares
   let token_hash = requestUrl.searchParams.get('token_hash')

@@ -16,10 +16,16 @@ export function middleware(request: NextRequest) {
   // SOLUÇÃO 1: Interceptar qualquer requisição para 0.0.0.0:10000
   // Isso funciona ANTES do callback handler ser executado
   // IMPORTANTE: Intercepta QUALQUER requisição que tente acessar 0.0.0.0:10000
-  if (url.host.includes('0.0.0.0') || url.host.includes('10000')) {
+  // CRÍTICO: Verificar TAMBÉM se o pathname ou search contém 0.0.0.0:10000 (pode vir no redirect_to)
+  const hostTemUrlInvalida = url.host.includes('0.0.0.0') || url.host.includes('10000')
+  const pathnameTemUrlInvalida = pathname.includes('0.0.0.0') || pathname.includes('10000')
+  const searchTemUrlInvalida = url.search.includes('0.0.0.0') || url.search.includes('10000')
+  
+  if (hostTemUrlInvalida || pathnameTemUrlInvalida || searchTemUrlInvalida) {
     console.error('🚫 [Middleware] URL INVÁLIDA DETECTADA: 0.0.0.0:10000')
     console.error('🚫 [Middleware] Host:', url.host)
     console.error('🚫 [Middleware] Pathname:', pathname)
+    console.error('🚫 [Middleware] Search:', url.search)
     console.error('🚫 [Middleware] URL completa:', url.toString())
     console.error('🚫 [Middleware] Redirecionando para:', PRODUCTION_URL)
     
