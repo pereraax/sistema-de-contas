@@ -117,16 +117,36 @@ export async function POST(request: NextRequest) {
         linkGerado = linkData.properties.action_link
         console.log('📧 Link gerado via Admin API:', linkGerado.substring(0, 150) + '...')
         
-        // Verificar se o link contém a URL correta
+        // SOLUÇÃO NO CÓDIGO: Extrair token_hash e construir link correto
+        // Mesmo que o link tenha URL incorreta, vamos corrigir no código
+        let tokenHashExtraido: string | null = null
+        const tokenHashMatch = linkGerado.match(/token_hash=([^&]+)/i) || 
+                               linkGerado.match(/token_hash=([^#]+)/i) ||
+                               linkGerado.match(/#token_hash=([^&]+)/i)
+        
+        if (tokenHashMatch && tokenHashMatch[1]) {
+          tokenHashExtraido = decodeURIComponent(tokenHashMatch[1])
+          console.log('✅ Token hash extraído do link gerado:', tokenHashExtraido.substring(0, 20) + '...')
+          
+          // Construir link correto manualmente
+          const linkCorrigidoManual = new URL('/auth/callback', 'https://plenipay.com')
+          linkCorrigidoManual.searchParams.set('token_hash', tokenHashExtraido)
+          linkCorrigidoManual.searchParams.set('type', 'signup')
+          linkCorrigidoManual.searchParams.set('next', '/home')
+          
+          linkGerado = linkCorrigidoManual.toString()
+          console.log('✅ Link corrigido manualmente no código:', linkGerado.substring(0, 150) + '...')
+          console.log('✅ Agora o link SEMPRE terá URL correta, mesmo se Supabase usar URL incorreta!')
+        }
+        
+        // Verificar se o link contém a URL correta após correção manual
         if (linkGerado.includes('plenipay.com')) {
-          console.log('✅ Link gerado contém URL correta (plenipay.com)')
+          console.log('✅ Link gerado contém URL correta (plenipay.com) após correção no código')
           linkGeradoComUrlCorreta = true
           linkTemUrlIncorreta = false
         } else if (linkGerado.includes('0.0.0.0') || linkGerado.includes('10000')) {
-          console.error('❌ PROBLEMA CRÍTICO: Link gerado contém 0.0.0.0:10000!')
-          console.error('❌ Isso confirma que o Supabase está usando Site URL do dashboard')
-          console.error('❌ redirectTo passado:', redirectTo)
-          console.error('❌ ⚠️ BLOQUEANDO ENVIO - Site URL precisa ser corrigida primeiro')
+          console.error('❌ PROBLEMA: Link ainda contém 0.0.0.0:10000 após tentativa de correção')
+          console.error('❌ Mas vamos tentar corrigir novamente no próximo passo...')
           linkGeradoComUrlCorreta = false
           linkTemUrlIncorreta = true
         } else {
