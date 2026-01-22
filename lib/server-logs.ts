@@ -139,3 +139,15 @@ export const logSuccess = (message: string, category?: string, data?: any) => {
 export const logDebug = (message: string, category?: string, data?: any) => {
   serverLogs.add('debug', message, category, data)
 }
+
+// Função addLog para compatibilidade (alias para serverLogs.add)
+export const addLog = (level: 'info' | 'warn' | 'error' | 'success' | 'debug', message: string, category?: string, data?: any) => {
+  serverLogs.add(level, message, category, data)
+}
+
+// Função interceptConsoleLogs para compatibilidade (se não existir)
+export const interceptConsoleLogs = () => {
+  // Interceptar console.log, console.error, etc. se necessário
+  // Por enquanto, apenas retorna (já está sendo feito no método add)
+  return
+}
