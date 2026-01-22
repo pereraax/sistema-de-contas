@@ -1,0 +1,46 @@
+# Dockerfile para Railway / Docker
+# Next.js + Node custom server
+
+FROM node:20-alpine AS base
+
+# Instalar dependências do sistema
+RUN apk add --no-cache libc6-compat
+
+# Dependências
+FROM base AS deps
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Build
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+RUN npm run build
+
+# Produção
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copiar arquivos necessários
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/server.js ./
+COPY --from=builder /app/lib ./lib
+
+USER nextjs
+
+EXPOSE 3000
+ENV PORT=3000
+
+CMD ["node", "server.js"]
