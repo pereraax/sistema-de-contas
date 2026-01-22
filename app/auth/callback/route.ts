@@ -1,437 +1,553 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
-import { createAdminClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * PARTE 2: Callback Route Simples
+ * Processa link de confirmação de email e faz login automático
+ */
 export async function GET(request: NextRequest) {
-  // CRÍTICO: Interceptar PRIMEIRO antes de criar URL object
-  // Se o request.url contém 0.0.0.0:10000, substituir IMEDIATAMENTE
-  let requestUrlString = request.url
+  const productionUrl = 'https://plenipay.com'
   
-  if (requestUrlString.includes('0.0.0.0') || requestUrlString.includes(':10000')) {
-    console.error('❌ [Callback] URL INVÁLIDA DETECTADA no request.url:', requestUrlString)
-    console.error('❌ [Callback] Substituindo 0.0.0.0:10000 por plenipay.com...')
-    
-    // Substituir todas as ocorrências de 0.0.0.0:10000 por plenipay.com
-    requestUrlString = requestUrlString
-      .replace(/https?:\/\/0\.0\.0\.0:10000/g, 'https://plenipay.com')
-      .replace(/https?:\/\/0\.0\.0\.0\/auth/g, 'https://plenipay.com/auth')
-      .replace(/http:\/\/0\.0\.0\.0:10000/g, 'https://plenipay.com')
-      .replace(/http:\/\/0\.0\.0\.0/g, 'https://plenipay.com')
-    
-    console.log('✅ [Callback] URL corrigida:', requestUrlString)
-    
-    // Redirecionar para URL corrigida IMEDIATAMENTE
-    return NextResponse.redirect(requestUrlString, { status: 307 })
-  }
+  console.log('🔍 [Callback] ========== CALLBACK INICIADO ==========')
+  console.log('🔍 [Callback] URL recebida (request.url):', request.url)
+  console.log('🔍 [Callback] Host:', request.headers.get('host'))
+  console.log('🔍 [Callback] Referer:', request.headers.get('referer'))
+  console.log('🔍 [Callback] Origin:', request.headers.get('origin'))
+  console.log('🔍 [Callback] NextUrl.href:', request.nextUrl.href)
+  console.log('🔍 [Callback] NextUrl.origin:', request.nextUrl.origin)
   
-  const requestUrl = new URL(requestUrlString)
-  
-  // CRÍTICO: Verificar se a URL base contém 0.0.0.0:10000 ANTES de processar
-  // Se o Supabase redirecionou para 0.0.0.0:10000, corrigir IMEDIATAMENTE
-  if (requestUrl.host.includes('0.0.0.0') || requestUrl.host.includes('10000')) {
-    console.error('❌ [Callback] Host contém 0.0.0.0:10000!')
-    console.error('❌ [Callback] Host:', requestUrl.host)
-    console.error('❌ [Callback] Corrigindo host para plenipay.com...')
+  // CRÍTICO: Se a URL recebida já contém 0.0.0.0:10000, redirecionar IMEDIATAMENTE
+  // Isso pode acontecer se o Next.js está usando URL base errada
+  if (request.url.includes('0.0.0.0') || request.url.includes(':10000') || 
+      request.nextUrl.href.includes('0.0.0.0') || request.nextUrl.href.includes(':10000')) {
+    console.error('❌ [Callback] URL recebida contém 0.0.0.0:10000 - REDIRECIONANDO IMEDIATAMENTE!')
+    console.error('❌ [Callback] request.url:', request.url)
+    console.error('❌ [Callback] request.nextUrl.href:', request.nextUrl.href)
     
-    // Construir nova URL com host correto
-    const productionUrl = 'https://plenipay.com'
-    const redirectUrl = new URL(requestUrl.pathname + requestUrl.search, productionUrl)
+    // Extrair parâmetros da URL errada (tentar de ambas as URLs)
+    let token_hash: string | null = null
+    let type: string = 'signup'
+    let next: string = '/home'
     
-    // Copiar hash se existir
-    if (requestUrl.hash) {
-      redirectUrl.hash = requestUrl.hash
+    try {
+      const urlErrada = new URL(request.url)
+      token_hash = urlErrada.searchParams.get('token_hash')
+      type = urlErrada.searchParams.get('type') || 'signup'
+      next = urlErrada.searchParams.get('next') || '/home'
+    } catch {
+      // Se falhar, tentar extrair da string diretamente
+      const tokenMatch = request.url.match(/[?&#]token_hash=([^&#]+)/i)
+      if (tokenMatch) token_hash = decodeURIComponent(tokenMatch[1])
+      const typeMatch = request.url.match(/[?&#]type=([^&#]+)/i)
+      if (typeMatch) type = decodeURIComponent(typeMatch[1])
+      const nextMatch = request.url.match(/[?&#]next=([^&#]+)/i)
+      if (nextMatch) next = decodeURIComponent(nextMatch[1])
     }
     
-    console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
-    return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
+    // Construir URL correta
+    const urlCorreta = new URL('/auth/callback', productionUrl)
+    if (token_hash) urlCorreta.searchParams.set('token_hash', token_hash)
+    if (type) urlCorreta.searchParams.set('type', type)
+    if (next) urlCorreta.searchParams.set('next', next)
+    
+    console.log('🔄 [Callback] Redirecionando para:', urlCorreta.toString())
+    console.log('🔄 [Callback] Parâmetros preservados:', { token_hash: token_hash ? token_hash.substring(0, 20) + '...' : null, type, next })
+    return NextResponse.redirect(urlCorreta.toString(), { status: 307 })
   }
   
-  // IMPORTANTE: O Supabase pode colocar parâmetros tanto na query string quanto no hash
-  // Extrair de ambos os lugares
+  // CRÍTICO: Sempre construir URL usando productionUrl, nunca usar request.url diretamente
+  // Extrair parâmetros da URL, mas sempre usar productionUrl como base
+  let requestUrl: URL
+  try {
+    // Se request.url contém plenipay.com, usar diretamente
+    if (request.url.includes('plenipay.com')) {
+      requestUrl = new URL(request.url)
+    } else {
+      // Se não, construir URL correta usando productionUrl
+      const pathAndQuery = request.url.replace(/https?:\/\/[^\/]+/, '')
+      requestUrl = new URL(pathAndQuery, productionUrl)
+      console.log('⚠️ [Callback] URL não contém plenipay.com, reconstruindo:', requestUrl.toString())
+    }
+  } catch {
+    // Se falhar, construir do zero usando productionUrl
+    const pathAndQuery = request.url.replace(/https?:\/\/[^\/]+/, '')
+    requestUrl = new URL(pathAndQuery, productionUrl)
+    console.log('⚠️ [Callback] Erro ao construir URL, usando productionUrl:', requestUrl.toString())
+  }
+  
+  // VERIFICAR se requestUrl ainda contém 0.0.0.0:10000
+  if (requestUrl.href.includes('0.0.0.0') || requestUrl.href.includes(':10000')) {
+    console.error('❌ [Callback] requestUrl AINDA contém 0.0.0.0:10000 após correção!')
+    console.error('❌ [Callback] requestUrl.href:', requestUrl.href)
+    // Forçar correção
+    const pathAndQuery = requestUrl.pathname + requestUrl.search
+    requestUrl = new URL(pathAndQuery, productionUrl)
+    console.log('✅ [Callback] URL forçada para:', requestUrl.toString())
+  }
+  
+  // Extrair parâmetros principais
+  // IMPORTANTE: Extrair da string da URL diretamente, mesmo se URL estiver errada (0.0.0.0:10000)
   let token_hash = requestUrl.searchParams.get('token_hash')
-  let type = requestUrl.searchParams.get('type')
+  let type = requestUrl.searchParams.get('type') || 'signup'
   let next = requestUrl.searchParams.get('next') || '/home'
   
-  // Se não encontrou na query string, tentar extrair do hash
+  // Se não encontrou, tentar extrair da string completa (mesmo com URL errada)
+  if (!token_hash) {
+    // Tentar extrair da query string da URL original
+    const urlString = request.url
+    const tokenMatch = urlString.match(/[?&#]token_hash=([^&#]+)/i)
+    if (tokenMatch) {
+      token_hash = decodeURIComponent(tokenMatch[1])
+      console.log('✅ [Callback] Token extraído da string da URL')
+    }
+  }
+  
+  // Tentar extrair do hash se ainda não encontrou
   if (!token_hash && requestUrl.hash) {
     try {
       const hashParams = new URLSearchParams(requestUrl.hash.substring(1))
       token_hash = hashParams.get('token_hash') || token_hash
       type = hashParams.get('type') || type
       next = hashParams.get('next') || next
-      
-      // Se encontrou no hash, copiar para query params também para facilitar processamento
-      if (token_hash && !requestUrl.searchParams.has('token_hash')) {
-        requestUrl.searchParams.set('token_hash', token_hash)
+      if (token_hash) {
+        console.log('✅ [Callback] Token extraído do hash')
       }
-      if (type && !requestUrl.searchParams.has('type')) {
-        requestUrl.searchParams.set('type', type)
-      }
-      
-      console.log('🔍 [Callback] Parâmetros extraídos do hash:', { token_hash: token_hash ? token_hash.substring(0, 20) + '...' : null, type, next })
-    } catch (hashError) {
-      console.warn('⚠️ [Callback] Erro ao processar hash:', hashError)
+    } catch {
+      // Ignorar erro
     }
   }
   
-  // Log dos parâmetros encontrados
-  console.log('🔍 [Callback] Parâmetros finais:', { 
+  // Extrair type e next da string também
+  if (!type || type === 'signup') {
+    const typeMatch = request.url.match(/[?&#]type=([^&#]+)/i)
+    if (typeMatch) {
+      type = decodeURIComponent(typeMatch[1])
+    }
+  }
+  
+  if (!next || next === '/home') {
+    const nextMatch = request.url.match(/[?&#]next=([^&#]+)/i)
+    if (nextMatch) {
+      next = decodeURIComponent(nextMatch[1])
+    }
+  }
+  
+  console.log('🔍 [Callback] Parâmetros extraídos:', { 
     token_hash: token_hash ? token_hash.substring(0, 20) + '...' : null, 
     type, 
-    next,
-    hash: requestUrl.hash ? requestUrl.hash.substring(0, 100) + '...' : null
+    next
   })
 
-  // IMPORTANTE: SEMPRE usar https://plenipay.com para redirecionamentos
-  // Não usar requestUrl.origin que pode ser 0.0.0.0:10000
-  const productionUrl = 'https://plenipay.com'
-
-  // Log detalhado de todos os parâmetros
-  console.log('🔍 [Callback] ==========================================')
-  console.log('🔍 [Callback] URL completa:', requestUrl.toString())
-  console.log('🔍 [Callback] Host:', requestUrl.host)
-  console.log('🔍 [Callback] Origin (requestUrl):', requestUrl.origin)
-  console.log('🔍 [Callback] Origin (FORÇADO):', productionUrl)
-  console.log('🔍 [Callback] ⚠️ IMPORTANTE: Todos os redirecionamentos usarão', productionUrl)
-  console.log('🔍 [Callback] Parâmetros da URL:')
-  console.log('   - token_hash:', token_hash ? token_hash.substring(0, 20) + '...' : 'NÃO ENCONTRADO')
-  console.log('   - type:', type || 'NÃO ENCONTRADO')
-  console.log('   - next:', next)
-  console.log('🔍 [Callback] Todos os parâmetros:', Object.fromEntries(requestUrl.searchParams.entries()))
-  
-  // Verificação adicional (backup)
-  if (requestUrl.host.includes('0.0.0.0') || requestUrl.host.includes('10000')) {
-    console.error('❌ [Callback] URL ainda contém 0.0.0.0:10000 após substituição')
-    const redirectUrl = new URL('/auth/callback', productionUrl)
-    requestUrl.searchParams.forEach((value, key) => {
-      redirectUrl.searchParams.set(key, value)
-    })
+  // Verificar se temos token_hash (obrigatório)
+  if (!token_hash) {
+    console.error('❌ [Callback] Token não encontrado - redirecionando para login')
+    const redirectUrl = new URL('/login', productionUrl)
+    redirectUrl.searchParams.set('error', 'Link de confirmação inválido. Solicite um novo link.')
     return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
   }
-  
-  // IMPORTANTE: Verificar também se o referer ou origin veio de 0.0.0.0:10000
-  // Isso pode acontecer se o Supabase redirecionou mas o navegador manteve o referer
-  const referer = request.headers.get('referer')
-  const origin = request.headers.get('origin')
-  
-  if (referer && (referer.includes('0.0.0.0') || referer.includes('10000'))) {
-    console.warn('⚠️ [Callback] Referer contém 0.0.0.0:10000:', referer)
-    console.warn('⚠️ [Callback] Continuando processamento, mas redirecionamentos usarão plenipay.com')
-  }
-  
-  if (origin && (origin.includes('0.0.0.0') || origin.includes('10000'))) {
-    console.warn('⚠️ [Callback] Origin contém 0.0.0.0:10000:', origin)
-    console.warn('⚠️ [Callback] Continuando processamento, mas redirecionamentos usarão plenipay.com')
-  }
-  
-  console.log('🔍 [Callback] ==========================================')
 
-  if (token_hash && type) {
-    const cookieStore = await cookies()
-    
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          },
+  // Criar cliente Supabase
+  const cookieStore = await cookies()
+  
+  // IMPORTANTE: Garantir que o Supabase client não use URLs erradas
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!supabaseUrl || supabaseUrl.includes('0.0.0.0') || supabaseUrl.includes(':10000')) {
+    console.error('❌ [Callback] NEXT_PUBLIC_SUPABASE_URL contém URL inválida:', supabaseUrl)
+  }
+  
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
         },
-      }
-    )
+        setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
+          // IMPORTANTE: Garantir que cookies não usem domínio errado
+          cookiesToSet.forEach(({ name, value, options }) => {
+            // Se options tem domain com 0.0.0.0:10000, remover ou corrigir
+            if (options?.domain && (options.domain.includes('0.0.0.0') || options.domain.includes('10000'))) {
+              console.warn(`⚠️ [Callback] Cookie ${name} tem domain inválido, removendo:`, options.domain)
+              delete options.domain
+            }
+            cookieStore.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
 
-    // Verificar link de confirmação de email
-    // IMPORTANTE: inviteUserByEmail pode usar type='invite' ou 'signup'
-    let emailConfirmed = false
-    let userId: string | null = null
-    let userEmail: string | null = null
+  // PARTE 2: Verificar e confirmar email
+  console.log('🔍 [Callback] Verificando link de confirmação...')
+  
+  // Tentar diferentes tipos de confirmação (signup, email)
+  const typesToTry = [type, 'signup', 'email'].filter((t, i, arr) => arr.indexOf(t) === i)
+  console.log('🔍 [Callback] Tipos a tentar:', typesToTry)
+  
+  let verifySuccess = false
+  let lastError: any = null
+  
+  for (const tryType of typesToTry) {
+    console.log(`🔄 [Callback] Tentando verifyOtp com type: ${tryType}`)
+    console.log(`🔍 [Callback] Token_hash: ${token_hash ? token_hash.substring(0, 20) + '...' : 'N/A'}`)
     
-    if (type === 'email' || type === 'signup' || type === 'invite') {
-      console.log('🔍 [Callback] Verificando link de confirmação de email...')
-      console.log('🔍 [Callback] Type:', type)
-      console.log('🔍 [Callback] Token hash presente:', !!token_hash)
-      
-      // Tentar diferentes tipos de verifyOtp
-      const typesToTry = [type, 'signup', 'email', 'invite'].filter((t, i, arr) => arr.indexOf(t) === i)
-      console.log('🔍 [Callback] Tipos a tentar:', typesToTry)
-      
-      let verifySuccess = false
-      let lastError: any = null
-      
-      for (const tryType of typesToTry) {
-        console.log(`🔄 [Callback] Tentando verifyOtp com type: ${tryType}`)
-        
-        const { data, error } = await supabase.auth.verifyOtp({
-          type: tryType as any,
-          token_hash,
-        })
-
-        console.log(`📬 [Callback] Resultado do verifyOtp (type: ${tryType}):`)
-        console.log('   - Tem data:', !!data)
-        console.log('   - Tem error:', !!error)
-
-        if (!error && data?.user) {
-          verifySuccess = true
-          userId = data.user.id
-          userEmail = data.user.email || null
-          emailConfirmed = !!data.user.email_confirmed_at
-          
-          console.log('✅ [Callback] verifyOtp retornou sucesso!')
-          console.log('👤 [Callback] Usuário:', userId)
-          console.log('📧 [Callback] Email:', userEmail)
-          console.log('📧 [Callback] Email confirmado pelo verifyOtp:', emailConfirmed)
-          console.log('🔑 [Callback] Sessão criada:', !!data.session)
-          
-                // Se há sessão, redirecionar para home
-                if (data.session) {
-                  console.log('✅ [Callback] Sessão criada - redirecionando para home')
-                  // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
-                  const redirectUrl = new URL(next, productionUrl)
-                  redirectUrl.searchParams.set('emailConfirmed', 'true')
-                  console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
-                  return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
-                }
-          
-          break // Sucesso, não precisa tentar outros tipos
-        } else if (error) {
-          lastError = error
-          console.log(`⚠️ [Callback] verifyOtp falhou com type: ${tryType}, erro: ${error.message}`)
-        }
-      }
-      
-      // SEMPRE confirmar via Admin API, mesmo se verifyOtp funcionou
-      // Isso garante que o email seja confirmado independente do verifyOtp
-      console.log('🔧 [Callback] SEMPRE confirmando via Admin API para garantir confirmação...')
-      
-      // Se não temos userId do verifyOtp, buscar por email ou token
-      if (!userId) {
-        // Tentar obter usuário pelo email se disponível na URL
-        const emailParam = requestUrl.searchParams.get('email')
-        if (emailParam) {
-          try {
-            const supabaseAdmin = createAdminClient()
-            if (supabaseAdmin) {
-              console.log(`🔍 [Callback] Buscando usuário por email: ${emailParam}`)
-              const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
-              const user = usersData?.users?.find((u: any) => u.email === emailParam)
-              if (user) {
-                userId = user.id
-                userEmail = user.email
-                console.log(`✅ [Callback] Usuário encontrado por email: ${userId}`)
-              }
-            }
-          } catch (err) {
-            console.error('❌ [Callback] Erro ao buscar usuário por email:', err)
-          }
-        }
-        
-        // Se ainda não temos userId, tentar buscar todos os usuários não confirmados recentes
-        if (!userId) {
-          try {
-            const supabaseAdmin = createAdminClient()
-            if (supabaseAdmin) {
-              console.log('🔍 [Callback] Buscando usuários não confirmados recentes...')
-              const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
-              // Buscar usuários não confirmados criados nas últimas 24 horas
-              const recentUnconfirmed = usersData?.users?.filter((u: any) => {
-                const created = new Date(u.created_at)
-                const now = new Date()
-                const hoursDiff = (now.getTime() - created.getTime()) / (1000 * 60 * 60)
-                return !u.email_confirmed_at && hoursDiff < 24
-              })
-              
-              if (recentUnconfirmed && recentUnconfirmed.length === 1) {
-                // Se há apenas um usuário não confirmado recente, provavelmente é ele
-                userId = recentUnconfirmed[0].id
-                userEmail = recentUnconfirmed[0].email
-                console.log(`✅ [Callback] Usuário encontrado (único não confirmado recente): ${userId}`)
-              }
-            }
-          } catch (err) {
-            console.error('❌ [Callback] Erro ao buscar usuários não confirmados:', err)
-          }
-        }
-      }
-      
-      // Confirmar via Admin API se temos userId
-      if (userId) {
-        try {
-          const supabaseAdmin = createAdminClient()
-          if (supabaseAdmin) {
-            console.log(`🔧 [Callback] Confirmando email via Admin API para usuário: ${userId}`)
-            
-            // IMPORTANTE: Confirmar email
-            const { data: updateData, error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-              email_confirm: true
-            })
-            
-            if (!confirmError) {
-              console.log('✅ [Callback] Email confirmado com sucesso via Admin API!')
-              
-              // Aguardar um pouco para garantir que a atualização foi processada
-              await new Promise(resolve => setTimeout(resolve, 1000))
-              
-              // Verificar novamente se foi confirmado
-              const { data: userData, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(userId)
-              if (!getUserError && userData?.user) {
-                emailConfirmed = !!userData.user.email_confirmed_at
-                console.log('✅ [Callback] Verificação final - Email confirmado:', emailConfirmed)
-                console.log('✅ [Callback] email_confirmed_at:', userData.user.email_confirmed_at)
-                console.log('✅ [Callback] email_confirm:', userData.user.email_confirm)
-                
-                if (!emailConfirmed) {
-                  console.error('⚠️ [Callback] Email ainda não confirmado após Admin API!')
-                  console.error('⚠️ [Callback] Tentando novamente...')
-                  
-                  // Tentar novamente
-                  const { error: retryError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-                    email_confirm: true
-                  })
-                  
-                  if (!retryError) {
-                    await new Promise(resolve => setTimeout(resolve, 1000))
-                    const { data: retryUserData } = await supabaseAdmin.auth.admin.getUserById(userId)
-                    if (retryUserData?.user) {
-                      emailConfirmed = !!retryUserData.user.email_confirmed_at
-                      console.log('✅ [Callback] Após retry - Email confirmado:', emailConfirmed)
-                    }
-                  }
-                }
-              } else {
-                console.error('❌ [Callback] Erro ao verificar usuário após confirmação:', getUserError?.message)
-              }
-            } else {
-              console.error('❌ [Callback] Erro ao confirmar email via Admin API:', confirmError.message)
-              console.error('❌ [Callback] Erro completo:', JSON.stringify(confirmError, null, 2))
-            }
-          } else {
-            console.error('❌ [Callback] Admin client não disponível')
-          }
-        } catch (adminError: any) {
-          console.error('❌ [Callback] Erro inesperado ao confirmar via Admin API:', adminError.message)
-          console.error('❌ [Callback] Stack:', adminError.stack)
-        }
-      } else {
-        console.error('❌ [Callback] Não foi possível obter userId para confirmar via Admin API')
-        console.error('❌ [Callback] Token hash:', token_hash ? token_hash.substring(0, 20) + '...' : 'NÃO DISPONÍVEL')
-        console.error('❌ [Callback] Type:', type)
-      }
-      
-      // Redirecionar com status
-      if (emailConfirmed || verifySuccess) {
-        console.log('✅ [Callback] Email confirmado - redirecionando para home')
-        
-        // Se há sessão válida, redirecionar direto para home (login automático)
-        if (verifySuccess && userId) {
-          try {
-            const supabaseAdmin = createAdminClient()
-            if (supabaseAdmin) {
-              // Verificar se usuário tem sessão válida
-              const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId)
-              if (userData?.user) {
-                console.log('✅ [Callback] Usuário autenticado - redirecionando para home')
-                // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
-                const redirectUrl = new URL('/home', productionUrl)
-                redirectUrl.searchParams.set('emailConfirmed', 'true')
-                console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
-                return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
-              }
-            }
-          } catch (err) {
-            console.error('⚠️ [Callback] Erro ao verificar sessão:', err)
-          }
-        }
-        
-        // Se não há sessão, redirecionar para login com email confirmado
-        console.log('✅ [Callback] Email confirmado - redirecionando para login')
-        // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
-        const redirectUrl = new URL('/login', productionUrl)
-        redirectUrl.searchParams.set('emailConfirmed', 'true')
-        redirectUrl.searchParams.set('mensagem', 'Email confirmado com sucesso! Faça login para continuar.')
-        if (userEmail) {
-          redirectUrl.searchParams.set('email', userEmail)
-        }
-        console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
-        return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
-      } else if (lastError) {
-        console.error('❌ [Callback] Erro ao verificar link de confirmação:', lastError.message)
-        
-        // Se o token expirou, redirecionar com mensagem específica
-        if (lastError.message.includes('expired') || lastError.message.includes('expirado') || 
-            lastError.message.includes('invalid') || lastError.message.includes('expired')) {
-          console.log('⚠️ [Callback] Token expirado ou inválido - redirecionando para login')
-          // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
-          const redirectUrl = new URL('/login', productionUrl)
-          redirectUrl.searchParams.set('error', 'Link de confirmação expirado ou inválido. Por favor, solicite um novo link.')
-          if (userEmail) {
-            redirectUrl.searchParams.set('email', userEmail)
-          }
-          console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
-          return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
-        }
-        
-        // Para outros erros, também redirecionar para login
-        console.log('⚠️ [Callback] Erro desconhecido - redirecionando para login')
-        // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
-        const redirectUrl = new URL('/login', productionUrl)
-        redirectUrl.searchParams.set('error', 'Erro ao confirmar email. O link pode ter expirado. Solicite um novo link.')
-        if (userEmail) {
-          redirectUrl.searchParams.set('email', userEmail)
-        }
-        console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
-        return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
+    // IMPORTANTE: verifyOtp pode fazer redirect interno - precisamos garantir que não use URL errada
+    // Não passar redirectTo aqui porque queremos controlar o redirect manualmente
+    // CRÍTICO: O Supabase pode estar usando alguma URL base errada internamente
+    console.log(`🔍 [Callback] Chamando verifyOtp com type: ${tryType}`)
+    console.log(`🔍 [Callback] Supabase URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL}`)
+    
+    const { data, error } = await supabase.auth.verifyOtp({
+      type: tryType as any,
+      token_hash,
+      // NÃO passar redirectTo aqui - vamos fazer o redirect manualmente após verificar
+    } as any)
+    
+    console.log(`🔍 [Callback] verifyOtp retornou:`, {
+      hasUser: !!data?.user,
+      hasSession: !!data?.session,
+      hasError: !!error,
+      errorMessage: error?.message,
+      // Verificar se há algum redirect na resposta
+      dataKeys: data ? Object.keys(data) : [],
+      errorKeys: error ? Object.keys(error) : []
+    })
+    
+    // IMPORTANTE: Verificar se a resposta contém algum redirect ou URL
+    if (data && typeof data === 'object') {
+      const dataStr = JSON.stringify(data)
+      if (dataStr.includes('0.0.0.0') || dataStr.includes('10000')) {
+        console.error('❌ [Callback] Resposta do verifyOtp contém 0.0.0.0:10000!')
+        console.error('❌ [Callback] Resposta completa:', JSON.stringify(data, null, 2))
       }
     }
-    
-    // Tentar com verifyOtp para outros casos
-    if (token_hash) {
-      const { data, error } = await supabase.auth.verifyOtp({
-        type: type as any,
-        token_hash,
-      })
 
-      if (!error && data?.user) {
-        console.log('✅ Email confirmado com sucesso (método alternativo)')
-        console.log('🔑 Sessão criada:', !!data.session)
+    if (!error && data?.user) {
+      verifySuccess = true
+      console.log('✅ [Callback] Email confirmado com sucesso!')
+      console.log('👤 [Callback] Usuário:', data.user.id)
+      console.log('📧 [Callback] Email:', data.user.email)
+      console.log('🔑 [Callback] Sessão criada:', !!data.session)
+      
+      // Se há sessão, fazer login automático e redirecionar
+      if (data.session) {
+        console.log('✅ [Callback] Sessão criada - redirecionando para home')
+        console.log(`🔍 [Callback] productionUrl: ${productionUrl}`)
+        console.log(`🔍 [Callback] next: ${next}`)
         
-        if (data.session) {
-          // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
-          const redirectUrl = new URL(next, productionUrl)
-          redirectUrl.searchParams.set('emailConfirmed', 'true')
-          console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
-          return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
-        } else {
-          // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
-          const redirectUrl = new URL('/login', productionUrl)
-          redirectUrl.searchParams.set('emailConfirmed', 'true')
-          redirectUrl.searchParams.set('mensagem', 'Email confirmado com sucesso! Faça login para continuar.')
-          redirectUrl.searchParams.set('email', data.user.email || '')
-          console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
-          return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
+        // GARANTIR que sempre usa productionUrl (não requestUrl.origin que pode ser 0.0.0.0:10000)
+        // IMPORTANTE: Usar URL absoluta completa para evitar que Next.js use URL base errada
+        let redirectPath = next.startsWith('/') ? next : `/${next}`
+        const redirectUrl = new URL(redirectPath, productionUrl)
+        redirectUrl.searchParams.set('emailConfirmed', 'true')
+        redirectUrl.searchParams.set('mensagem', 'Email confirmado com sucesso!')
+        
+        // FORÇAR URL absoluta completa (não relativa)
+        let finalUrl = redirectUrl.toString()
+        console.log(`🔍 [Callback] URL final de redirecionamento: ${finalUrl}`)
+        console.log(`🔍 [Callback] Verificando se URL é absoluta: ${finalUrl.startsWith('http')}`)
+        
+        // Verificar se a URL não contém 0.0.0.0:10000
+        if (finalUrl.includes('0.0.0.0') || finalUrl.includes(':10000')) {
+          console.error('❌ [Callback] URL de redirecionamento contém 0.0.0.0:10000 - CORRIGINDO!')
+          finalUrl = finalUrl.replace(/https?:\/\/[^\/]+/, productionUrl)
+          console.log(`✅ [Callback] URL corrigida: ${finalUrl}`)
         }
+        
+        // GARANTIR que é URL absoluta antes de redirecionar
+        if (!finalUrl.startsWith('http')) {
+          finalUrl = new URL(finalUrl, productionUrl).toString()
+          console.log(`⚠️ [Callback] URL não era absoluta, convertendo: ${finalUrl}`)
+        }
+        
+        // CRÍTICO: Sempre usar HTML redirect quando estamos em localhost:3000
+        // O NextResponse.redirect() pode usar a URL base errada (localhost:3000) mesmo com URL absoluta
+        const isLocalhost = request.url.includes('localhost:3000') || request.nextUrl.href.includes('localhost:3000')
+        
+        if (isLocalhost || finalUrl.includes('0.0.0.0') || finalUrl.includes(':10000')) {
+          console.log('⚠️ [Callback] Usando HTML redirect para garantir URL absoluta correta (sucesso)')
+          console.log(`⚠️ [Callback] isLocalhost: ${isLocalhost}`)
+          
+          // Garantir que a URL é absoluta e correta
+          let safeUrl = finalUrl
+          if (safeUrl.includes('localhost:3000')) {
+            safeUrl = safeUrl.replace(/http:\/\/localhost:3000/g, productionUrl)
+            console.log(`✅ [Callback] URL corrigida de localhost: ${safeUrl}`)
+          }
+          if (safeUrl.includes('0.0.0.0') || safeUrl.includes(':10000')) {
+            safeUrl = `${productionUrl}${redirectPath}?emailConfirmed=true&mensagem=${encodeURIComponent('Email confirmado com sucesso!')}`
+            console.log(`✅ [Callback] URL corrigida de 0.0.0.0: ${safeUrl}`)
+          }
+          
+          const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="refresh" content="0; url=${safeUrl}">
+  <script>window.location.replace("${safeUrl}");</script>
+</head>
+<body>
+  <p>Redirecionando... <a href="${safeUrl}">Clique aqui se não for redirecionado</a></p>
+</body>
+</html>`
+          return new NextResponse(html, {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/html',
+              'Location': safeUrl,
+            },
+          })
+        }
+        
+        console.log(`✅ [Callback] Redirecionando para URL absoluta: ${finalUrl}`)
+        return NextResponse.redirect(finalUrl, { status: 307 })
       }
+      
+      // Se não há sessão, redirecionar para login (não deveria acontecer, mas por segurança)
+      console.log('⚠️ [Callback] Email confirmado mas sem sessão - redirecionando para login')
+      const redirectUrl = new URL('/login', productionUrl)
+      redirectUrl.searchParams.set('emailConfirmed', 'true')
+      redirectUrl.searchParams.set('mensagem', 'Email confirmado! Faça login para continuar.')
+      redirectUrl.searchParams.set('email', data.user.email || '')
+      
+      // FORÇAR URL absoluta completa
+      let finalUrl = redirectUrl.toString()
+      console.log(`🔍 [Callback] URL final de redirecionamento (login): ${finalUrl}`)
+      console.log(`🔍 [Callback] Verificando se URL é absoluta: ${finalUrl.startsWith('http')}`)
+      
+      // Verificar se a URL não contém 0.0.0.0:10000
+      if (finalUrl.includes('0.0.0.0') || finalUrl.includes(':10000')) {
+        console.error('❌ [Callback] URL de redirecionamento contém 0.0.0.0:10000 - CORRIGINDO!')
+        finalUrl = finalUrl.replace(/https?:\/\/[^\/]+/, productionUrl)
+        console.log(`✅ [Callback] URL corrigida: ${finalUrl}`)
+      }
+      
+      // GARANTIR que é URL absoluta antes de redirecionar
+      if (!finalUrl.startsWith('http')) {
+        finalUrl = new URL(finalUrl, productionUrl).toString()
+        console.log(`⚠️ [Callback] URL não era absoluta, convertendo: ${finalUrl}`)
+      }
+      
+      // CRÍTICO: Sempre usar HTML redirect quando estamos em localhost:3000
+      const isLocalhost = request.url.includes('localhost:3000') || request.nextUrl.href.includes('localhost:3000')
+      
+      if (isLocalhost || finalUrl.includes('0.0.0.0') || finalUrl.includes(':10000')) {
+        console.log('⚠️ [Callback] Usando HTML redirect para garantir URL absoluta correta (login sem sessão)')
+        
+        // Garantir que a URL é absoluta e correta
+        let safeUrl = finalUrl
+        if (safeUrl.includes('localhost:3000')) {
+          safeUrl = safeUrl.replace(/http:\/\/localhost:3000/g, productionUrl)
+          console.log(`✅ [Callback] URL corrigida de localhost: ${safeUrl}`)
+        }
+        if (safeUrl.includes('0.0.0.0') || safeUrl.includes(':10000')) {
+          safeUrl = `${productionUrl}/login?emailConfirmed=true&mensagem=${encodeURIComponent('Email confirmado! Faça login para continuar.')}&email=${encodeURIComponent(data.user.email || '')}`
+          console.log(`✅ [Callback] URL corrigida de 0.0.0.0: ${safeUrl}`)
+        }
+        
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="refresh" content="0; url=${safeUrl}">
+  <script>window.location.replace("${safeUrl}");</script>
+</head>
+<body>
+  <p>Redirecionando... <a href="${safeUrl}">Clique aqui se não for redirecionado</a></p>
+</body>
+</html>`
+        return new NextResponse(html, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/html',
+            'Location': safeUrl,
+          },
+        })
+      }
+      
+      console.log(`✅ [Callback] Redirecionando para URL absoluta: ${finalUrl}`)
+      return NextResponse.redirect(finalUrl, { status: 307 })
+    } else if (error) {
+      lastError = error
+      console.log(`⚠️ [Callback] verifyOtp falhou com type: ${tryType}, erro: ${error.message}`)
+      console.log(`🔍 [Callback] Erro completo:`, JSON.stringify(error, null, 2))
+    }
+  }
+  
+  // Se todas as tentativas falharam, redirecionar com erro
+  if (lastError) {
+    console.error('❌ [Callback] Erro ao verificar link:', lastError.message)
+    console.error('❌ [Callback] Erro completo:', JSON.stringify(lastError, null, 2))
+    console.error('❌ [Callback] Token_hash usado:', token_hash ? token_hash.substring(0, 20) + '...' : 'N/A')
+    console.error('❌ [Callback] Type usado:', type)
+    
+    const errorMsg = (lastError.message || '').toLowerCase()
+    let errorMessage = 'Erro ao confirmar email. O link pode ter expirado.'
+    
+    if (errorMsg.includes('expired') || errorMsg.includes('expirado')) {
+      errorMessage = 'Link de confirmação expirado. Por favor, solicite um novo link.'
+    } else if (errorMsg.includes('invalid') || errorMsg.includes('inválido')) {
+      errorMessage = 'Link de confirmação inválido. Por favor, solicite um novo link.'
+    }
+    
+    // CRÍTICO: GARANTIR URL absoluta completa - NUNCA usar requestUrl.origin
+    // Sempre usar productionUrl explicitamente
+    const redirectUrl = new URL('/login', productionUrl)
+    redirectUrl.searchParams.set('error', errorMessage)
+    
+    // FORÇAR URL absoluta completa
+    let finalUrl = redirectUrl.toString()
+    
+    // VERIFICAR se contém 0.0.0.0:10000 e corrigir
+    if (finalUrl.includes('0.0.0.0') || finalUrl.includes(':10000')) {
+      console.error('❌ [Callback] URL de redirect contém 0.0.0.0:10000 - CORRIGINDO!')
+      finalUrl = finalUrl.replace(/https?:\/\/[^\/]+/, productionUrl)
+      console.log(`✅ [Callback] URL corrigida: ${finalUrl}`)
+    }
+    
+    // GARANTIR que é URL absoluta
+    if (!finalUrl.startsWith('http')) {
+      finalUrl = new URL(finalUrl, productionUrl).toString()
+      console.log(`⚠️ [Callback] Convertendo para URL absoluta: ${finalUrl}`)
+    }
+    
+    console.log(`🔍 [Callback] Redirecionando para login (erro): ${finalUrl}`)
+    console.log(`🔍 [Callback] Verificando URL final: ${finalUrl}`)
+    console.log(`🔍 [Callback] É absoluta? ${finalUrl.startsWith('http')}`)
+    console.log(`🔍 [Callback] Contém 0.0.0.0? ${finalUrl.includes('0.0.0.0')}`)
+    console.log(`🔍 [Callback] Contém :10000? ${finalUrl.includes(':10000')}`)
+    
+    // ÚLTIMA VERIFICAÇÃO antes de redirecionar
+    if (finalUrl.includes('0.0.0.0') || finalUrl.includes(':10000')) {
+      console.error('❌ [Callback] URL AINDA contém 0.0.0.0:10000 após correção!')
+      // Forçar URL correta - construir do zero
+      const forcedUrl = new URL('/login', productionUrl)
+      forcedUrl.searchParams.set('error', errorMessage)
+      finalUrl = forcedUrl.toString()
+      console.log(`✅ [Callback] URL forçada para: ${finalUrl}`)
+    }
+    
+    // VERIFICAÇÃO FINAL: garantir que é URL absoluta e não contém 0.0.0.0:10000
+    if (!finalUrl.startsWith('http')) {
+      console.error('❌ [Callback] URL não é absoluta! Convertendo...')
+      finalUrl = new URL(finalUrl, productionUrl).toString()
+    }
+    
+    // ÚLTIMA VERIFICAÇÃO antes de redirecionar
+    if (finalUrl.includes('0.0.0.0') || finalUrl.includes(':10000')) {
+      console.error('❌ [Callback] URL FINAL AINDA contém 0.0.0.0:10000! FORÇANDO CORREÇÃO!')
+      finalUrl = `${productionUrl}/login?error=${encodeURIComponent(errorMessage)}`
+      console.log(`✅ [Callback] URL FINAL forçada para: ${finalUrl}`)
+    }
+    
+    console.log(`✅ [Callback] REDIRECIONANDO FINALMENTE para: ${finalUrl}`)
+    console.log(`✅ [Callback] URL é absoluta? ${finalUrl.startsWith('http')}`)
+    console.log(`✅ [Callback] URL contém plenipay.com? ${finalUrl.includes('plenipay.com')}`)
+    console.log(`✅ [Callback] URL contém 0.0.0.0? ${finalUrl.includes('0.0.0.0')}`)
+    
+    // CRÍTICO: Sempre usar HTML redirect quando estamos em localhost:3000
+    // O NextResponse.redirect() pode usar a URL base errada (localhost:3000) mesmo com URL absoluta
+    // O HTML redirect força o navegador a usar a URL absoluta correta
+    const isLocalhost = request.url.includes('localhost:3000') || request.nextUrl.href.includes('localhost:3000')
+    
+    if (isLocalhost || finalUrl.includes('0.0.0.0') || finalUrl.includes(':10000')) {
+      console.log('⚠️ [Callback] Usando HTML redirect para garantir URL absoluta correta')
+      console.log(`⚠️ [Callback] isLocalhost: ${isLocalhost}`)
+      
+      // Garantir que a URL é absoluta e correta
+      let safeUrl = finalUrl
+      if (safeUrl.includes('localhost:3000')) {
+        safeUrl = safeUrl.replace(/http:\/\/localhost:3000/g, productionUrl)
+        console.log(`✅ [Callback] URL corrigida de localhost: ${safeUrl}`)
+      }
+      if (safeUrl.includes('0.0.0.0') || safeUrl.includes(':10000')) {
+        safeUrl = `${productionUrl}/login?error=${encodeURIComponent(errorMessage)}`
+        console.log(`✅ [Callback] URL corrigida de 0.0.0.0: ${safeUrl}`)
+      }
+      
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="refresh" content="0; url=${safeUrl}">
+  <script>window.location.replace("${safeUrl}");</script>
+</head>
+<body>
+  <p>Redirecionando... <a href="${safeUrl}">Clique aqui se não for redirecionado</a></p>
+</body>
+</html>`
+      return new NextResponse(html, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html',
+          'Location': safeUrl, // Header adicional para garantir
+        },
+      })
+    }
+    
+    // Se não é localhost, tentar redirect normal
+    try {
+      return NextResponse.redirect(finalUrl, { status: 307 })
+    } catch (error) {
+      console.error('❌ [Callback] Erro ao fazer redirect, usando HTML redirect:', error)
+      // Fallback: HTML redirect
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="refresh" content="0; url=${finalUrl}">
+  <script>window.location.replace("${finalUrl}");</script>
+</head>
+<body>
+  <p>Redirecionando... <a href="${finalUrl}">Clique aqui se não for redirecionado</a></p>
+</body>
+</html>`
+      return new NextResponse(html, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html',
+          'Location': finalUrl,
+        },
+      })
     }
   }
 
-  // Se houver erro ou parâmetros inválidos, redirecionar para login
-  console.log('⚠️ [Callback] Erro ou parâmetros inválidos - redirecionando para login')
-  // CRÍTICO: Usar productionUrl, NUNCA requestUrl.origin
+  // Fallback: redirecionar para login se não houve sucesso nem erro
+  console.warn('⚠️ [Callback] Nenhum resultado - redirecionando para login')
+  
+  // CRÍTICO: GARANTIR URL absoluta completa - NUNCA usar requestUrl.origin
   const redirectUrl = new URL('/login', productionUrl)
-  redirectUrl.searchParams.set('error', 'Erro ao confirmar email. O link pode ter expirado. Solicite um novo link.')
-  console.log('🔄 [Callback] Redirecionando para:', redirectUrl.toString())
-  return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
+  redirectUrl.searchParams.set('error', 'Erro ao confirmar email. Solicite um novo link.')
+  
+  // FORÇAR URL absoluta completa
+  let finalUrl = redirectUrl.toString()
+  
+  // VERIFICAR se contém 0.0.0.0:10000 e corrigir
+  if (finalUrl.includes('0.0.0.0') || finalUrl.includes(':10000')) {
+    console.error('❌ [Callback] URL de redirect contém 0.0.0.0:10000 - CORRIGINDO!')
+    finalUrl = finalUrl.replace(/https?:\/\/[^\/]+/, productionUrl)
+    console.log(`✅ [Callback] URL corrigida: ${finalUrl}`)
+  }
+  
+  // GARANTIR que é URL absoluta
+  if (!finalUrl.startsWith('http')) {
+    finalUrl = new URL(finalUrl, productionUrl).toString()
+    console.log(`⚠️ [Callback] Convertendo para URL absoluta: ${finalUrl}`)
+  }
+  
+  console.log(`🔍 [Callback] Redirecionando para login (fallback): ${finalUrl}`)
+  console.log(`🔍 [Callback] Verificando URL final: ${finalUrl}`)
+  console.log(`🔍 [Callback] É absoluta? ${finalUrl.startsWith('http')}`)
+  console.log(`🔍 [Callback] Contém 0.0.0.0? ${finalUrl.includes('0.0.0.0')}`)
+  console.log(`🔍 [Callback] Contém :10000? ${finalUrl.includes(':10000')}`)
+  
+  // ÚLTIMA VERIFICAÇÃO antes de redirecionar
+  if (finalUrl.includes('0.0.0.0') || finalUrl.includes(':10000')) {
+    console.error('❌ [Callback] URL AINDA contém 0.0.0.0:10000 após correção!')
+    // Forçar URL correta
+    finalUrl = `${productionUrl}/login?error=${encodeURIComponent('Erro ao confirmar email. Solicite um novo link.')}`
+    console.log(`✅ [Callback] URL forçada para: ${finalUrl}`)
+  }
+  
+  return NextResponse.redirect(finalUrl, { status: 307 })
 }
-
-
-
-
-

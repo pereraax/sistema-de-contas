@@ -1,148 +1,141 @@
-// Sistema de logging compartilhado para capturar logs do servidor
-// Usa globalThis para persistir entre requisições no mesmo processo
+// Sistema de armazenamento de logs em memória
+// IMPORTANTE: Usar variável global para garantir instância única
 
 interface LogEntry {
+  id: string
   timestamp: string
-  level: 'log' | 'error' | 'warn' | 'info'
+  level: 'info' | 'warn' | 'error' | 'success' | 'debug'
+  category?: string
   message: string
+  data?: any
 }
 
-// Usar globalThis para persistir entre requisições
-declare global {
-  var __serverLogsBuffer: LogEntry[] | undefined
-}
+class ServerLogs {
+  private logs: LogEntry[] = []
+  private maxLogs = 1000 // Limitar quantidade de logs em memória
+  private listeners: Set<() => void> = new Set()
 
-const MAX_LOGS = 1000
-
-function getLogsBuffer(): LogEntry[] {
-  if (!globalThis.__serverLogsBuffer) {
-    globalThis.__serverLogsBuffer = []
-  }
-  return globalThis.__serverLogsBuffer
-}
-
-export function addLog(level: LogEntry['level'], message: string) {
-  try {
-    const logsBuffer = getLogsBuffer()
+  // Adicionar log
+  add(level: LogEntry['level'], message: string, category?: string, data?: any) {
     const entry: LogEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date().toISOString(),
       level,
+      category,
       message,
+      data: data ? JSON.stringify(data, null, 2) : undefined
     }
+
+    this.logs.unshift(entry) // Adicionar no início
     
-    logsBuffer.push(entry)
+    // Limitar quantidade de logs
+    if (this.logs.length > this.maxLogs) {
+      this.logs = this.logs.slice(0, this.maxLogs)
+    }
+
+    // Notificar listeners
+    this.notifyListeners()
+
+    // Também fazer log no console normal (SEMPRE)
+    const consoleMethod = level === 'error' ? 'error' : 
+                         level === 'warn' ? 'warn' : 
+                         level === 'success' ? 'log' : 'log'
+    const prefix = category ? `[${category}]` : ''
+    const timestamp = new Date().toISOString()
+    console[consoleMethod](`[${timestamp}]${prefix} ${message}`, data ? JSON.stringify(data, null, 2) : '')
     
-    // Manter apenas os últimos MAX_LOGS
-    if (logsBuffer.length > MAX_LOGS) {
-      logsBuffer.shift()
+    // Log adicional para debug
+    console.log(`📋 [SERVER-LOGS] Log adicionado: ${level} | ${category || 'sem categoria'} | Total de logs: ${this.logs.length}`)
+  }
+
+  // Obter logs
+  getLogs(limit = 500): LogEntry[] {
+    return this.logs.slice(0, limit)
+  }
+
+  // Obter logs filtrados
+  getFilteredLogs(filters: {
+    level?: LogEntry['level']
+    category?: string
+    search?: string
+    limit?: number
+  }): LogEntry[] {
+    let filtered = [...this.logs]
+
+    if (filters.level) {
+      filtered = filtered.filter(log => log.level === filters.level)
     }
-    
-    // Logar no console também para debug (sempre, não só para WhatsApp)
-    // Usar console.log original para evitar recursão
-    if (globalThis.__originalConsoleLog) {
-      globalThis.__originalConsoleLog(`[SERVER-LOGS] ${level.toUpperCase()}: ${message}`)
-    } else {
-      console.log(`[SERVER-LOGS] ${level.toUpperCase()}: ${message}`)
+
+    if (filters.category) {
+      filtered = filtered.filter(log => log.category === filters.category)
     }
-  } catch (error) {
-    // Se houver erro, pelo menos logar no console
-    if (globalThis.__originalConsoleError) {
-      globalThis.__originalConsoleError('[SERVER-LOGS] Erro ao adicionar log:', error)
-    } else {
-      console.error('[SERVER-LOGS] Erro ao adicionar log:', error)
+
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase()
+      filtered = filtered.filter(log => 
+        log.message.toLowerCase().includes(searchLower) ||
+        (log.category && log.category.toLowerCase().includes(searchLower))
+      )
     }
-    if (globalThis.__originalConsoleLog) {
-      globalThis.__originalConsoleLog(`[FALLBACK-LOG] ${message}`)
-    } else {
-      console.log(`[FALLBACK-LOG] ${message}`)
+
+    return filtered.slice(0, filters.limit || 500)
+  }
+
+  // Limpar logs
+  clear() {
+    this.logs = []
+    this.notifyListeners()
+  }
+
+  // Subscribir para mudanças
+  subscribe(callback: () => void) {
+    this.listeners.add(callback)
+    return () => {
+      this.listeners.delete(callback)
     }
+  }
+
+  // Notificar listeners
+  private notifyListeners() {
+    this.listeners.forEach(callback => callback())
   }
 }
 
-export function getLogs(filter?: string): LogEntry[] {
-  const logsBuffer = getLogsBuffer()
-  let filtered = logsBuffer
-  
-  if (filter) {
-    const filterLower = filter.toLowerCase()
-    filtered = logsBuffer.filter(log => 
-      log.message.toLowerCase().includes(filterLower)
-    )
-  }
-  
-  return filtered.slice(-500) // Retornar últimos 500 logs
-}
-
-export function clearLogs() {
-  const logsBuffer = getLogsBuffer()
-  logsBuffer.length = 0
-}
-
-export function getLogsCount(): number {
-  const logsBuffer = getLogsBuffer()
-  return logsBuffer.length
-}
-
-// Intercepta console.log para capturar logs automaticamente
+// Instância global única - usar variável global para garantir singleton
+// IMPORTANTE: Next.js pode criar múltiplas instâncias do módulo em diferentes processos
+// Usar variável global garante que todas as requisições compartilhem a mesma instância
 declare global {
-  var __originalConsoleLog: typeof console.log | undefined
-  var __originalConsoleError: typeof console.error | undefined
-  var __originalConsoleWarn: typeof console.warn | undefined
-  var __consoleIntercepted: boolean | undefined
+  var __serverLogs: ServerLogs | undefined
 }
 
-export function interceptConsoleLogs() {
-  // Evitar interceptar múltiplas vezes
-  if (globalThis.__consoleIntercepted) {
-    return
-  }
-  
-  globalThis.__originalConsoleLog = console.log
-  globalThis.__originalConsoleError = console.error
-  globalThis.__originalConsoleWarn = console.warn
-  
-  console.log = (...args: any[]) => {
-    const message = args.map(arg => 
-      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-    ).join(' ')
-    
-    // Adicionar ao buffer se contiver [PLEN WhatsApp]
-    if (message.includes('[PLEN WhatsApp]') || message.includes('PLEN WhatsApp')) {
-      addLog('log', message)
-    }
-    
-    // Chamar console.log original
-    globalThis.__originalConsoleLog?.(...args)
-  }
-  
-  console.error = (...args: any[]) => {
-    const message = args.map(arg => 
-      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-    ).join(' ')
-    
-    // Adicionar ao buffer se contiver [PLEN WhatsApp]
-    if (message.includes('[PLEN WhatsApp]') || message.includes('PLEN WhatsApp')) {
-      addLog('error', message)
-    }
-    
-    // Chamar console.error original
-    globalThis.__originalConsoleError?.(...args)
-  }
-  
-  console.warn = (...args: any[]) => {
-    const message = args.map(arg => 
-      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-    ).join(' ')
-    
-    // Adicionar ao buffer se contiver [PLEN WhatsApp]
-    if (message.includes('[PLEN WhatsApp]') || message.includes('PLEN WhatsApp')) {
-      addLog('warn', message)
-    }
-    
-    // Chamar console.warn original
-    globalThis.__originalConsoleWarn?.(...args)
-  }
-  
-  globalThis.__consoleIntercepted = true
+// Usar instância global ou criar nova
+export const serverLogs = global.__serverLogs || new ServerLogs()
+
+if (process.env.NODE_ENV !== 'production') {
+  global.__serverLogs = serverLogs
 }
 
+// Log inicial para confirmar que está funcionando
+serverLogs.add('info', '🔧 Sistema de logs inicializado', 'SYSTEM')
+console.log('✅ [SERVER-LOGS] Sistema de logs inicializado!')
+
+// Funções helper para diferentes níveis de log
+export const logInfo = (message: string, category?: string, data?: any) => {
+  serverLogs.add('info', message, category, data)
+}
+
+export const logWarn = (message: string, category?: string, data?: any) => {
+  serverLogs.add('warn', message, category, data)
+}
+
+export const logError = (message: string, category?: string, data?: any) => {
+  serverLogs.add('error', message, category, data)
+}
+
+export const logSuccess = (message: string, category?: string, data?: any) => {
+  serverLogs.add('success', message, category, data)
+}
+
+export const logDebug = (message: string, category?: string, data?: any) => {
+  serverLogs.add('debug', message, category, data)
+}

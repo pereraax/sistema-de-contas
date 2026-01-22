@@ -1,29 +1,59 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Mail, CheckCircle, AlertCircle, Send } from 'lucide-react'
+import { X, Mail, AlertCircle, Send } from 'lucide-react'
 import { createNotification } from './NotificationBell'
-// Não importar reenviarCodigoEmail - vamos chamar a API diretamente
 
 interface ModalConfirmarEmailProps {
   email: string
   onConfirmado: () => void
   onClose?: () => void
-  obrigatorio?: boolean // Se true, não permite fechar sem confirmar
-  emailJaEnviado?: boolean // Se true, email já foi enviado (ex: após cadastro) - não tenta reenviar
+  obrigatorio?: boolean
+  emailJaEnviado?: boolean
+  erroInicial?: string
 }
 
-export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obrigatorio = true, emailJaEnviado = false }: ModalConfirmarEmailProps) {
+export default function ModalConfirmarEmail({ 
+  email, 
+  onConfirmado, 
+  onClose, 
+  obrigatorio = true, 
+  emailJaEnviado = false, 
+  erroInicial 
+}: ModalConfirmarEmailProps) {
   const [reenviando, setReenviando] = useState(false)
   const [erro, setErro] = useState('')
   const [linkEnviado, setLinkEnviado] = useState(false)
-  const [tempoRestante, setTempoRestante] = useState(0) // Tempo em segundos
+  const [tempoRestante, setTempoRestante] = useState(0)
   const linkEnviadoAutomaticamente = useRef<boolean>(false)
   
-  // Estados para OTP (código de 6 dígitos)
-  const [codigoOTP, setCodigoOTP] = useState('')
-  const [verificando, setVerificando] = useState(false)
-  const [usarOTP, setUsarOTP] = useState(true) // Mudar para OTP por padrão
+  // Estado para tempo de cooldown do cadastro (rate limiting)
+  const [tempoCooldownCadastro, setTempoCooldownCadastro] = useState(0)
+
+  // Se email já foi enviado, mostrar mensagem imediatamente
+  useEffect(() => {
+    if (emailJaEnviado && !linkEnviado) {
+      console.log('✅ Email já foi enviado - mostrando mensagem imediatamente')
+      setLinkEnviado(true)
+    }
+  }, [emailJaEnviado, linkEnviado])
+
+  // Detectar cooldown do erro inicial (do cadastro)
+  useEffect(() => {
+    if (erroInicial) {
+      const errorMessage = erroInicial || ''
+      if (errorMessage.includes('For security purposes') || errorMessage.includes('rate limit') || errorMessage.includes('after')) {
+        const cooldownMatch = errorMessage.match(/(?:after|após|em|wait|aguarde|após)\s*(\d+)\s*(?:segundo|segundos|second|seconds|s)/i) || 
+                             errorMessage.match(/(\d+)\s*(?:segundo|segundos|second|seconds)/i)
+        
+        if (cooldownMatch) {
+          const segundosCooldown = parseInt(cooldownMatch[1])
+          setTempoCooldownCadastro(segundosCooldown)
+          console.log(`⏱️ Cooldown de cadastro detectado: ${segundosCooldown} segundos`)
+        }
+      }
+    }
+  }, [erroInicial])
 
   const formatarTempo = (segundos: number) => {
     if (segundos < 60) {
@@ -37,145 +67,28 @@ export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obri
     return `${minutos} minuto${minutos !== 1 ? 's' : ''} e ${segs} segundo${segs !== 1 ? 's' : ''}`
   }
 
-  const enviarLinkAutomaticamente = async () => {
-    // Evitar múltiplos envios
-    if (linkEnviadoAutomaticamente.current) {
-      console.log('⚠️ Link já foi enviado automaticamente, ignorando...')
-      return
-    }
-    
-    if (!email) {
-      console.error('❌ Email não fornecido para envio automático!')
-      setErro('Email não fornecido. Por favor, feche e abra o modal novamente.')
-      return
-    }
-    
-    if (reenviando) {
-      console.log('⚠️ Já está enviando link, aguardando...')
-      return
-    }
-    
-    linkEnviadoAutomaticamente.current = true
-    console.log('📧 [AUTO] Enviando link de confirmação automaticamente para:', email)
-    setReenviando(true)
-    setErro('')
-
-    try {
-      console.log('🔄 [AUTO] Chamando API para enviar link de confirmação...')
-      
-      // Chamar API route diretamente do cliente
-      const response = await fetch('/api/auth/enviar-link-confirmacao', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      })
-      
-      const result = await response.json()
-      console.log('📬 [AUTO] Resultado do envio:', result)
-
-      if (!response.ok) {
-        console.error('❌ [AUTO] Resposta HTTP não OK:', response.status)
-        
-        // Se tem correctedLink, significa que link foi gerado mas não enviado
-        if (result.correctedLink) {
-          console.log('⚠️ [AUTO] Link foi gerado e corrigido, mas email não foi enviado')
-          console.log('⚠️ [AUTO] Link corrigido disponível:', result.correctedLink.substring(0, 100) + '...')
-          
-          // Copiar link para área de transferência
-          try {
-            await navigator.clipboard.writeText(result.correctedLink)
-            setErro('Link foi gerado e corrigido, mas email não foi enviado. Link copiado para área de transferência - cole no navegador para confirmar.')
-            createNotification('Link gerado! Cole no navegador para confirmar o email.', 'info')
-          } catch (clipError) {
-            setErro(`Link foi gerado mas email não foi enviado. Link: ${result.correctedLink.substring(0, 100)}...`)
-            createNotification('Link gerado, mas email não foi enviado. Verifique os logs.', 'warning')
-          }
-        } else {
-        const errorData = result.error || 'Erro ao enviar link de confirmação'
-        setErro(errorData)
-        createNotification(`Erro: ${errorData}`, 'warning')
-        }
-      } else if (result.success || result.linkGenerated) {
-        console.log('✅ [AUTO] Link enviado com sucesso!')
-        
-        // Se tem correctedLink, significa que link foi gerado mas email pode não ter sido enviado
-        if (result.correctedLink && !result.emailSent) {
-          console.log('⚠️ [AUTO] Link foi gerado e corrigido, mas email pode não ter sido enviado')
-          console.log('⚠️ [AUTO] Link corrigido disponível:', result.correctedLink.substring(0, 100) + '...')
-          
-          // Copiar link para área de transferência
-          try {
-            await navigator.clipboard.writeText(result.correctedLink)
-            setErro('Link foi gerado e corrigido. Link copiado para área de transferência - cole no navegador para confirmar.')
-            createNotification('Link gerado! Cole no navegador para confirmar o email.', 'info')
-          } catch (clipError) {
-            // Não mostrar erro se não conseguir copiar, apenas logar
-            console.warn('⚠️ Não foi possível copiar link para área de transferência:', clipError)
-          }
-        }
-        setLinkEnviado(true)
-        createNotification('Link de confirmação enviado! Verifique seu email (incluindo spam).', 'success')
-        setTempoRestante(60) // Cooldown de 60 segundos
-      } else if (result.error) {
-        console.error('❌ [AUTO] Erro ao enviar:', result.error)
-        setErro(result.error)
-        createNotification(`Erro: ${result.error}`, 'warning')
-      } else {
-        console.error('❌ [AUTO] Resposta inesperada:', result)
-        setErro('Não foi possível enviar o link. Tente novamente ou entre em contato com o suporte.')
-      }
-    } catch (error: any) {
-      console.error('❌ [AUTO] Erro inesperado ao enviar link automaticamente:', error)
-      setErro('Erro ao enviar link. Por favor, use o botão "Reenviar link".')
-      setTempoRestante(60)
-    } finally {
-      setReenviando(false)
-    }
-  }
-
   // Efeito para quando o componente é montado (modal abre)
   useEffect(() => {
     console.log('🚀 [MODAL] ========== MODAL MONTADO ==========')
     console.log('📧 [MODAL] Email recebido:', email)
-    console.log('🔑 [MODAL] Key do componente atualizado')
+    console.log('📋 [MODAL] emailJaEnviado:', emailJaEnviado)
     
     // Resetar flag quando o modal abrir
     linkEnviadoAutomaticamente.current = false
     setReenviando(false)
     setTempoRestante(0)
     setErro('')
-    setLinkEnviado(false)
     
     // Se email já foi enviado (ex: após cadastro), apenas mostrar mensagem
     if (emailJaEnviado) {
-      console.log('✅ [MODAL] Email já foi enviado - apenas mostrando instruções')
+      console.log('✅ [MODAL] Email já foi enviado - mostrando mensagem')
       setLinkEnviado(true)
       return
     }
     
-    // Enviar link automaticamente quando o modal abrir (caso contrário)
-    if (!email) {
-      console.error('❌ [MODAL] Email não fornecido ao modal!')
-      setErro('Email não fornecido. Por favor, feche e abra o modal novamente.')
-      return
-    }
-    
-    console.log('🚀 [MODAL] Iniciando envio automático de link para:', email)
-    
-    // Delay maior para garantir que tudo está pronto
-    const timer = setTimeout(() => {
-      console.log('⏰ [MODAL] Timer disparado (1 segundo), chamando enviarLinkAutomaticamente...')
-      enviarLinkAutomaticamente()
-    }, 1000)
-    
-    return () => {
-      clearTimeout(timer)
-      console.log('🧹 [MODAL] Cleanup: Timers limpos (modal pode estar sendo desmontado)')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email])
+    // Se email não foi enviado ainda, aguardar - será enviado pelo signUp
+    console.log('⏳ [MODAL] Aguardando envio do email pelo signUp...')
+  }, [email, emailJaEnviado])
 
   // Temporizador para cooldown de reenvio
   useEffect(() => {
@@ -187,50 +100,62 @@ export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obri
     }
   }, [tempoRestante])
 
+  // Temporizador para cooldown de cadastro (rate limiting)
+  useEffect(() => {
+    if (tempoCooldownCadastro > 0) {
+      const timer = setTimeout(() => {
+        setTempoCooldownCadastro(tempoCooldownCadastro - 1)
+      }, 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [tempoCooldownCadastro])
+
   const handleReenviar = async () => {
-    if (tempoRestante > 0) return // Não permitir reenvio durante cooldown
+    if (tempoRestante > 0) return
     
     setReenviando(true)
     setErro('')
 
     try {
-      // Chamar API route diretamente do cliente
       const response = await fetch('/api/auth/enviar-link-confirmacao', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, usarOTP: usarOTP }),
+        body: JSON.stringify({ email }),
       })
       
       const result = await response.json()
 
       if (result.error) {
-        // Extrair tempo de cooldown da mensagem de erro
-        const cooldownMatch = result.error.match(/(?:after|após|em|wait|aguarde|após)\s*(\d+)\s*(?:segundo|segundos|second|seconds|s)/i) || 
-                             result.error.match(/(\d+)\s*(?:segundo|segundos|second|seconds)/i)
+        const errorMessage = result.error || ''
+        const detail = result.detail || ''
+        const cooldownMatch = errorMessage.match(/(?:after|após|em|wait|aguarde|após)\s*(\d+)\s*(?:segundo|segundos|second|seconds|s)/i) || 
+                             errorMessage.match(/(\d+)\s*(?:segundo|segundos|second|seconds)/i)
         
         let segundosCooldown = 60
         if (cooldownMatch) {
           segundosCooldown = parseInt(cooldownMatch[1])
         }
         
+        if (errorMessage.includes('For security purposes') || (errorMessage.includes('rate limit') && errorMessage.includes('create'))) {
+          setTempoCooldownCadastro(segundosCooldown)
+          console.log(`⏱️ Cooldown de cadastro detectado: ${segundosCooldown} segundos`)
+        }
+        
         setTempoRestante(segundosCooldown)
         
-        // Traduzir mensagem de erro para português se necessário
-        let mensagemErro = result.error
-        if (result.error.includes('rate limit') || result.error.includes('too many')) {
+        let mensagemErro = errorMessage
+        if (errorMessage.includes('rate limit') || errorMessage.includes('too many')) {
           mensagemErro = `Muitas tentativas. Aguarde ${formatarTempo(segundosCooldown)} antes de tentar novamente.`
-        } else if (result.error.includes('after') || result.error.includes('seconds')) {
-          mensagemErro = `Por segurança, você só pode solicitar um novo código após ${formatarTempo(segundosCooldown)}.`
+        } else if (errorMessage.includes('after') || errorMessage.includes('seconds')) {
+          mensagemErro = `Por segurança, você só pode solicitar um novo link após ${formatarTempo(segundosCooldown)}.`
+        } else if (detail) {
+          mensagemErro = `${errorMessage} ${detail}`
         }
         setErro(mensagemErro)
       } else {
-        if (usarOTP) {
-          createNotification('Código de confirmação enviado! Verifique seu email.', 'success')
-        } else {
-          createNotification('Link de confirmação reenviado! Verifique seu email.', 'success')
-        }
+        createNotification('Link de confirmação reenviado! Verifique seu email.', 'success')
         setLinkEnviado(true)
         setTempoRestante(60)
       }
@@ -243,57 +168,10 @@ export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obri
     }
   }
 
-  const handleVerificarCodigo = async () => {
-    if (!codigoOTP || codigoOTP.length < 6) {
-      setErro('Digite o código de 6 dígitos recebido por email.')
-      return
-    }
-
-    setVerificando(true)
-    setErro('')
-
-    try {
-      const { verificarCodigoEmail } = await import('@/lib/auth')
-      const result = await verificarCodigoEmail(codigoOTP, email)
-
-      if (result.error) {
-        setErro(result.error)
-        createNotification(`Erro: ${result.error}`, 'error')
-      } else if (result.success) {
-        createNotification('Email confirmado com sucesso!', 'success')
-        setCodigoOTP('')
-        if (onConfirmado) {
-          onConfirmado()
-        }
-      }
-    } catch (error: any) {
-      setErro('Erro ao verificar código. Tente novamente.')
-      console.error('Erro ao verificar código:', error)
-      createNotification('Erro ao verificar código.', 'error')
-    } finally {
-      setVerificando(false)
-    }
-  }
-
-  const handleCodigoChange = (value: string) => {
-    // Aceitar apenas números e limitar a 6 dígitos
-    const numeros = value.replace(/\D/g, '').slice(0, 6)
-    setCodigoOTP(numeros)
-    
-    // Auto-verificar quando tiver 6 dígitos
-    if (numeros.length === 6) {
-      setTimeout(() => handleVerificarCodigo(), 300)
-    }
-  }
-
-  // REMOVIDO: Verificação automática que estava fechando o modal prematuramente
-  // O usuário será redirecionado quando clicar no link do email
-
   return (
     <div 
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
       onClick={(e) => {
-        // Se obrigatório, não permitir fechar clicando fora
         if (obrigatorio && e.target === e.currentTarget) {
           e.preventDefault()
           e.stopPropagation()
@@ -343,87 +221,27 @@ export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obri
               <>
                 <div className="space-y-2">
                   <h3 className="text-xl font-bold text-gray-900">
-                    {usarOTP ? 'Código Enviado!' : emailJaEnviado ? 'Email Enviado!' : 'Link Enviado!'}
+                    Link Enviado!
                   </h3>
                   <p className="text-sm text-gray-600">
-                    {usarOTP 
-                      ? 'Enviamos um código de 6 dígitos para:'
-                      : emailJaEnviado 
-                        ? 'Enviamos automaticamente um link de confirmação para:'
-                        : 'Enviamos um link de confirmação para:'}
+                    {emailJaEnviado 
+                      ? 'Enviamos automaticamente um link de confirmação para:'
+                      : 'Enviamos um link de confirmação para:'}
                   </p>
                   <p className="text-[#00C2FF] font-semibold text-sm break-all px-2 pt-1">{email}</p>
                 </div>
                 
-                {usarOTP ? (
-                  <div className="space-y-4">
-                    <div className="bg-blue-50 rounded-xl px-5 py-4 border border-blue-100 space-y-2.5">
-                      <div className="flex items-center justify-center gap-2">
-                        <Mail size={18} className="text-[#00C2FF]" />
-                        <p className="text-sm font-semibold text-gray-900">
-                          Digite o código de 6 dígitos
-                        </p>
-                      </div>
-                      <p className="text-xs text-gray-600 leading-relaxed text-center">
-                        Verifique seu email e digite o código de 6 dígitos que enviamos.
-                      </p>
-                    </div>
-                    
-                    {/* Campo de input para código OTP */}
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Código de Confirmação
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={codigoOTP}
-                        onChange={(e) => handleCodigoChange(e.target.value)}
-                        placeholder="000000"
-                        maxLength={6}
-                        className="w-full px-4 py-3 text-center text-3xl font-mono tracking-widest border-2 border-gray-300 rounded-xl focus:outline-none focus:border-[#00C2FF] transition-colors"
-                        disabled={verificando}
-                        autoFocus
-                      />
-                      <p className="text-xs text-gray-500 text-center">
-                        Digite os 6 dígitos recebidos por email
-                      </p>
-                    </div>
-                    
-                    <button
-                      onClick={handleVerificarCodigo}
-                      disabled={verificando || codigoOTP.length !== 6}
-                      className="w-full px-4 py-3 bg-gradient-to-r from-[#00C2FF] to-[#0099CC] text-white rounded-xl font-semibold hover:from-[#00B8F5] hover:to-[#0088BB] shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      {verificando ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Verificando...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle size={18} />
-                          Confirmar Código
-                        </>
-                      )}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="bg-blue-50 rounded-xl px-5 py-4 border border-blue-100 space-y-2.5">
-                    <div className="flex items-center justify-center gap-2">
-                      <Mail size={18} className="text-[#00C2FF]" />
-                      <p className="text-sm font-semibold text-gray-900">
-                        Verifique sua caixa de entrada
-                      </p>
-                    </div>
-                    <p className="text-xs text-gray-600 leading-relaxed">
-                      {emailJaEnviado 
-                        ? 'Verifique seu email e clique no link de confirmação que enviamos. Após clicar no link, você será redirecionado automaticamente e poderá fazer login.'
-                        : 'Clique no link que enviamos para confirmar seu email. Após clicar, você será redirecionado automaticamente e seu email estará confirmado.'}
+                <div className="bg-blue-50 rounded-xl px-5 py-4 border border-blue-100 space-y-2.5">
+                  <div className="flex items-center justify-center gap-2">
+                    <Mail size={18} className="text-[#00C2FF]" />
+                    <p className="text-sm font-semibold text-gray-900">
+                      Verifique sua caixa de entrada
                     </p>
                   </div>
-                )}
+                  <p className="text-xs text-gray-600 leading-relaxed">
+                    Clique no link de confirmação que enviamos para o seu email. Após clicar no link, você será redirecionado automaticamente e poderá fazer login.
+                  </p>
+                </div>
               </>
             ) : (
               <>
@@ -473,46 +291,53 @@ export default function ModalConfirmarEmail({ email, onConfirmado, onClose, obri
               </button>
             )}
 
-            {/* Botão Verificar Depois - apenas se não for obrigatório */}
-            {!obrigatorio && onClose && (
-              <button
-                onClick={onClose}
-                className="w-full px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors text-sm"
-              >
-                Verificar Depois
-              </button>
+            {/* Reenviar link */}
+            {linkEnviado && (
+              <div className="pt-3 border-t border-gray-100 space-y-2">
+                <button
+                  onClick={handleReenviar}
+                  disabled={reenviando || tempoRestante > 0}
+                  className="w-full text-sm text-[#00C2FF] hover:text-[#0099CC] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {reenviando ? 'Reenviando...' : tempoRestante > 0 ? `Aguarde ${formatarTempo(tempoRestante)}` : 'Não recebeu? Reenviar link'}
+                </button>
+                {tempoRestante > 0 && (
+                  <p className="text-xs text-gray-500 text-center">
+                    Você pode solicitar um novo link em {formatarTempo(tempoRestante)}
+                  </p>
+                )}
+              </div>
             )}
           </div>
-
-          {/* Reenviar link */}
-          {linkEnviado && (
-            <div className="pt-3 border-t border-gray-100 space-y-2">
-              <button
-                onClick={handleReenviar}
-                disabled={reenviando || tempoRestante > 0}
-                className="w-full text-sm text-[#00C2FF] hover:text-[#0099CC] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {reenviando ? 'Reenviando...' : tempoRestante > 0 ? `Aguarde ${formatarTempo(tempoRestante)}` : usarOTP ? 'Não recebeu? Reenviar código' : 'Não recebeu? Reenviar link'}
-              </button>
-              {tempoRestante > 0 && (
-                <p className="text-xs text-gray-500 text-center">
-                  Você pode solicitar um novo {usarOTP ? 'código' : 'link'} em {formatarTempo(tempoRestante)}
-                </p>
-              )}
-            </div>
-          )}
 
           {/* Dica */}
           <div className="bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
             <p className="text-xs text-gray-600 text-center leading-relaxed flex items-center justify-center gap-1.5">
               <span>💡</span>
               <span>
-                {usarOTP 
-                  ? 'Verifique também a pasta de spam. O código expira em 1 hora.'
-                  : 'Verifique também a pasta de spam. O link expira em 24 horas.'}
+                Verifique também a pasta de spam. O link expira em 24 horas.
               </span>
             </p>
           </div>
+
+          {/* Mensagem de cooldown para cadastro (rate limiting) */}
+          {tempoCooldownCadastro > 0 && (
+            <div className="bg-amber-50 rounded-xl px-4 py-3 border border-amber-200 shadow-sm">
+              <div className="flex items-center justify-center gap-2 mb-1.5">
+                <AlertCircle size={16} className="text-amber-600 flex-shrink-0" />
+                <p className="text-sm font-semibold text-amber-800 text-center">
+                  Limite de tentativas atingido
+                </p>
+              </div>
+              <p className="text-xs text-amber-700 text-center leading-relaxed">
+                Por segurança, você só pode tentar criar uma nova conta após{' '}
+                <span className="font-bold text-amber-900">{formatarTempo(tempoCooldownCadastro)}</span>.
+              </p>
+              <p className="text-xs text-amber-600 text-center mt-2 leading-relaxed">
+                Aguarde o tempo acima antes de tentar criar uma nova conta novamente.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

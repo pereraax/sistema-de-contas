@@ -195,10 +195,10 @@ export default function HomeLayoutNovo() {
             nomeExibido = user.email.split('@')[0]
           }
           
-          setUserProfile({
+            setUserProfile({
             nome: nomeExibido,
             imagem_url: profile?.imagem_url || undefined
-          })
+            })
         }
       } catch (error) {
         console.error('Erro ao carregar perfil:', error)
@@ -305,8 +305,8 @@ export default function HomeLayoutNovo() {
                 className="hidden"
                 disabled={uploadingImage}
               />
-              <button
-                onClick={handlePerfilClick}
+            <button
+              onClick={handlePerfilClick}
                 disabled={uploadingImage}
                 className="w-9 h-9 border-[2.5px] border-brand-aqua bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-full hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 transition-smooth flex items-center justify-center overflow-hidden flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed relative"
                 title={uploadingImage ? "Enviando imagem..." : "Adicionar foto de perfil"}
@@ -316,26 +316,26 @@ export default function HomeLayoutNovo() {
                     <div className="w-4 h-4 border-2 border-brand-aqua border-t-transparent rounded-full animate-spin"></div>
                   </div>
                 ) : userProfile?.imagem_url ? (
-                  <img 
-                    src={userProfile.imagem_url} 
-                    alt={userProfile.nome || 'Perfil'}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement
-                      target.style.display = 'none'
-                      const parent = target.parentElement
-                      if (parent) {
-                        const inicial = (userProfile?.nome || 'U').charAt(0).toUpperCase()
-                        parent.innerHTML = `<span class="text-brand-aqua font-semibold text-sm">${inicial}</span>`
-                      }
-                    }}
-                  />
-                ) : (
-                  <span className="text-brand-aqua font-semibold text-sm">
-                    {(userProfile?.nome || 'U').charAt(0).toUpperCase()}
-                  </span>
-                )}
-              </button>
+                <img 
+                  src={userProfile.imagem_url} 
+                  alt={userProfile.nome || 'Perfil'}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                    const parent = target.parentElement
+                    if (parent) {
+                      const inicial = (userProfile?.nome || 'U').charAt(0).toUpperCase()
+                      parent.innerHTML = `<span class="text-brand-aqua font-semibold text-sm">${inicial}</span>`
+                    }
+                  }}
+                />
+              ) : (
+                <span className="text-brand-aqua font-semibold text-sm">
+                  {(userProfile?.nome || 'U').charAt(0).toUpperCase()}
+                </span>
+              )}
+            </button>
             </div>
             <span className="text-xl sm:text-2xl font-bold text-brand-midnight dark:text-brand-clean -tracking-tight" style={{ fontFamily: '"SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif', fontWeight: 700 }}>
               Olá, {userProfile.nome} 👋!

@@ -1,624 +1,322 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
-import { isSmtpConfigured, sendMail } from '@/lib/mailer'
+import { createAdminClient } from '@/lib/supabase/server'
+import { logInfo, logError, logSuccess } from '@/lib/server-logs'
 
 /**
- * API Route para ENVIAR link de confirmação de email
- * Usa Admin API para garantir que o email seja realmente enviado
+ * API ROUTE - REENVIAR LINK DE CONFIRMAÇÃO
+ * Tenta SMTP próprio PRIMEIRO (Admin API + envio), depois resend do Supabase
  */
 export async function POST(request: NextRequest) {
   try {
-    const { email, usarOTP = true } = await request.json() // Por padrão, usar OTP
-
+    logInfo('📧 ========== REENVIAR LINK ==========', 'EMAIL_CONFIRMATION')
+    console.error('📧 ========== REENVIAR LINK ==========')
+    
+    const { email } = await request.json()
+    
     if (!email) {
-      return NextResponse.json(
-        { error: 'Email é obrigatório' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Email é obrigatório' }, { status: 400 })
     }
 
-    console.log('📧 ========== API: ENVIAR CONFIRMAÇÃO DE EMAIL ==========')
-    console.log('📧 Email:', email)
-    console.log('📧 Modo:', usarOTP ? 'OTP (código de 6 dígitos)' : 'Link')
-    console.log('⏰ Timestamp:', new Date().toISOString())
+    logInfo(`📧 Email: ${email}`, 'EMAIL_CONFIRMATION')
+    console.error(`📧 Email: ${email}`)
 
-    const supabaseAdmin = createAdminClient()
-    
-    if (!supabaseAdmin) {
-      console.error('❌ Admin client não disponível - SUPABASE_SERVICE_ROLE_KEY não configurado')
-      return NextResponse.json(
-        { 
-          error: 'Configuração do servidor incompleta. Service Role Key não configurada.',
-          needsConfig: true 
-        },
-        { status: 500 }
-      )
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      logError('❌ Variáveis Supabase não configuradas', 'EMAIL_CONFIRMATION')
+      return NextResponse.json({ 
+        error: 'Configuração incompleta.',
+        detail: 'NEXT_PUBLIC_SUPABASE_URL ou ANON_KEY ausentes.'
+      }, { status: 500 })
     }
 
-    // Buscar usuário
-    console.log('🔍 Buscando usuário...')
-    const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers()
+    const redirectTo = 'https://plenipay.com/auth/callback?next=/home'
     
-    if (listError || !users?.users) {
-      console.error('❌ Erro ao listar usuários:', listError)
-      return NextResponse.json(
-        { error: 'Erro ao buscar usuário. Tente novamente.' },
-        { status: 500 }
-      )
-    }
-    
-    const user = (users.users as any[]).find((u: any) => u.email === email)
-    
-    if (!user) {
-      console.error('❌ Usuário não encontrado para:', email)
-      return NextResponse.json(
-        { error: 'Usuário não encontrado. Verifique o email.' },
-        { status: 404 }
-      )
-    }
-    
-    console.log('✅ Usuário encontrado:', user.id)
-    console.log('📋 Email confirmado:', user.email_confirmed_at ? 'SIM' : 'NÃO')
-    console.log('📋 Data de confirmação:', user.email_confirmed_at || 'NÃO CONFIRMADO')
-    
-    // IMPORTANTE: Sempre permitir reenvio, mesmo se já confirmado
-    // Motivo: O link anterior pode ter sido gerado com URL errada (0.0.0.0:10000)
-    // e o usuário precisa receber um novo link com a URL correta
-    console.log('⚠️ IMPORTANTE: Permitindo reenvio mesmo se já confirmado')
-    console.log('⚠️ Motivo: Link anterior pode ter sido gerado com URL errada (0.0.0.0:10000)')
-    
-    // PASSO 1: Sempre limpar confirmação para forçar novo envio
-    // Isso permite que o usuário receba um novo link mesmo se o anterior foi "confirmado"
-    console.log('🔧 PASSO 1: Limpando confirmação de email para forçar novo envio...')
-    console.log('🔧 Isso permite reenvio mesmo se link anterior foi gerado com URL errada')
-    
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, { 
-      email_confirm: false
-    })
-    
-    if (updateError) {
-      console.error('⚠️ Erro ao limpar confirmação:', updateError.message)
-      console.warn('⚠️ Continuando mesmo com erro - tentando reenviar de qualquer forma')
-    } else {
-      console.log('✅ Confirmação limpa com sucesso')
-    }
-    
-    // Aguardar para garantir que a atualização foi processada
-    await new Promise(resolve => setTimeout(resolve, 3000))
-    
-    // PASSO 2: Configurar URL de redirecionamento
-    // IMPORTANTE: SEMPRE usar https://plenipay.com explicitamente
-    // Não confiar em getSiteUrl() que pode retornar URL errada
-    const siteUrl = 'https://plenipay.com' // FORÇAR URL de produção sempre
-    const redirectTo = `${siteUrl}/auth/callback?next=/home`
-    console.log('🔗 URL de redirecionamento (FORÇADA):', redirectTo)
-    console.log('⚠️ IMPORTANTE: URL forçada para produção (https://plenipay.com)')
-    
-    // PASSO 2.5: VERIFICAR URL ANTES DE ENVIAR (SOLUÇÃO PARA BUG DO SUPABASE)
-    // IMPORTANTE: Gerar link primeiro para verificar se Supabase está usando Site URL correta
-    // Se o link tiver 0.0.0.0:10000, BLOQUEAR envio e retornar erro com instruções
-    // IMPORTANTE: Só bloqueia se detectar 0.0.0.0:10000 explicitamente
-    console.log('🔍 PASSO 2.5: Verificando URL do link antes de enviar email...')
-    console.log('🔍 Isso detecta o bug do Supabase onde resend() ignora emailRedirectTo')
-    
-    let linkGeradoComUrlCorreta = false
-    let linkGerado: string | null = null
-    let linkTemUrlIncorreta = false
-    let correctedLink: string | null = null
-    
+    // Verificar Admin Client
+    let supabaseAdmin: any = null
     try {
-      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'signup',
-        email: email,
-        options: {
-          redirectTo: redirectTo
-        }
-      })
-      
-      if (!linkError && linkData?.properties?.action_link) {
-        linkGerado = linkData.properties.action_link
-        console.log('📧 Link gerado via Admin API:', linkGerado.substring(0, 150) + '...')
-        
-        // SOLUÇÃO NO CÓDIGO: Extrair token_hash e construir link correto
-        // Mesmo que o link tenha URL incorreta, vamos corrigir no código
-        let tokenHashExtraido: string | null = null
-        const tokenHashMatch = linkGerado.match(/token_hash=([^&]+)/i) || 
-                               linkGerado.match(/token_hash=([^#]+)/i) ||
-                               linkGerado.match(/#token_hash=([^&]+)/i)
-        
-        if (tokenHashMatch && tokenHashMatch[1]) {
-          tokenHashExtraido = decodeURIComponent(tokenHashMatch[1])
-          console.log('✅ Token hash extraído do link gerado:', tokenHashExtraido.substring(0, 20) + '...')
-          
-          // Construir link correto manualmente
-          const linkCorrigidoManual = new URL('/auth/callback', 'https://plenipay.com')
-          linkCorrigidoManual.searchParams.set('token_hash', tokenHashExtraido)
-          linkCorrigidoManual.searchParams.set('type', 'signup')
-          linkCorrigidoManual.searchParams.set('next', '/home')
-          
-          linkGerado = linkCorrigidoManual.toString()
-          console.log('✅ Link corrigido manualmente no código:', linkGerado.substring(0, 150) + '...')
-          console.log('✅ Agora o link SEMPRE terá URL correta, mesmo se Supabase usar URL incorreta!')
-        }
-        
-        // Verificar se o link contém a URL correta após correção manual
-        if (linkGerado.includes('plenipay.com')) {
-          console.log('✅ Link gerado contém URL correta (plenipay.com) após correção no código')
-          linkGeradoComUrlCorreta = true
-          linkTemUrlIncorreta = false
-        } else if (linkGerado.includes('0.0.0.0') || linkGerado.includes('10000')) {
-          console.error('❌ PROBLEMA: Link ainda contém 0.0.0.0:10000 após tentativa de correção')
-          console.error('❌ Mas vamos tentar corrigir novamente no próximo passo...')
-          linkGeradoComUrlCorreta = false
-          linkTemUrlIncorreta = true
-        } else {
-          // Se não tem nem plenipay.com nem 0.0.0.0:10000, pode ser outra URL válida
-          // (ex: localhost em desenvolvimento, ou outra URL de produção)
-          // NÃO bloquear neste caso - permitir envio
-          console.log('⚠️ Link gerado não contém plenipay.com nem 0.0.0.0:10000')
-          console.log('⚠️ Link:', linkGerado.substring(0, 100) + '...')
-          console.log('⚠️ Permitindo envio - pode ser URL válida (ex: localhost em desenvolvimento)')
-          linkGeradoComUrlCorreta = false // Não é plenipay.com, mas não é 0.0.0.0:10000
-          linkTemUrlIncorreta = false // NÃO bloquear - pode ser válido
-        }
-      } else {
-        console.warn('⚠️ Não foi possível gerar link para verificação:', linkError?.message || 'Erro desconhecido')
-        console.warn('⚠️ Permitindo envio mesmo assim - pode ser problema temporário')
-        // Se não conseguiu gerar link, permitir envio (pode ser problema temporário)
-        linkGeradoComUrlCorreta = false
-        linkTemUrlIncorreta = false // NÃO bloquear se não conseguiu gerar link
+      supabaseAdmin = createAdminClient()
+      console.error(`📧 Admin disponível: ${!!supabaseAdmin}`)
+      if (!supabaseAdmin) {
+        console.error('⚠️ SUPABASE_SERVICE_ROLE_KEY não configurado ou inválido')
       }
-    } catch (linkException: any) {
-      console.warn('⚠️ Exceção ao gerar link:', linkException.message)
-      console.warn('⚠️ Permitindo envio mesmo assim - pode ser problema temporário')
-      // Se deu exceção, permitir envio (pode ser problema temporário)
-      linkGeradoComUrlCorreta = false
-      linkTemUrlIncorreta = false // NÃO bloquear se deu exceção
+    } catch (adminErr: any) {
+      console.error('❌ Erro ao criar Admin client:', adminErr.message)
+      supabaseAdmin = null
     }
     
-    // BLOQUEAR ENVIO APENAS SE DETECTAR 0.0.0.0:10000 EXPLICITAMENTE
-    // IMPORTANTE: Só bloqueia se realmente detectar o problema
-    // Se detectou URL incorreta do Supabase, NÃO bloquear mais:
-    // vamos enviar um link 100% do nosso domínio (corrigido) via SMTP (se configurado)
-    if (linkTemUrlIncorreta) {
-      console.warn('⚠️ Link do Supabase veio com URL incorreta (0.0.0.0:10000). Vamos ignorar e usar link corrigido.')
-    }
-    
-    // Se chegou aqui, não detectou 0.0.0.0:10000, então permitir envio
-    console.log('✅ Verificação de URL concluída - permitindo envio de email')
-    
-    // CRÍTICO: Se correctedLink ainda não foi gerado, tentar gerar agora
-    // (pode não ter sido gerado se o linkGerado não tinha token_hash)
-    if (!correctedLink && linkGerado) {
-      // Tentar extrair token_hash do link gerado
-      const tokenHashMatch = linkGerado.match(/token_hash=([^&]+)/i) || 
-                             linkGerado.match(/token_hash=([^#]+)/i) ||
-                             linkGerado.match(/#token_hash=([^&]+)/i) ||
-                             linkGerado.match(/token=([^&]+)/i) ||
-                             linkGerado.match(/token=([^#]+)/i)
-      
-      if (tokenHashMatch && tokenHashMatch[1]) {
-        const tokenHashExtraido = decodeURIComponent(tokenHashMatch[1])
-        console.log('✅ Token hash extraído para correctedLink:', tokenHashExtraido.substring(0, 20) + '...')
-        
-        // Construir link correto manualmente
-        const linkCorrigidoManual = new URL('/auth/callback', 'https://plenipay.com')
-        linkCorrigidoManual.searchParams.set('token_hash', tokenHashExtraido)
-        linkCorrigidoManual.searchParams.set('type', 'signup')
-        linkCorrigidoManual.searchParams.set('next', '/home')
-        
-        correctedLink = linkCorrigidoManual.toString()
-        console.log('✅ correctedLink gerado:', correctedLink.substring(0, 150) + '...')
+    // Verificar SMTP
+    let isSmtpConfigured = false
+    let sendMail: any = null
+    try {
+      const mailer = await import('@/lib/mailer')
+      isSmtpConfigured = mailer.isSmtpConfigured()
+      sendMail = mailer.sendMail
+      console.error(`📧 SMTP configurado: ${isSmtpConfigured}`)
+      if (!isSmtpConfigured) {
+        console.error('⚠️ Variáveis SMTP_* não configuradas ou inválidas')
+        console.error('   Verifique: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD')
       }
+    } catch (mailerErr: any) {
+      console.error('❌ Erro ao importar mailer:', mailerErr.message)
+      isSmtpConfigured = false
     }
-    
-    // PASSO 3: Se SMTP do app estiver configurado e temos correctedLink, enviar email por SMTP (solução definitiva)
-    console.log('🔍 ========== VERIFICANDO SMTP ==========')
-    const smtpConfigurado = isSmtpConfigured()
-    console.log('🔍 SMTP configurado?', smtpConfigurado)
-    console.log('🔍 correctedLink disponível?', !!correctedLink)
-    console.log('🔍 correctedLink:', correctedLink ? correctedLink.substring(0, 100) + '...' : 'NÃO DISPONÍVEL')
-    
-    if (correctedLink && smtpConfigurado) {
-      console.log('📨 ========== ENVIANDO VIA SMTP PRÓPRIO ==========')
-      console.log('📨 Email destinatário:', email)
-      console.log('📨 Link que será enviado:', correctedLink)
+
+    // TENTATIVA 1: SMTP próprio (Admin API + envio)
+    if (isSmtpConfigured && supabaseAdmin && sendMail) {
+      logInfo('📤 Tentativa 1: Admin API + SMTP próprio...', 'EMAIL_CONFIRMATION')
+      console.error('📤 Tentativa 1: Admin API + SMTP próprio...')
       
       try {
-        const html = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          </head>
-          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #1B263B 0%, #0D1B2A 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: #fff; margin: 0;">Confirme seu Email</h1>
-            </div>
-            <div style="background: #fff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
-              <p style="font-size: 16px;">Olá! 👋</p>
-              <p style="font-size: 16px;">Bem-vindo(a) à Plenipay! Para ativar sua conta, clique no botão abaixo:</p>
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${correctedLink}" style="display: inline-block; padding: 15px 40px; background: linear-gradient(135deg, #00C2FF 0%, #0099CC 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(0, 194, 255, 0.3);">
-                  Confirmar Email
-                </a>
-              </div>
-              <p style="font-size: 14px; color: #666;">Ou copie e cole este link no seu navegador:</p>
-              <p style="font-size: 12px; color: #00C2FF; word-break: break-all; background: #f5f5f5; padding: 10px; border-radius: 5px;">${correctedLink}</p>
-              <p style="font-size: 12px; color: #999; margin-top: 30px;">Este link é válido por 24 horas. Se você não solicitou este cadastro, ignore este email.</p>
-            </div>
-          </body>
-          </html>
-        `
+        // Verificar se usuário existe primeiro para usar o tipo correto
+        let linkType: 'signup' | 'recovery' | 'magiclink' = 'signup'
+        try {
+          const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
+          const existingUser = usersData?.users?.find((u: any) => u.email === email)
+          if (existingUser) {
+            // Usuário existe - usar magiclink para confirmação de email
+            linkType = 'magiclink'
+            console.error(`✅ Usuário encontrado (${existingUser.id}) - usando type: ${linkType}`)
+          } else {
+            console.error(`ℹ️ Usuário não encontrado - usando type: ${linkType}`)
+          }
+        } catch (listErr: any) {
+          console.error(`⚠️ Erro ao verificar usuário, usando type: ${linkType}`, listErr.message)
+        }
         
-        await sendMail({
-          to: email,
-          subject: 'Confirme seu email - Plenipay',
-          html,
-        })
-
-        console.log('✅ Email enviado com sucesso via SMTP próprio!')
-        console.log('✅ Link enviado:', correctedLink)
-
-        return NextResponse.json({
-          success: true,
-          message: 'Email de confirmação enviado (SMTP próprio) com link correto!',
-          correctedLink,
-          emailSent: true,
-          method: 'smtp_custom',
-        })
-      } catch (smtpError: any) {
-        console.error('❌ Erro ao enviar email via SMTP próprio:', smtpError.message)
-        console.error('❌ Stack:', smtpError.stack)
-        console.warn('⚠️ Vamos tentar fallback via Supabase...')
-        // Continuar para tentar Supabase como fallback
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: linkType,
+          email,
+          options: { redirectTo }
+        } as any)
+        
+        if (linkError || !linkData?.properties?.action_link) {
+          throw new Error(linkError?.message || 'Link não gerado')
+        }
+        
+        let linkGerado = linkData.properties.action_link
+        console.error(`🔍 Link gerado pelo Supabase: ${linkGerado.substring(0, 200)}...`)
+        
+        // SEMPRE converter link do Supabase para link direto do plenipay.com
+        // O Supabase gera: https://xxx.supabase.co/auth/v1/verify?token=...&redirect_to=...
+        // Precisamos: https://plenipay.com/auth/callback?token_hash=...&type=...&next=...
+        
+        const isLinkSupabase = linkGerado.includes('supabase.co/auth/v1/verify')
+        const precisaCorrigir = linkGerado.includes('0.0.0.0') || 
+                                linkGerado.includes(':10000') || 
+                                linkGerado.includes('localhost') ||
+                                isLinkSupabase ||
+                                !linkGerado.includes('plenipay.com/auth/callback')
+        
+        if (precisaCorrigir) {
+          console.error('⚠️ Link precisa ser corrigido, extraindo parâmetros...')
+          
+          let tokenHash: string | null = null
+          let linkType = 'signup'
+          let nextPath = '/home'
+          
+          // Se é link do Supabase (/auth/v1/verify), extrair token e redirect_to
+          if (isLinkSupabase) {
+            console.error('🔍 Detectado link do Supabase - extraindo token e redirect_to...')
+            
+            // Extrair token da query string
+            const tokenMatch = linkGerado.match(/[?&]token=([^&#]+)/i)
+            if (tokenMatch) {
+              tokenHash = decodeURIComponent(tokenMatch[1])
+              console.error('✅ Token extraído do link do Supabase')
+            }
+            
+            // Extrair redirect_to (pode estar URL encoded)
+            const redirectToMatch = linkGerado.match(/[?&]redirect_to=([^&#]+)/i)
+            if (redirectToMatch) {
+              const redirectToDecoded = decodeURIComponent(redirectToMatch[1])
+              console.error(`🔍 redirect_to decodificado: ${redirectToDecoded.substring(0, 100)}...`)
+              
+              // Extrair type e next do redirect_to
+              const redirectUrl = new URL(redirectToDecoded)
+              linkType = redirectUrl.searchParams.get('type') || 'signup'
+              nextPath = redirectUrl.searchParams.get('next') || '/home'
+              console.error(`✅ Type: ${linkType}, Next: ${nextPath}`)
+            }
+            
+            // Extrair type do link original também (pode estar na query)
+            const typeMatch = linkGerado.match(/[?&]type=([^&#]+)/i)
+            if (typeMatch) {
+              linkType = decodeURIComponent(typeMatch[1])
+            }
+          } else {
+            // Link não é do Supabase - tentar extrair token_hash ou access_token
+            const tokenHashMatch = linkGerado.match(/[?&#]token_hash=([^&#]+)/i)
+            if (tokenHashMatch) {
+              tokenHash = decodeURIComponent(tokenHashMatch[1])
+              console.error('✅ Token_hash extraído da query string')
+            }
+            
+            // Tentar extrair access_token do hash (#access_token=...)
+            if (!tokenHash) {
+              const accessTokenMatch = linkGerado.match(/#access_token=([^&#]+)/i)
+              if (accessTokenMatch) {
+                tokenHash = decodeURIComponent(accessTokenMatch[1])
+                console.error('✅ Access_token extraído do hash')
+              }
+            }
+            
+            // Extrair type e next
+            const typeMatch = linkGerado.match(/[?&#]type=([^&#]+)/i)
+            const nextMatch = linkGerado.match(/[?&#]next=([^&#]+)/i)
+            linkType = typeMatch ? decodeURIComponent(typeMatch[1]) : 'signup'
+            nextPath = nextMatch ? decodeURIComponent(nextMatch[1]) : '/home'
+          }
+          
+          if (tokenHash) {
+            // Construir URL correta com plenipay.com usando token_hash
+            linkGerado = `https://plenipay.com/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(linkType)}&next=${encodeURIComponent(nextPath)}`
+            console.error(`✅ Link corrigido: ${linkGerado.substring(0, 150)}...`)
+          } else {
+            console.error('❌ Não foi possível extrair token - usando redirectTo como fallback')
+            linkGerado = redirectTo
+          }
+        }
+        
+        // Garantir que o link sempre use plenipay.com/auth/callback (verificação final)
+        if (!linkGerado.includes('plenipay.com/auth/callback')) {
+          console.error('❌ Link ainda não contém plenipay.com/auth/callback - forçando...')
+          linkGerado = redirectTo
+          console.error(`✅ Link forçado para redirectTo: ${linkGerado}`)
+        }
+        
+        console.error(`✅ Link final que será enviado: ${linkGerado.substring(0, 150)}...`)
+        
+        console.error('📄 Lendo template HTML...')
+        const { readFileSync } = await import('fs')
+        const { join } = await import('path')
+        const templatePath = join(process.cwd(), 'TEMPLATE-EMAIL-CONFIRMACAO-CORRETO.html')
+        console.error(`📄 Template path: ${templatePath}`)
+        
+        let templateHtml: string
+        try {
+          templateHtml = readFileSync(templatePath, 'utf-8')
+          console.error('✅ Template lido com sucesso')
+        } catch (fileErr: any) {
+          console.error(`❌ Erro ao ler template: ${fileErr.message}`)
+          throw new Error(`Template não encontrado: ${templatePath}`)
+        }
+        
+        templateHtml = templateHtml.replace(/\{\{ \.ConfirmationURL \}\}/g, linkGerado)
+        console.error('✅ Template processado, link inserido')
+        console.error(`🔍 Link que será inserido no email: ${linkGerado.substring(0, 200)}...`)
+        
+        // IMPORTANTE: Verificar se o link está correto antes de enviar
+        if (linkGerado.includes('0.0.0.0') || linkGerado.includes(':10000') || !linkGerado.includes('plenipay.com')) {
+          console.error('❌ [CRÍTICO] Link ainda contém URL errada após correção!')
+          console.error(`❌ Link: ${linkGerado}`)
+          throw new Error('Link gerado contém URL inválida. Não é possível enviar email.')
+        }
+        
+        console.error('📤 Chamando sendMail...')
+        try {
+          await sendMail({
+            to: email,
+            subject: 'Confirme seu Cadastro - PLENIPAY',
+            html: templateHtml
+          })
+          
+          logSuccess('✅ Email enviado via SMTP próprio', 'EMAIL_CONFIRMATION')
+          console.error('✅ Email enviado via SMTP próprio')
+          return NextResponse.json({
+            success: true,
+            message: 'Link enviado! Verifique sua caixa de entrada.',
+            method: 'smtp_proprio'
+          }, { status: 200 })
+        } catch (sendMailError: any) {
+          // Se sendMail falhar, relançar o erro para ser capturado pelo catch externo
+          console.error('❌ Erro ao chamar sendMail:', sendMailError.message)
+          console.error('❌ Código:', sendMailError.code)
+          throw sendMailError
+        }
+        
+      } catch (e: any) {
+        const msg = e?.message || String(e)
+        const code = e?.code
+        logError(`❌ SMTP próprio falhou: ${msg}`, 'EMAIL_CONFIRMATION')
+        console.error(`❌ SMTP próprio falhou: ${msg}`)
+        console.error(`❌ Código: ${code || 'N/A'}`)
+        if (e?.stack) console.error(`❌ Stack: ${e.stack.substring(0, 300)}`)
+        if (e?.originalError) {
+          console.error(`❌ Erro original: ${e.originalError.message}`)
+          console.error(`❌ Código original: ${e.originalError.code || 'N/A'}`)
+        }
+        // Segue para tentativa 2 (resend)
       }
     } else {
-      if (!smtpConfigurado) {
-        console.warn('⚠️ SMTP não configurado - usando Supabase como fallback')
+      console.error('⚠️ Pulando SMTP próprio porque:')
+      if (!supabaseAdmin) {
+        console.error('   ❌ Admin client não disponível (SUPABASE_SERVICE_ROLE_KEY?)')
       }
-      if (!correctedLink) {
-        console.warn('⚠️ correctedLink não disponível - usando Supabase como fallback')
+      if (!isSmtpConfigured) {
+        console.error('   ❌ SMTP não configurado (SMTP_* no .env.local?)')
+      }
+      if (!sendMail) {
+        console.error('   ❌ sendMail não disponível (erro ao importar?)')
       }
     }
 
-    // PASSO 4: fallback - Tentar resend com múltiplos tipos (Supabase)
-    console.log('📤 PASSO 4: Tentando resend com múltiplos tipos...')
+    // TENTATIVA 2: Resend do Supabase
+    logInfo('📤 Tentativa 2: Resend do Supabase...', 'EMAIL_CONFIRMATION')
+    console.error('📤 Tentativa 2: Resend do Supabase...')
     
-    const supabasePublic = createClient(
+    const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
-    
-    // Tentar múltiplos tipos: 'signup' primeiro, depois 'email'
-    const tiposParaTentar = ['signup', 'email'] as const
-    let resendError: any = null
-    let resendData: any = null
-    let tipoUsado: string | null = null
-    let ultimoErro: any = null // IMPORTANTE: Declarar ultimoErro antes de usar
-    
-    for (const tipo of tiposParaTentar) {
-      try {
-        console.log(`📤 [RESEND] Tentando com type: ${tipo}...`)
-        console.log('  - email:', email)
-        if (!usarOTP && redirectTo) {
-          console.log('  - emailRedirectTo:', redirectTo)
-          console.log('  - ⚠️ IMPORTANTE: Verifique se o Supabase está usando este emailRedirectTo')
-        } else {
-          console.log('  - Modo OTP: Não usando emailRedirectTo (código será digitado no site)')
-        }
-        
-        const result = await supabasePublic.auth.resend({
-          type: tipo as any,
-          email: email,
-          options: usarOTP ? undefined : {
-            emailRedirectTo: redirectTo
-          }
-        })
-    
-        resendData = result.data
-        resendError = result.error
-        
-        console.log(`📬 [RESEND] Resposta do resend (type: ${tipo}):`)
-    console.log('  - Erro:', resendError?.message || 'Nenhum')
-        console.log('  - Código do erro:', resendError?.status || 'Nenhum')
-    console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
-        console.log('  - Tem dados:', !!resendData)
-        console.log('  - Tem erro:', !!resendError)
-        
-        // IMPORTANTE: Se não há erro, considerar sucesso
-        // O Supabase pode retornar sucesso sem dados na resposta, mas isso não significa que o email não foi enviado
-        // A ausência de erro indica que a requisição foi aceita e processada
-        if (!resendError) {
-          // Resend retornou sucesso (sem erro)
-          console.log(`✅ Resend retornou sucesso com type: ${tipo}!`)
-          
-          if (resendData) {
-            console.log('✅ Resposta contém dados - email provavelmente foi enviado')
-          } else {
-            console.log('⚠️ Resposta não contém dados, mas não há erro')
-            console.log('⚠️ O Supabase pode ter enviado o email mesmo sem retornar dados')
-            console.log('⚠️ Isso é comum quando SMTP está configurado corretamente')
-          }
-          
-          // Se não há erro, considerar sucesso e retornar
-          // Mesmo sem dados, se não há erro, o Supabase aceitou a requisição
-          tipoUsado = tipo
-          resendError = null
-          break // Sucesso, não precisa tentar outros tipos
-        } else {
-          console.warn(`⚠️ Resend falhou com type: ${tipo}, erro: ${resendError.message}`)
-          ultimoErro = resendError // Guardar último erro
-          // Continuar para tentar próximo tipo
-        }
-      } catch (resendException: any) {
-        console.error(`❌ Exceção ao tentar resend (type: ${tipo}):`, resendException.message)
-        resendError = resendException
-        ultimoErro = resendException
-        // Continuar para tentar próximo tipo
-      }
-    }
-    
-    // Se algum tipo funcionou, retornar sucesso
-    // IMPORTANTE: Verificar se tipoUsado foi definido (indica que resend retornou sucesso)
-    if (tipoUsado) {
-      console.log(`✅ Resend funcionou com type: ${tipoUsado} - retornando sucesso`)
-      
-      // Se o link gerado tinha URL incorreta, adicionar aviso
-      const response: any = {
-        success: true,
-        message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
-        method: `resend_${tipoUsado}`,
-        note: 'Se não receber, verifique spam e logs do Supabase (Authentication → Logs)'
-      }
-      
-      if (!linkGeradoComUrlCorreta && linkGerado) {
-        console.error('⚠️ ATENÇÃO: Link gerado tinha URL incorreta!')
-        console.error('⚠️ O email foi enviado, mas o link pode ter 0.0.0.0:10000')
-        console.error('⚠️ SOLUÇÃO: Verifique Site URL no Supabase Dashboard')
-        response.warning = 'O link pode ter URL incorreta (0.0.0.0:10000). Verifique Site URL no Supabase Dashboard.'
-        response.linkGenerated = linkGerado.substring(0, 200) + '...'
-        response.solution = 'Authentication → URL Configuration → Site URL deve ser https://plenipay.com'
-        response.bugInfo = 'Há um bug conhecido no Supabase onde resend() ignora emailRedirectTo e usa Site URL do dashboard'
-      }
-      
-      return NextResponse.json(response)
-    }
-    
-    // Se chegou aqui, nenhum tipo funcionou ou retornou sucesso mas sem dados
-    console.error('❌ Nenhum tipo de resend funcionou ou retornou sucesso mas sem dados')
-    console.error('❌ Último erro:', ultimoErro?.message || 'Nenhum erro capturado')
-    
-    // PASSO 4: Se resend não funcionou, não usar inviteUserByEmail (evita email de convite)
-    // IMPORTANTE: inviteUserByEmail envia email de "invite", não de "confirmação"
-    // Isso confunde o usuário e não é o comportamento desejado
-    console.log('📤 PASSO 4: Resend não funcionou - NÃO usando inviteUserByEmail (envia email de invite, não confirmação)')
-    console.log('⚠️ NOTA: inviteUserByEmail envia email de "invite", não de "confirmação de signup"')
-    console.log('⚠️ Vamos tentar gerar link manualmente para diagnóstico')
-    
-    // PASSO 5: Tentar gerar link manualmente via Admin API para diagnóstico
-    // IMPORTANTE: generateLink NÃO envia email, apenas gera o link
-    // Mas podemos verificar se o link gerado tem a URL correta
-    console.log('📤 PASSO 5: Resend falhou - tentando gerar link manualmente via Admin API para diagnóstico...')
-    console.log('⚠️ IMPORTANTE: generateLink NÃO envia email, apenas gera o link para diagnóstico')
-    
-    try {
-      // Gerar link de confirmação manualmente para verificar se a URL está correta
-      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+    const { error } = await supabase.auth.resend({
       type: 'signup',
-      email: email,
-      options: {
-          redirectTo: redirectTo
-        }
-      })
-      
-      if (!linkError && linkData?.properties?.action_link) {
-        let generatedLink = linkData.properties.action_link
-        console.log('✅ Link gerado com sucesso via Admin API!')
-        console.log('📧 Link completo (original):', generatedLink)
-        console.log('🔍 Verificando URL no link gerado...')
-        
-        // SOLUÇÃO AGRESSIVA: Substituir URL incorreta no link gerado
-        // Se o link contém 0.0.0.0:10000, substituir por plenipay.com
-        if (generatedLink.includes('0.0.0.0') || generatedLink.includes('10000')) {
-          console.error('❌ PROBLEMA CRÍTICO: Link gerado contém 0.0.0.0:10000!')
-          console.error('❌ Isso significa que o Supabase está usando Site URL do dashboard')
-          console.error('❌ Tentando CORRIGIR o link substituindo a URL...')
-          
-          // Substituir TODAS as ocorrências de 0.0.0.0:10000 por plenipay.com
-          // Incluindo na URL base do Supabase e em parâmetros
-          let linkCorrigido = generatedLink
-            // Substituir URL base do Supabase (ex: https://0.0.0.0:10000/auth/v1/verify)
-            .replace(/https?:\/\/0\.0\.0\.0:10000\/auth\/v1\/verify/g, 'https://plenipay.com/auth/callback')
-            .replace(/https?:\/\/0\.0\.0\.0:10000\/auth\/v1/g, 'https://plenipay.com/auth')
-            .replace(/https?:\/\/0\.0\.0\.0:10000\/auth/g, 'https://plenipay.com/auth')
-            .replace(/https?:\/\/0\.0\.0\.0:10000/g, 'https://plenipay.com')
-            .replace(/https?:\/\/0\.0\.0\.0\/auth/g, 'https://plenipay.com/auth')
-            .replace(/https?:\/\/0\.0\.0\.0/g, 'https://plenipay.com')
-            // Substituir em parâmetros URL-encoded
-            .replace(/redirect_to=https%3A%2F%2F0\.0\.0\.0:10000/g, `redirect_to=${encodeURIComponent(redirectTo)}`)
-            .replace(/redirect_to=https%3A%2F%2F0\.0\.0\.0/g, `redirect_to=${encodeURIComponent(redirectTo)}`)
-            // Substituir em parâmetros não-encoded
-            .replace(/redirect_to=https:\/\/0\.0\.0\.0:10000/g, `redirect_to=${redirectTo}`)
-            .replace(/redirect_to=https:\/\/0\.0\.0\.0/g, `redirect_to=${redirectTo}`)
-          
-          // Se o link ainda contém o domínio do Supabase com 0.0.0.0, substituir pelo domínio do Supabase correto
-          // Extrair o domínio correto do Supabase da variável de ambiente
-          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-          if (supabaseUrl && linkCorrigido.includes('0.0.0.0')) {
-            // Se o link contém o domínio do Supabase com 0.0.0.0, substituir pelo domínio correto
-            const supabaseDomain = new URL(supabaseUrl).hostname
-            linkCorrigido = linkCorrigido.replace(/0\.0\.0\.0:10000/g, supabaseDomain)
-            console.log('🔧 Substituindo domínio do Supabase:', supabaseDomain)
-          }
-          
-          // Última verificação: se ainda tem 0.0.0.0, substituir por plenipay.com
-          if (linkCorrigido.includes('0.0.0.0') || linkCorrigido.includes('10000')) {
-            linkCorrigido = linkCorrigido.replace(/0\.0\.0\.0(:10000)?/g, 'plenipay.com')
-          }
-          
-          if (linkCorrigido !== generatedLink) {
-            console.log('✅ Link corrigido!')
-            console.log('📧 Link original:', generatedLink.substring(0, 200) + '...')
-            console.log('📧 Link corrigido:', linkCorrigido.substring(0, 200) + '...')
-            generatedLink = linkCorrigido
-          } else {
-            console.error('❌ Não foi possível corrigir o link automaticamente')
-          }
-        }
-        
-        // SOLUÇÃO DEFINITIVA NO CÓDIGO: Extrair token_hash e construir link correto manualmente
-        // Se o link foi gerado mas tem URL incorreta, vamos extrair o token_hash e construir nosso próprio link
-        let finalCorrectedLink = generatedLink
-        
-        // Tentar extrair token_hash do link gerado
-        let tokenHashExtraido: string | null = null
-        const tokenHashMatch = generatedLink.match(/token_hash=([^&]+)/i) || 
-                               generatedLink.match(/token_hash=([^#]+)/i) ||
-                               generatedLink.match(/#token_hash=([^&]+)/i)
-        
-        if (tokenHashMatch && tokenHashMatch[1]) {
-          tokenHashExtraido = decodeURIComponent(tokenHashMatch[1])
-          console.log('✅ Token hash extraído do link gerado:', tokenHashExtraido.substring(0, 20) + '...')
-        }
-        
-        // Se conseguimos extrair o token_hash, construir link correto manualmente
-        if (tokenHashExtraido) {
-          console.log('🔧 Construindo link correto manualmente usando token_hash extraído...')
-          
-          // Construir link de callback direto no nosso domínio
-          const linkCorrigidoManual = new URL('/auth/callback', 'https://plenipay.com')
-          linkCorrigidoManual.searchParams.set('token_hash', tokenHashExtraido)
-          linkCorrigidoManual.searchParams.set('type', type || 'signup')
-          linkCorrigidoManual.searchParams.set('next', '/home')
-          
-          finalCorrectedLink = linkCorrigidoManual.toString()
-          console.log('✅ Link construído manualmente:', finalCorrectedLink)
-        }
-        
-        // Verificar se o link contém a URL correta após correção
-        if (finalCorrectedLink.includes('plenipay.com')) {
-          console.log('✅ Link contém URL correta (plenipay.com) após verificação')
-          
-          // Substituir também a URL base do Supabase se tiver 0.0.0.0:10000
-          finalCorrectedLink = finalCorrectedLink.replace(
-            /https?:\/\/0\.0\.0\.0:10000\/auth\/v1\/verify/g,
-            'https://plenipay.com/auth/callback'
-          )
-          
-          // Substituir qualquer ocorrência remanescente de 0.0.0.0:10000
-          finalCorrectedLink = finalCorrectedLink.replace(/0\.0\.0\.0:10000/g, 'plenipay.com')
-          
-          // IMPORTANTE: Se o link foi gerado e corrigido, considerar sucesso
-          console.log('✅ Link foi gerado e corrigido - retornando sucesso')
-          console.log('📧 Link final corrigido:', finalCorrectedLink.substring(0, 200) + '...')
-          
+      email,
+      options: { emailRedirectTo: redirectTo }
+    })
+    
+    if (!error) {
+      logSuccess('✅ Email enviado via resend', 'EMAIL_CONFIRMATION')
+      console.error('✅ Email enviado via resend')
       return NextResponse.json({
         success: true,
-            message: 'Link de confirmação gerado e corrigido com sucesso!',
-            details: 'O link foi gerado e corrigido no código. Use o link abaixo para confirmar seu email.',
-            correctedLink: finalCorrectedLink,
-            emailSent: false, // O email pode não ter sido enviado automaticamente
-            note: 'O Supabase pode ter enviado um email com link incorreto. Use o link corrigido acima para confirmar seu email.',
-            redirectToPassed: redirectTo,
-            instructions: 'Copie e cole o link corrigido no navegador para confirmar seu email.',
-            solution: 'Esta é uma solução no código que corrige o link mesmo quando o Supabase usa URL incorreta.'
-          }, { status: 200 })
-        } else {
-          console.error('❌ Link ainda contém URL incorreta após tentativa de correção')
-          console.error('❌ Link:', generatedLink.substring(0, 200) + '...')
-          
-          // Retornar erro específico sobre Site URL
-          return NextResponse.json(
-            {
-              error: 'Link gerado está usando URL incorreta (0.0.0.0:10000) e não foi possível corrigir automaticamente.',
-              details: 'O Supabase está usando a Site URL do dashboard em vez do emailRedirectTo.',
-              solution: 'Corrija a Site URL no Supabase Dashboard:',
-              steps: [
-                '1. Acesse: Authentication → URL Configuration',
-                '2. Verifique "Site URL" - deve ser https://plenipay.com',
-                '3. Se estiver como 0.0.0.0:10000 ou vazio, MUDE PARA https://plenipay.com',
-                '4. IMPORTANTE: Aguarde 5-10 minutos após salvar (Supabase pode usar cache)',
-                '5. Verifique o template de email: Authentication → Email Templates → "Confirm signup" → Deve usar {{ .ConfirmationURL }}',
-                '6. Tente novamente criar a conta'
-              ],
-              redirectToPassed: redirectTo,
-              generatedLink: generatedLink.substring(0, 200) + '...',
-              cacheNote: 'O Supabase pode estar usando cache. Aguarde alguns minutos após mudar a Site URL.'
-            },
-            { status: 500 }
-          )
-        }
-      } else {
-        console.error('❌ Erro ao gerar link:', linkError?.message || 'Erro desconhecido')
-        console.error('❌ Erro completo:', JSON.stringify(linkError, null, 2))
-      }
-    } catch (linkException: any) {
-      console.error('❌ Exceção ao gerar link:', linkException.message)
-      console.error('❌ Stack:', linkException.stack)
+        message: 'Link enviado! Verifique sua caixa de entrada.'
+      }, { status: 200 })
     }
     
-    // Se chegou aqui, todos os métodos falharam
-    console.error('❌ Todos os métodos falharam. Erro do resend:')
-    console.error('  - Mensagem:', ultimoErro?.message || resendError?.message || 'Nenhum erro específico')
-    console.error('  - Status:', ultimoErro?.status || resendError?.status || 'Nenhum')
-    console.error('  - Erro completo:', ultimoErro || resendError ? JSON.stringify(ultimoErro || resendError, null, 2) : 'Nenhum erro capturado')
+    logError(`❌ Resend falhou: ${error.message}`, 'EMAIL_CONFIRMATION')
+    console.error(`❌ Resend falhou: ${error.message}`)
     
-    // Verificar tipo de erro específico
-    const errorMsg = ((ultimoErro || resendError)?.message || '').toLowerCase()
-    let errorDetails = 'Erro desconhecido ao enviar email de confirmação.'
-    
-    // Se não há erro específico do resend, pode ser problema de configuração
-    if (!ultimoErro && !resendError) {
-      errorDetails = 'O resend não retornou erro, mas também não enviou o email. Isso geralmente indica problema de configuração SMTP ou template de email no Supabase.'
+    if (error.message.toLowerCase().includes('rate limit')) {
+      return NextResponse.json({ error: 'Muitas tentativas. Aguarde alguns minutos.' }, { status: 429 })
     }
     
-    if (errorMsg.includes('email not found') || errorMsg.includes('user not found')) {
-      errorDetails = 'Usuário não encontrado. Verifique se o email está correto.'
-    } else if (errorMsg.includes('rate limit') || errorMsg.includes('too many requests')) {
-      errorDetails = 'Limite de envio de emails atingido. Aguarde alguns minutos antes de tentar novamente.'
-    } else if (errorMsg.includes('email already confirmed')) {
-      errorDetails = 'Este email já foi confirmado. Você pode fazer login normalmente.'
-    } else if (errorMsg.includes('smtp') || errorMsg.includes('email sending')) {
-      errorDetails = 'Erro ao enviar email. Verifique a configuração SMTP no Supabase Dashboard.'
-    } else if (errorMsg.includes('signup') || errorMsg.includes('sign up')) {
-      errorDetails = 'Erro ao enviar email de confirmação. O resend pode não funcionar para usuários criados há muito tempo. Tente criar uma nova conta.'
-    }
-    
-    console.log('⚠️ Todos os métodos falharam. Verificando configuração...')
-    
-    // Se chegou aqui, problema de configuração
-    return NextResponse.json(
-      { 
-        error: 'Não foi possível gerar o link de confirmação nem enviar o email.',
-        details: 'Por favor, verifique no Supabase Dashboard:',
-        checklist: [
-          '1. SMTP configurado em Project Settings → Auth → SMTP Settings (Enable Custom SMTP marcado)',
-          '2. Template de email configurado em Authentication → Email Templates → "Confirm signup" usando {{ .ConfirmationURL }}',
-          '3. "Enable email confirmations" habilitado em Authentication → URL Configuration',
-          '4. Verifique os logs do Supabase em Authentication → Logs para ver erros específicos',
-          '5. O email do SMTP existe e a senha está correta no seu provedor (Hostinger, etc.)',
-          '6. Teste manualmente: Authentication → Users → Selecione usuário → "Send password recovery"'
-        ],
-        suggestion: `Erro específico: ${errorDetails}. Verifique logs do console e do Supabase para mais detalhes.`,
-        methodsTried: ['resend_signup', 'resend_email'],
-        errorDetails: errorDetails,
-        resendError: (ultimoErro || resendError)?.message || 'Erro desconhecido do resend'
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({
+      error: `Erro ao enviar email: ${error.message}`,
+      detail: !supabaseAdmin
+        ? 'Configure SUPABASE_SERVICE_ROLE_KEY no .env.local para usar SMTP próprio.'
+        : !isSmtpConfigured
+          ? 'Configure SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD no .env.local.'
+          : 'Supabase e SMTP próprio falharam. Verifique terminal para detalhes.'
+    }, { status: 500 })
     
   } catch (error: any) {
-    console.error('❌ Erro inesperado:', error)
-    return NextResponse.json(
-      { 
-        error: error?.message || 'Erro inesperado ao enviar link de confirmação',
-        details: 'Verifique os logs do servidor para mais detalhes'
-      },
-      { status: 500 }
-    )
+    const msg = error?.message || 'Erro desconhecido'
+    const code = error?.code
+    logError(`❌ Erro inesperado: ${msg}`, 'EMAIL_CONFIRMATION')
+    console.error('❌ ========== ERRO INESPERADO ==========')
+    console.error('❌ Mensagem:', msg)
+    console.error('❌ Código:', code || 'N/A')
+    console.error('❌ Tipo:', typeof error)
+    if (error?.stack) {
+      console.error('❌ Stack:', error.stack.substring(0, 500))
+    }
+    if (error?.originalError) {
+      console.error('❌ Erro original:', error.originalError.message)
+      console.error('❌ Código original:', error.originalError.code || 'N/A')
+    }
+    return NextResponse.json({
+      error: `Erro ao enviar email: ${msg}`,
+      detail: code ? `Código: ${code}. Verifique terminal para mais detalhes.` : 'Verifique terminal para mais detalhes.'
+    }, { status: 500 })
   }
 }
-

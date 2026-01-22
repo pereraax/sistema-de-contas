@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signUp } from '@/lib/auth'
 import { createNotification } from '@/components/NotificationBell'
-import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import ModalConfirmarEmail from '@/components/ModalConfirmarEmail'
@@ -23,6 +23,9 @@ function CadastroContent() {
   const [showModalConfirmacao, setShowModalConfirmacao] = useState(false)
   const [showModalLoginConcluido, setShowModalLoginConcluido] = useState(false)
   const [emailCadastrado, setEmailCadastrado] = useState('')
+  const [signUpResult, setSignUpResult] = useState<any>(null) // Armazenar resultado do signUp
+  const [erroRateLimit, setErroRateLimit] = useState<string | null>(null) // Armazenar erro de rate limiting
+  const [mostrarAvisoCampos, setMostrarAvisoCampos] = useState(false) // Controlar exibição do aviso de campos incompletos
   const [formData, setFormData] = useState({
     nome: '',
     email: '',
@@ -31,25 +34,7 @@ function CadastroContent() {
     whatsapp: '',
   })
 
-  // Debug: monitorar mudanças no estado do modal
-  useEffect(() => {
-    console.log('🔔 [DEBUG MODAL] showModalConfirmacao:', showModalConfirmacao)
-    console.log('📧 [DEBUG MODAL] emailCadastrado:', emailCadastrado)
-    console.log('📧 [DEBUG MODAL] formData.email:', formData.email)
-    const deveMostrar = showModalConfirmacao && (emailCadastrado || formData.email)
-    console.log('✅ [DEBUG MODAL] Condição para mostrar modal:', deveMostrar)
-    if (showModalConfirmacao) {
-      console.log('🚨 [DEBUG MODAL] Modal deveria estar visível AGORA!')
-    }
-  }, [showModalConfirmacao, emailCadastrado, formData.email])
-  
-  // Forçar renderização do modal se necessário
-  useEffect(() => {
-    if (showModalConfirmacao && !emailCadastrado && formData.email) {
-      console.log('🔧 Corrigindo: definindo emailCadastrado para garantir que modal apareça')
-      setEmailCadastrado(formData.email)
-    }
-  }, [showModalConfirmacao, emailCadastrado, formData.email])
+  // Estrutura de verificação de email removida temporariamente
 
   const formatarTelefone = (value: string) => {
     const telefone = value.replace(/\D/g, '')
@@ -134,6 +119,7 @@ function CadastroContent() {
     // Validações
     if (!formData.nome.trim()) {
       console.log('Validação falhou: nome vazio')
+      setMostrarAvisoCampos(true)
       createNotification('Informe seu nome', 'warning')
       setLoading(false)
       return
@@ -141,6 +127,7 @@ function CadastroContent() {
 
     if (!formData.email.trim() || !formData.email.includes('@')) {
       console.log('Validação falhou: email inválido')
+      setMostrarAvisoCampos(true)
       createNotification('Informe um email válido', 'warning')
       setLoading(false)
       return
@@ -150,6 +137,7 @@ function CadastroContent() {
     const senhaErrors = validarSenha(formData.senha)
     if (senhaErrors.length > 0) {
       console.log('Validação falhou:', senhaErrors.join(', '))
+      setMostrarAvisoCampos(true)
       createNotification('A senha não atende aos requisitos. Verifique as regras abaixo.', 'warning')
       setLoading(false)
       return
@@ -157,6 +145,7 @@ function CadastroContent() {
 
     if (formData.senha !== formData.confirmarSenha) {
       console.log('Validação falhou: senhas não coincidem')
+      setMostrarAvisoCampos(true)
       createNotification('As senhas não coincidem', 'warning')
       setLoading(false)
       return
@@ -166,10 +155,14 @@ function CadastroContent() {
 
     if (!whatsappLimpo || whatsappLimpo.length < 10) {
       console.log('Validação falhou: whatsapp inválido', whatsappLimpo)
+      setMostrarAvisoCampos(true)
       createNotification('Informe um WhatsApp válido (com DDD)', 'warning')
       setLoading(false)
       return
     }
+    
+    // Se passou todas as validações, ocultar aviso
+    setMostrarAvisoCampos(false)
 
     console.log('✅ Todas as validações passaram, criando conta...')
 
@@ -191,137 +184,56 @@ function CadastroContent() {
       )
 
       console.log('📥 Resultado do signUp recebido:', JSON.stringify(result, null, 2))
-      console.log('📥 Result é truthy?', !!result)
-      console.log('📥 Result tem propriedade error?', 'error' in (result || {}))
-      console.log('📥 Tipo do resultado:', typeof result)
-      console.log('📥 Result é null?', result === null)
-      console.log('📥 Result é undefined?', result === undefined)
-      console.log('📥 Result.error:', result?.error)
-      console.log('📥 Result.data:', result?.data)
-      console.log('📥 Result.emailConfirmado:', result?.emailConfirmado)
-
-      // Verificar se há erro
-      const erroResult = result && typeof result === 'object' && 'error' in result ? String(result.error) : null
-      const userCreated = result && typeof result === 'object' && 'userCreated' in result ? result.userCreated : false
-      const teveErroEmail = result && typeof result === 'object' && 'teveErroEmail' in result ? result.teveErroEmail : false
       
-      if (erroResult) {
-        console.error('❌ Erro ao criar conta:', erroResult)
-        
-        // Verificar se é erro de envio de email (mas conta foi criada)
-        const isEmailError = erroResult.includes('email') || 
-                           erroResult.includes('Email') || 
-                           erroResult.includes('confirmation') ||
-                           erroResult.includes('sending') ||
-                           erroResult.includes('reenviar')
-        
-        // Se for erro de envio de email OU se userCreated for true OU se teveErroEmail for true, mostrar modal
-        if (isEmailError || userCreated || teveErroEmail) {
-          // Se for erro de envio de email, a conta provavelmente foi criada
-          // Mostrar o modal mesmo assim para permitir reenvio
-          console.log('⚠️ Erro no envio de email, mas conta foi criada. Mostrando modal...')
-          
-          const emailParaModal = formData.email
-          setEmailCadastrado(emailParaModal)
-          
-          setTimeout(() => {
-            console.log('🔔 Mostrando modal de confirmação de email (mesmo com erro de envio)...')
-            setShowModalConfirmacao(true)
-          }, 200)
-          
-          setLoading(false)
-          createNotification('Conta criada! Mas houve problema ao enviar o email. Use o botão abaixo para solicitar um novo email de confirmação.', 'warning')
-          return
-        }
-        
-        // Para outros erros (como email já cadastrado), não mostrar modal
-        let mensagemErro = erroResult
-        if (erroResult.includes('already registered') || erroResult.includes('já está cadastrado')) {
-          mensagemErro = 'Este email já está cadastrado. Deseja fazer login?'
-        } else if (erroResult.includes('rate limit') || erroResult.includes('rate_limit') || erroResult.includes('2 seconds') || erroResult.includes('For security purposes')) {
-          // Se o erro for de rate limiting mas a conta foi criada, mostrar modal
-          if (userCreated || teveErroEmail) {
-            mensagemErro = 'Conta criada! Mas houve um pequeno atraso. Verifique seu email.'
-            const emailParaModal = formData.email
-            setEmailCadastrado(emailParaModal)
-            
-            setTimeout(() => {
-              setShowModalConfirmacao(true)
-            }, 200)
-            
-            setLoading(false)
-            createNotification(mensagemErro, 'success')
-            return
-          } else {
-            mensagemErro = 'Aguarde alguns segundos e tente novamente. O limite de requisições foi atingido temporariamente.'
-          }
-        }
-        
-        createNotification(mensagemErro, 'warning')
+      // Armazenar resultado para usar no modal
+      setSignUpResult(result)
+
+      // Verificar se há erro crítico (usuário não foi criado)
+      if (result?.error && !result?.userCreated) {
+        console.error('❌ Erro ao criar conta:', result.error)
+        createNotification(result.error, 'error')
         setLoading(false)
         return
       }
 
-      // Verificar se a conta foi criada com sucesso
-      // Se não há erro, significa que a conta foi criada (mesmo que result seja null/undefined em alguns casos)
-      // Como a função signUp sempre retorna um objeto com error ou data, se não tem error, tem sucesso
-      if (result && !result.error) {
+      // Se usuário foi criado (mesmo com erro de envio de email), continuar
+      if (result?.userCreated) {
         console.log('✅ Conta criada com sucesso!')
-        console.log('📧 Email cadastrado:', formData.email)
-        console.log('📧 Email confirmado?', result?.emailConfirmado)
-        console.log('📦 Result.data:', result?.data)
         
         // Rastrear evento de cadastro no Facebook Pixel
         try {
           const { trackRegistration } = await import('@/lib/facebook-pixel-events')
           trackRegistration()
-          console.log('✅ [Facebook Pixel] Evento CompleteRegistration rastreado')
         } catch (error) {
           console.warn('⚠️ [Facebook Pixel] Erro ao rastrear cadastro:', error)
         }
         
-        // Email foi enviado automaticamente pelo Supabase
-        // Mostrar modal pedindo para verificar email
-        console.log('📧 Email de confirmação foi enviado automaticamente')
-        console.log('🔒 Usuário precisa verificar email antes de fazer login')
-        
-        // Definir email ANTES de setar loading como false
-        const emailParaModal = formData.email
-        console.log('📧 Definindo emailCadastrado:', emailParaModal)
-        
-        // Definir email primeiro
-        setEmailCadastrado(emailParaModal)
-        
-        // Aguardar um pouco para garantir que o estado foi atualizado
-        // Usar setTimeout para garantir que o React tenha atualizado o estado
-        setTimeout(() => {
-          console.log('🔔 Mostrando modal de confirmação de email...')
-          console.log('📧 Email cadastrado:', emailParaModal)
-          console.log('📧 showModalConfirmacao será:', true)
+        // Verificar status do email
+        if (result.emailConfirmado || result.data?.session) {
+          // Email já confirmado - login automático
+          console.log('✅ Email confirmado - redirecionando')
+          createNotification('Conta criada com sucesso! Redirecionando...', 'success')
+          setTimeout(() => {
+            router.push('/home')
+          }, 1000)
+        } else {
+          // Email não confirmado - mostrar modal para confirmar
+          console.log('📧 Email não confirmado - mostrando modal')
+          setEmailCadastrado(formData.email)
           setShowModalConfirmacao(true)
-          console.log('✅ Modal deve estar visível agora')
-        }, 200)
+          
+          // Mensagem diferente se email não foi enviado
+          if (result.emailEnviado === false) {
+            createNotification('Conta criada! Houve um problema ao enviar o email. Use o botão "Reenviar link" abaixo.', 'warning')
+          } else {
+            createNotification('Conta criada! Verifique seu email para confirmar.', 'success')
+          }
+        }
         
         setLoading(false)
-        createNotification('Conta criada! Verifique seu email para confirmar.', 'success')
       } else {
-        // Se chegou aqui, pode ser que result seja null/undefined ou tenha estrutura diferente
-        // Mas se não houve erro no try/catch, vamos assumir que funcionou e mostrar o modal
-        console.warn('⚠️ Resultado do signUp não tem estrutura esperada:', result)
-        console.log('⚠️ Mas como não houve erro, assumindo sucesso e mostrando modal...')
-        
-        // Mostrar modal mesmo assim se não houve erro explícito
-        const emailParaModal = formData.email
-        console.log('📧 Definindo emailCadastrado (fallback):', emailParaModal)
-        setEmailCadastrado(emailParaModal)
-        
-        setTimeout(() => {
-          console.log('🔔 Mostrando modal de confirmação de email (fallback)...')
-          setShowModalConfirmacao(true)
-        }, 200)
-        
+        createNotification('Erro ao criar conta. Tente novamente.', 'error')
         setLoading(false)
-        createNotification('Conta criada! Verifique seu email para confirmar.', 'success')
       }
     } catch (error: any) {
       console.error('❌ Erro inesperado no try/catch:', error)
@@ -530,12 +442,37 @@ function CadastroContent() {
                 onChange={(e) => {
                   const valorLimpo = e.target.value.replace(/\D/g, '')
                   setFormData({ ...formData, whatsapp: valorLimpo })
+                  // Ocultar aviso quando começar a preencher
+                  if (valorLimpo.length > 0) {
+                    setMostrarAvisoCampos(false)
+                  }
                 }}
                 maxLength={15}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#00C2FF] focus:ring-1 focus:ring-[#00C2FF]/20 transition-all"
+                className={`w-full px-3 py-2 bg-white border rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 transition-all ${
+                  mostrarAvisoCampos && (!formData.whatsapp || formData.whatsapp.replace(/\D/g, '').length < 10)
+                    ? 'border-amber-500 focus:border-amber-500 focus:ring-amber-500/20'
+                    : 'border-gray-300 focus:border-[#00C2FF] focus:ring-[#00C2FF]/20'
+                }`}
                 placeholder="(00) 00000-0000"
               />
             </div>
+
+            {/* Mensagem de aviso na parte inferior */}
+            {mostrarAvisoCampos && (
+              <div className="bg-amber-50 rounded-xl px-4 py-3 border border-amber-200 shadow-sm">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-amber-800 mb-1">
+                      Complete todos os campos obrigatórios
+                    </p>
+                    <p className="text-xs text-amber-700 leading-relaxed">
+                      Por favor, preencha todos os campos marcados com * antes de continuar. Verifique especialmente o campo de WhatsApp.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <button
               type="submit"
@@ -603,33 +540,39 @@ function CadastroContent() {
         />
       </div>
 
-      {/* Modal de Confirmação de Email - REMOVIDO: não aparece mais após cadastro */}
-      {/* O modal só aparece quando o usuário clica "Verificar agora" no perfil */}
-      {/* Modal de Confirmação de Email - Aparece após criar conta */}
-      {showModalConfirmacao && (emailCadastrado || formData.email) ? (
+      {/* PARTE 3 & 4: Modal de Confirmação de Email */}
+      {showModalConfirmacao && emailCadastrado && (
         <ModalConfirmarEmail
-          key={`modal-${emailCadastrado || formData.email}`}
-          email={emailCadastrado || formData.email}
+          email={emailCadastrado}
           obrigatorio={false}
-          emailJaEnviado={false}
-          onConfirmado={() => {
-            console.log('✅ Email confirmado via callback - redirecionando para home...')
+          emailJaEnviado={signUpResult?.emailEnviado || false}
+          onConfirmado={async () => {
+            console.log('✅ Email confirmado via callback - fazendo login automático...')
             setShowModalConfirmacao(false)
-            // Redirecionar para home quando email for confirmado (após clicar no link)
-            router.push('/home?emailConfirmed=true')
+            
+            // Verificar se já está logado (o callback cria sessão automaticamente)
+            const supabase = createClient()
+            const { data: { session } } = await supabase.auth.getSession()
+            
+            if (session) {
+              createNotification('Email confirmado! Redirecionando...', 'success')
+              router.push('/home?emailConfirmed=true')
+            } else {
+              createNotification('Email confirmado! Faça login para continuar.', 'info')
+              setTimeout(() => {
+                router.push('/login?mensagem=Email confirmado! Faça login para continuar.')
+              }, 1000)
+            }
           }}
           onClose={() => {
-            // Permitir fechar o modal - usuário pode verificar depois
-            console.log('⚠️ Modal fechado - usuário pode verificar email depois')
             setShowModalConfirmacao(false)
-            // Redirecionar para login informando que precisa verificar email
-            createNotification('Conta criada! Verifique seu email para confirmar antes de fazer login.', 'info')
+            createNotification('Verifique seu email e confirme sua conta antes de fazer login.', 'info')
             setTimeout(() => {
-              router.push('/login?mensagem=Verifique seu email para confirmar a conta antes de fazer login.')
+              router.push('/login?mensagem=Verifique seu email para confirmar a conta.')
             }, 1000)
           }}
         />
-      ) : null}
+      )}
 
       {/* Popup de Login Concluído */}
       <ModalLoginConcluido

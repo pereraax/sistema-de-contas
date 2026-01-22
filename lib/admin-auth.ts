@@ -139,23 +139,23 @@ export async function obterTodosUsuarios() {
           try {
             const { data: authUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers()
             if (authUsers?.users && !authError) {
-              (authUsers.users as any[]).forEach((user: any) => {
-                lastSignInMap.set(user.id, user.last_sign_in_at || null)
-              })
+                (authUsers.users as any[]).forEach((user: any) => {
+                  lastSignInMap.set(user.id, user.last_sign_in_at || null)
+                })
             }
           } catch (authErr) {
             console.warn('⚠️ [obterTodosUsuarios] Não foi possível buscar auth.users para last_sign_in_at:', authErr)
           }
-        }
-        
+              }
+              
         // Retornar TODOS os perfis, enriquecidos com last_sign_in_at quando disponível
         const data = rpcData.map((profile: any) => ({
-          ...profile,
-          last_sign_in_at: lastSignInMap.get(profile.id) || null
-        }))
-        
+                ...profile,
+                last_sign_in_at: lastSignInMap.get(profile.id) || null
+              }))
+              
         console.log(`✅ [obterTodosUsuarios] Retornando ${data.length} usuários via RPC (sem filtrar)`)
-        return { data, error: null }
+              return { data, error: null }
       } else {
         console.log('⚠️ [obterTodosUsuarios] RPC retornou array vazio - retornando array vazio')
         return { data: [], error: null }
@@ -213,16 +213,16 @@ export async function obterTodosUsuarios() {
           }
         } catch (authErr) {
           console.warn('⚠️ [obterTodosUsuarios] Erro ao buscar auth.users para last_sign_in_at:', authErr)
-        }
-        
+          }
+          
         // Retornar TODOS os perfis, enriquecidos com last_sign_in_at quando disponível
         const data = profiles.map(profile => ({
-          ...profile,
-          last_sign_in_at: lastSignInMap.get(profile.id) || null
-        }))
-        
+            ...profile,
+            last_sign_in_at: lastSignInMap.get(profile.id) || null
+          }))
+          
         console.log(`✅ [obterTodosUsuarios] Encontrados ${data.length} usuários via cliente admin (todos os perfis)`)
-        return { data, error: null }
+          return { data, error: null }
       } else {
         console.log('✅ [obterTodosUsuarios] Nenhum profile encontrado via cliente admin - retornando array vazio')
         return { data: [], error: null }
@@ -256,12 +256,12 @@ export async function obterTodosUsuarios() {
         console.log(`✅ [obterTodosUsuarios] Retornando TODOS os ${fallbackData.length} perfis via busca direta (sem filtrar)`)
         
         const data = fallbackData.map(profile => ({
-          ...profile,
-          last_sign_in_at: null
-        }))
-        
-        console.log(`✅ [obterTodosUsuarios] Encontrados ${data.length} usuários via busca direta`)
-        return { data, error: null }
+              ...profile,
+              last_sign_in_at: null
+            }))
+            
+            console.log(`✅ [obterTodosUsuarios] Encontrados ${data.length} usuários via busca direta`)
+            return { data, error: null }
       }
     } else {
       // Se não tiver admin client, tentar com cliente normal (pode falhar por RLS)
@@ -350,11 +350,11 @@ export async function obterUsuariosAssinantes() {
 export async function obterEstatisticasUsuarios() {
   // Usar obterTodosUsuarios para garantir que retorna todos os usuários
   const resultado = await obterTodosUsuarios()
-  
+    
   if (resultado.error) {
     return { error: resultado.error, data: null }
-  }
-  
+    }
+
   const usuarios = resultado.data || []
   
   // Calcular estatísticas baseadas em TODOS os usuários
@@ -362,14 +362,14 @@ export async function obterEstatisticasUsuarios() {
   const assinantes = usuarios.filter(u => u.plano === 'basico' || u.plano === 'premium').length
   const teste = usuarios.filter(u => u.plano === 'teste').length
 
-  return {
-    data: {
-      total_usuarios: total,
-      usuarios_assinantes: assinantes,
-      usuarios_teste: teste
-    },
-    error: null
-  }
+    return {
+      data: {
+        total_usuarios: total,
+        usuarios_assinantes: assinantes,
+        usuarios_teste: teste
+      },
+      error: null
+    }
 }
 
 // Função para enviar link de recuperação de senha

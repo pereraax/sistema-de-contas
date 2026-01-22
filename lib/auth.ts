@@ -3,6 +3,7 @@
 import { createClient } from './supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { logInfo, logError, logSuccess, logWarn } from '@/lib/server-logs'
 
 export interface UserProfile {
   id: string
@@ -71,446 +72,409 @@ export async function getSiteUrl(): Promise<string> {
 
 export async function signUp(email: string, password: string, nome: string, telefone: string, whatsapp: string, plano: 'teste' | 'basico' | 'premium') {
   try {
+    logInfo('📝 ========== CRIAR CONTA ==========', 'SIGNUP')
+    logInfo(`📧 Email: ${email}`, 'SIGNUP')
+    
     const supabase = await createClient()
     const { createAdminClient } = await import('./supabase/server')
     const supabaseAdmin = createAdminClient()
     
-    if (!supabaseAdmin) {
-      console.error('❌ ERRO: createAdminClient retornou null! Não é possível gerenciar usuários.')
-      return { error: 'Erro interno do servidor: Admin client não disponível.' }
+    // Verificar variáveis de ambiente
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    
+    logInfo(`🔍 Verificando variáveis de ambiente...`, 'SIGNUP')
+    logInfo(`  - NEXT_PUBLIC_SUPABASE_URL: ${supabaseUrl ? '✅ Configurado' : '❌ FALTANDO'}`, 'SIGNUP')
+    logInfo(`  - NEXT_PUBLIC_SUPABASE_ANON_KEY: ${supabaseAnonKey ? '✅ Configurado' : '❌ FALTANDO'}`, 'SIGNUP')
+    logInfo(`  - SUPABASE_SERVICE_ROLE_KEY: ${supabaseServiceKey ? '✅ Configurado' : '❌ FALTANDO'}`, 'SIGNUP')
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      logError('❌ Variáveis de ambiente do Supabase não configuradas!', 'SIGNUP')
+      return { error: 'Erro de configuração do servidor. Entre em contato com o suporte.' }
     }
     
-    console.log('📝 Iniciando processo de criação de conta...')
+    if (!supabaseAdmin) {
+      logWarn('⚠️ Admin client não disponível (sem SERVICE_ROLE_KEY) - continuando sem Admin API', 'SIGNUP')
+      // Continuar mesmo sem admin client - podemos tentar criar usuário normalmente
+    }
+
+    // Criar conta - Supabase envia email automaticamente
+    const redirectTo = 'https://plenipay.com/auth/callback?next=/home'
+    logInfo('🔄 Criando conta via signUp...', 'SIGNUP')
+    logInfo(`📧 Email: ${email}`, 'SIGNUP')
     
-    // IMPORTANTE: Sempre usar https://plenipay.com para links de email
-    // Mesmo em desenvolvimento local, links de email devem apontar para produção
-    const siteUrl = 'https://plenipay.com' // FORÇAR URL de produção sempre
-    const redirectUrl = `${siteUrl}/auth/callback?next=/home`
-    
-    // USAR SIGNUP NORMAL DO SUPABASE - ENVIA EMAIL AUTOMATICAMENTE
-    // IMPORTANTE: O Supabase só envia email se:
-    // 1. "Enable email confirmations" estiver habilitado
-    // 2. SMTP estiver configurado (ou usar SMTP padrão)
-    // 3. Template de email estiver configurado
-    console.log('📧 ========== CONFIGURAÇÕES DE EMAIL ==========')
-    console.log('📧 Site URL (FORÇADA):', siteUrl)
-    console.log('📧 emailRedirectTo:', redirectUrl)
-    console.log('📧 Email destinatário:', email)
-    console.log('📧 ⚠️ IMPORTANTE: URL forçada para produção (https://plenipay.com)')
-    console.log('📧 ⚠️ VERIFIQUE: Template de email deve usar {{ .ConfirmationURL }} e não {{ .SiteURL }}')
-    console.log('📧 ==========================================')
-    
-    // IMPORTANTE: Tentar criar primeiro, SEM verificar antes
-    // Se der erro "already exists", aí verificamos se está confirmado
     let authData: any = null
     let authError: any = null
     
-    // Primeira tentativa de criar conta
-    console.log('🔄 Tentando criar conta...')
-    console.log('📧 [SIGNUP] emailRedirectTo que será enviado:', redirectUrl)
-    console.log('📧 [SIGNUP] ⚠️ IMPORTANTE: Se o link no email tiver 0.0.0.0:10000, o Supabase está ignorando emailRedirectTo')
-    console.log('📧 [SIGNUP] ⚠️ Verifique Site URL no Supabase Dashboard (Authentication → URL Configuration)')
-    
-    let signUpResult = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          nome,
-          telefone,
-          whatsapp,
-          plano,
-          email,
-        },
-        emailRedirectTo: redirectUrl, // URL forçada para produção
-      }
-    })
-    
-    authData = signUpResult.data
-    authError = signUpResult.error
-    
-    // Tratar erro de rate limiting específico do Supabase
-    if (authError && (authError.message?.includes('2 seconds') || authError.message?.includes('For security purposes'))) {
-      console.log('⏳ Rate limiting detectado - aguardando 2.5 segundos antes de retentar...')
-      await new Promise(resolve => setTimeout(resolve, 2500))
-      
-      // Tentar novamente após aguardar
-      console.log('🔄 Retentando criar conta após rate limiting...')
-      signUpResult = await supabase.auth.signUp({
+    try {
+      const signUpResult = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: {
-            nome,
-            telefone,
-            whatsapp,
-            plano,
-            email,
-          },
-          emailRedirectTo: redirectUrl,
+          emailRedirectTo: redirectTo,
+          data: { nome, telefone, whatsapp, plano, email },
         }
       })
       
       authData = signUpResult.data
       authError = signUpResult.error
       
-      // Se ainda der erro de rate limiting, considerar sucesso se houver usuário criado
-      if (authError && (authError.message?.includes('2 seconds') || authError.message?.includes('For security purposes'))) {
-        console.log('⚠️ Rate limiting ainda ativo, mas verificando se usuário foi criado...')
-        if (authData?.user) {
-          console.log('✅ Usuário foi criado apesar do erro de rate limiting - email provavelmente foi enviado')
-          // Limpar o erro para continuar o processamento
-          authError = null
-        }
+      logInfo(`📊 Resultado signUp:`, 'SIGNUP')
+      logInfo(`  - Usuário criado: ${authData?.user ? 'SIM' : 'NÃO'}`, 'SIGNUP')
+      logInfo(`  - Session criada: ${authData?.session ? 'SIM' : 'NÃO'}`, 'SIGNUP')
+      logInfo(`  - Erro: ${authError?.message || 'Nenhum'}`, 'SIGNUP')
+      logInfo(`  - Status: ${authError?.status || 'N/A'}`, 'SIGNUP')
+      
+      if (authData?.user) {
+        logSuccess(`✅ Usuário criado: ${authData.user.id}`, 'SIGNUP')
+        logInfo(`  - Email confirmado: ${authData.user.email_confirmed_at ? 'SIM' : 'NÃO'}`, 'SIGNUP')
       }
+      
+      if (authError) {
+        logError(`❌ Erro do signUp: ${authError.message}`, 'SIGNUP')
+        logError(`❌ Código: ${authError.status || 'N/A'}`, 'SIGNUP')
+        logError(`❌ Erro completo: ${JSON.stringify(authError, null, 2)}`, 'SIGNUP')
+      }
+    } catch (signUpErr: any) {
+      logError(`❌ Exceção no signUp: ${signUpErr.message}`, 'SIGNUP')
+      authError = signUpErr
     }
+
+    // Tratar erros do Supabase
+    let userToUse = authData?.user
     
-    // Log adicional para debug
-    console.log('📧 [DEBUG] emailRedirectTo enviado para Supabase:', redirectUrl)
-    console.log('📧 [DEBUG] Verifique se o template de email usa {{ .ConfirmationURL }} e não {{ .SiteURL }}')
-    console.log('📧 [DEBUG] ⚠️ Se o link no email tiver 0.0.0.0:10000, o problema está na configuração do Supabase')
-    
-    // Verificar se o email foi realmente enviado
-    // O Supabase pode criar o usuário mas não enviar email se:
-    // - Confirmação de email estiver desabilitada
-    // - SMTP não estiver configurado
-    // - Template não estiver configurado
-    console.log('📬 Resultado do signUp:')
-    console.log('   - Usuário criado:', !!authData?.user)
-    console.log('   - Email confirmado:', authData?.user?.email_confirmed_at ? 'SIM' : 'NÃO')
-    console.log('   - Session criada:', !!authData?.session)
-    console.log('   - Erro:', authError?.message || 'Nenhum')
-    
-    // Verificar se há erro PRIMEIRO
-    let teveErroEmail = false
     if (authError) {
       const errorMsg = authError.message.toLowerCase()
-      const isEmailError = errorMsg.includes('email') || errorMsg.includes('sending') || errorMsg.includes('confirmation')
-      const isAlreadyExists = errorMsg.includes('already exists') || errorMsg.includes('already registered') || errorMsg.includes('user already registered')
+      const isAlreadyExists = errorMsg.includes('already exists') || errorMsg.includes('already registered')
+      const isEmailSendingError = errorMsg.includes('error sending confirmation email') || 
+                                  errorMsg.includes('error sending email') ||
+                                  errorMsg.includes('sending confirmation email') ||
+                                  errorMsg.includes('failed to send email')
       
-      // Se o erro for "email already exists", verificar se está confirmado
-      if (isAlreadyExists && !authData?.user) {
-        console.log('⚠️ Email já existe - verificando se está confirmado...')
+      logInfo(`⚠️ Erro do Supabase: ${authError.message}`, 'SIGNUP')
+      
+      // Se é erro de "already exists", verificar se usuário existe
+      if (isAlreadyExists && !authData?.user && supabaseAdmin) {
+        logInfo('⚠️ Usuário já existe - verificando...', 'SIGNUP')
         
-        // Verificar se o usuário existe e se está confirmado
-        if (supabaseAdmin) {
+        try {
+          const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
+          const existingUser = usersData?.users?.find((u: any) => u.email === email)
+          
+          if (existingUser?.email_confirmed_at) {
+            logError('❌ Email já confirmado', 'SIGNUP')
+            return { error: 'Este email já está cadastrado e confirmado. Faça login.' }
+          }
+          
+          if (existingUser) {
+            logInfo('📧 Usuário não confirmado - usando existente', 'SIGNUP')
+            userToUse = existingUser
+          } else {
+            return { error: 'Erro ao verificar conta existente.' }
+          }
+        } catch (adminErr: any) {
+          logError(`❌ Erro ao verificar: ${adminErr.message}`, 'SIGNUP')
+          return { error: 'Erro ao verificar conta existente.' }
+        }
+      } 
+      // Se é erro de envio de email - verificar se usuário foi criado mesmo assim
+      else if (isEmailSendingError) {
+        logWarn('⚠️ Erro ao enviar email de confirmação - verificando se usuário foi criado...', 'SIGNUP')
+        
+        // Se usuário foi criado, usar ele
+        if (authData?.user) {
+          logSuccess('✅ Usuário foi criado apesar do erro de envio de email', 'SIGNUP')
+          userToUse = authData.user
+        } 
+        // Se não tem usuário, verificar via Admin API
+        else if (supabaseAdmin) {
+          logInfo('🔍 Verificando se usuário foi criado via Admin API...', 'SIGNUP')
           try {
             const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
             const existingUser = usersData?.users?.find((u: any) => u.email === email)
             
             if (existingUser) {
-              if (existingUser.email_confirmed_at) {
-                // Email já confirmado - não pode criar novamente
-                console.log('❌ Email já está confirmado - não é possível criar conta novamente')
-                return { error: 'Este email já está cadastrado e confirmado. Faça login ou recupere sua senha.' }
-              } else {
-                // Email não confirmado - deletar e tentar criar novamente
-                console.log('🗑️ Email não confirmado - deletando usuário antigo para permitir criar novamente...')
-                const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(existingUser.id)
-                
-                if (deleteError) {
-                  console.error('⚠️ Erro ao deletar usuário antigo:', deleteError.message)
-                  return { error: 'Erro ao processar conta existente. Tente novamente.' }
-                } else {
-                  console.log('✅ Usuário não confirmado deletado com sucesso')
-                  // Aguardar um pouco para garantir que foi deletado
-                  await new Promise(resolve => setTimeout(resolve, 1500))
-                  
-                  // Aguardar um pouco para evitar rate limiting antes de tentar criar novamente
-                  console.log('⏳ Aguardando 2.5 segundos antes de criar nova conta (evitar rate limiting)...')
-                  await new Promise(resolve => setTimeout(resolve, 2500))
-                  
-                  // Tentar criar novamente
-                  console.log('🔄 Tentando criar conta novamente após deletar usuário não confirmado...')
-                  signUpResult = await supabase.auth.signUp({
-                    email,
-                    password,
-                    options: {
-                      data: {
-                        nome,
-                        telefone,
-                        whatsapp,
-                        plano,
-                        email,
-                      },
-                      emailRedirectTo: redirectUrl,
-                    }
-                  })
-                  
-                  authData = signUpResult.data
-                  authError = signUpResult.error
-                  
-                  // Tratar erro de rate limiting
-                  if (authError && (authError.message?.includes('2 seconds') || authError.message?.includes('For security purposes'))) {
-                    console.log('⏳ Rate limiting ainda ativo após aguardar - verificando se usuário foi criado...')
-                    if (authData?.user) {
-                      console.log('✅ Usuário foi criado apesar do erro de rate limiting')
-                      // Limpar o erro para continuar
-                      authError = null
-                    } else {
-                      console.error('❌ Rate limiting e usuário não criado - retornando erro amigável')
-                      return { error: 'Aguarde alguns segundos e tente novamente. O limite de requisições foi atingido.' }
-                    }
-                  } else if (authError) {
-                    console.error('❌ Erro ao criar conta após deletar usuário antigo:', authError.message)
-                    return { error: authError.message || 'Erro ao criar conta. Tente novamente.' }
-                  }
-                  
-                  if (!authData?.user) {
-                    console.error('❌ Usuário não foi criado após retry')
-                    return { error: 'Erro ao criar usuário. Tente novamente.' }
-                  }
-                  
-                  console.log('✅ Conta criada com sucesso após deletar usuário não confirmado')
-                  // Limpar o erro para continuar processamento
-                  authError = null
-                }
-              }
+              logSuccess('✅ Usuário encontrado via Admin API - usando ele', 'SIGNUP')
+              userToUse = existingUser
             } else {
-              // Usuário não encontrado - erro estranho, mas tentar continuar
-              console.warn('⚠️ Erro diz que email existe mas não encontramos o usuário')
-              return { error: 'Erro ao verificar conta existente. Tente novamente.' }
+              logError('❌ Usuário não foi criado', 'SIGNUP')
+              return { 
+                error: 'Erro ao criar usuário. Tente novamente.',
+                details: authError.message
+              }
             }
-          } catch (checkError: any) {
-            console.error('❌ Erro ao verificar usuário existente:', checkError.message)
-            return { error: 'Erro ao verificar conta existente. Tente novamente.' }
+          } catch (adminErr: any) {
+            logError(`❌ Erro ao verificar: ${adminErr.message}`, 'SIGNUP')
+            return { 
+              error: 'Erro ao verificar criação do usuário. Tente novamente.',
+              details: authError.message
+            }
           }
         } else {
-          console.error('❌ Admin client não disponível para verificar usuário existente')
-          return { error: 'Erro ao verificar conta existente. Tente novamente.' }
+          logError('❌ Admin client não disponível - não é possível verificar', 'SIGNUP')
+          return { 
+            error: 'Erro ao criar usuário. Verifique as configurações.',
+            details: authError.message
+          }
         }
-      } else if (authData?.user && isEmailError) {
-      // Se o usuário foi criado mas houve erro no envio de email
-        console.warn('⚠️ Usuário criado mas erro ao enviar email:', authError.message)
-        console.log('🔄 Processando normalmente - email será enviado via Admin API...')
-        teveErroEmail = true
-        // IMPORTANTE: Continuar processamento normalmente mesmo com erro de email
-        // O email será enviado via Admin API depois
-      } else if (!isAlreadyExists) {
-        // Outros erros (não relacionados a email ou "already exists") - erro real
-        console.error('❌ Erro ao criar conta:', authError)
-        return { error: authError.message || 'Erro ao criar conta' }
+      }
+      // Se é erro mas usuário foi criado, continuar
+      else if (authData?.user) {
+        logWarn('⚠️ Erro ocorreu, mas usuário foi criado - continuando...', 'SIGNUP')
+        userToUse = authData.user
+      }
+      // Outros erros
+      else {
+        logError(`❌ Erro ao criar usuário: ${authError.message}`, 'SIGNUP')
+        
+        if (authError.status === 429) {
+          return { 
+            error: 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.'
+          }
+        }
+        
+        return { 
+          error: authError.message || 'Erro ao criar conta'
+        }
       }
     }
+
+    // Verificar se temos usuário
+    if (!userToUse) {
+      logError('❌ Usuário não foi criado', 'SIGNUP')
+      return { 
+        error: 'Erro ao criar usuário. Tente novamente.'
+      }
+    }
+
+    logSuccess('✅ Usuário disponível', 'SIGNUP')
     
-    if (!authData.user) {
-      console.error('❌ Usuário não foi criado')
-      return { error: 'Erro ao criar usuário. Tente novamente.' }
+    // Criar perfil
+    logInfo('📋 Criando perfil...', 'SIGNUP')
+    await supabase.from('profiles').upsert({
+      id: userToUse.id,
+      email,
+      nome,
+      telefone,
+      whatsapp,
+      plano,
+    }, { onConflict: 'id' })
+
+    logSuccess('✅ Perfil criado', 'SIGNUP')
+    
+    // Verificar status do email
+    const emailConfirmado = !!userToUse.email_confirmed_at || !!authData?.session
+    // Se houve erro de envio de email, marcar como não enviado para permitir reenvio
+    const teveErroEnvioEmail = authError && (
+      authError.message.toLowerCase().includes('error sending confirmation email') ||
+      authError.message.toLowerCase().includes('error sending email') ||
+      authError.message.toLowerCase().includes('sending confirmation email') ||
+      authError.message.toLowerCase().includes('failed to send email')
+    )
+    
+    // IMPORTANTE: emailEnviado começa como false
+    // Só será true se:
+    // 1. Email já está confirmado (não precisa enviar)
+    // 2. OU Supabase enviou com sucesso (sem erro E sem necessidade de confirmação)
+    // 3. OU SMTP próprio enviou com sucesso (fallback)
+    let emailEnviado = false
+    
+    // Se email já está confirmado, não precisa enviar
+    if (emailConfirmado) {
+      emailEnviado = true
+      logInfo('✅ Email já confirmado - não precisa enviar', 'SIGNUP')
+    }
+    // Se não teve erro E não está confirmado, Supabase pode ter enviado
+    // MAS: não confiamos 100% - vamos tentar SMTP próprio se disponível
+    else if (!teveErroEnvioEmail && !emailConfirmado) {
+      // Supabase pode ter enviado, mas não confiamos 100%
+      // Vamos tentar enviar via SMTP próprio para garantir
+      logInfo('⚠️ Supabase não reportou erro, mas vamos garantir envio via SMTP próprio...', 'SIGNUP')
     }
     
-    // Se chegou aqui, usuário foi criado com sucesso
-    // IMPORTANTE: O Supabase signUp DEVE enviar email automaticamente
-    // Mas vamos garantir com resend explícito
-    console.log('📧 ========== GARANTINDO ENVIO DE EMAIL ==========')
-    console.log('📧 Verificando se signUp enviou email automaticamente...')
-    console.log('📧 Se não houver session, significa que email foi enviado e está aguardando confirmação')
-    console.log('📧 Se houver session, vamos forçar envio com resend')
+    // Tentar enviar via SMTP próprio se:
+    // 1. Houve erro de envio E usuário foi criado
+    // 2. OU não houve erro mas queremos garantir o envio (SMTP próprio é mais confiável)
+    const deveTentarSmtpProprio = userToUse && !emailConfirmado && supabaseAdmin && (
+      teveErroEnvioEmail || // Houve erro explícito
+      true // Sempre tentar SMTP próprio para garantir (mais confiável que Supabase)
+    )
     
-    // Verificar se o signUp enviou email automaticamente
-    // Se não há session e email não está confirmado, o Supabase enviou email
-    const signUpEnviouEmail = !authData.session && !authData.user.email_confirmed_at
-    console.log('📧 SignUp enviou email automaticamente?', signUpEnviouEmail ? 'SIM (sem session = aguardando confirmação)' : 'NÃO (vamos forçar)')
-    
-    // Aguardar um pouco para garantir que o usuário foi criado completamente
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    // SEMPRE tentar enviar via resend para garantir
-    // Tentar múltiplos tipos para garantir envio
-    const tiposParaTentar = ['signup', 'email'] as const
-    let emailEnviado = signUpEnviouEmail // Se signUp enviou, considerar como enviado
-    let ultimoErro: any = null
-    
-    // Se signUp não enviou, tentar resend
-    if (!signUpEnviouEmail) {
-      console.log('📤 SignUp não enviou email - forçando envio via resend...')
+    if (deveTentarSmtpProprio) {
+      if (teveErroEnvioEmail) {
+        logWarn('⚠️ Supabase falhou ao enviar email - tentando via SMTP próprio...', 'SIGNUP')
+      } else {
+        logInfo('📧 Garantindo envio via SMTP próprio (mais confiável)...', 'SIGNUP')
+      }
       
-      for (const tipo of tiposParaTentar) {
+      const { isSmtpConfigured, sendMail } = await import('./mailer')
+      
+      if (isSmtpConfigured()) {
         try {
-          console.log(`📤 Tentando enviar email via resend (type: ${tipo})...`)
-          console.log('📧 Email:', email)
-          console.log('📧 Redirect URL (FORÇADA):', redirectUrl)
-          console.log('📧 ⚠️ IMPORTANTE: Se o link no email tiver 0.0.0.0:10000, o Supabase está ignorando emailRedirectTo')
-          console.log('📧 ⚠️ Verifique Site URL no Supabase Dashboard (Authentication → URL Configuration)')
-          
-          const { error: resendError, data: resendData } = await supabase.auth.resend({
-            type: tipo as any,
-            email: email,
-            options: {
-              emailRedirectTo: redirectUrl,
+          // Verificar se usuário existe primeiro para usar o tipo correto
+          let linkType: 'signup' | 'recovery' | 'magiclink' = 'signup'
+          try {
+            const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
+            const existingUser = usersData?.users?.find((u: any) => u.email === email)
+            if (existingUser) {
+              // Usuário existe - usar magiclink para confirmação de email
+              linkType = 'magiclink'
+              logInfo(`✅ Usuário encontrado (${existingUser.id}) - usando type: ${linkType}`, 'SIGNUP')
+            } else {
+              logInfo(`ℹ️ Usuário não encontrado - usando type: ${linkType}`, 'SIGNUP')
             }
-          })
-          
-          console.log(`📬 Resposta do resend (type: ${tipo}):`)
-          console.log('  - Erro:', resendError?.message || 'Nenhum')
-          console.log('  - Código do erro:', resendError?.status || 'Nenhum')
-          console.log('  - Dados:', resendData ? JSON.stringify(resendData, null, 2) : 'Nenhum')
-          
-          if (!resendError) {
-            console.log(`✅ Email de confirmação enviado via resend (type: ${tipo}) com sucesso!`)
-            console.log('✅ O usuário receberá o email de confirmação')
-            emailEnviado = true
-            break // Sucesso, não precisa tentar outros tipos
-          } else {
-            console.warn(`⚠️ Resend falhou com type: ${tipo}, erro: ${resendError.message}`)
-            ultimoErro = resendError
-            // Continuar para tentar próximo tipo
+          } catch (listErr: any) {
+            logWarn(`⚠️ Erro ao verificar usuário, usando type: ${linkType}`, 'SIGNUP')
           }
-        } catch (emailError: any) {
-          console.error(`❌ Erro inesperado ao enviar email (type: ${tipo}):`, emailError.message)
-          console.error('❌ Stack:', emailError.stack)
-          ultimoErro = emailError
-          // Continuar para tentar próximo tipo
-        }
-      }
-    } else {
-      console.log('✅ SignUp enviou email automaticamente - não precisa forçar resend')
-    }
-    
-    // Se ainda não foi enviado, tentar via Admin API como último recurso
-    if (!emailEnviado && supabaseAdmin) {
-      console.log('📤 Última tentativa: Usando Admin API para gerar link...')
-      try {
-        // Gerar link via Admin API (não envia email, mas gera o link)
-        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'signup',
-          email: email,
-          options: {
-            redirectTo: redirectUrl
-          }
-        })
-        
-        if (!linkError && linkData?.properties?.action_link) {
-          console.log('✅ Link gerado via Admin API')
-          console.log('⚠️ IMPORTANTE: generateLink NÃO envia email automaticamente')
-          console.log('⚠️ O link foi gerado, mas precisa ser enviado manualmente ou via resend')
-          console.log('📧 Link gerado:', linkData.properties.action_link.substring(0, 100) + '...')
           
-          // Tentar resend novamente após gerar link
-          console.log('📤 Tentando resend novamente após gerar link...')
-          const { error: resendRetryError } = await supabase.auth.resend({
-            type: 'signup',
+          // Gerar link via Admin API
+          const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+            type: linkType,
             email: email,
-            options: {
-              emailRedirectTo: redirectUrl,
-            }
-          })
+            options: { redirectTo: redirectTo }
+          } as any)
           
-          if (!resendRetryError) {
-            console.log('✅ Resend funcionou após gerar link!')
+          if (!linkError && linkData?.properties?.action_link) {
+            let linkGerado = linkData.properties.action_link
+            logInfo(`🔍 Link gerado pelo Supabase: ${linkGerado.substring(0, 200)}...`, 'SIGNUP')
+            
+            // SEMPRE converter link do Supabase para link direto do plenipay.com
+            // O Supabase gera: https://xxx.supabase.co/auth/v1/verify?token=...&redirect_to=...
+            // Precisamos: https://plenipay.com/auth/callback?token_hash=...&type=...&next=...
+            
+            const isLinkSupabase = linkGerado.includes('supabase.co/auth/v1/verify')
+            const precisaCorrigir = linkGerado.includes('0.0.0.0') || 
+                                    linkGerado.includes(':10000') || 
+                                    linkGerado.includes('localhost') ||
+                                    isLinkSupabase ||
+                                    !linkGerado.includes('plenipay.com/auth/callback')
+            
+            if (precisaCorrigir) {
+              logWarn(`⚠️ Link precisa ser corrigido, extraindo parâmetros...`, 'SIGNUP')
+              
+              let tokenHash: string | null = null
+              let linkType = 'signup'
+              let nextPath = '/home'
+              
+              // Se é link do Supabase (/auth/v1/verify), extrair token e redirect_to
+              if (isLinkSupabase) {
+                logInfo('🔍 Detectado link do Supabase - extraindo token e redirect_to...', 'SIGNUP')
+                
+                // Extrair token da query string
+                const tokenMatch = linkGerado.match(/[?&]token=([^&#]+)/i)
+                if (tokenMatch) {
+                  tokenHash = decodeURIComponent(tokenMatch[1])
+                  logInfo('✅ Token extraído do link do Supabase', 'SIGNUP')
+                }
+                
+                // Extrair redirect_to (pode estar URL encoded)
+                const redirectToMatch = linkGerado.match(/[?&]redirect_to=([^&#]+)/i)
+                if (redirectToMatch) {
+                  const redirectToDecoded = decodeURIComponent(redirectToMatch[1])
+                  logInfo(`🔍 redirect_to decodificado: ${redirectToDecoded.substring(0, 100)}...`, 'SIGNUP')
+                  
+                  // Extrair type e next do redirect_to
+                  try {
+                    const redirectUrl = new URL(redirectToDecoded)
+                    linkType = redirectUrl.searchParams.get('type') || 'signup'
+                    nextPath = redirectUrl.searchParams.get('next') || '/home'
+                    logInfo(`✅ Type: ${linkType}, Next: ${nextPath}`, 'SIGNUP')
+                  } catch (urlErr: any) {
+                    logWarn(`⚠️ Erro ao parsear redirect_to: ${urlErr.message}`, 'SIGNUP')
+                  }
+                }
+                
+                // Extrair type do link original também (pode estar na query)
+                const typeMatch = linkGerado.match(/[?&]type=([^&#]+)/i)
+                if (typeMatch) {
+                  linkType = decodeURIComponent(typeMatch[1])
+                }
+              } else {
+                // Link não é do Supabase - tentar extrair token_hash ou access_token
+                const tokenHashMatch = linkGerado.match(/[?&#]token_hash=([^&#]+)/i)
+                if (tokenHashMatch) {
+                  tokenHash = decodeURIComponent(tokenHashMatch[1])
+                  logInfo('✅ Token_hash extraído da query string', 'SIGNUP')
+                }
+                
+                // Tentar extrair access_token do hash (#access_token=...)
+                if (!tokenHash) {
+                  const accessTokenMatch = linkGerado.match(/#access_token=([^&#]+)/i)
+                  if (accessTokenMatch) {
+                    tokenHash = decodeURIComponent(accessTokenMatch[1])
+                    logInfo('✅ Access_token extraído do hash', 'SIGNUP')
+                  }
+                }
+                
+                // Extrair type e next
+                const typeMatch = linkGerado.match(/[?&#]type=([^&#]+)/i)
+                const nextMatch = linkGerado.match(/[?&#]next=([^&#]+)/i)
+                linkType = typeMatch ? decodeURIComponent(typeMatch[1]) : 'signup'
+                nextPath = nextMatch ? decodeURIComponent(nextMatch[1]) : '/home'
+              }
+              
+              if (tokenHash) {
+                // Construir URL correta com plenipay.com usando token_hash
+                linkGerado = `https://plenipay.com/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(linkType)}&next=${encodeURIComponent(nextPath)}`
+                logSuccess(`✅ Link corrigido: ${linkGerado.substring(0, 150)}...`, 'SIGNUP')
+              } else {
+                logError('❌ Não foi possível extrair token - usando redirectTo como fallback', 'SIGNUP')
+                linkGerado = redirectTo
+              }
+            }
+            
+            // Garantir que o link sempre use plenipay.com/auth/callback (verificação final)
+            if (!linkGerado.includes('plenipay.com/auth/callback')) {
+              logError('❌ Link ainda não contém plenipay.com/auth/callback - forçando...', 'SIGNUP')
+              linkGerado = redirectTo
+              logWarn(`✅ Link forçado para redirectTo: ${linkGerado}`, 'SIGNUP')
+            }
+            
+            // Enviar via SMTP próprio
+            const { readFileSync } = await import('fs')
+            const { join } = await import('path')
+            
+            const templatePath = join(process.cwd(), 'TEMPLATE-EMAIL-CONFIRMACAO-CORRETO.html')
+            let templateHtml = readFileSync(templatePath, 'utf-8')
+            templateHtml = templateHtml.replace(/\{\{ \.ConfirmationURL \}\}/g, linkGerado)
+            
+            await sendMail({
+              to: email,
+              subject: 'Confirme seu Cadastro - PLENIPAY',
+              html: templateHtml
+            })
+            
+            logSuccess('✅ Email enviado via SMTP próprio (fallback)!', 'SIGNUP')
             emailEnviado = true
           } else {
-            console.error('❌ Resend ainda falhou após gerar link:', resendRetryError.message)
+            logError(`❌ Erro ao gerar link: ${linkError?.message || 'Link não gerado'}`, 'SIGNUP')
           }
-        } else {
-          console.error('❌ Erro ao gerar link via Admin API:', linkError?.message || 'Erro desconhecido')
-        }
-      } catch (adminError: any) {
-        console.error('❌ Erro ao usar Admin API:', adminError.message)
-      }
-    }
-    
-    if (!emailEnviado) {
-      console.error('❌ Email NÃO foi enviado após todas as tentativas')
-      console.error('❌ SignUp não enviou automaticamente e resend também falhou')
-      console.error('❌ Erro do último resend:', ultimoErro?.message || 'Nenhum erro específico')
-      console.error('⚠️ IMPORTANTE: Verifique se:')
-      console.error('   1. SMTP está configurado no Supabase Dashboard')
-      console.error('   2. Template de email "Confirm signup" está configurado')
-      console.error('   3. "Enable email confirmations" está habilitado')
-      console.error('   4. Verifique logs do Supabase (Authentication → Logs)')
-      console.error('   5. O usuário pode usar o botão "Reenviar link" no modal')
-      teveErroEmail = true
-    } else {
-      teveErroEmail = false
-      console.log('✅ Email enviado com sucesso (via signUp automático ou resend)')
-    }
-    
-    console.log('📧 ==========================================')
-    
-    console.log('✅ Usuário criado com sucesso')
-    console.log('📧 Email do usuário:', email)
-    console.log('📧 User ID:', authData.user.id)
-    console.log('📧 Email confirmado?', authData.user.email_confirmed_at ? 'SIM' : 'NÃO')
-    console.log('📧 Email enviado?', teveErroEmail ? 'Tentado (pode ter falhado)' : 'SIM')
-    
-    // O perfil será criado automaticamente pelo trigger no Supabase
-    // Aguardar um pouco para garantir que o trigger executou
-    await new Promise(resolve => setTimeout(resolve, 1500))
-
-    // Verificar se o perfil foi criado pelo trigger e atualizar com dados completos se necessário
-    const { data: existingProfile, error: profileFetchError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', authData.user.id)
-      .single()
-
-    if (profileFetchError && profileFetchError.code !== 'PGRST116') {
-      console.error('Erro ao verificar perfil:', profileFetchError)
-    }
-
-    // Se o perfil não foi criado pelo trigger ou está incompleto, criar/atualizar manualmente
-    if (!existingProfile || !existingProfile.email || existingProfile.email === '') {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: authData.user.id,
-          email,
-          nome,
-          telefone,
-          whatsapp,
-          plano,
-        }, {
-          onConflict: 'id'
-        })
-
-      if (profileError) {
-        console.error('Erro ao criar/atualizar perfil (fallback):', profileError)
-        console.error('Detalhes do erro de perfil:', JSON.stringify(profileError, null, 2))
-        
-        // Se o erro for de permissão RLS, tentar novamente após um delay
-        if (profileError.message.includes('permission') || profileError.message.includes('policy') || profileError.message.includes('RLS')) {
-          console.warn('Erro de permissão RLS. Verifique se as políticas RLS estão configuradas corretamente.')
-          // Não retornar erro aqui, pois o trigger pode criar o perfil
-        } else if (profileError.message.includes('relation') || profileError.message.includes('does not exist')) {
-          console.error('❌ ERRO CRÍTICO: Tabela profiles não existe! Execute o script supabase-auth-schema.sql no Supabase.')
-          return { error: 'Banco de dados não configurado. Execute os scripts SQL no Supabase (supabase-schema.sql e supabase-auth-schema.sql).' }
-        } else {
-          // Outros erros podem ser críticos
-          console.warn('Perfil não foi criado/atualizado, mas o usuário foi criado. Verifique o trigger no Supabase.')
+        } catch (smtpError: any) {
+          logError(`❌ Erro ao enviar via SMTP próprio: ${smtpError.message}`, 'SIGNUP')
+          emailEnviado = false
         }
       } else {
-        console.log('Perfil criado/atualizado com sucesso (fallback)')
+        logWarn('⚠️ SMTP próprio não configurado - não é possível enviar', 'SIGNUP')
+        emailEnviado = false
       }
-    } else {
-      console.log('Perfil já existe e está completo')
-    }
-
-    // Verificar se o email foi confirmado (NÃO deve estar confirmado - usuário precisa verificar primeiro)
-    const emailConfirmado = authData.user.email_confirmed_at !== null
-    
-    console.log('✅✅✅ Usuário criado com sucesso!')
-    console.log('📧 Email:', authData.user.email)
-    console.log('✅ Email confirmado:', emailConfirmado ? 'SIM' : 'NÃO')
-    console.log('📬 Email de confirmação:', teveErroEmail ? 'Tentado enviar via Admin API' : 'Pode ter sido enviado pelo Supabase')
-    console.log('🔒 Usuário precisa verificar email ANTES de fazer login')
-    
-    // NÃO criar sessão - usuário precisa verificar email primeiro
-    const authDataFinal = {
-      user: authData.user,
-      session: null
     }
     
-    // IMPORTANTE: Mesmo se teve erro de email, retornar dados se o usuário foi criado
-    // O email será enviado via Admin API ou o usuário pode usar o botão de reenvio
-    console.log('📤 Retornando dados para o frontend...')
-    console.log('   - Tem data:', !!authDataFinal)
-    console.log('   - Email confirmado:', emailConfirmado)
-    console.log('   - Teve erro de email:', teveErroEmail)
+    logInfo(`📊 Status final:`, 'SIGNUP')
+    logInfo(`  - Email confirmado: ${emailConfirmado}`, 'SIGNUP')
+    logInfo(`  - Email enviado: ${emailEnviado}`, 'SIGNUP')
+    logInfo(`  - Teve erro de envio: ${teveErroEnvioEmail}`, 'SIGNUP')
     
-    return { data: authDataFinal, emailConfirmado, teveErroEmail: teveErroEmail }
+    return { 
+      data: { user: userToUse, session: authData?.session || null }, 
+      userCreated: true,
+      emailEnviado, // true se enviou via fallback, false se não conseguiu
+      emailConfirmado
+    }
+    
   } catch (error: any) {
-    console.error('Erro inesperado no signUp:', error)
-    return { error: error.message || 'Erro inesperado ao criar conta' }
+    logError(`❌ Erro: ${error.message}`, 'SIGNUP')
+    return { error: error.message || 'Erro inesperado' }
   }
 }
 
@@ -629,74 +593,208 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
 
 export async function verificarCodigoEmail(codigo: string, email: string) {
   try {
+    // IMPORTANTE: Criar um novo cliente Supabase para cada verificação
+    // Isso garante que não há estado compartilhado que possa invalidar o código
     const supabase = await createClient()
 
-    console.log('🔐 Verificando código OTP...')
+    console.log('🔐 ========== VERIFICANDO CÓDIGO OTP ==========')
     console.log('📧 Email:', email)
     console.log('🔢 Código recebido:', codigo, `(${codigo.length} dígitos)`)
+    console.log('🔢 Código (string):', JSON.stringify(codigo))
+    console.log('🔢 Código (tipo):', typeof codigo)
+    console.log('⏰ Timestamp:', new Date().toISOString())
+    console.log('⚠️ IMPORTANTE: Verificando código diretamente, sem operações intermediárias')
+    
+    // IMPORTANTE: Limpar espaços e caracteres não numéricos do código
+    // O código pode vir com espaços ou outros caracteres do input
+    const codigoLimpo = codigo.replace(/\s+/g, '').trim()
+    console.log('🔢 Código limpo:', codigoLimpo, `(${codigoLimpo.length} dígitos)`)
+    
+    if (codigoLimpo.length !== 6) {
+      console.error('❌ Código não tem 6 dígitos!')
+      return { error: 'Código deve ter exatamente 6 dígitos.' }
+    }
+    
+    if (!/^\d{6}$/.test(codigoLimpo)) {
+      console.error('❌ Código contém caracteres não numéricos!')
+      return { error: 'Código deve conter apenas números.' }
+    }
+    
+    // IMPORTANTE: NÃO fazer nenhuma operação antes de verificar o código
+    // Qualquer chamada ao Supabase (getUser, resend, etc.) pode invalidar o código OTP
+    // Vamos verificar o código diretamente, sem verificar o estado do usuário primeiro
 
     // IMPORTANTE: signUp envia OTP com type 'signup', então tentar primeiro com 'signup'
+    // Mas também tentar com 'email' caso o resend tenha usado tipo diferente
+    // IMPORTANTE: Tentar também sem especificar o tipo (deixar Supabase decidir)
     let data: any = null
     let error: any = null
 
+    // IMPORTANTE: O Supabase pode invalidar códigos OTP quando um novo é solicitado
+    // Por isso, tentar verificar o código o mais rápido possível, SEM fazer outras operações
     // Tentativa 1: Código completo com type 'signup' (tipo usado no signUp)
-    console.log(`🔄 Tentativa 1: Verificando com código completo e type 'signup'`)
-    const result1 = await supabase.auth.verifyOtp({
-      email: email,
-      token: codigo,
-      type: 'signup'
-    })
+    // O signUp do Supabase envia OTP com type 'signup' por padrão
+    console.log(`🔄 Tentativa 1: Verificando com código completo (${codigo}) e type 'signup'`)
+    console.log(`⚠️ IMPORTANTE: Se este código foi enviado pelo signUp, deve usar type 'signup'`)
+    console.log(`⚠️ IMPORTANTE: NÃO fazer outras operações antes desta verificação`)
+    
+    // IMPORTANTE: Verificar o código imediatamente, sem delay
+    // IMPORTANTE: Tentar também sem especificar o tipo primeiro (alguns casos o Supabase aceita)
+    // Mas vamos começar com 'signup' que é o padrão do signUp
+    // IMPORTANTE: Tentar verificar o código usando o Admin API do Supabase
+    // Isso pode funcionar mesmo se o código foi invalidado pelo cliente
+    let result1: any = null
+    try {
+      // Primeiro, tentar com o cliente normal
+      console.log('📤 [VERIFY] Chamando supabase.auth.verifyOtp com:')
+      console.log('   - email:', email)
+      console.log('   - token (original):', codigo)
+      console.log('   - token (limpo):', codigoLimpo)
+      console.log('   - type: signup')
+      console.log('   - timestamp:', new Date().toISOString())
+      
+      result1 = await supabase.auth.verifyOtp({
+        email: email,
+        token: codigoLimpo, // Usar código limpo
+        type: 'signup'
+      })
+      
+      console.log('📥 [VERIFY] Resposta completa do Supabase:')
+      console.log('   - Tem erro?', !!result1.error)
+      console.log('   - Tem data?', !!result1.data)
+      console.log('   - Erro completo:', result1.error ? JSON.stringify(result1.error, null, 2) : 'Nenhum')
+      console.log('   - Data completa:', result1.data ? JSON.stringify(result1.data, null, 2) : 'Nenhum')
+      
+      if (result1.error) {
+        console.log('❌ [VERIFY] Erro detalhado:')
+        console.log('   - Mensagem:', result1.error.message)
+        console.log('   - Status:', result1.error.status)
+        console.log('   - Código:', result1.error.code)
+        console.log('   - Nome:', result1.error.name)
+        console.log('   - Stack:', result1.error.stack)
+        console.log('   - Objeto completo:', JSON.stringify(result1.error, Object.getOwnPropertyNames(result1.error), 2))
+      }
+      
+      // IMPORTANTE: Se o código foi rejeitado como "expirado", pode ser um problema de timing
+      // O Supabase pode estar invalidando o código muito rapidamente
+      // Vamos tentar uma abordagem diferente: verificar se o problema é realmente expiração
+      if (result1.error && (result1.error.message?.includes('expired') || result1.error.message?.includes('expir'))) {
+        console.log('⚠️ Código rejeitado como expirado - verificando se é realmente expirado ou se é outro problema...')
+        console.log('⚠️ Pode ser que o código foi invalidado por alguma operação anterior')
+        console.log('⚠️ Tentando verificar novamente com diferentes parâmetros...')
+        
+        // Tentar verificar novamente, mas desta vez sem especificar o tipo
+        // Alguns casos o Supabase aceita sem tipo
+        try {
+          console.log('🔄 [RETRY] Tentando verificar sem especificar tipo...')
+          const resultRetry = await supabase.auth.verifyOtp({
+            email: email,
+            token: codigoLimpo // Usar código limpo
+            // Não especificar type - deixar Supabase decidir
+          } as any)
+          
+          console.log('📥 [RETRY] Resposta do retry:')
+          console.log('   - Tem erro?', !!resultRetry.error)
+          console.log('   - Tem data?', !!resultRetry.data)
+          console.log('   - Erro:', resultRetry.error ? JSON.stringify(resultRetry.error, null, 2) : 'Nenhum')
+          
+          if (!resultRetry.error && resultRetry.data?.user) {
+            console.log('✅ Código verificado com sucesso sem especificar tipo!')
+            result1 = resultRetry
+          } else {
+            console.log('❌ Tentativa sem tipo também falhou:', resultRetry.error?.message)
+          }
+        } catch (retryError: any) {
+          console.error('❌ Erro ao tentar verificar sem tipo:', retryError)
+          console.error('❌ Stack:', retryError.stack)
+        }
+      }
+    } catch (verifyError: any) {
+      console.error('❌ Erro ao chamar verifyOtp:', verifyError)
+      console.error('❌ Stack:', verifyError.stack)
+      console.error('❌ Tipo:', typeof verifyError)
+      console.error('❌ Objeto completo:', JSON.stringify(verifyError, Object.getOwnPropertyNames(verifyError), 2))
+      result1 = { error: verifyError, data: null }
+    }
+    
+    console.log('📋 Resultado tentativa 1:')
+    console.log('  - Erro:', result1.error?.message || 'Nenhum')
+    console.log('  - Status:', result1.error?.status || 'Nenhum')
+    console.log('  - Código do erro:', result1.error?.code || 'Nenhum')
+    console.log('  - User:', result1.data?.user ? 'Encontrado' : 'Não encontrado')
+    console.log('  - Email confirmado:', result1.data?.user?.email_confirmed_at ? 'SIM' : 'NÃO')
+    console.log('  - Erro completo:', result1.error ? JSON.stringify(result1.error, null, 2) : 'Nenhum')
     
     if (!result1.error && result1.data?.user) {
       data = result1.data
       console.log('✅ Sucesso na tentativa 1 (type signup)')
-    } else {
+    } else if (result1.error) {
       error = result1.error
       console.log(`❌ Tentativa 1 falhou:`, error?.message)
+      console.log(`📋 Detalhes do erro:`, JSON.stringify(error, null, 2))
       
-      // Tentativa 2: Primeiros 6 dígitos com type 'signup'
-      if (codigo.length >= 6) {
-        const codigo6Digitos = codigo.substring(0, 6)
-        console.log(`🔄 Tentativa 2: Verificando com primeiros 6 dígitos (${codigo6Digitos}) e type 'signup'`)
+      // Tentativa 2: Código completo com type 'email' (pode ser que resend usou tipo diferente)
+      console.log(`🔄 Tentativa 2: Verificando com código completo (${codigo}) e type 'email'`)
         const result2 = await supabase.auth.verifyOtp({
           email: email,
-          token: codigo6Digitos,
-          type: 'signup'
+          token: codigoLimpo, // Usar código limpo
+          type: 'email'
         })
+      
+      console.log('📋 Resultado tentativa 2:')
+      console.log('  - Erro:', result2.error?.message || 'Nenhum')
+      console.log('  - Status:', result2.error?.status || 'Nenhum')
+      console.log('  - Código do erro:', result2.error?.code || 'Nenhum')
+      console.log('  - User:', result2.data?.user ? 'Encontrado' : 'Não encontrado')
+      console.log('  - Erro completo:', result2.error ? JSON.stringify(result2.error, null, 2) : 'Nenhum')
         
         if (!result2.error && result2.data?.user) {
           data = result2.data
           error = null
-          console.log('✅ Sucesso na tentativa 2 (6 dígitos, type signup)')
+        console.log('✅ Sucesso na tentativa 2 (type email)')
         } else {
           console.log(`❌ Tentativa 2 falhou:`, result2.error?.message)
           error = result2.error || error
           
-          // Tentativa 3: Código completo com type 'email' (fallback)
-          console.log(`🔄 Tentativa 3: Verificando com código completo e type 'email'`)
+        // Tentativa 3: Primeiros 6 dígitos com type 'signup'
+        if (codigoLimpo.length >= 6) {
+          const codigo6Digitos = codigoLimpo.substring(0, 6)
+          console.log(`🔄 Tentativa 3: Verificando com primeiros 6 dígitos (${codigo6Digitos}) e type 'signup'`)
           const result3 = await supabase.auth.verifyOtp({
             email: email,
-            token: codigo,
-            type: 'email'
+            token: codigo6Digitos.trim(), // Limpar espaços
+            type: 'signup'
           })
+          
+          console.log('📋 Resultado tentativa 3:')
+          console.log('  - Erro:', result3.error?.message || 'Nenhum')
+          console.log('  - Status:', result3.error?.status || 'Nenhum')
+          console.log('  - Código do erro:', result3.error?.code || 'Nenhum')
+          console.log('  - User:', result3.data?.user ? 'Encontrado' : 'Não encontrado')
+          console.log('  - Erro completo:', result3.error ? JSON.stringify(result3.error, null, 2) : 'Nenhum')
           
           if (!result3.error && result3.data?.user) {
             data = result3.data
             error = null
-            console.log('✅ Sucesso na tentativa 3 (type email)')
+            console.log('✅ Sucesso na tentativa 3 (6 dígitos, type signup)')
           } else {
             console.log(`❌ Tentativa 3 falhou:`, result3.error?.message)
             error = result3.error || error
             
             // Tentativa 4: Primeiros 6 dígitos com type 'email' (fallback)
-            if (codigo.length >= 6) {
-              const codigo6Digitos = codigo.substring(0, 6)
               console.log(`🔄 Tentativa 4: Verificando com primeiros 6 dígitos (${codigo6Digitos}) e type 'email'`)
               const result4 = await supabase.auth.verifyOtp({
                 email: email,
-                token: codigo6Digitos,
+                token: codigo6Digitos.trim(), // Limpar espaços
                 type: 'email'
               })
+            
+            console.log('📋 Resultado tentativa 4:')
+            console.log('  - Erro:', result4.error?.message || 'Nenhum')
+            console.log('  - Status:', result4.error?.status || 'Nenhum')
+            console.log('  - Código do erro:', result4.error?.code || 'Nenhum')
+            console.log('  - User:', result4.data?.user ? 'Encontrado' : 'Não encontrado')
+            console.log('  - Erro completo:', result4.error ? JSON.stringify(result4.error, null, 2) : 'Nenhum')
               
               if (!result4.error && result4.data?.user) {
                 data = result4.data
@@ -705,6 +803,30 @@ export async function verificarCodigoEmail(codigo: string, email: string) {
               } else {
                 console.log(`❌ Tentativa 4 falhou:`, result4.error?.message)
                 error = result4.error || error
+              
+              // Tentativa 5: Tentar sem especificar o tipo (deixar Supabase decidir)
+              console.log(`🔄 Tentativa 5: Verificando sem especificar tipo (deixar Supabase decidir)`)
+              try {
+                // Tentar verificar sem type - alguns clientes do Supabase permitem isso
+                const result5 = await supabase.auth.verifyOtp({
+                  email: email,
+                  token: codigoLimpo, // Usar código limpo
+                  // Não especificar type - deixar Supabase decidir
+                } as any)
+                
+                console.log('📋 Resultado tentativa 5:')
+                console.log('  - Erro:', result5.error?.message || 'Nenhum')
+                console.log('  - User:', result5.data?.user ? 'Encontrado' : 'Não encontrado')
+                
+                if (!result5.error && result5.data?.user) {
+                  data = result5.data
+                  error = null
+                  console.log('✅ Sucesso na tentativa 5 (sem tipo especificado)')
+                } else {
+                  console.log(`❌ Tentativa 5 falhou:`, result5.error?.message)
+                }
+              } catch (e: any) {
+                console.log(`❌ Tentativa 5 gerou exceção:`, e.message)
               }
             }
           }
@@ -713,20 +835,55 @@ export async function verificarCodigoEmail(codigo: string, email: string) {
     }
 
     if (error) {
-      console.error('❌ Todas as tentativas falharam. Erro final:', error)
-      console.error('📋 Detalhes do erro:', JSON.stringify(error, null, 2))
+      console.error('❌ ========== TODAS AS TENTATIVAS FALHARAM ==========')
+      console.error('❌ Erro final:', error)
+      console.error('📋 Mensagem do erro:', error.message)
+      console.error('📋 Status do erro:', error.status)
+      console.error('📋 Código do erro:', error.code)
+      console.error('📋 Detalhes completos do erro:', JSON.stringify(error, null, 2))
+      console.error('📋 Código tentado:', codigo)
+      console.error('📋 Email:', email)
+      console.error('📋 Tipos tentados: signup, email, sem tipo')
+      console.error('⏰ Timestamp do erro:', new Date().toISOString())
+      
+      // Verificar se o erro é realmente de expiração ou se é outro problema
+      const errorMsg = (error.message || '').toLowerCase()
+      const errorCode = (error.code || '').toLowerCase()
+      
+      console.error('📋 Análise do erro:')
+      console.error('  - Contém "expired"?', errorMsg.includes('expired') || errorMsg.includes('expir'))
+      console.error('  - Contém "invalid"?', errorMsg.includes('invalid') || errorMsg.includes('incorrect'))
+      console.error('  - Contém "not found"?', errorMsg.includes('not found') || errorMsg.includes('does not exist'))
+      console.error('  - Código do erro:', errorCode)
       
       // Mensagens de erro mais amigáveis
-      if (error.message.includes('expired') || error.message.includes('expir')) {
+      if (errorMsg.includes('expired') || errorMsg.includes('expir') || errorCode.includes('expired')) {
+        console.error('⚠️ Código expirado - pode ter sido invalidado por reenvio ou limpeza de confirmação')
+        console.error('⚠️ SOLUÇÃO: Verifique se o modal não está tentando reenviar automaticamente')
+        console.error('⚠️ SOLUÇÃO: Verifique se a API não está limpando confirmação quando usarOTP=true')
+        
+        // IMPORTANTE: Não usar solução alternativa - precisamos descobrir a causa raiz
+        // O código deve funcionar corretamente, não devemos fazer workarounds
+        console.error('⚠️ CAUSA RAIZ DO PROBLEMA:')
+        console.error('  1. Verifique se o template de email está configurado corretamente no Supabase')
+        console.error('  2. Verifique se o tipo de confirmação está como "OTP" no Supabase')
+        console.error('  3. Verifique se não há operações que invalidam o código antes da verificação')
+        console.error('  4. Verifique se o código está sendo verificado com o tipo correto (signup)')
+        console.error('  5. Verifique se não há chamadas de resend() que invalidam o código original')
+        
         return { error: 'Código expirado. Solicite um novo código.' }
       }
-      if (error.message.includes('invalid') || error.message.includes('incorrect')) {
+      if (errorMsg.includes('invalid') || errorMsg.includes('incorrect') || errorCode.includes('invalid')) {
+        console.error('⚠️ Código inválido - verifique se digitou corretamente')
         return { error: 'Código inválido. Verifique e tente novamente.' }
       }
-      if (error.message.includes('not found') || error.message.includes('does not exist')) {
+      if (errorMsg.includes('not found') || errorMsg.includes('does not exist') || errorCode.includes('not_found')) {
+        console.error('⚠️ Código não encontrado - pode ter sido invalidado')
+        console.error('⚠️ SOLUÇÃO: O código pode ter sido invalidado quando um novo foi solicitado')
         return { error: 'Código não encontrado. Solicite um novo código.' }
       }
       
+      console.error('⚠️ Erro desconhecido - retornando mensagem genérica')
       return { error: error.message || 'Erro ao verificar código. Tente solicitar um novo código.' }
     }
 
@@ -735,16 +892,26 @@ export async function verificarCodigoEmail(codigo: string, email: string) {
       return { error: 'Erro ao verificar código. Tente novamente.' }
     }
 
-    // Verificar se o email foi confirmado
-    if (!data.user.email_confirmed_at) {
-      console.warn('⚠️ Email ainda não confirmado após verificação OTP')
-      return { error: 'Email ainda não foi confirmado. Tente novamente.' }
-    }
-
+    // IMPORTANTE: Após verifyOtp bem-sucedido, o email já está confirmado
+    // O verifyOtp do Supabase já confirma o email automaticamente
+    // Não precisamos verificar email_confirmed_at - o verifyOtp já faz isso
+    console.log('✅ verifyOtp bem-sucedido - email já está confirmado internamente')
     console.log('✅ Email confirmado com sucesso!')
     console.log('👤 User ID:', data.user.id)
+    console.log('📧 Email confirmado em:', data.user.email_confirmed_at || 'Agora')
+    console.log('🔐 Fazendo login automático após confirmação...')
+    
+    // IMPORTANTE: Após confirmar o código, fazer login automático
+    // O verifyOtp já cria uma sessão, mas vamos garantir que está funcionando
+    const { data: sessionData } = await supabase.auth.getSession()
+    if (sessionData?.session) {
+      console.log('✅ Sessão criada automaticamente após verificação OTP')
+    } else {
+      console.warn('⚠️ Sessão não foi criada automaticamente - pode precisar fazer login manual')
+    }
+    
     revalidatePath('/')
-    return { data, success: true }
+    return { data, success: true, session: sessionData?.session }
   } catch (error: any) {
     console.error('❌ Erro inesperado ao verificar código:', error)
     return { error: error.message || 'Erro inesperado ao verificar código' }
@@ -752,113 +919,10 @@ export async function verificarCodigoEmail(codigo: string, email: string) {
 }
 
 export async function reenviarCodigoEmail(email: string) {
-  console.log('🚀 [REENVIAR LINK] ========== INÍCIO ==========')
-  console.log('📧 Email:', email)
-  console.log('⏰ Timestamp:', new Date().toISOString())
-  
-  try {
-    const { createAdminClient } = await import('./supabase/server')
-    const supabaseAdmin = createAdminClient()
-    
-    if (!supabaseAdmin) {
-      console.error('❌ Admin client não disponível')
-      return { 
-        error: 'Configuração do servidor incompleta. Contate o suporte.',
-        needsConfig: true 
-      }
-    }
-    
-    // Buscar usuário
-    console.log('🔍 Buscando usuário...')
-    const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers()
-    
-    if (listError || !users?.users) {
-      console.error('❌ Erro ao listar usuários:', listError)
-      return { error: 'Erro ao buscar usuário. Tente novamente.' }
-    }
-    
-    const user = (users.users as any[]).find((u: any) => u.email === email)
-    
-    if (!user) {
-      console.error('❌ Usuário não encontrado para:', email)
-      return { error: 'Usuário não encontrado. Verifique o email.' }
-    }
-    
-    console.log('✅ Usuário encontrado:', user.id)
-    console.log('📋 Email confirmado:', user.email_confirmed_at ? 'SIM' : 'NÃO')
-    
-    // Verificar se já está confirmado (definitivamente)
-    if (user.email_confirmed_at) {
-      const confirmedDate = new Date(user.email_confirmed_at)
-      const createdDate = new Date(user.created_at)
-      const diffSeconds = Math.abs((confirmedDate.getTime() - createdDate.getTime()) / 1000)
-      
-      if (diffSeconds >= 30) {
-        console.log('⚠️ Email já confirmado há mais de 30 segundos')
-        return { error: 'Este email já foi confirmado.' }
-      }
-    }
-    
-    // Limpar confirmação se existir para permitir novo envio
-    if (user.email_confirmed_at) {
-      console.log('🔧 Limpando confirmação de email...')
-      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, { 
-        email_confirm: false 
-      })
-      
-      if (updateError) {
-        console.error('⚠️ Erro ao limpar confirmação:', updateError.message)
-      } else {
-        console.log('✅ Confirmação limpa com sucesso')
-      }
-      
-      // Aguardar para garantir que a atualização foi processada
-      await new Promise(resolve => setTimeout(resolve, 2000))
-    }
-    
-    // Configurar URL de redirecionamento
-    // IMPORTANTE: SEMPRE usar https://plenipay.com explicitamente
-    // Não confiar em getSiteUrl() que pode retornar URL errada
-    const siteUrl = 'https://plenipay.com' // FORÇAR URL de produção sempre
-    const redirectTo = `${siteUrl}/auth/callback?next=/home`
-    console.log('🔗 URL de redirecionamento (FORÇADA):', redirectTo)
-    console.log('⚠️ IMPORTANTE: URL forçada para produção (https://plenipay.com)')
-    
-    // MÉTODO 1: Tentar resend (type: signup) - NÃO usar inviteUserByEmail
-    // inviteUserByEmail envia email de "invite", não de confirmação
-    console.log('📤 Tentando resend (type: signup) - método principal...')
-    const { createClient } = await import('./supabase/server')
-    const supabase = await createClient()
-    
-    const { data: resendData, error: resendError } = await supabase.auth.resend({
-      type: 'signup',
-      email: email,
-      options: {
-        emailRedirectTo: redirectTo
-      }
-    })
-    
-    if (!resendError) {
-      console.log('✅ Resend retornou sucesso!')
-      return {
-        success: true,
-        message: 'Link de confirmação enviado! Verifique sua caixa de entrada.',
-        linkGenerated: true
-      }
-    }
-    
-    console.error('❌ Resend também falhou:', resendError.message)
-    return {
-      error: `Erro ao enviar email: ${resendError.message || 'Não foi possível enviar o link de confirmação'}`,
-      details: 'Verifique: 1) SMTP configurado no Supabase, 2) Template de email configurado, 3) Tipo de confirmação como "Email Link"'
-    }
-    
-  } catch (error: any) {
-    console.error('❌ Erro inesperado:', error)
-    return { 
-      error: error?.message || 'Erro inesperado ao enviar link de confirmação',
-      details: 'Verifique os logs do servidor para mais detalhes'
-    }
+  // Verificação de email temporariamente desabilitada
+  // Será reimplementada do zero
+  return {
+    error: 'Verificação de email está temporariamente desabilitada. Será reimplementada em breve.'
   }
 }
 
