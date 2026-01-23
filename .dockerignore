@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.gitignore
+.env*
+!.env.example
+*.md
+.dockerignore
+HOSTINGER-UPLOAD
+deploy-hostinger
+terminals
