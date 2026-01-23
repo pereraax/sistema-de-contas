@@ -83,26 +83,9 @@ app.prepare().then(() => {
     }
     
     // Iniciar keep-alive do apifacil.dev automaticamente (opcional, não bloqueia se falhar)
-    try {
-      // Tentar importar o módulo (pode ser TypeScript compilado ou não existir)
-      const apifacilModule = require('./lib/whatsapp-apifacil')
-      const { isApifacilConfigured } = apifacilModule
-      
-      if (isApifacilConfigured && isApifacilConfigured()) {
-        // Se startKeepAlive existir, usar; senão, apenas logar
-        if (apifacilModule.startKeepAlive) {
-          apifacilModule.startKeepAlive(5)
-          console.log('✅ [Apifacil] Keep-alive iniciado automaticamente (verificando a cada 5 minutos)')
-        } else {
-          console.log('ℹ️ [Apifacil] Configurado mas keep-alive não disponível')
-        }
-      } else {
-        console.log('ℹ️ [Apifacil] Keep-alive não iniciado - configure APIFACIL_INSTANCE_ID e APIFACIL_TOKEN')
-      }
-    } catch (error) {
-      // Não bloquear o servidor se houver erro - apenas logar
-      console.log('ℹ️ [Apifacil] Keep-alive não disponível:', error.message)
-    }
+    // NOTA: Módulo TypeScript não pode ser importado diretamente com require() em runtime
+    // O keep-alive do apifacil é opcional e não é crítico para o funcionamento da aplicação
+    console.log('ℹ️ [Apifacil] Keep-alive desabilitado em produção (módulo TypeScript)')
   })
 })
 
