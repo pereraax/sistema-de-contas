@@ -3,8 +3,8 @@ const { parse } = require('url')
 const next = require('next')
 
 const dev = process.env.NODE_ENV !== 'production'
-// IMPORTANTE: Escutar em 0.0.0.0 para aceitar conexões externas (Render)
-const hostname = process.env.RENDER ? '0.0.0.0' : 'localhost'
+// Escutar em 0.0.0.0 em produção (Render, Coolify, VPS, Docker) para aceitar conexões externas
+const hostname = dev ? 'localhost' : '0.0.0.0'
 const port = parseInt(process.env.PORT || '3000', 10)
 
 const app = next({ dev, hostname, port })
@@ -84,12 +84,18 @@ app.prepare().then(() => {
     
     // Iniciar keep-alive do apifacil.dev automaticamente (opcional, não bloqueia se falhar)
     try {
-      const { startKeepAlive, isApifacilConfigured } = require('./lib/whatsapp-apifacil')
+      // Tentar importar o módulo (pode ser TypeScript compilado ou não existir)
+      const apifacilModule = require('./lib/whatsapp-apifacil')
+      const { isApifacilConfigured } = apifacilModule
       
-      if (isApifacilConfigured()) {
-        // Verificar status a cada 5 minutos para manter sempre online
-        startKeepAlive(5)
-        console.log('✅ [Apifacil] Keep-alive iniciado automaticamente (verificando a cada 5 minutos)')
+      if (isApifacilConfigured && isApifacilConfigured()) {
+        // Se startKeepAlive existir, usar; senão, apenas logar
+        if (apifacilModule.startKeepAlive) {
+          apifacilModule.startKeepAlive(5)
+          console.log('✅ [Apifacil] Keep-alive iniciado automaticamente (verificando a cada 5 minutos)')
+        } else {
+          console.log('ℹ️ [Apifacil] Configurado mas keep-alive não disponível')
+        }
       } else {
         console.log('ℹ️ [Apifacil] Keep-alive não iniciado - configure APIFACIL_INSTANCE_ID e APIFACIL_TOKEN')
       }
