@@ -43,38 +43,14 @@ export async function GET(request: NextRequest) {
     return response
   }
   
-  // CRÍTICO: Se a URL recebida contém 0.0.0.0 (qualquer porta), extrair parâmetros e processar diretamente
-  // NÃO redirecionar novamente para evitar loops - processar o callback diretamente
-  const temUrlInvalida = request.url.includes('0.0.0.0') || request.nextUrl.href.includes('0.0.0.0')
-  
-  if (temUrlInvalida) {
-    console.warn('⚠️ [Callback] URL contém 0.0.0.0 - extraindo parâmetros e processando diretamente (sem redirect)')
-    console.warn('⚠️ [Callback] request.url:', request.url)
-    console.warn('⚠️ [Callback] request.nextUrl.href:', request.nextUrl.href)
-    
-    // Extrair parâmetros da URL (mesmo que tenha 0.0.0.0)
-    let token_hash: string | null = null
-    let type: string = 'signup'
-    let next: string = '/home'
-    
-    try {
-      // Tentar extrair da URL atual (mesmo com 0.0.0.0)
-      const urlAtual = new URL(request.url)
-      token_hash = urlAtual.searchParams.get('token_hash')
-      type = urlAtual.searchParams.get('type') || 'signup'
-      next = urlAtual.searchParams.get('next') || '/home'
-    } catch {
-      // Se falhar, tentar extrair da string diretamente
-      const tokenMatch = request.url.match(/[?&#]token_hash=([^&#]+)/i)
-      if (tokenMatch) token_hash = decodeURIComponent(tokenMatch[1])
-      const typeMatch = request.url.match(/[?&#]type=([^&#]+)/i)
-      if (typeMatch) type = decodeURIComponent(typeMatch[1])
-      const nextMatch = request.url.match(/[?&#]next=([^&#]+)/i)
-      if (nextMatch) next = decodeURIComponent(nextMatch[1])
-    }
-    
-    console.log('✅ [Callback] Parâmetros extraídos:', { token_hash: token_hash ? token_hash.substring(0, 20) + '...' : null, type, next })
-    // Continuar processamento normalmente abaixo (não redirecionar)
+  // CRÍTICO: Ignorar completamente a URL base (pode ser 0.0.0.0:3000 em produção)
+  // Isso é normal - o servidor roda em 0.0.0.0:3000 mas devemos sempre usar productionUrl para redirects
+  // Apenas logar para debug, mas não fazer nada especial
+  if (request.url.includes('0.0.0.0') || request.nextUrl.href.includes('0.0.0.0')) {
+    console.log('ℹ️ [Callback] URL base contém 0.0.0.0 (normal em produção) - usando productionUrl para redirects')
+    console.log('ℹ️ [Callback] request.url:', request.url)
+    console.log('ℹ️ [Callback] request.nextUrl.href:', request.nextUrl.href)
+    // Não fazer nada - apenas continuar processamento normalmente
   }
   
   // CRÍTICO: Sempre extrair parâmetros diretamente da query string, ignorando a URL base
