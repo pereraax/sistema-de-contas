@@ -29,6 +29,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(redirectUrl, { status: 303 })
   }
   
+  // CRÍTICO: Verificar cookie para evitar processar o mesmo token múltiplas vezes
+  const cookieStore = await cookies()
+  const processedToken = cookieStore.get('callback_processed')
+  const token_hash = request.nextUrl.searchParams.get('token_hash')
+  
+  if (processedToken && processedToken.value === token_hash) {
+    console.warn('⚠️ [Callback] Token já foi processado - redirecionando para home sem reprocessar')
+    const redirectUrl = new URL('/home', productionUrl)
+    const response = NextResponse.redirect(redirectUrl, { status: 303 })
+    // Remover o cookie após usar
+    response.cookies.delete('callback_processed')
+    return response
+  }
+  
   // CRÍTICO: Se a URL recebida já contém 0.0.0.0:10000, redirecionar IMEDIATAMENTE
   // Isso pode acontecer se o Next.js está usando URL base errada
   if (request.url.includes('0.0.0.0') || request.url.includes(':10000') || 
@@ -278,10 +292,22 @@ export async function GET(request: NextRequest) {
         // Os parâmetros emailConfirmed e mensagem serão mostrados via cookies ou localStorage no cliente
         console.log(`✅ [Callback] Redirecionando para URL absoluta (sem query params): ${finalUrl}`)
         
+        // Marcar token como processado para evitar loops
+        const response = NextResponse.redirect(finalUrl, { status: 303 })
+        if (token_hash) {
+          // Marcar que este token foi processado (expira em 5 minutos)
+          response.cookies.set('callback_processed', token_hash, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+            maxAge: 300, // 5 minutos
+            path: '/'
+          })
+        }
+        
         // Usar redirect 303 (See Other) em vez de 307 para evitar loops
         // 303 força GET e limpa o método POST se houver
-        // IMPORTANTE: Não usar Location header duplicado - apenas NextResponse.redirect
-        return NextResponse.redirect(finalUrl, { status: 303 })
+        return response
       }
       
       // Se não há sessão, redirecionar para login (não deveria acontecer, mas por segurança)
