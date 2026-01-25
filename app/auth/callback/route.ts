@@ -241,20 +241,20 @@ export async function GET(request: NextRequest) {
         
         // GARANTIR que sempre usa productionUrl (não requestUrl.origin que pode ser 0.0.0.0:10000)
         // IMPORTANTE: Usar URL absoluta completa para evitar que Next.js use URL base errada
+        // EVITAR parâmetros de query para prevenir loops de redirecionamento
         let redirectPath = next.startsWith('/') ? next : `/${next}`
+        
+        // Construir URL absoluta SEM parâmetros de query para evitar loops
         const redirectUrl = new URL(redirectPath, productionUrl)
-        redirectUrl.searchParams.set('emailConfirmed', 'true')
-        redirectUrl.searchParams.set('mensagem', 'Email confirmado com sucesso!')
         
         // FORÇAR URL absoluta completa (não relativa)
         let finalUrl = redirectUrl.toString()
         console.log(`🔍 [Callback] URL final de redirecionamento: ${finalUrl}`)
-        console.log(`🔍 [Callback] Verificando se URL é absoluta: ${finalUrl.startsWith('http')}`)
         
         // Verificar se a URL não contém 0.0.0.0:10000
         if (finalUrl.includes('0.0.0.0') || finalUrl.includes(':10000')) {
           console.error('❌ [Callback] URL de redirecionamento contém 0.0.0.0:10000 - CORRIGINDO!')
-          finalUrl = finalUrl.replace(/https?:\/\/[^\/]+/, productionUrl)
+          finalUrl = `${productionUrl}${redirectPath}`
           console.log(`✅ [Callback] URL corrigida: ${finalUrl}`)
         }
         
@@ -264,46 +264,14 @@ export async function GET(request: NextRequest) {
           console.log(`⚠️ [Callback] URL não era absoluta, convertendo: ${finalUrl}`)
         }
         
-        // CRÍTICO: Sempre usar HTML redirect quando estamos em localhost:3000
-        // O NextResponse.redirect() pode usar a URL base errada (localhost:3000) mesmo com URL absoluta
-        const isLocalhost = request.url.includes('localhost:3000') || request.nextUrl.href.includes('localhost:3000')
+        // CRÍTICO: Usar redirect simples SEM parâmetros de query para evitar loops
+        // Os parâmetros emailConfirmed e mensagem serão mostrados via cookies ou localStorage no cliente
+        console.log(`✅ [Callback] Redirecionando para URL absoluta (sem query params): ${finalUrl}`)
         
-        if (isLocalhost || finalUrl.includes('0.0.0.0') || finalUrl.includes(':10000')) {
-          console.log('⚠️ [Callback] Usando HTML redirect para garantir URL absoluta correta (sucesso)')
-          console.log(`⚠️ [Callback] isLocalhost: ${isLocalhost}`)
-          
-          // Garantir que a URL é absoluta e correta
-          let safeUrl = finalUrl
-          if (safeUrl.includes('localhost:3000')) {
-            safeUrl = safeUrl.replace(/http:\/\/localhost:3000/g, productionUrl)
-            console.log(`✅ [Callback] URL corrigida de localhost: ${safeUrl}`)
-          }
-          if (safeUrl.includes('0.0.0.0') || safeUrl.includes(':10000')) {
-            safeUrl = `${productionUrl}${redirectPath}?emailConfirmed=true&mensagem=${encodeURIComponent('Email confirmado com sucesso!')}`
-            console.log(`✅ [Callback] URL corrigida de 0.0.0.0: ${safeUrl}`)
-          }
-          
-          const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta http-equiv="refresh" content="0; url=${safeUrl}">
-  <script>window.location.replace("${safeUrl}");</script>
-</head>
-<body>
-  <p>Redirecionando... <a href="${safeUrl}">Clique aqui se não for redirecionado</a></p>
-</body>
-</html>`
-          return new NextResponse(html, {
-            status: 200,
-            headers: {
-              'Content-Type': 'text/html',
-              'Location': safeUrl,
-            },
-          })
-        }
-        
-        console.log(`✅ [Callback] Redirecionando para URL absoluta: ${finalUrl}`)
-        return NextResponse.redirect(finalUrl, { status: 307 })
+        // Usar redirect 303 (See Other) em vez de 307 para evitar loops
+        // 303 força GET e limpa o método POST se houver
+        // IMPORTANTE: Não usar Location header duplicado - apenas NextResponse.redirect
+        return NextResponse.redirect(finalUrl, { status: 303 })
       }
       
       // Se não há sessão, redirecionar para login (não deveria acontecer, mas por segurança)
