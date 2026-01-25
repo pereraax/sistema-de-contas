@@ -43,24 +43,26 @@ export async function GET(request: NextRequest) {
     return response
   }
   
-  // CRÍTICO: Se a URL recebida já contém 0.0.0.0:10000, redirecionar IMEDIATAMENTE
-  // Isso pode acontecer se o Next.js está usando URL base errada
-  if (request.url.includes('0.0.0.0') || request.url.includes(':10000') || 
-      request.nextUrl.href.includes('0.0.0.0') || request.nextUrl.href.includes(':10000')) {
-    console.error('❌ [Callback] URL recebida contém 0.0.0.0:10000 - REDIRECIONANDO IMEDIATAMENTE!')
-    console.error('❌ [Callback] request.url:', request.url)
-    console.error('❌ [Callback] request.nextUrl.href:', request.nextUrl.href)
+  // CRÍTICO: Se a URL recebida contém 0.0.0.0 (qualquer porta), extrair parâmetros e processar diretamente
+  // NÃO redirecionar novamente para evitar loops - processar o callback diretamente
+  const temUrlInvalida = request.url.includes('0.0.0.0') || request.nextUrl.href.includes('0.0.0.0')
+  
+  if (temUrlInvalida) {
+    console.warn('⚠️ [Callback] URL contém 0.0.0.0 - extraindo parâmetros e processando diretamente (sem redirect)')
+    console.warn('⚠️ [Callback] request.url:', request.url)
+    console.warn('⚠️ [Callback] request.nextUrl.href:', request.nextUrl.href)
     
-    // Extrair parâmetros da URL errada (tentar de ambas as URLs)
+    // Extrair parâmetros da URL (mesmo que tenha 0.0.0.0)
     let token_hash: string | null = null
     let type: string = 'signup'
     let next: string = '/home'
     
     try {
-      const urlErrada = new URL(request.url)
-      token_hash = urlErrada.searchParams.get('token_hash')
-      type = urlErrada.searchParams.get('type') || 'signup'
-      next = urlErrada.searchParams.get('next') || '/home'
+      // Tentar extrair da URL atual (mesmo com 0.0.0.0)
+      const urlAtual = new URL(request.url)
+      token_hash = urlAtual.searchParams.get('token_hash')
+      type = urlAtual.searchParams.get('type') || 'signup'
+      next = urlAtual.searchParams.get('next') || '/home'
     } catch {
       // Se falhar, tentar extrair da string diretamente
       const tokenMatch = request.url.match(/[?&#]token_hash=([^&#]+)/i)
@@ -71,52 +73,39 @@ export async function GET(request: NextRequest) {
       if (nextMatch) next = decodeURIComponent(nextMatch[1])
     }
     
-    // Construir URL correta
-    const urlCorreta = new URL('/auth/callback', productionUrl)
-    if (token_hash) urlCorreta.searchParams.set('token_hash', token_hash)
-    if (type) urlCorreta.searchParams.set('type', type)
-    if (next) urlCorreta.searchParams.set('next', next)
-    
-    console.log('🔄 [Callback] Redirecionando para:', urlCorreta.toString())
-    console.log('🔄 [Callback] Parâmetros preservados:', { token_hash: token_hash ? token_hash.substring(0, 20) + '...' : null, type, next })
-    return NextResponse.redirect(urlCorreta.toString(), { status: 307 })
+    console.log('✅ [Callback] Parâmetros extraídos:', { token_hash: token_hash ? token_hash.substring(0, 20) + '...' : null, type, next })
+    // Continuar processamento normalmente abaixo (não redirecionar)
   }
   
-  // CRÍTICO: Sempre construir URL usando productionUrl, nunca usar request.url diretamente
-  // Extrair parâmetros da URL, mas sempre usar productionUrl como base
-  let requestUrl: URL
+  // CRÍTICO: Sempre extrair parâmetros diretamente da query string, ignorando a URL base
+  // Isso evita problemas quando request.url contém 0.0.0.0
+  let token_hash: string | null = null
+  let type: string = 'signup'
+  let next: string = '/home'
+  
+  // Extrair parâmetros diretamente da query string (não depende da URL base)
   try {
-    // Se request.url contém plenipay.com, usar diretamente
-    if (request.url.includes('plenipay.com')) {
-      requestUrl = new URL(request.url)
-    } else {
-      // Se não, construir URL correta usando productionUrl
-      const pathAndQuery = request.url.replace(/https?:\/\/[^\/]+/, '')
-      requestUrl = new URL(pathAndQuery, productionUrl)
-      console.log('⚠️ [Callback] URL não contém plenipay.com, reconstruindo:', requestUrl.toString())
-    }
-  } catch {
-    // Se falhar, construir do zero usando productionUrl
-    const pathAndQuery = request.url.replace(/https?:\/\/[^\/]+/, '')
-    requestUrl = new URL(pathAndQuery, productionUrl)
-    console.log('⚠️ [Callback] Erro ao construir URL, usando productionUrl:', requestUrl.toString())
+    // Usar request.nextUrl.searchParams que já extrai corretamente, independente da URL base
+    token_hash = request.nextUrl.searchParams.get('token_hash')
+    type = request.nextUrl.searchParams.get('type') || 'signup'
+    next = request.nextUrl.searchParams.get('next') || '/home'
+  } catch (error) {
+    console.error('❌ [Callback] Erro ao extrair parâmetros:', error)
+    // Fallback: extrair da string diretamente
+    const urlString = request.url
+    const tokenMatch = urlString.match(/[?&#]token_hash=([^&#]+)/i)
+    if (tokenMatch) token_hash = decodeURIComponent(tokenMatch[1])
+    const typeMatch = urlString.match(/[?&#]type=([^&#]+)/i)
+    if (typeMatch) type = decodeURIComponent(typeMatch[1])
+    const nextMatch = urlString.match(/[?&#]next=([^&#]+)/i)
+    if (nextMatch) next = decodeURIComponent(nextMatch[1])
   }
   
-  // VERIFICAR se requestUrl ainda contém 0.0.0.0:10000
-  if (requestUrl.href.includes('0.0.0.0') || requestUrl.href.includes(':10000')) {
-    console.error('❌ [Callback] requestUrl AINDA contém 0.0.0.0:10000 após correção!')
-    console.error('❌ [Callback] requestUrl.href:', requestUrl.href)
-    // Forçar correção
-    const pathAndQuery = requestUrl.pathname + requestUrl.search
-    requestUrl = new URL(pathAndQuery, productionUrl)
-    console.log('✅ [Callback] URL forçada para:', requestUrl.toString())
-  }
-  
-  // Extrair parâmetros principais
-  // IMPORTANTE: Extrair da string da URL diretamente, mesmo se URL estiver errada (0.0.0.0:10000)
-  let token_hash = requestUrl.searchParams.get('token_hash')
-  let type = requestUrl.searchParams.get('type') || 'signup'
-  let next = requestUrl.searchParams.get('next') || '/home'
+  console.log('✅ [Callback] Parâmetros extraídos:', { 
+    token_hash: token_hash ? token_hash.substring(0, 20) + '...' : null, 
+    type, 
+    next 
+  })
   
   // Se não encontrou, tentar extrair da string completa (mesmo com URL errada)
   if (!token_hash) {
