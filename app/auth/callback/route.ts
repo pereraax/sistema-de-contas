@@ -119,21 +119,24 @@ export async function GET(request: NextRequest) {
   }
   
   // Tentar extrair do hash se ainda não encontrou
-  if (!token_hash && requestUrl.hash) {
+  if (!token_hash) {
     try {
-      const hashParams = new URLSearchParams(requestUrl.hash.substring(1))
-      token_hash = hashParams.get('token_hash') || token_hash
-      type = hashParams.get('type') || type
-      next = hashParams.get('next') || next
-      if (token_hash) {
-        console.log('✅ [Callback] Token extraído do hash')
+      const hash = request.nextUrl.hash || ''
+      if (hash) {
+        const hashParams = new URLSearchParams(hash.substring(1))
+        token_hash = hashParams.get('token_hash') || token_hash
+        type = hashParams.get('type') || type
+        next = hashParams.get('next') || next
+        if (token_hash) {
+          console.log('✅ [Callback] Token extraído do hash')
+        }
       }
     } catch {
       // Ignorar erro
     }
   }
   
-  // Extrair type e next da string também
+  // Extrair type e next da string também se ainda não encontrou
   if (!type || type === 'signup') {
     const typeMatch = request.url.match(/[?&#]type=([^&#]+)/i)
     if (typeMatch) {
@@ -148,7 +151,7 @@ export async function GET(request: NextRequest) {
     }
   }
   
-  console.log('🔍 [Callback] Parâmetros extraídos:', { 
+  console.log('🔍 [Callback] Parâmetros finais extraídos:', { 
     token_hash: token_hash ? token_hash.substring(0, 20) + '...' : null, 
     type, 
     next
