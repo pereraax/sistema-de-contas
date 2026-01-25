@@ -37,6 +37,11 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/server.js ./
 COPY --from=builder /app/lib ./lib
+COPY --from=builder /app/app ./app
+COPY --from=builder /app/components ./components
+COPY --from=builder /app/middleware.ts ./
+COPY --from=builder /app/next.config.js ./
+COPY --from=builder /app/tsconfig.json ./
 
 # Criar diretório de cache e dar permissão ao usuário nextjs
 RUN mkdir -p /app/.next/cache && chown -R nextjs:nodejs /app/.next
