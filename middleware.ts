@@ -13,6 +13,10 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const url = request.nextUrl.clone()
   
+  // CRÍTICO: Não interceptar se já estamos no domínio correto (plenipay.com)
+  // Isso evita loops de redirecionamento
+  const isCorrectDomain = url.host === 'plenipay.com' || url.host === 'www.plenipay.com'
+  
   // SOLUÇÃO 1: Interceptar qualquer requisição para 0.0.0.0:10000
   // Isso funciona ANTES do callback handler ser executado
   // IMPORTANTE: Intercepta QUALQUER requisição que tente acessar 0.0.0.0:10000
@@ -22,7 +26,8 @@ export function middleware(request: NextRequest) {
   const pathnameTemUrlInvalida = pathname.includes('0.0.0.0:10000') || (pathname.includes('0.0.0.0') && pathname.includes('10000'))
   const searchTemUrlInvalida = url.search.includes('0.0.0.0:10000') || (url.search.includes('0.0.0.0') && url.search.includes('10000'))
   
-  if (hostTemUrlInvalida || pathnameTemUrlInvalida || searchTemUrlInvalida) {
+  // Só redirecionar se realmente tiver URL inválida E não estiver no domínio correto
+  if ((hostTemUrlInvalida || pathnameTemUrlInvalida || searchTemUrlInvalida) && !isCorrectDomain) {
     console.error('🚫 [Middleware] URL INVÁLIDA DETECTADA: 0.0.0.0:10000')
     console.error('🚫 [Middleware] Host:', url.host)
     console.error('🚫 [Middleware] Pathname:', pathname)
@@ -53,44 +58,47 @@ export function middleware(request: NextRequest) {
     console.log('🔄 [Middleware] Parâmetros preservados:', Object.fromEntries(redirectUrl.searchParams.entries()))
     console.log('🔄 [Middleware] Hash:', url.hash)
     
-    // IMPORTANTE: Usar 307 (Temporary Redirect) para preservar método GET e parâmetros
-    // Isso garante que o callback handler receba todos os parâmetros necessários
-    return NextResponse.redirect(redirectUrl, { status: 307 })
+    // IMPORTANTE: Usar 303 (See Other) em vez de 307 para evitar loops
+    // 303 força GET e limpa qualquer estado de POST
+    return NextResponse.redirect(redirectUrl, { status: 303 })
   }
   
   // SOLUÇÃO 2: Verificar referer e origin para detectar redirects incorretos
-  const referer = request.headers.get('referer')
-  const origin = request.headers.get('origin')
-  
-  if (referer && (referer.includes('0.0.0.0') || referer.includes('10000'))) {
-    console.warn('⚠️ [Middleware] Referer contém 0.0.0.0:10000:', referer)
-    console.warn('⚠️ [Middleware] Redirecionando para URL correta...')
+  // MAS só se não estivermos no domínio correto para evitar loops
+  if (!isCorrectDomain) {
+    const referer = request.headers.get('referer')
+    const origin = request.headers.get('origin')
     
-    // Se o referer é incorreto, redirecionar para URL correta
-    const redirectUrl = new URL(pathname, PRODUCTION_URL)
-    url.searchParams.forEach((value, key) => {
-      redirectUrl.searchParams.set(key, value)
-    })
-    if (url.hash) {
-      redirectUrl.hash = url.hash
+    if (referer && (referer.includes('0.0.0.0') || referer.includes('10000'))) {
+      console.warn('⚠️ [Middleware] Referer contém 0.0.0.0:10000:', referer)
+      console.warn('⚠️ [Middleware] Redirecionando para URL correta...')
+      
+      // Se o referer é incorreto, redirecionar para URL correta
+      const redirectUrl = new URL(pathname, PRODUCTION_URL)
+      url.searchParams.forEach((value, key) => {
+        redirectUrl.searchParams.set(key, value)
+      })
+      if (url.hash) {
+        redirectUrl.hash = url.hash
+      }
+      
+      return NextResponse.redirect(redirectUrl, { status: 303 })
     }
     
-    return NextResponse.redirect(redirectUrl, { status: 307 })
-  }
-  
-  if (origin && (origin.includes('0.0.0.0') || origin.includes('10000'))) {
-    console.warn('⚠️ [Middleware] Origin contém 0.0.0.0:10000:', origin)
-    console.warn('⚠️ [Middleware] Redirecionando para URL correta...')
-    
-    const redirectUrl = new URL(pathname, PRODUCTION_URL)
-    url.searchParams.forEach((value, key) => {
-      redirectUrl.searchParams.set(key, value)
-    })
-    if (url.hash) {
-      redirectUrl.hash = url.hash
+    if (origin && (origin.includes('0.0.0.0') || origin.includes('10000'))) {
+      console.warn('⚠️ [Middleware] Origin contém 0.0.0.0:10000:', origin)
+      console.warn('⚠️ [Middleware] Redirecionando para URL correta...')
+      
+      const redirectUrl = new URL(pathname, PRODUCTION_URL)
+      url.searchParams.forEach((value, key) => {
+        redirectUrl.searchParams.set(key, value)
+      })
+      if (url.hash) {
+        redirectUrl.hash = url.hash
+      }
+      
+      return NextResponse.redirect(redirectUrl, { status: 303 })
     }
-    
-    return NextResponse.redirect(redirectUrl, { status: 307 })
   }
   
   // Comportamento normal do middleware (SEO e cache)
