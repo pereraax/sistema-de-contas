@@ -19,6 +19,16 @@ export async function GET(request: NextRequest) {
   console.log('🔍 [Callback] NextUrl.href:', request.nextUrl.href)
   console.log('🔍 [Callback] NextUrl.origin:', request.nextUrl.origin)
   
+  // CRÍTICO: Verificar se já estamos redirecionando para evitar loops
+  // Se o referer já é /home ou /login, não processar novamente
+  const referer = request.headers.get('referer')
+  if (referer && (referer.includes('/home') || referer.includes('/login'))) {
+    console.warn('⚠️ [Callback] Referer indica que já foi redirecionado - evitando loop')
+    // Se já foi redirecionado, apenas retornar a página home sem processar
+    const redirectUrl = new URL('/home', productionUrl)
+    return NextResponse.redirect(redirectUrl, { status: 303 })
+  }
+  
   // CRÍTICO: Se a URL recebida já contém 0.0.0.0:10000, redirecionar IMEDIATAMENTE
   // Isso pode acontecer se o Next.js está usando URL base errada
   if (request.url.includes('0.0.0.0') || request.url.includes(':10000') || 
