@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     if (tokenMatch) token_hash = decodeURIComponent(tokenMatch[1])
   }
   
-  // Verificar se o token já foi processado
+  // Verificar se o token já foi processado (cookieStore já foi obtido acima)
   const processedToken = cookieStore.get('callback_processed')
   if (processedToken && processedToken.value === token_hash && token_hash) {
     console.warn('⚠️ [Callback] Token já foi processado - redirecionando para home sem reprocessar')
@@ -159,7 +159,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
   }
 
-  // Criar cliente Supabase
+  // Criar cliente Supabase (cookieStore já foi obtido acima)
   // IMPORTANTE: Garantir que o Supabase client não use URLs erradas
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   if (!supabaseUrl || supabaseUrl.includes('0.0.0.0') || supabaseUrl.includes(':10000')) {
