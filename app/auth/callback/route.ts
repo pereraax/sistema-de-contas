@@ -11,13 +11,25 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   const productionUrl = 'https://plenipay.com'
   
+  // CRÍTICO: Verificar o Host REAL (do header, não da URL base)
+  // O header Host mostra o domínio que o usuário está acessando
+  const hostHeader = request.headers.get('host') || ''
+  const isCorrectDomain = hostHeader === 'plenipay.com' || hostHeader === 'www.plenipay.com' || hostHeader.includes('plenipay.com')
+  
   console.log('🔍 [Callback] ========== CALLBACK INICIADO ==========')
+  console.log('🔍 [Callback] Host Header (real):', hostHeader)
+  console.log('🔍 [Callback] É domínio correto?', isCorrectDomain)
   console.log('🔍 [Callback] URL recebida (request.url):', request.url)
-  console.log('🔍 [Callback] Host:', request.headers.get('host'))
   console.log('🔍 [Callback] Referer:', request.headers.get('referer'))
   console.log('🔍 [Callback] Origin:', request.headers.get('origin'))
   console.log('🔍 [Callback] NextUrl.href:', request.nextUrl.href)
   console.log('🔍 [Callback] NextUrl.origin:', request.nextUrl.origin)
+  
+  // CRÍTICO: Se estamos no domínio correto, IGNORAR completamente 0.0.0.0 na URL base
+  // Isso é normal - o servidor roda em 0.0.0.0:3000 mas o usuário acessa plenipay.com
+  if (isCorrectDomain) {
+    console.log('✅ [Callback] Domínio correto detectado - ignorando URL base (0.0.0.0 é normal)')
+  }
   
   // CRÍTICO: Verificar se já estamos redirecionando para evitar loops
   // Se o referer já é /home ou /login, não processar novamente
@@ -45,12 +57,11 @@ export async function GET(request: NextRequest) {
   
   // CRÍTICO: Ignorar completamente a URL base (pode ser 0.0.0.0:3000 em produção)
   // Isso é normal - o servidor roda em 0.0.0.0:3000 mas devemos sempre usar productionUrl para redirects
-  // Apenas logar para debug, mas não fazer nada especial
-  if (request.url.includes('0.0.0.0') || request.nextUrl.href.includes('0.0.0.0')) {
-    console.log('ℹ️ [Callback] URL base contém 0.0.0.0 (normal em produção) - usando productionUrl para redirects')
+  // Se estamos no domínio correto, não fazer nada - apenas continuar processamento normalmente
+  if (!isCorrectDomain && (request.url.includes('0.0.0.0') || request.nextUrl.href.includes('0.0.0.0'))) {
+    console.log('ℹ️ [Callback] URL base contém 0.0.0.0 mas não estamos no domínio correto - isso é estranho')
     console.log('ℹ️ [Callback] request.url:', request.url)
     console.log('ℹ️ [Callback] request.nextUrl.href:', request.nextUrl.href)
-    // Não fazer nada - apenas continuar processamento normalmente
   }
   
   // CRÍTICO: Sempre extrair parâmetros diretamente da query string, ignorando a URL base
@@ -176,8 +187,9 @@ export async function GET(request: NextRequest) {
   // PARTE 2: Verificar e confirmar email
   console.log('🔍 [Callback] Verificando link de confirmação...')
   
-  // Tentar diferentes tipos de confirmação (signup, email)
-  const typesToTry = [type, 'signup', 'email'].filter((t, i, arr) => arr.indexOf(t) === i)
+  // Tentar diferentes tipos de confirmação (magiclink, signup, email)
+  // IMPORTANTE: magiclink é usado pelo Supabase para links de confirmação de email
+  const typesToTry = [type, 'magiclink', 'signup', 'email'].filter((t, i, arr) => arr.indexOf(t) === i)
   console.log('🔍 [Callback] Tipos a tentar:', typesToTry)
   
   let verifySuccess = false
