@@ -41,9 +41,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(redirectUrl, { status: 303 })
   }
   
-  // CRÍTICO: Verificar cookie para evitar processar o mesmo token múltiplas vezes
-  const cookieStore = await cookies()
-  
   // CRÍTICO: Sempre extrair parâmetros diretamente da query string, ignorando a URL base
   // Isso evita problemas quando request.url contém 0.0.0.0
   let token_hash: string | null = null
@@ -291,7 +288,30 @@ export async function GET(request: NextRequest) {
             maxAge: 300, // 5 minutos
             path: '/'
           })
+          // Marcar que o callback foi processado recentemente (expira em 10 segundos)
+          // Isso evita loops imediatos
+          response.cookies.set('callback_recently_processed', 'true', {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+            maxAge: 10, // 10 segundos apenas
+            path: '/'
+          })
+          // Marcar que o email foi confirmado (para mostrar mensagem na home)
+          response.cookies.set('email_confirmed', 'true', {
+            httpOnly: false, // Precisa ser acessível no cliente
+            secure: true,
+            sameSite: 'lax',
+            maxAge: 60, // 1 minuto (só para mostrar mensagem)
+            path: '/'
+          })
         }
+        
+        // CRÍTICO: Adicionar headers para evitar que o navegador siga redirects múltiplos
+        response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+        response.headers.set('Pragma', 'no-cache')
+        response.headers.set('Expires', '0')
+        response.headers.set('X-Robots-Tag', 'noindex, nofollow') // Evitar indexação de redirects
         
         // Usar redirect 303 (See Other) em vez de 307 para evitar loops
         // 303 força GET e limpa o método POST se houver
