@@ -13,21 +13,46 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const url = request.nextUrl.clone()
   
-  // CRÍTICO: Não interceptar se já estamos no domínio correto (plenipay.com)
-  // Isso evita loops de redirecionamento
-  const isCorrectDomain = url.host === 'plenipay.com' || url.host === 'www.plenipay.com'
+  // CRÍTICO: Verificar o host REAL da requisição (do header Host, não da URL)
+  // O header Host mostra o domínio que o usuário está acessando
+  const hostHeader = request.headers.get('host') || ''
+  const isCorrectDomain = hostHeader === 'plenipay.com' || hostHeader === 'www.plenipay.com' || hostHeader.includes('plenipay.com')
   
-  // SOLUÇÃO 1: Interceptar qualquer requisição para 0.0.0.0:10000
-  // Isso funciona ANTES do callback handler ser executado
-  // IMPORTANTE: Intercepta QUALQUER requisição que tente acessar 0.0.0.0:10000
-  // CRÍTICO: Verificar TAMBÉM se o pathname ou search contém 0.0.0.0:10000 (pode vir no redirect_to)
-  // NOTA: 0.0.0.0:3000 é válido em produção (aceita conexões de qualquer IP), apenas 0.0.0.0:10000 é inválido
+  // CRÍTICO: Se estamos no domínio correto, NUNCA redirecionar
+  // Isso evita loops quando o Next.js usa 0.0.0.0:3000 como URL base (normal em produção)
+  if (isCorrectDomain) {
+    // Apenas continuar processamento normal (SEO e cache)
+    const response = NextResponse.next()
+    
+    // Verificar se é uma rota pública
+    const isPublicRoute = ['/', '/login', '/cadastro', '/planos', '/termos', '/privacidade', '/suporte'].includes(pathname) || pathname === '/'
+    
+    // Apenas rotas administrativas e privadas não devem ser indexadas
+    if (pathname.startsWith('/administracaosecr') || 
+        pathname.startsWith('/admin') || 
+        pathname.startsWith('/home') ||
+        pathname.startsWith('/api')) {
+      response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+      response.headers.set('Cache-Control', 'no-store, must-revalidate')
+    } else if (isPublicRoute) {
+      response.headers.set('X-Robots-Tag', 'index, follow')
+      response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400')
+    } else {
+      response.headers.set('X-Robots-Tag', 'index, follow')
+      response.headers.set('Cache-Control', 'no-store, must-revalidate')
+    }
+    
+    return response
+  }
+  
+  // Só interceptar se NÃO estivermos no domínio correto
+  // Interceptar apenas 0.0.0.0:10000 (não 0.0.0.0:3000 que é normal)
   const hostTemUrlInvalida = url.host.includes('0.0.0.0:10000') || (url.host.includes('0.0.0.0') && url.host.includes('10000'))
   const pathnameTemUrlInvalida = pathname.includes('0.0.0.0:10000') || (pathname.includes('0.0.0.0') && pathname.includes('10000'))
   const searchTemUrlInvalida = url.search.includes('0.0.0.0:10000') || (url.search.includes('0.0.0.0') && url.search.includes('10000'))
   
-  // Só redirecionar se realmente tiver URL inválida E não estiver no domínio correto
-  if ((hostTemUrlInvalida || pathnameTemUrlInvalida || searchTemUrlInvalida) && !isCorrectDomain) {
+  // Só redirecionar se realmente tiver URL inválida (0.0.0.0:10000, não 0.0.0.0:3000)
+  if (hostTemUrlInvalida || pathnameTemUrlInvalida || searchTemUrlInvalida) {
     console.error('🚫 [Middleware] URL INVÁLIDA DETECTADA: 0.0.0.0:10000')
     console.error('🚫 [Middleware] Host:', url.host)
     console.error('🚫 [Middleware] Pathname:', pathname)
@@ -63,45 +88,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl, { status: 303 })
   }
   
-  // SOLUÇÃO 2: Verificar referer e origin para detectar redirects incorretos
-  // MAS só se não estivermos no domínio correto para evitar loops
-  if (!isCorrectDomain) {
-    const referer = request.headers.get('referer')
-    const origin = request.headers.get('origin')
-    
-    if (referer && (referer.includes('0.0.0.0') || referer.includes('10000'))) {
-      console.warn('⚠️ [Middleware] Referer contém 0.0.0.0:10000:', referer)
-      console.warn('⚠️ [Middleware] Redirecionando para URL correta...')
-      
-      // Se o referer é incorreto, redirecionar para URL correta
-      const redirectUrl = new URL(pathname, PRODUCTION_URL)
-      url.searchParams.forEach((value, key) => {
-        redirectUrl.searchParams.set(key, value)
-      })
-      if (url.hash) {
-        redirectUrl.hash = url.hash
-      }
-      
-      return NextResponse.redirect(redirectUrl, { status: 303 })
-    }
-    
-    if (origin && (origin.includes('0.0.0.0') || origin.includes('10000'))) {
-      console.warn('⚠️ [Middleware] Origin contém 0.0.0.0:10000:', origin)
-      console.warn('⚠️ [Middleware] Redirecionando para URL correta...')
-      
-      const redirectUrl = new URL(pathname, PRODUCTION_URL)
-      url.searchParams.forEach((value, key) => {
-        redirectUrl.searchParams.set(key, value)
-      })
-      if (url.hash) {
-        redirectUrl.hash = url.hash
-      }
-      
-      return NextResponse.redirect(redirectUrl, { status: 303 })
-    }
-  }
-  
   // Comportamento normal do middleware (SEO e cache)
+  // Se chegou aqui, não há URL inválida, apenas aplicar headers
   const response = NextResponse.next()
   
   // Verificar se é uma rota pública
