@@ -43,10 +43,26 @@ export async function GET(request: NextRequest) {
   
   // CRÍTICO: Verificar cookie para evitar processar o mesmo token múltiplas vezes
   const cookieStore = await cookies()
-  const processedToken = cookieStore.get('callback_processed')
-  const token_hash = request.nextUrl.searchParams.get('token_hash')
   
-  if (processedToken && processedToken.value === token_hash) {
+  // CRÍTICO: Sempre extrair parâmetros diretamente da query string, ignorando a URL base
+  // Isso evita problemas quando request.url contém 0.0.0.0
+  let token_hash: string | null = null
+  let type: string = 'signup'
+  let next: string = '/home'
+  
+  // Extrair token_hash primeiro para verificar cookie
+  try {
+    token_hash = request.nextUrl.searchParams.get('token_hash')
+  } catch (error) {
+    // Fallback: extrair da string diretamente
+    const urlString = request.url
+    const tokenMatch = urlString.match(/[?&#]token_hash=([^&#]+)/i)
+    if (tokenMatch) token_hash = decodeURIComponent(tokenMatch[1])
+  }
+  
+  // Verificar se o token já foi processado
+  const processedToken = cookieStore.get('callback_processed')
+  if (processedToken && processedToken.value === token_hash && token_hash) {
     console.warn('⚠️ [Callback] Token já foi processado - redirecionando para home sem reprocessar')
     const redirectUrl = new URL('/home', productionUrl)
     const response = NextResponse.redirect(redirectUrl, { status: 303 })
@@ -63,12 +79,6 @@ export async function GET(request: NextRequest) {
     console.log('ℹ️ [Callback] request.url:', request.url)
     console.log('ℹ️ [Callback] request.nextUrl.href:', request.nextUrl.href)
   }
-  
-  // CRÍTICO: Sempre extrair parâmetros diretamente da query string, ignorando a URL base
-  // Isso evita problemas quando request.url contém 0.0.0.0
-  let token_hash: string | null = null
-  let type: string = 'signup'
-  let next: string = '/home'
   
   // Extrair parâmetros diretamente da query string (não depende da URL base)
   try {
@@ -153,8 +163,6 @@ export async function GET(request: NextRequest) {
   }
 
   // Criar cliente Supabase
-  const cookieStore = await cookies()
-  
   // IMPORTANTE: Garantir que o Supabase client não use URLs erradas
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   if (!supabaseUrl || supabaseUrl.includes('0.0.0.0') || supabaseUrl.includes(':10000')) {
