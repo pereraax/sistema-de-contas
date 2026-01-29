@@ -9,11 +9,12 @@ export const dynamic = 'force-dynamic'
  * Processa link de confirmação de email e faz login automático
  */
 export async function GET(request: NextRequest) {
-  const productionUrl = 'https://plenipay.com'
-  
-  // CRÍTICO: Verificar o Host REAL (do header, não da URL base)
-  // O header Host mostra o domínio que o usuário está acessando
+  // URL base: mesma origem da requisição (localhost em dev, plenipay.com em prod)
   const hostHeader = request.headers.get('host') || ''
+  const isHttps = request.headers.get('x-forwarded-proto') === 'https' || hostHeader.includes('plenipay.com')
+  const siteUrl = isHttps ? `https://${hostHeader}` : `http://${hostHeader}`
+  const productionUrl = siteUrl.replace(/\/$/, '') // sem barra no final
+  
   const isCorrectDomain = hostHeader === 'plenipay.com' || hostHeader === 'www.plenipay.com' || hostHeader.includes('plenipay.com')
   
   console.log('🔍 [Callback] ========== CALLBACK INICIADO ==========')
@@ -25,10 +26,323 @@ export async function GET(request: NextRequest) {
   console.log('🔍 [Callback] NextUrl.href:', request.nextUrl.href)
   console.log('🔍 [Callback] NextUrl.origin:', request.nextUrl.origin)
   
+  const code = request.nextUrl.searchParams.get('code')
+  const tokenHash = request.nextUrl.searchParams.get('token_hash')
+  const typeParam = request.nextUrl.searchParams.get('type') || 'signup'
+  const nextParam = request.nextUrl.searchParams.get('next') || '/home'
+
+  // token_hash: processar SEMPRE no cliente para evitar loop (cookies do servidor podem não ser enviados no redirect)
+  if (tokenHash && !code) {
+    console.log('🔑 [Callback] token_hash detectado - processando no cliente para evitar loop de redirect')
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Confirmando email - PleniPay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #00C2FF 0%, #0099CC 50%, #007A99 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      color: #0D1B2A;
+    }
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.2);
+      padding: 2.5rem 2rem;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+    }
+    .spinner {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 1.5rem;
+      border: 4px solid #E5E7EB;
+      border-top-color: #00C2FF;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #0D1B2A;
+      margin-bottom: 0.5rem;
+    }
+    .sub {
+      font-size: 0.9375rem;
+      color: #6B7280;
+      margin-bottom: 1.75rem;
+      line-height: 1.5;
+    }
+    .link {
+      display: inline-block;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #00C2FF;
+      text-decoration: none;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid transparent;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .link:hover { color: #0099CC; border-bottom-color: #0099CC; }
+  </style>
+  <script>
+    (async function() {
+      const productionUrl = '${productionUrl}';
+      const supabaseUrl = '${process.env.NEXT_PUBLIC_SUPABASE_URL}';
+      const supabaseKey = '${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}';
+      const tokenHash = ${JSON.stringify(tokenHash)};
+      const type = ${JSON.stringify(typeParam)};
+      const nextPath = ${JSON.stringify(nextParam)};
+      
+      const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+      const typesToTry = [type, 'magiclink', 'signup', 'email'];
+      
+      for (const t of typesToTry) {
+        const { data, error } = await supabaseClient.auth.verifyOtp({ type: t, token_hash: tokenHash });
+        if (!error && data?.session) {
+          console.log('✅ Sessão criada via verifyOtp');
+          window.location.replace(productionUrl + nextPath);
+          return;
+        }
+      }
+      console.error('❌ verifyOtp falhou');
+      window.location.replace(productionUrl + '/login?error=' + encodeURIComponent('Link inválido ou expirado. Solicite um novo link.'));
+    })();
+  </script>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner" aria-hidden="true"></div>
+    <h1>Confirmando email...</h1>
+    <p class="sub">Estamos validando seu link. Em instantes você será redirecionado.</p>
+    <a class="link" href="${productionUrl}${nextParam}">Clique aqui se não redirecionar</a>
+  </div>
+</body>
+</html>`
+    return new NextResponse(html, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': 'inline',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    })
+  }
+
+  // Sem parâmetros na query (pode haver hash #access_token)
+  if (!code && !tokenHash) {
+    console.log('⚠️ [Callback] Sem parâmetros na query string - processando hash no cliente...')
+    
+    // Retornar página HTML que processa o hash no cliente usando Supabase JS
+    // O hash (#access_token) não é enviado ao servidor, então precisa ser processado no cliente
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Confirmando email - PleniPay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    (async function() {
+      const productionUrl = '${productionUrl}';
+      const supabaseUrl = '${process.env.NEXT_PUBLIC_SUPABASE_URL}';
+      const supabaseKey = '${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}';
+      
+      // Criar cliente Supabase
+      const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+      
+      // Verificar se há hash com access_token
+      const hash = window.location.hash;
+      if (hash && hash.includes('access_token')) {
+        console.log('🔑 [Callback Client] Processando access_token do hash...');
+        
+        try {
+          // Extrair parâmetros do hash
+          const hashParams = new URLSearchParams(hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
+          
+          if (accessToken) {
+            // Criar sessão usando access_token
+            const { data, error } = await supabaseClient.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || '',
+            });
+            
+            if (error) {
+              console.error('❌ [Callback Client] Erro ao criar sessão:', error);
+              window.location.replace(productionUrl + '/login?error=' + encodeURIComponent('Erro ao confirmar email. O link pode ter expirado.'));
+              return;
+            }
+            
+            if (data.session) {
+              console.log('✅ [Callback Client] Sessão criada com sucesso!');
+              // Limpar hash da URL
+              const next = new URLSearchParams(window.location.search).get('next') || '/home';
+              window.location.replace(productionUrl + next);
+              return;
+            }
+          }
+        } catch (error) {
+          console.error('❌ [Callback Client] Erro ao processar hash:', error);
+          window.location.replace(productionUrl + '/login?error=' + encodeURIComponent('Erro ao processar autenticação.'));
+          return;
+        }
+      }
+      
+      // Verificar se há code na query string (pode ter sido adicionado depois)
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      
+      if (code) {
+        console.log('🔑 [Callback Client] Processando code...');
+        try {
+          const { data, error } = await supabaseClient.auth.exchangeCodeForSession(code);
+          
+          if (error) {
+            console.error('❌ [Callback Client] Erro ao trocar code:', error);
+            window.location.replace(productionUrl + '/login?error=' + encodeURIComponent('Link de confirmação inválido ou expirado.'));
+            return;
+          }
+          
+          if (data.session) {
+            console.log('✅ [Callback Client] Sessão criada via code!');
+            const next = urlParams.get('next') || '/home';
+            window.location.replace(productionUrl + next);
+            return;
+          }
+        } catch (error) {
+          console.error('❌ [Callback Client] Erro ao processar code:', error);
+          window.location.replace(productionUrl + '/login?error=' + encodeURIComponent('Erro ao processar autenticação.'));
+          return;
+        }
+      }
+      
+      // Se não há hash nem code, verificar se já está autenticado
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      
+      if (session) {
+        console.log('✅ [Callback Client] Já autenticado - redirecionando...');
+        const next = urlParams.get('next') || '/home';
+        window.location.replace(productionUrl + next);
+        return;
+      }
+      
+      // Se não há sessão nem parâmetros, redirecionar para login
+      console.warn('⚠️ [Callback Client] Sem sessão nem parâmetros - redirecionando para login...');
+      window.location.replace(productionUrl + '/login?error=' + encodeURIComponent('Link de confirmação inválido. Solicite um novo link.'));
+    })();
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="spinner"></div>
+      <h1>Processando...</h1>
+      <p class="sub">Confirmando seu email. Aguarde um momento.</p>
+    </div>
+  </div>
+  <style>
+    .wrap { min-height: 100vh; background: linear-gradient(135deg, #00C2FF 0%, #0099CC 50%, #007A99 100%); display: flex; align-items: center; justify-content: center; padding: 1.5rem; font-family: 'Inter', -apple-system, sans-serif; }
+    .card { background: #fff; border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.2); padding: 2.5rem 2rem; max-width: 420px; width: 100%; text-align: center; }
+    .spinner { width: 56px; height: 56px; margin: 0 auto 1.5rem; border: 4px solid #E5E7EB; border-top-color: #00C2FF; border-radius: 50%; animation: spin 0.9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .card h1 { font-size: 1.35rem; font-weight: 700; color: #0D1B2A; margin-bottom: 0.5rem; }
+    .sub { font-size: 0.9375rem; color: #6B7280; line-height: 1.5; }
+  </style>
+</body>
+</html>`
+    
+    return new NextResponse(html, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': 'inline',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    })
+  }
+  
+  // Cookie store (usado para persistir sessão Supabase e evitar loops)
+  const cookieStore = await cookies()
+  
   // CRÍTICO: Se estamos no domínio correto, IGNORAR completamente 0.0.0.0 na URL base
   // Isso é normal - o servidor roda em 0.0.0.0:3000 mas o usuário acessa plenipay.com
   if (isCorrectDomain) {
     console.log('✅ [Callback] Domínio correto detectado - ignorando URL base (0.0.0.0 é normal)')
+  }
+
+  /**
+   * SUPABASE (fluxo novo): links de confirmação podem vir como:
+   *   /auth/callback?code=...&next=/home
+   *
+   * Nesse caso, precisamos trocar `code` por uma sessão via exchangeCodeForSession.
+   * Se não fizermos isso, o usuário não autentica e pode cair em loops (home/login/callback).
+   */
+  if (code) {
+    console.log('🔑 [Callback] code detectado - trocando por sessão...')
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+            } catch {
+              // ignore (server component limitation)
+            }
+          },
+        },
+      }
+    )
+
+    const nextPath = request.nextUrl.searchParams.get('next') || '/home'
+    const redirectPath = nextPath.startsWith('/') ? nextPath : `/${nextPath}`
+    const redirectUrl = new URL(redirectPath, productionUrl)
+
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (error) {
+      console.error('❌ [Callback] exchangeCodeForSession falhou:', error.message)
+      const loginUrl = new URL('/login', productionUrl)
+      loginUrl.searchParams.set('error', 'Link inválido ou expirado. Solicite um novo link.')
+      return NextResponse.redirect(loginUrl.toString(), { status: 303 })
+    }
+
+    console.log('✅ [Callback] Sessão criada via code - redirecionando:', redirectUrl.toString())
+    const response = NextResponse.redirect(redirectUrl.toString(), { status: 303 })
+    response.cookies.set('callback_recently_processed', 'true', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 10,
+      path: '/',
+    })
+    return response
   }
   
   // CRÍTICO: Verificar se já estamos redirecionando para evitar loops
@@ -373,8 +687,9 @@ export async function GET(request: NextRequest) {
         return new NextResponse(html, {
           status: 200,
           headers: {
-            'Content-Type': 'text/html',
-            'Location': safeUrl,
+            'Content-Type': 'text/html; charset=utf-8',
+            'X-Content-Type-Options': 'nosniff',
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
           },
         })
       }
@@ -492,8 +807,9 @@ export async function GET(request: NextRequest) {
       return new NextResponse(html, {
         status: 200,
         headers: {
-          'Content-Type': 'text/html',
-          'Location': safeUrl, // Header adicional para garantir
+          'Content-Type': 'text/html; charset=utf-8',
+          'X-Content-Type-Options': 'nosniff',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
         },
       })
     }
@@ -517,8 +833,9 @@ export async function GET(request: NextRequest) {
       return new NextResponse(html, {
         status: 200,
         headers: {
-          'Content-Type': 'text/html',
-          'Location': finalUrl,
+          'Content-Type': 'text/html; charset=utf-8',
+          'X-Content-Type-Options': 'nosniff',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
         },
       })
     }
