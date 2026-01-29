@@ -1,5 +1,6 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
+  "_redeploy": "Railway redeploy trigger",
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile"
@@ -10,6 +11,9 @@
     "restartPolicyMaxRetries": 10
   },
   "env": {
-    "PORT": "3000"
+    "PORT": "3000",
+    "NODE_ENV": "production",
+    "NEXT_PUBLIC_SITE_URL": "https://plenipay.com",
+    "NEXT_PUBLIC_APP_URL": "https://plenipay.com"
   }
 }
