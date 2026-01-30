@@ -29,6 +29,13 @@ export default function AdminLoginPage() {
 
       console.log('Resposta recebida:', response.status, response.statusText)
 
+      const contentType = response.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        setError('Resposta inválida do servidor. Tente novamente.')
+        setLoading(false)
+        return
+      }
+
       const data = await response.json()
       console.log('Dados recebidos:', data)
 
@@ -44,19 +51,21 @@ export default function AdminLoginPage() {
         return
       }
 
-      // Salvar token admin em cookie
-      document.cookie = `admin_token=${data.token}; path=/; max-age=86400; SameSite=Lax; Secure=false` // 24 horas
+      // Salvar token admin em cookie (Secure=true em HTTPS para ser enviado)
+      const isSecure = typeof window !== 'undefined' && window.location?.protocol === 'https:'
+      document.cookie = `admin_token=${data.token}; path=/; max-age=86400; SameSite=Lax; ${isSecure ? 'Secure;' : ''}` // 24h
       console.log('✅ Login bem-sucedido!')
-      console.log('Cookie salvo:', document.cookie.includes('admin_token'))
-      
-      // Aguardar um pouco antes de redirecionar
-      await new Promise(resolve => setTimeout(resolve, 200))
-      
-      // Redirecionar para painel
+
+      // Dar tempo para o cookie ser persistido antes do redirect
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Redirecionar para painel (full reload para garantir que o cookie vai na requisição)
       window.location.href = '/administracaosecr/dashboard'
     } catch (err: any) {
       console.error('Erro no login:', err)
-      setError(err.message || 'Erro ao conectar com o servidor')
+      const msg = err?.message || ''
+      const isJsonError = msg.includes('JSON') || msg.includes('<!DOCTYPE')
+      setError(isJsonError ? 'Resposta inválida do servidor. Verifique se a rota /api/admin/login está disponível.' : (msg || 'Erro ao conectar com o servidor'))
       setLoading(false)
     }
   }
