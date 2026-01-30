@@ -266,3 +266,12 @@ body::-webkit-scrollbar {
     display: none !important;
   }
 }
+
+/* Evitar zoom no iOS ao focar em inputs (font-size < 16px dispara zoom automático) */
+@media screen and (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

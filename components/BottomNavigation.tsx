@@ -55,9 +55,9 @@ export default function BottomNavigation() {
 
   return (
     <>
-      {/* Bottom Navigation Bar - Apenas Mobile */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-brand-royal border-t border-gray-200 dark:border-brand-midnight z-50 lg:hidden shadow-lg">
-        <div className="flex items-center justify-around px-2 py-2">
+      {/* Bottom Navigation Bar - Apenas Mobile | Grid 5 colunas = PLEN exatamente no centro */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-brand-royal border-t border-gray-200 dark:border-brand-midnight z-50 lg:hidden shadow-lg pb-[env(safe-area-inset-bottom)]">
+        <div className="grid grid-cols-5 items-end justify-items-center w-full max-w-[100vw] px-0 py-2 gap-0">
           {/* Principal */}
           <button
             onClick={() => handleNavClick('/home')}
@@ -104,10 +104,10 @@ export default function BottomNavigation() {
             </span>
           </button>
 
-          {/* Botão PLEN (Central) */}
+          {/* Botão PLEN (Central) - coluna 3 = centro exato; sobe um pouco acima da barra */}
           <button
             onClick={openPlenAssistant}
-            className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-[#00C2FF] to-[#0099CC] rounded-full shadow-lg hover:shadow-xl transition-all transform hover:scale-110 active:scale-95 overflow-hidden animate-plen-glow"
+            className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-[#00C2FF] to-[#0099CC] rounded-full shadow-lg hover:shadow-xl transition-all transform hover:scale-110 active:scale-95 overflow-hidden animate-plen-glow justify-self-center -translate-y-2"
             aria-label="Abrir PLEN Assistant"
             data-plen-bottom-button
           >
