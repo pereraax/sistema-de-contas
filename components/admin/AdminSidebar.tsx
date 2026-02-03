@@ -76,7 +76,7 @@ export default function AdminSidebar({ onClose }: { onClose?: () => void }) {
                 onClick={() => handleNavigation(item.href)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth text-left ${
                   isActive
-                    ? 'bg-brand-aqua text-brand-midnight shadow-lg'
+                    ? 'bg-brand-aqua text-white shadow-lg'
                     : 'text-brand-clean hover:bg-white/10 hover:text-brand-aqua'
                 }`}
               >

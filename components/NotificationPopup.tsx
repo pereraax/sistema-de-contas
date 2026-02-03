@@ -209,7 +209,7 @@ export default function NotificationPopup() {
       {notifications.map((notification) => (
         <div
           key={notification.id}
-          className="bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] text-white rounded-lg sm:rounded-xl shadow-2xl p-2.5 sm:p-4 w-[260px] sm:min-w-[320px] sm:max-w-[400px] border border-white/20 backdrop-blur-sm animate-slide-up"
+          className="bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white rounded-lg sm:rounded-xl shadow-2xl p-2.5 sm:p-4 w-[260px] sm:min-w-[320px] sm:max-w-[400px] border border-white/20 backdrop-blur-sm animate-slide-up"
         >
           <div className="flex items-start gap-2 sm:gap-3">
             <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">

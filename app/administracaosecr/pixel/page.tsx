@@ -186,7 +186,7 @@ export default function AdminPixelPage() {
                     </div>
                     <button
                       onClick={() => setEditando(true)}
-                      className="px-4 py-3 bg-brand-aqua text-brand-midnight rounded-lg hover:bg-brand-aqua/90 transition-smooth font-semibold flex items-center gap-2"
+                      className="px-4 py-3 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth font-semibold flex items-center gap-2"
                       style={{ color: 'white' }}
                     >
                       <Edit size={18} />
@@ -232,12 +232,11 @@ export default function AdminPixelPage() {
                 <button
                   onClick={salvarPixelId}
                   disabled={loading || !pixelId.trim() || !/^\d+$/.test(pixelId.trim())}
-                  className="px-6 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg hover:bg-brand-aqua/90 transition-smooth font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  style={{ color: 'white' }}
+                  className="px-6 py-2.5 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {loading ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand-midnight"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                       Salvando...
                     </>
                   ) : (

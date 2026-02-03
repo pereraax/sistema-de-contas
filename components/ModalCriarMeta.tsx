@@ -273,7 +273,7 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
                       onClick={() => setPeriodicidade('diario')}
                       className={`p-1.5 rounded-lg border transition-smooth ${
                         periodicidade === 'diario'
-                          ? 'bg-brand-aqua border-brand-aqua text-brand-midnight shadow-sm'
+                          ? 'bg-brand-aqua border-brand-aqua text-white shadow-sm'
                           : 'bg-white dark:bg-brand-royal border-gray-300 dark:border-white/10 text-brand-midnight dark:text-brand-clean hover:border-brand-aqua'
                       }`}
                     >
@@ -286,7 +286,7 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
                       onClick={() => setPeriodicidade('semanal')}
                       className={`p-1.5 rounded-lg border transition-smooth ${
                         periodicidade === 'semanal'
-                          ? 'bg-brand-aqua border-brand-aqua text-brand-midnight shadow-sm'
+                          ? 'bg-brand-aqua border-brand-aqua text-white shadow-sm'
                           : 'bg-white dark:bg-brand-royal border-gray-300 dark:border-white/10 text-brand-midnight dark:text-brand-clean hover:border-brand-aqua'
                       }`}
                     >
@@ -299,7 +299,7 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
                       onClick={() => setPeriodicidade('mensal')}
                       className={`p-1.5 rounded-lg border transition-smooth ${
                         periodicidade === 'mensal'
-                          ? 'bg-brand-aqua border-brand-aqua text-brand-midnight shadow-sm'
+                          ? 'bg-brand-aqua border-brand-aqua text-white shadow-sm'
                           : 'bg-white dark:bg-brand-royal border-gray-300 dark:border-white/10 text-brand-midnight dark:text-brand-clean hover:border-brand-aqua'
                       }`}
                     >
@@ -325,7 +325,7 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-4 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg hover:bg-brand-aqua/90 transition-smooth font-bold text-sm disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth font-bold text-sm disabled:opacity-50"
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">

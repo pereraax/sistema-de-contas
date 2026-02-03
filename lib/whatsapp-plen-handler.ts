@@ -1082,7 +1082,7 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
     // Chamar API especial do PLEN para WhatsApp (não precisa autenticação)
     // CRÍTICO: Em ambiente server-side, usar URL absoluta baseada no host da requisição
     // Se não tiver, usar localhost como fallback
-    let apiUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'http://localhost:3000'
+    let apiUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : undefined) || 'http://localhost:3000'
     
     // Garantir que tem protocolo
     if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {

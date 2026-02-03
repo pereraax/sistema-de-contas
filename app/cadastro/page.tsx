@@ -250,44 +250,42 @@ function CadastroContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#00C2FF] via-[#0099CC] to-[#007A99] relative overflow-hidden animate-gradient flex">
-      {/* Fundo dinâmico com animação */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] bg-gradient-to-br from-white/20 via-white/5 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDuration: '4s' }}></div>
-        <div className="absolute top-1/2 -right-1/2 w-[200%] h-[200%] bg-gradient-to-br from-white/15 via-white/5 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s', animationDuration: '5s' }}></div>
-        <div className="absolute -bottom-1/2 left-1/2 w-[200%] h-[200%] bg-gradient-to-br from-white/10 via-white/5 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '3s', animationDuration: '6s' }}></div>
-      </div>
+    <div className="min-h-screen bg-neutral-50">
+      {/* Header - Igual à página principal */}
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 max-w-6xl">
+          <Link href="/" className="flex items-center flex-shrink-0">
+            <Image 
+              src="/logo-header.png" 
+              alt="PLENIPAY" 
+              width={120}
+              height={40}
+              className="h-9 md:h-10 w-auto object-contain"
+              priority
+            />
+          </Link>
+        </div>
+      </header>
 
-      {/* Lado Esquerdo - Popup do Formulário */}
-      <div className="relative z-10 w-full md:w-1/2 flex items-center justify-center p-4 md:p-6 overflow-y-auto">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-white/20 backdrop-blur-sm animate-scale-up">
-          <div className="p-5 sm:p-6">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-gray-600 hover:text-[#00C2FF] transition-colors mb-4"
-            >
-              <ArrowLeft size={18} />
-              <span className="text-xs">Voltar para início</span>
-            </Link>
+      {/* Conteúdo - Centralizado, clean */}
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-md py-8 sm:py-12">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1e4976] transition-colors mb-5"
+          >
+            <ArrowLeft size={18} />
+            Voltar
+          </Link>
 
-            <div className="mb-4 text-center">
-              <div className="flex justify-center mb-3">
-                <Image 
-                  src="/logo azul.png" 
-                  alt="PLENIPAY" 
-                  width={140}
-                  height={32}
-                  className="h-8 w-auto object-contain"
-                  priority
-                />
-              </div>
-              <h1 className="text-2xl md:text-3xl font-display font-bold text-[#0D1B2A] mb-1">
-                Criar Conta
-              </h1>
-              <p className="text-sm text-gray-600">
-                Plano selecionado: <span className="text-[#00C2FF] font-semibold">{planosNomes[plano]}</span>
-              </p>
-            </div>
+          <div className="mb-6">
+            <h1 className="text-2xl font-semibold text-[#0D1B2A] mb-1">
+              Criar Conta
+            </h1>
+            <p className="text-sm text-gray-500">
+              Plano: <Link href="/planos" className="text-[#1e4976] hover:text-[#163a5f] font-medium">{planosNomes[plano]}</Link>
+            </p>
+          </div>
 
           <form 
             onSubmit={(e) => {
@@ -312,7 +310,7 @@ function CadastroContent() {
                 required
                 value={formData.nome}
                 onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#00C2FF] focus:ring-1 focus:ring-[#00C2FF]/20 transition-all"
+                className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all"
                 placeholder="Seu nome completo"
               />
             </div>
@@ -328,7 +326,7 @@ function CadastroContent() {
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 autoComplete="email"
                 data-form-type="other"
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#00C2FF] focus:ring-1 focus:ring-[#00C2FF]/20 transition-all"
+                className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all"
                 placeholder="seu@email.com"
               />
             </div>
@@ -345,26 +343,26 @@ function CadastroContent() {
                   onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
                   autoComplete="new-password"
                   data-form-type="other"
-                  className={`w-full px-3 py-2 bg-white border rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none transition-all pr-10 ${
+                  className={`w-full px-3 py-2.5 bg-white border rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none transition-all pr-10 ${
                     formData.senha && !senhaValida
-                      ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/20'
+                      ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/10'
                       : formData.senha && senhaValida
-                      ? 'border-green-500 focus:border-green-500 focus:ring-1 focus:ring-green-500/20'
-                      : 'border-gray-300 focus:border-[#00C2FF] focus:ring-1 focus:ring-[#00C2FF]/20'
+                      ? 'border-green-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/10'
+                      : 'border-gray-200 focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10'
                   }`}
                   placeholder="Digite sua senha"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#00C2FF] transition-colors"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#1e4976] transition-colors"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
               
               {/* Lista de requisitos da senha - Compacta em grid */}
-              <div className="mt-1.5 p-2 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="mt-1.5 p-3 bg-neutral-50 rounded-xl border border-gray-100">
                 <p className="text-xs font-semibold text-gray-700 mb-1.5">Requisitos da senha:</p>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                   <li className={`flex items-center gap-1.5 text-xs list-none ${requisitosSenha.minimo ? 'text-green-600' : 'text-gray-500'}`}>
@@ -402,17 +400,17 @@ function CadastroContent() {
                 onChange={(e) => setFormData({ ...formData, confirmarSenha: e.target.value })}
                 autoComplete="new-password"
                 data-form-type="other"
-                className={`w-full px-3 py-2 bg-white border rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none transition-all ${
+                className={`w-full px-3 py-2.5 bg-white border rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none transition-all ${
                   senhasNaoCoincidem
-                    ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/20'
+                    ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/10'
                     : senhasCoincidem
-                    ? 'border-green-500 focus:border-green-500 focus:ring-1 focus:ring-green-500/20'
-                    : 'border-gray-300 focus:border-[#00C2FF] focus:ring-1 focus:ring-[#00C2FF]/20'
+                    ? 'border-green-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/10'
+                    : 'border-gray-200 focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10'
                 }`}
                 placeholder="Confirme sua senha"
               />
               {senhasNaoCoincidem && (
-                <div className="mt-1.5 p-2 bg-red-50 border border-red-500 rounded-lg">
+                <div className="mt-1.5 p-3 bg-red-50 border border-red-200 rounded-xl">
                   <p className="text-xs text-red-700 flex items-start gap-2 font-medium">
                     <span className="text-sm flex-shrink-0">⚠️</span>
                     <span className="flex-1">
@@ -422,7 +420,7 @@ function CadastroContent() {
                 </div>
               )}
               {senhasCoincidem && (
-                <div className="mt-1.5 p-2 bg-green-50 border border-green-500 rounded-lg">
+                <div className="mt-1.5 p-3 bg-green-50 border border-green-200 rounded-xl">
                   <p className="text-xs text-green-700 flex items-center gap-1.5 font-semibold">
                     <span className="text-sm">✓</span>
                     <span>Senhas coincidem</span>
@@ -448,10 +446,10 @@ function CadastroContent() {
                   }
                 }}
                 maxLength={15}
-                className={`w-full px-3 py-2 bg-white border rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 transition-all ${
+                className={`w-full px-3 py-2.5 bg-white border rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 transition-all ${
                   mostrarAvisoCampos && (!formData.whatsapp || formData.whatsapp.replace(/\D/g, '').length < 10)
-                    ? 'border-amber-500 focus:border-amber-500 focus:ring-amber-500/20'
-                    : 'border-gray-300 focus:border-[#00C2FF] focus:ring-[#00C2FF]/20'
+                    ? 'border-amber-500 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10'
+                    : 'border-gray-200 focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10'
                 }`}
                 placeholder="(00) 00000-0000"
               />
@@ -459,7 +457,7 @@ function CadastroContent() {
 
             {/* Mensagem de aviso na parte inferior */}
             {mostrarAvisoCampos && (
-              <div className="bg-amber-50 rounded-xl px-4 py-3 border border-amber-200 shadow-sm">
+              <div className="bg-amber-50 rounded-xl px-4 py-3 border border-amber-100">
                 <div className="flex items-start gap-2.5">
                   <AlertCircle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
@@ -498,7 +496,7 @@ function CadastroContent() {
                   })
                 }
               }}
-              className="w-full px-4 py-2.5 bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] text-white rounded-lg text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-2xl hover:shadow-[#00C2FF]/50 transform hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-2"
+              className="w-full px-4 py-3 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-xl text-sm font-semibold transition-all duration-300 shadow-md disabled:opacity-50 disabled:cursor-not-allowed mt-4"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -512,32 +510,19 @@ function CadastroContent() {
 
             <p className="text-center text-xs text-gray-500 leading-tight">
               Ao criar uma conta, você concorda com nossos{' '}
-              <Link href="/termos" className="text-[#00C2FF] hover:underline">Termos</Link>
+              <Link href="/termos" className="text-[#1e4976] hover:text-[#163a5f] font-medium">Termos</Link>
               {' '}e{' '}
-              <Link href="/privacidade" className="text-[#00C2FF] hover:underline">Política</Link>
+              <Link href="/privacidade" className="text-[#1e4976] hover:text-[#163a5f] font-medium">Política</Link>
             </p>
 
             <p className="text-center text-xs text-gray-600">
               Já tem uma conta?{' '}
-              <Link href="/login" className="text-[#00C2FF] hover:underline font-medium">
+              <Link href="/login" className="text-[#1e4976] hover:text-[#163a5f] font-medium">
                 Fazer login
               </Link>
             </p>
           </form>
-          </div>
         </div>
-      </div>
-
-      {/* Lado Direito - Imagem */}
-      <div className="hidden md:flex md:w-1/2 relative overflow-hidden">
-        <Image
-          src="/banner cadastro.png"
-          alt="Banner PLENIPAY"
-          fill
-          className="object-cover"
-          priority
-          unoptimized
-        />
       </div>
 
       {/* PARTE 3 & 4: Modal de Confirmação de Email */}
@@ -546,6 +531,14 @@ function CadastroContent() {
           email={emailCadastrado}
           obrigatorio={false}
           emailJaEnviado={signUpResult?.emailEnviado || false}
+          onEmailEnviado={() => {
+            // Atualizar signUpResult quando email for reenviado com sucesso
+            console.log('✅ [Cadastro] Email reenviado - atualizando signUpResult')
+            setSignUpResult((prev: any) => ({
+              ...prev,
+              emailEnviado: true
+            }))
+          }}
           onConfirmado={async () => {
             console.log('✅ Email confirmado via callback - fazendo login automático...')
             setShowModalConfirmacao(false)
@@ -592,7 +585,7 @@ export default function CadastroPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-[#00C2FF]" size={48} />
+        <Loader2 className="animate-spin text-[#1e4976]" size={48} />
       </div>
     }>
       <CadastroContent />

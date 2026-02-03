@@ -107,7 +107,7 @@ export default function BottomNavigation() {
           {/* Botão PLEN (Central) - coluna 3 = centro exato; sobe um pouco acima da barra */}
           <button
             onClick={openPlenAssistant}
-            className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-[#00C2FF] to-[#0099CC] rounded-full shadow-lg hover:shadow-xl transition-all transform hover:scale-110 active:scale-95 overflow-hidden animate-plen-glow justify-self-center -translate-y-2"
+            className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-[#2c5aa0] to-[#163a5f] rounded-full shadow-lg hover:shadow-xl transition-all transform hover:scale-110 active:scale-95 overflow-hidden animate-plen-glow justify-self-center -translate-y-2"
             aria-label="Abrir PLEN Assistant"
             data-plen-bottom-button
           >

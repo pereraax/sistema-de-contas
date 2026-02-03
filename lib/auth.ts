@@ -15,58 +15,48 @@ export interface UserProfile {
   created_at: string
 }
 
-// Função helper para obter a URL correta do site
-// IMPORTANTE: Para links de email, SEMPRE usar URL de produção, nunca localhost
-// Deve ser async porque está em arquivo com 'use server'
+// Função helper para obter a URL correta do site (usada em links de confirmação de email)
+// Em desenvolvimento: usa localhost para testar o fluxo localmente.
+// Em produção: usa plenipay.com ou a URL do ambiente (Railway, etc).
 export async function getSiteUrl(): Promise<string> {
-  console.log('🔍 [getSiteUrl] Detectando URL do site...')
+  const isDev = process.env.NODE_ENV === 'development'
   console.log('🔍 [getSiteUrl] NODE_ENV:', process.env.NODE_ENV)
-  console.log('🔍 [getSiteUrl] NEXT_PUBLIC_SITE_URL:', process.env.NEXT_PUBLIC_SITE_URL || 'NÃO CONFIGURADO')
-  console.log('🔍 [getSiteUrl] RENDER_EXTERNAL_URL:', process.env.RENDER_EXTERNAL_URL || 'NÃO CONFIGURADO')
-  console.log('🔍 [getSiteUrl] VERCEL_URL:', process.env.VERCEL_URL || 'NÃO CONFIGURADO')
-  
-  // 1. Tentar usar variável de ambiente (prioridade máxima)
-  // IMPORTANTE: Se contém localhost, ignorar - links de email nunca devem usar localhost
-  if (process.env.NEXT_PUBLIC_SITE_URL) {
+
+  // 1. Em desenvolvimento: usar localhost se configurado (para testar o link no próprio ambiente)
+  if (isDev && process.env.NEXT_PUBLIC_SITE_URL) {
     const url = process.env.NEXT_PUBLIC_SITE_URL.trim()
-    // NUNCA usar localhost para links de email (mesmo em desenvolvimento)
-    if (url && !url.includes('localhost') && !url.includes('127.0.0.1')) {
-      console.log('✅ [getSiteUrl] Usando NEXT_PUBLIC_SITE_URL:', url)
-      return url
-    } else {
-      console.log('⚠️ [getSiteUrl] NEXT_PUBLIC_SITE_URL contém localhost, ignorando (links de email devem usar produção)')
+    if (url && (url.includes('localhost') || url.includes('127.0.0.1'))) {
+      console.log('✅ [getSiteUrl] Desenvolvimento: usando', url)
+      return url.replace(/\/$/, '') // sem barra no final
     }
   }
-  
-  // 2. Tentar usar RENDER_EXTERNAL_URL (se estiver no Render)
+
+  // 2. Produção ou NEXT_PUBLIC_SITE_URL sem localhost: usar variável se for URL de produção
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    const url = process.env.NEXT_PUBLIC_SITE_URL.trim()
+    if (url && !url.includes('localhost') && !url.includes('127.0.0.1')) {
+      console.log('✅ [getSiteUrl] Usando NEXT_PUBLIC_SITE_URL:', url)
+      return url.replace(/\/$/, '')
+    }
+  }
+
+  // 3. URLs de ambiente (Railway, Render)
   if (process.env.RENDER_EXTERNAL_URL) {
     const url = process.env.RENDER_EXTERNAL_URL.trim()
     if (url && !url.includes('localhost')) {
       console.log('✅ [getSiteUrl] Usando RENDER_EXTERNAL_URL:', url)
-      return url
+      return url.replace(/\/$/, '')
     }
   }
-  
-  // 3. Tentar usar VERCEL_URL (se estiver no Vercel)
-  if (process.env.VERCEL_URL) {
-    const url = `https://${process.env.VERCEL_URL}`
-    console.log('✅ [getSiteUrl] Usando VERCEL_URL:', url)
-    return url
-  }
-  
-  // 4. Tentar usar RAILWAY_PUBLIC_DOMAIN (se estiver no Railway)
   if (process.env.RAILWAY_PUBLIC_DOMAIN) {
     const url = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
     console.log('✅ [getSiteUrl] Usando RAILWAY_PUBLIC_DOMAIN:', url)
     return url
   }
-  
-  // 5. SEMPRE usar URL de produção para links de email
-  // IMPORTANTE: Mesmo em desenvolvimento local, links de email devem apontar para produção
-  // porque o email será aberto em qualquer lugar, não necessariamente no localhost
+
+  // 4. Fallback: produção
   const productionUrl = 'https://plenipay.com'
-  console.log('✅ [getSiteUrl] Usando URL de produção para links de email:', productionUrl)
-  console.log('ℹ️ [getSiteUrl] Nota: Links de email sempre usam produção, mesmo em desenvolvimento local')
+  console.log('✅ [getSiteUrl] Usando URL padrão:', productionUrl)
   return productionUrl
 }
 
@@ -99,9 +89,11 @@ export async function signUp(email: string, password: string, nome: string, tele
       // Continuar mesmo sem admin client - podemos tentar criar usuário normalmente
     }
 
-    // Criar conta - Supabase envia email automaticamente
-    const redirectTo = 'https://plenipay.com/auth/callback?next=/home'
+    // URL base para links de confirmação (localhost em dev, plenipay.com em produção)
+    const siteUrl = await getSiteUrl()
+    const redirectTo = `${siteUrl}/auth/callback?next=/home`
     logInfo('🔄 Criando conta via signUp...', 'SIGNUP')
+    logInfo(`🔗 redirectTo (link do email): ${redirectTo}`, 'SIGNUP')
     logInfo(`📧 Email: ${email}`, 'SIGNUP')
     
     let authData: any = null
@@ -146,7 +138,15 @@ export async function signUp(email: string, password: string, nome: string, tele
     
     if (authError) {
       const errorMsg = authError.message.toLowerCase()
-      const isAlreadyExists = errorMsg.includes('already exists') || errorMsg.includes('already registered')
+      const isAlreadyExists = errorMsg.includes('already exists') ||
+        errorMsg.includes('already registered') ||
+        errorMsg.includes('email already registered') ||
+        errorMsg.includes('user already registered') ||
+        errorMsg.includes('already been registered') ||
+        errorMsg.includes('duplicate') ||
+        errorMsg.includes('email already in use') ||
+        errorMsg.includes('já está cadastrado') ||
+        errorMsg.includes('já existe')
       const isEmailSendingError = errorMsg.includes('error sending confirmation email') || 
                                   errorMsg.includes('error sending email') ||
                                   errorMsg.includes('sending confirmation email') ||
@@ -168,8 +168,10 @@ export async function signUp(email: string, password: string, nome: string, tele
           }
           
           if (existingUser) {
-            logInfo('📧 Usuário não confirmado - usando existente', 'SIGNUP')
+            logInfo('📧 Usuário não confirmado - usando existente e enviando novo link', 'SIGNUP')
             userToUse = existingUser
+            // Marcar que precisa enviar email (usuário existe mas não confirmado)
+            // O código abaixo vai gerar e enviar o link
           } else {
             return { error: 'Erro ao verificar conta existente.' }
           }
@@ -274,59 +276,50 @@ export async function signUp(email: string, password: string, nome: string, tele
     )
     
     // IMPORTANTE: emailEnviado começa como false
-    // Só será true se:
+    // Será true APENAS se:
     // 1. Email já está confirmado (não precisa enviar)
-    // 2. OU Supabase enviou com sucesso (sem erro E sem necessidade de confirmação)
-    // 3. OU SMTP próprio enviou com sucesso (fallback)
+    // 2. OU SMTP próprio enviou com sucesso (sempre tentamos enviar quando não confirmado)
     let emailEnviado = false
+    
+    // Verificar se usuário já existia antes de tentar criar (para logs)
+    const authMsg = (authError?.message || '').toLowerCase()
+    const usuarioJaExistia = !!authError && (
+      authMsg.includes('already exists') ||
+      authMsg.includes('already registered') ||
+      authMsg.includes('email already registered') ||
+      authMsg.includes('user already registered') ||
+      authMsg.includes('already been registered') ||
+      authMsg.includes('duplicate') ||
+      authMsg.includes('email already in use') ||
+      authMsg.includes('já está cadastrado') ||
+      authMsg.includes('já existe')
+    )
     
     // Se email já está confirmado, não precisa enviar
     if (emailConfirmado) {
       emailEnviado = true
       logInfo('✅ Email já confirmado - não precisa enviar', 'SIGNUP')
     }
-    // Se não teve erro E não está confirmado, Supabase pode ter enviado
-    // MAS: não confiamos 100% - vamos tentar SMTP próprio se disponível
-    else if (!teveErroEnvioEmail && !emailConfirmado) {
-      // Supabase pode ter enviado, mas não confiamos 100%
-      // Vamos tentar enviar via SMTP próprio para garantir
-      logInfo('⚠️ Supabase não reportou erro, mas vamos garantir envio via SMTP próprio...', 'SIGNUP')
-    }
     
-    // Tentar enviar via SMTP próprio se:
-    // 1. Houve erro de envio E usuário foi criado
-    // 2. OU não houve erro mas queremos garantir o envio (SMTP próprio é mais confiável)
-    const deveTentarSmtpProprio = userToUse && !emailConfirmado && supabaseAdmin && (
-      teveErroEnvioEmail || // Houve erro explícito
-      true // Sempre tentar SMTP próprio para garantir (mais confiável que Supabase)
-    )
+    // SEMPRE tentar enviar via SMTP próprio quando o email NÃO está confirmado
+    // Assim garantimos envio tanto para conta nova quanto para "criar de novo" com mesmo email
+    const deveTentarSmtpProprio = userToUse && !emailConfirmado && supabaseAdmin
     
     if (deveTentarSmtpProprio) {
-      if (teveErroEnvioEmail) {
-        logWarn('⚠️ Supabase falhou ao enviar email - tentando via SMTP próprio...', 'SIGNUP')
+      if (usuarioJaExistia) {
+        logInfo('📧 Usuário já existia (email não confirmado) - gerando e enviando link de confirmação via SMTP...', 'SIGNUP')
       } else {
-        logInfo('📧 Garantindo envio via SMTP próprio (mais confiável)...', 'SIGNUP')
+        logInfo('📧 Email não confirmado - gerando e enviando link de confirmação via SMTP...', 'SIGNUP')
       }
       
       const { isSmtpConfigured, sendMail } = await import('./mailer')
       
       if (isSmtpConfigured()) {
         try {
-          // Verificar se usuário existe primeiro para usar o tipo correto
-          let linkType: 'signup' | 'recovery' | 'magiclink' = 'signup'
-          try {
-            const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
-            const existingUser = usersData?.users?.find((u: any) => u.email === email)
-            if (existingUser) {
-              // Usuário existe - usar magiclink para confirmação de email
-              linkType = 'magiclink'
-              logInfo(`✅ Usuário encontrado (${existingUser.id}) - usando type: ${linkType}`, 'SIGNUP')
-            } else {
-              logInfo(`ℹ️ Usuário não encontrado - usando type: ${linkType}`, 'SIGNUP')
-            }
-          } catch (listErr: any) {
-            logWarn(`⚠️ Erro ao verificar usuário, usando type: ${linkType}`, 'SIGNUP')
-          }
+          // Para confirmação de email (novo ou existente não confirmado), usar sempre type 'signup'
+          // assim o link confirma o email corretamente
+          const linkType: 'signup' | 'recovery' | 'magiclink' = 'signup'
+          logInfo(`📧 Gerando link de confirmação (type: ${linkType})...`, 'SIGNUP')
           
           // Gerar link via Admin API
           const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
@@ -339,16 +332,16 @@ export async function signUp(email: string, password: string, nome: string, tele
             let linkGerado = linkData.properties.action_link
             logInfo(`🔍 Link gerado pelo Supabase: ${linkGerado.substring(0, 200)}...`, 'SIGNUP')
             
-            // SEMPRE converter link do Supabase para link direto do plenipay.com
+            // Converter link do Supabase para link direto do nosso site (siteUrl = localhost em dev, plenipay.com em prod)
             // O Supabase gera: https://xxx.supabase.co/auth/v1/verify?token=...&redirect_to=...
-            // Precisamos: https://plenipay.com/auth/callback?token_hash=...&type=...&next=...
+            // Precisamos: {siteUrl}/auth/callback?token_hash=...&type=...&next=...
             
             const isLinkSupabase = linkGerado.includes('supabase.co/auth/v1/verify')
+            const callbackPath = `${siteUrl}/auth/callback`
             const precisaCorrigir = linkGerado.includes('0.0.0.0') || 
                                     linkGerado.includes(':10000') || 
-                                    linkGerado.includes('localhost') ||
                                     isLinkSupabase ||
-                                    !linkGerado.includes('plenipay.com/auth/callback')
+                                    !linkGerado.includes('/auth/callback')
             
             if (precisaCorrigir) {
               logWarn(`⚠️ Link precisa ser corrigido, extraindo parâmetros...`, 'SIGNUP')
@@ -415,8 +408,8 @@ export async function signUp(email: string, password: string, nome: string, tele
               }
               
               if (tokenHash) {
-                // Construir URL correta com plenipay.com usando token_hash
-                linkGerado = `https://plenipay.com/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(linkType)}&next=${encodeURIComponent(nextPath)}`
+                // Construir URL correta com siteUrl (localhost em dev, plenipay.com em prod)
+                linkGerado = `${callbackPath}?token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(linkType)}&next=${encodeURIComponent(nextPath)}`
                 logSuccess(`✅ Link corrigido: ${linkGerado.substring(0, 150)}...`, 'SIGNUP')
               } else {
                 logError('❌ Não foi possível extrair token - usando redirectTo como fallback', 'SIGNUP')
@@ -424,9 +417,9 @@ export async function signUp(email: string, password: string, nome: string, tele
               }
             }
             
-            // Garantir que o link sempre use plenipay.com/auth/callback (verificação final)
-            if (!linkGerado.includes('plenipay.com/auth/callback')) {
-              logError('❌ Link ainda não contém plenipay.com/auth/callback - forçando...', 'SIGNUP')
+            // Garantir que o link sempre use o callback do site (verificação final)
+            if (!linkGerado.includes('/auth/callback')) {
+              logError('❌ Link ainda não contém /auth/callback - forçando...', 'SIGNUP')
               linkGerado = redirectTo
               logWarn(`✅ Link forçado para redirectTo: ${linkGerado}`, 'SIGNUP')
             }
@@ -452,11 +445,23 @@ export async function signUp(email: string, password: string, nome: string, tele
           }
         } catch (smtpError: any) {
           logError(`❌ Erro ao enviar via SMTP próprio: ${smtpError.message}`, 'SIGNUP')
-          emailEnviado = false
+          // Só marcar como enviado se Supabase enviou (usuário criado agora, sem erro de envio)
+          // Se usuário já existia ou teve erro de envio, email não foi enviado
+          if (!usuarioJaExistia && !teveErroEnvioEmail && authData?.user) {
+            logInfo('✅ Supabase provavelmente enviou (SMTP próprio falhou)', 'SIGNUP')
+            emailEnviado = true
+          } else {
+            emailEnviado = false
+          }
         }
       } else {
-        logWarn('⚠️ SMTP próprio não configurado - não é possível enviar', 'SIGNUP')
-        emailEnviado = false
+        logWarn('⚠️ SMTP próprio não configurado - não foi possível enviar link', 'SIGNUP')
+        // Só marcar como enviado se Supabase enviou (usuário criado agora e sem erro de envio)
+        // Se usuário já existia, Supabase não envia de novo - então emailEnviado fica false
+        if (!usuarioJaExistia && !teveErroEnvioEmail && authData?.user) {
+          emailEnviado = true
+          logInfo('✅ Supabase provavelmente enviou (SMTP próprio não configurado)', 'SIGNUP')
+        }
       }
     }
     

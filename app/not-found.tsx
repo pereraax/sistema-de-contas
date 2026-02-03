@@ -17,7 +17,7 @@ export default function NotFound() {
         </p>
         <Link
           href="/home"
-          className="inline-block px-4 py-2 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth"
+          className="inline-block px-4 py-2 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth"
         >
           Voltar para Home
         </Link>

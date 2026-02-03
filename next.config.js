@@ -32,7 +32,7 @@ const nextConfig = {
   
   // Configuração experimental
   experimental: {
-    // Desabilitar otimização de CSS para evitar erros no Vercel
+    // Desabilitar otimização de CSS em produção (Railway, etc.)
     optimizeCss: false,
     // Desabilitar otimizações que podem causar prerendering
     serverActions: {
@@ -109,7 +109,7 @@ const nextConfig = {
               key: 'Content-Security-Policy',
               value: [
                 "default-src 'self'",
-                "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.googletagmanager.com blob:",
+                "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.googletagmanager.com https://cdn.jsdelivr.net blob:",
                 "style-src 'self' 'unsafe-inline'",
                 "img-src 'self' data: https: blob:",
                 "font-src 'self' data:",
@@ -241,7 +241,7 @@ const nextConfig = {
     } else {
       // No SERVIDOR, tentar usar bufferutil e utf-8-validate se disponíveis
       // Essas são dependências opcionais do ws que melhoram performance
-      // No Vercel, podem não estar disponíveis, então tratamos como opcionais
+      // Em produção podem não estar disponíveis, então tratamos como opcionais
       const fallback = { ...config.resolve.fallback }
       
       // Verificar se os módulos existem antes de tentar resolver
@@ -282,7 +282,7 @@ const nextConfig = {
       // Ignorar avisos de módulos não encontrados que são opcionais
       { message: /Module not found/ },
       { message: /Can't resolve/ },
-      // Ignorar avisos de CSS que podem aparecer no Vercel
+      // Ignorar avisos de CSS em build
       { message: /css-loader/ },
       { message: /postcss/ },
       { message: /globals\.css/ },

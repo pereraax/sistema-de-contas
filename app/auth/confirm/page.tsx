@@ -126,7 +126,7 @@ export default function ConfirmEmailPage() {
             height: '64px',
             margin: '0 auto',
             borderRadius: '50%',
-            backgroundColor: '#00C2FF',
+            backgroundColor: '#1e4976',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -160,7 +160,7 @@ export default function ConfirmEmailPage() {
             height: '40px',
             margin: '0 auto',
             border: '4px solid #f3f3f3',
-            borderTop: '4px solid #00C2FF',
+            borderTop: '4px solid #1e4976',
             borderRadius: '50%',
             animation: 'spin 1s linear infinite'
           }} />

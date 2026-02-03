@@ -272,7 +272,7 @@ export default function ModalEmprestimo({ onClose }: ModalEmprestimoProps) {
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'pix' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'pix'
-                    ? 'bg-brand-aqua/90 dark:bg-brand-aqua text-brand-midnight shadow-lg'
+                    ? 'bg-brand-aqua/90 dark:bg-brand-aqua text-white shadow-lg'
                     : 'bg-gray-50 dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border border-gray-300 dark:border-white/10'
                 }`}
               >
@@ -284,7 +284,7 @@ export default function ModalEmprestimo({ onClose }: ModalEmprestimoProps) {
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'cartao' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'cartao'
-                    ? 'bg-brand-aqua/90 dark:bg-brand-aqua text-brand-midnight shadow-lg'
+                    ? 'bg-brand-aqua/90 dark:bg-brand-aqua text-white shadow-lg'
                     : 'bg-gray-50 dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border border-gray-300 dark:border-white/10'
                 }`}
               >
@@ -296,7 +296,7 @@ export default function ModalEmprestimo({ onClose }: ModalEmprestimoProps) {
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'dinheiro' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'dinheiro'
-                    ? 'bg-brand-aqua/90 dark:bg-brand-aqua text-brand-midnight shadow-lg'
+                    ? 'bg-brand-aqua/90 dark:bg-brand-aqua text-white shadow-lg'
                     : 'bg-gray-50 dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border border-gray-300 dark:border-white/10'
                 }`}
               >
@@ -356,7 +356,7 @@ export default function ModalEmprestimo({ onClose }: ModalEmprestimoProps) {
               <button
                 type="button"
                 onClick={adicionarParcela}
-                className="flex items-center gap-2 px-4 py-2 bg-brand-aqua/90 dark:bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua shadow-lg hover:shadow-xl transition-smooth text-xs"
+                className="flex items-center gap-2 px-4 py-2 bg-brand-aqua/90 dark:bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua shadow-lg hover:shadow-xl transition-smooth text-xs"
               >
                 <Plus size={16} />
                 Adicionar Parcela
@@ -443,7 +443,7 @@ export default function ModalEmprestimo({ onClose }: ModalEmprestimoProps) {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-4 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="flex-1 px-4 py-2.5 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 {loading ? 'Registrando...' : 'REGISTRAR EMPRÉSTIMO'}
               </button>

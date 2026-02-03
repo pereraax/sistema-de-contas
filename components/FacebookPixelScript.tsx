@@ -4,9 +4,9 @@ import { createAdminClient } from '@/lib/supabase/server'
 /**
  * Componente Server-Side que busca o Pixel ID do banco e injeta o código diretamente no HTML
  * Isso garante que a extensão Meta Pixel Helper detecte o pixel imediatamente
+ * Envolvido em try-catch para evitar 500 se Supabase não estiver configurado
  */
 export default async function FacebookPixelScript() {
-  // Buscar Pixel ID do banco de dados (server-side)
   let pixelId: string | null = null
 
   try {
@@ -23,14 +23,13 @@ export default async function FacebookPixelScript() {
       }
     }
   } catch (error) {
-    // Silenciar erro - o hook client-side fará fallback
-    // Não logar em produção para não poluir logs
+    // Nunca deixar o Pixel quebrar a página (evita 500)
     if (process.env.NODE_ENV === 'development') {
       console.error('Erro ao buscar Pixel ID no servidor:', error)
     }
+    return null
   }
 
-  // Se não tiver Pixel ID, não renderizar nada
   if (!pixelId) {
     return null
   }

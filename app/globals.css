@@ -275,3 +275,10 @@ body::-webkit-scrollbar {
     font-size: 16px !important;
   }
 }
+
+/* Sidebar recolhida no desktop: margem para caber sidebar + botão redondo que se projeta */
+@media (min-width: 1024px) {
+  aside.sidebar-collapsed + main {
+    margin-left: 6.25rem !important;
+  }
+}

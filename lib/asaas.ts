@@ -3,14 +3,14 @@
 
 const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3'
 
-// IMPORTANTE: No Vercel, as variáveis vêm de process.env (não de .env.local)
-// Vamos ler apenas de process.env para evitar erros durante o build
+// IMPORTANTE: Em produção (Railway), as variáveis vêm de process.env (não de .env.local)
+// Ler apenas de process.env para evitar erros durante o build
 function getAsaasApiKey(): string {
   let apiKey = process.env.ASAAS_API_KEY
 
-  // No ambiente de produção (Render/Vercel), não tentar ler .env.local
+  // No ambiente de produção (Railway, etc.), não tentar ler .env.local
   // pois ele não existe lá - as variáveis estão em process.env
-  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER || process.env.VERCEL
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY || process.env.RENDER
   if (!apiKey && !isProduction) {
     try {
       const fs = require('fs')
@@ -44,7 +44,7 @@ function getAsaasApiKeyLazy(): string {
   if (cachedApiKey === null) {
     cachedApiKey = getAsaasApiKey()
     if (!cachedApiKey) {
-      throw new Error('ASAAS_API_KEY não está configurada. Configure a variável de ambiente ASAAS_API_KEY no Vercel.')
+      throw new Error('ASAAS_API_KEY não está configurada. Configure a variável de ambiente ASAAS_API_KEY no Railway.')
     }
   }
   return cachedApiKey

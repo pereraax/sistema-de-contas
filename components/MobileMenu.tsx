@@ -137,16 +137,16 @@ export default function MobileMenu() {
                       onClick={() => setIsOpen(false)}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth ${
                         isActive
-                          ? 'bg-brand-aqua text-brand-midnight shadow-lg'
+                          ? 'bg-brand-aqua text-white shadow-lg'
                           : 'text-gray-700 dark:text-brand-clean hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
                       }`}
                     >
                       <Icon 
                         size={20} 
                         strokeWidth={2} 
-                        className={isActive ? 'text-brand-midnight' : item.color}
+                        className={isActive ? 'text-white' : item.color}
                       />
-                      <span className={`font-medium ${isActive ? 'text-brand-midnight' : 'text-gray-700 dark:text-brand-clean'}`}>
+                      <span className={`font-medium ${isActive ? 'text-white' : 'text-gray-700 dark:text-brand-clean'}`}>
                         {item.label}
                       </span>
                     </Link>

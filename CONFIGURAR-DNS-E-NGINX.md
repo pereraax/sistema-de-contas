@@ -2,7 +2,7 @@
 
 ## ❌ PROBLEMA:
 
-O domínio `plenipay.com` está apontando para **Vercel**, não para o servidor Hostinger.
+O domínio `plenipay.com` pode estar apontando para outra plataforma; para Hostinger, aponte para o servidor Hostinger.
 
 ---
 
@@ -37,8 +37,7 @@ TTL: 3600
 
 #### **4. Remover Registros CNAME (se houver):**
 
-- Se tiver CNAME apontando para Vercel, **remova**
-- Exemplo: `plenipay.com` → `cname.vercel-dns.com` (REMOVER)
+- Se tiver CNAME apontando para outra plataforma antiga, **remova** e aponte para o servidor correto (Hostinger, Railway, etc.)
 
 #### **5. Salvar e Aguardar:**
 
@@ -197,7 +196,7 @@ dig plenipay.com
 ## ✅ CHECKLIST:
 
 - [ ] Configurei DNS para apontar ao IP do servidor
-- [ ] Removi CNAME do Vercel (se existia)
+- [ ] Removi CNAME antigo (se existia)
 - [ ] Instalei Nginx no servidor
 - [ ] Criei configuração do Nginx
 - [ ] Ativei configuração
@@ -211,10 +210,9 @@ dig plenipay.com
 
 ## 🚨 IMPORTANTE:
 
-### **Se o domínio estava no Vercel:**
+### **Se o domínio estava em outra plataforma:**
 
-1. **Remova do Vercel:**
-   - Acesse: https://vercel.com
+1. **Remova o domínio da plataforma antiga** (ex.: painel da plataforma anterior)
    - Settings → Domains
    - Remova `plenipay.com`
 

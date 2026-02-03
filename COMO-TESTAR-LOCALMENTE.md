@@ -5,7 +5,7 @@
 Você está acessando `https://plenipay.com` no navegador, mas o servidor está rodando **localmente** em `localhost:3000` ou `0.0.0.0:10000`.
 
 **Quando você acessa `plenipay.com`:**
-- A requisição vai para o servidor de **produção** (Render, Vercel, etc)
+- A requisição vai para o servidor de **produção** (Railway, etc.)
 - **NÃO** vai para o servidor local
 - Por isso não aparecem logs no terminal local
 
@@ -43,7 +43,7 @@ curl http://localhost:3000
 
 ### **Opção 3: Ver logs do servidor de produção**
 
-Se você quer testar em produção (`plenipay.com`), precisa ver os logs do servidor de produção (Render, Vercel, etc), não do servidor local.
+Se você quer testar em produção (`plenipay.com`), precisa ver os logs do servidor de produção (Railway, etc.), não do servidor local.
 
 ---
 

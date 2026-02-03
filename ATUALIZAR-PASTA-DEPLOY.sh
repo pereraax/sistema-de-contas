@@ -5,7 +5,7 @@
 echo "🔄 Atualizando pasta deploy-hostinger..."
 echo ""
 
-cd "/Users/charllestabordas/Documents/SISTEMA DE CONTAS"
+cd "$(dirname "$0")"
 
 # Remover pasta antiga
 if [ -d "deploy-hostinger" ]; then
@@ -32,7 +32,7 @@ cp package.json package-lock.json next.config.js tailwind.config.js tsconfig.jso
 # Copiar arquivos opcionais
 if [ -f "postcss.config.js" ]; then cp postcss.config.js deploy-hostinger/; fi
 if [ -f "server.js" ]; then cp server.js deploy-hostinger/; fi
-if [ -f "vercel.json" ]; then cp vercel.json deploy-hostinger/; fi
+if [ -f "railway.json" ]; then cp railway.json deploy-hostinger/; fi
 
 # Criar README
 cat > deploy-hostinger/README-DEPLOY.md << 'EOF'

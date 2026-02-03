@@ -1,3 +1,5 @@
+# Deploy no Render: configure as variáveis sensíveis no Dashboard (Environment)
+# para não expor no repositório. Aqui só as que definem o domínio e ambiente.
 services:
   - type: web
     name: sistema-de-contas-1
@@ -8,4 +10,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        sync: false  # Render define automaticamente
+        sync: false
+      # Links de confirmação de email usarão este domínio (obrigatório para emails com plenipay.com)
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://plenipay.com
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://plenipay.com

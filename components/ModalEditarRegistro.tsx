@@ -194,7 +194,7 @@ export default function ModalEditarRegistro({
       id: `cat-${Date.now()}`,
       nome: novaCategoriaNome.trim(),
       icone: 'Tag',
-      cor: '#00C2FF',
+      cor: '#1e4976',
       tipo: 'personalizada' as const,
     }
 

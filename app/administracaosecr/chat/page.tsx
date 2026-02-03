@@ -35,6 +35,7 @@ export default function AdminChatPage() {
   const [showCloseModal, setShowCloseModal] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const lastScrolledConversationRef = useRef<string | null>(null)
 
   useEffect(() => {
     loadConversations()
@@ -44,15 +45,21 @@ export default function AdminChatPage() {
 
   useEffect(() => {
     if (selectedUserId) {
+      lastScrolledConversationRef.current = null
       loadUserMessages(selectedUserId)
       const interval = setInterval(() => loadUserMessages(selectedUserId), 3000) // Atualizar mensagens a cada 3 segundos
       return () => clearInterval(interval)
     }
   }, [selectedUserId])
 
+  // Só rolar até o final ao abrir a conversa (primeira carga de mensagens), não a cada atualização do polling
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    if (!selectedUserId || messages.length === 0) return
+    if (lastScrolledConversationRef.current !== selectedUserId) {
+      lastScrolledConversationRef.current = selectedUserId
+      scrollToBottom()
+    }
+  }, [selectedUserId, messages])
 
   const loadConversations = async () => {
     try {
@@ -153,6 +160,7 @@ export default function AdminChatPage() {
         setInputMessage('')
         await loadUserMessages(selectedUserId)
         await loadConversations()
+        scrollToBottom()
         inputRef.current?.focus()
       }
     } catch (error) {
@@ -420,7 +428,7 @@ export default function AdminChatPage() {
                       <div
                         className={`max-w-[85%] lg:max-w-[75%] rounded-xl lg:rounded-2xl px-3 lg:px-4 py-2 lg:py-3 ${
                           message.sender_type === 'support'
-                            ? 'bg-brand-aqua text-brand-midnight rounded-br-sm shadow-lg'
+                            ? 'bg-brand-aqua text-white rounded-br-sm shadow-lg'
                             : 'bg-brand-royal text-brand-clean rounded-bl-sm border border-white/10 shadow-md'
                         }`}
                       >
@@ -463,7 +471,7 @@ export default function AdminChatPage() {
                       <button
                         onClick={handleSendMessage}
                         disabled={!inputMessage.trim() || loading}
-                        className="p-2.5 lg:p-3 bg-brand-aqua text-brand-midnight rounded-xl hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl flex-shrink-0"
+                        className="p-2.5 lg:p-3 bg-brand-aqua text-white rounded-xl hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl flex-shrink-0"
                       >
                         <Send size={18} className="lg:w-5 lg:h-5" strokeWidth={2.5} />
                       </button>

@@ -14,11 +14,14 @@ export function middleware(request: NextRequest) {
   const url = request.nextUrl.clone()
   
   // CRÍTICO: Verificar o host REAL da requisição (do header Host, não da URL)
-  // O header Host mostra o domínio que o usuário está acessando
+  // Com Cloudflare, o Host pode ser plenipay.com, www.plenipay.com ou o host do Railway
   const hostHeader = request.headers.get('host') || ''
-  const isCorrectDomain = hostHeader === 'plenipay.com' || hostHeader === 'www.plenipay.com' || hostHeader.includes('plenipay.com')
-  
-  // CRÍTICO: Se estamos no domínio correto, NUNCA redirecionar
+  const isPlenipay = hostHeader === 'plenipay.com' || hostHeader === 'www.plenipay.com' || hostHeader.includes('plenipay.com')
+  const isRailwayHost = hostHeader.includes('.railway.app') || hostHeader.includes('up.railway.app')
+  const isCorrectDomain = isPlenipay || isRailwayHost
+
+  // CRÍTICO: Se estamos no domínio correto ou no backend Railway, NUNCA redirecionar
+  // Isso evita ERR_TOO_MANY_REDIRECTS com Cloudflare (Flexible SSL ou regras conflitantes)
   // Isso evita loops quando o Next.js usa 0.0.0.0:3000 como URL base (normal em produção)
   if (isCorrectDomain) {
     // Apenas continuar processamento normal (SEO e cache)

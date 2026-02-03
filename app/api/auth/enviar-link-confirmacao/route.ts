@@ -1,322 +1,205 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createAdminClient } from '@/lib/supabase/server'
-import { logInfo, logError, logSuccess } from '@/lib/server-logs'
 
 /**
- * API ROUTE - REENVIAR LINK DE CONFIRMAÇÃO
- * Tenta SMTP próprio PRIMEIRO (Admin API + envio), depois resend do Supabase
+ * Reenvia o link de confirmação de email para um endereço informado.
+ *
+ * Usado pelo `ModalConfirmarEmail` no cliente:
+ *   POST /api/auth/enviar-link-confirmacao  { email }
+ *
+ * Implementação:
+ * 1. Tenta `supabase.auth.resend` primeiro (método padrão)
+ * 2. Se falhar (rate limit, usuário já existe, etc), usa Admin API `generateLink` + SMTP próprio
+ * 3. Garante que sempre tenta enviar, mesmo se resend falhar
  */
 export async function POST(request: NextRequest) {
   try {
-    logInfo('📧 ========== REENVIAR LINK ==========', 'EMAIL_CONFIRMATION')
-    console.error('📧 ========== REENVIAR LINK ==========')
-    
-    const { email } = await request.json()
-    
-    if (!email) {
-      return NextResponse.json({ error: 'Email é obrigatório' }, { status: 400 })
+    const { email } = await request.json().catch(() => ({}))
+
+    if (!email || typeof email !== 'string') {
+      return NextResponse.json(
+        { error: 'Email é obrigatório.' },
+        { status: 400 }
+      )
     }
 
-    logInfo(`📧 Email: ${email}`, 'EMAIL_CONFIRMATION')
-    console.error(`📧 Email: ${email}`)
+    console.log('📧 [Reenvio] Iniciando reenvio de link para:', email)
 
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-      logError('❌ Variáveis Supabase não configuradas', 'EMAIL_CONFIRMATION')
-      return NextResponse.json({ 
-        error: 'Configuração incompleta.',
-        detail: 'NEXT_PUBLIC_SUPABASE_URL ou ANON_KEY ausentes.'
-      }, { status: 500 })
-    }
+    // Descobrir a URL base correta (localhost ou produção)
+    const { getSiteUrl } = await import('@/lib/auth')
+    const siteUrl = await getSiteUrl()
+    const redirectTo = `${siteUrl}/auth/callback?next=/home`
 
-    const redirectTo = 'https://plenipay.com/auth/callback?next=/home'
-    
-    // Verificar Admin Client
-    let supabaseAdmin: any = null
-    try {
-      supabaseAdmin = createAdminClient()
-      console.error(`📧 Admin disponível: ${!!supabaseAdmin}`)
-      if (!supabaseAdmin) {
-        console.error('⚠️ SUPABASE_SERVICE_ROLE_KEY não configurado ou inválido')
-      }
-    } catch (adminErr: any) {
-      console.error('❌ Erro ao criar Admin client:', adminErr.message)
-      supabaseAdmin = null
-    }
-    
-    // Verificar SMTP
-    let isSmtpConfigured = false
-    let sendMail: any = null
-    try {
-      const mailer = await import('@/lib/mailer')
-      isSmtpConfigured = mailer.isSmtpConfigured()
-      sendMail = mailer.sendMail
-      console.error(`📧 SMTP configurado: ${isSmtpConfigured}`)
-      if (!isSmtpConfigured) {
-        console.error('⚠️ Variáveis SMTP_* não configuradas ou inválidas')
-        console.error('   Verifique: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD')
-      }
-    } catch (mailerErr: any) {
-      console.error('❌ Erro ao importar mailer:', mailerErr.message)
-      isSmtpConfigured = false
-    }
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = await createClient()
 
-    // TENTATIVA 1: SMTP próprio (Admin API + envio)
-    if (isSmtpConfigured && supabaseAdmin && sendMail) {
-      logInfo('📤 Tentativa 1: Admin API + SMTP próprio...', 'EMAIL_CONFIRMATION')
-      console.error('📤 Tentativa 1: Admin API + SMTP próprio...')
-      
-      try {
-        // Verificar se usuário existe primeiro para usar o tipo correto
-        let linkType: 'signup' | 'recovery' | 'magiclink' = 'signup'
-        try {
-          const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
-          const existingUser = usersData?.users?.find((u: any) => u.email === email)
-          if (existingUser) {
-            // Usuário existe - usar magiclink para confirmação de email
-            linkType = 'magiclink'
-            console.error(`✅ Usuário encontrado (${existingUser.id}) - usando type: ${linkType}`)
-          } else {
-            console.error(`ℹ️ Usuário não encontrado - usando type: ${linkType}`)
-          }
-        } catch (listErr: any) {
-          console.error(`⚠️ Erro ao verificar usuário, usando type: ${linkType}`, listErr.message)
-        }
-        
-        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-          type: linkType,
-          email,
-          options: { redirectTo }
-        } as any)
-        
-        if (linkError || !linkData?.properties?.action_link) {
-          throw new Error(linkError?.message || 'Link não gerado')
-        }
-        
-        let linkGerado = linkData.properties.action_link
-        console.error(`🔍 Link gerado pelo Supabase: ${linkGerado.substring(0, 200)}...`)
-        
-        // SEMPRE converter link do Supabase para link direto do plenipay.com
-        // O Supabase gera: https://xxx.supabase.co/auth/v1/verify?token=...&redirect_to=...
-        // Precisamos: https://plenipay.com/auth/callback?token_hash=...&type=...&next=...
-        
-        const isLinkSupabase = linkGerado.includes('supabase.co/auth/v1/verify')
-        const precisaCorrigir = linkGerado.includes('0.0.0.0') || 
-                                linkGerado.includes(':10000') || 
-                                linkGerado.includes('localhost') ||
-                                isLinkSupabase ||
-                                !linkGerado.includes('plenipay.com/auth/callback')
-        
-        if (precisaCorrigir) {
-          console.error('⚠️ Link precisa ser corrigido, extraindo parâmetros...')
-          
-          let tokenHash: string | null = null
-          let linkType = 'signup'
-          let nextPath = '/home'
-          
-          // Se é link do Supabase (/auth/v1/verify), extrair token e redirect_to
-          if (isLinkSupabase) {
-            console.error('🔍 Detectado link do Supabase - extraindo token e redirect_to...')
-            
-            // Extrair token da query string
-            const tokenMatch = linkGerado.match(/[?&]token=([^&#]+)/i)
-            if (tokenMatch) {
-              tokenHash = decodeURIComponent(tokenMatch[1])
-              console.error('✅ Token extraído do link do Supabase')
-            }
-            
-            // Extrair redirect_to (pode estar URL encoded)
-            const redirectToMatch = linkGerado.match(/[?&]redirect_to=([^&#]+)/i)
-            if (redirectToMatch) {
-              const redirectToDecoded = decodeURIComponent(redirectToMatch[1])
-              console.error(`🔍 redirect_to decodificado: ${redirectToDecoded.substring(0, 100)}...`)
-              
-              // Extrair type e next do redirect_to
-              const redirectUrl = new URL(redirectToDecoded)
-              linkType = redirectUrl.searchParams.get('type') || 'signup'
-              nextPath = redirectUrl.searchParams.get('next') || '/home'
-              console.error(`✅ Type: ${linkType}, Next: ${nextPath}`)
-            }
-            
-            // Extrair type do link original também (pode estar na query)
-            const typeMatch = linkGerado.match(/[?&]type=([^&#]+)/i)
-            if (typeMatch) {
-              linkType = decodeURIComponent(typeMatch[1])
-            }
-          } else {
-            // Link não é do Supabase - tentar extrair token_hash ou access_token
-            const tokenHashMatch = linkGerado.match(/[?&#]token_hash=([^&#]+)/i)
-            if (tokenHashMatch) {
-              tokenHash = decodeURIComponent(tokenHashMatch[1])
-              console.error('✅ Token_hash extraído da query string')
-            }
-            
-            // Tentar extrair access_token do hash (#access_token=...)
-            if (!tokenHash) {
-              const accessTokenMatch = linkGerado.match(/#access_token=([^&#]+)/i)
-              if (accessTokenMatch) {
-                tokenHash = decodeURIComponent(accessTokenMatch[1])
-                console.error('✅ Access_token extraído do hash')
-              }
-            }
-            
-            // Extrair type e next
-            const typeMatch = linkGerado.match(/[?&#]type=([^&#]+)/i)
-            const nextMatch = linkGerado.match(/[?&#]next=([^&#]+)/i)
-            linkType = typeMatch ? decodeURIComponent(typeMatch[1]) : 'signup'
-            nextPath = nextMatch ? decodeURIComponent(nextMatch[1]) : '/home'
-          }
-          
-          if (tokenHash) {
-            // Construir URL correta com plenipay.com usando token_hash
-            linkGerado = `https://plenipay.com/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(linkType)}&next=${encodeURIComponent(nextPath)}`
-            console.error(`✅ Link corrigido: ${linkGerado.substring(0, 150)}...`)
-          } else {
-            console.error('❌ Não foi possível extrair token - usando redirectTo como fallback')
-            linkGerado = redirectTo
-          }
-        }
-        
-        // Garantir que o link sempre use plenipay.com/auth/callback (verificação final)
-        if (!linkGerado.includes('plenipay.com/auth/callback')) {
-          console.error('❌ Link ainda não contém plenipay.com/auth/callback - forçando...')
-          linkGerado = redirectTo
-          console.error(`✅ Link forçado para redirectTo: ${linkGerado}`)
-        }
-        
-        console.error(`✅ Link final que será enviado: ${linkGerado.substring(0, 150)}...`)
-        
-        console.error('📄 Lendo template HTML...')
-        const { readFileSync } = await import('fs')
-        const { join } = await import('path')
-        const templatePath = join(process.cwd(), 'TEMPLATE-EMAIL-CONFIRMACAO-CORRETO.html')
-        console.error(`📄 Template path: ${templatePath}`)
-        
-        let templateHtml: string
-        try {
-          templateHtml = readFileSync(templatePath, 'utf-8')
-          console.error('✅ Template lido com sucesso')
-        } catch (fileErr: any) {
-          console.error(`❌ Erro ao ler template: ${fileErr.message}`)
-          throw new Error(`Template não encontrado: ${templatePath}`)
-        }
-        
-        templateHtml = templateHtml.replace(/\{\{ \.ConfirmationURL \}\}/g, linkGerado)
-        console.error('✅ Template processado, link inserido')
-        console.error(`🔍 Link que será inserido no email: ${linkGerado.substring(0, 200)}...`)
-        
-        // IMPORTANTE: Verificar se o link está correto antes de enviar
-        if (linkGerado.includes('0.0.0.0') || linkGerado.includes(':10000') || !linkGerado.includes('plenipay.com')) {
-          console.error('❌ [CRÍTICO] Link ainda contém URL errada após correção!')
-          console.error(`❌ Link: ${linkGerado}`)
-          throw new Error('Link gerado contém URL inválida. Não é possível enviar email.')
-        }
-        
-        console.error('📤 Chamando sendMail...')
-        try {
-          await sendMail({
-            to: email,
-            subject: 'Confirme seu Cadastro - PLENIPAY',
-            html: templateHtml
-          })
-          
-          logSuccess('✅ Email enviado via SMTP próprio', 'EMAIL_CONFIRMATION')
-          console.error('✅ Email enviado via SMTP próprio')
-          return NextResponse.json({
-            success: true,
-            message: 'Link enviado! Verifique sua caixa de entrada.',
-            method: 'smtp_proprio'
-          }, { status: 200 })
-        } catch (sendMailError: any) {
-          // Se sendMail falhar, relançar o erro para ser capturado pelo catch externo
-          console.error('❌ Erro ao chamar sendMail:', sendMailError.message)
-          console.error('❌ Código:', sendMailError.code)
-          throw sendMailError
-        }
-        
-      } catch (e: any) {
-        const msg = e?.message || String(e)
-        const code = e?.code
-        logError(`❌ SMTP próprio falhou: ${msg}`, 'EMAIL_CONFIRMATION')
-        console.error(`❌ SMTP próprio falhou: ${msg}`)
-        console.error(`❌ Código: ${code || 'N/A'}`)
-        if (e?.stack) console.error(`❌ Stack: ${e.stack.substring(0, 300)}`)
-        if (e?.originalError) {
-          console.error(`❌ Erro original: ${e.originalError.message}`)
-          console.error(`❌ Código original: ${e.originalError.code || 'N/A'}`)
-        }
-        // Segue para tentativa 2 (resend)
-      }
-    } else {
-      console.error('⚠️ Pulando SMTP próprio porque:')
-      if (!supabaseAdmin) {
-        console.error('   ❌ Admin client não disponível (SUPABASE_SERVICE_ROLE_KEY?)')
-      }
-      if (!isSmtpConfigured) {
-        console.error('   ❌ SMTP não configurado (SMTP_* no .env.local?)')
-      }
-      if (!sendMail) {
-        console.error('   ❌ sendMail não disponível (erro ao importar?)')
-      }
-    }
-
-    // TENTATIVA 2: Resend do Supabase
-    logInfo('📤 Tentativa 2: Resend do Supabase...', 'EMAIL_CONFIRMATION')
-    console.error('📤 Tentativa 2: Resend do Supabase...')
-    
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-    const { error } = await supabase.auth.resend({
+    // MÉTODO 1: Tentar resend padrão do Supabase (opcional, para logs)
+    console.log('📤 [Reenvio] Tentando resend padrão...')
+    const { data: resendData, error: resendError } = await supabase.auth.resend({
       type: 'signup',
       email,
-      options: { emailRedirectTo: redirectTo }
+      options: {
+        emailRedirectTo: redirectTo,
+      },
     })
+
+    // IMPORTANTE: Mesmo se resend retornar sucesso, vamos SEMPRE usar Admin API + SMTP próprio
+    // porque o resend pode retornar sucesso mas não enviar realmente (rate limits, SMTP do Supabase, etc)
+    // O SMTP próprio é mais confiável e garantimos que o email será enviado
+    if (!resendError && resendData) {
+      console.log('✅ [Reenvio] Resend padrão retornou sucesso, mas vamos garantir via Admin API + SMTP próprio...')
+    } else {
+      console.log('⚠️ [Reenvio] Resend retornou erro:', resendError?.message)
+    }
+
+    // MÉTODO 2: SEMPRE usar Admin API + SMTP próprio para garantir envio
+    console.log('📧 [Reenvio] Gerando link via Admin API e enviando via SMTP próprio (garantia)...')
+
+    const { createAdminClient } = await import('@/lib/supabase/server')
+    const supabaseAdmin = createAdminClient()
+
+    if (!supabaseAdmin) {
+      console.error('❌ [Reenvio] Admin client não disponível')
+      return NextResponse.json(
+        {
+          error: resendError?.message || 'Erro ao reenviar link de confirmação.',
+          detail: 'Admin client não disponível. Verifique SUPABASE_SERVICE_ROLE_KEY.',
+        },
+        { status: 500 }
+      )
+    }
+
+    // Verificar se usuário existe e status de confirmação
+    let linkType: 'signup' | 'magiclink' = 'signup'
+    let userExists = false
     
-    if (!error) {
-      logSuccess('✅ Email enviado via resend', 'EMAIL_CONFIRMATION')
-      console.error('✅ Email enviado via resend')
+    try {
+      const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
+      const existingUser = usersData?.users?.find((u: any) => u.email === email)
+      
+      if (existingUser) {
+        userExists = true
+        // Se usuário já existe, usar magiclink (mais confiável para reenvio)
+        linkType = 'magiclink'
+        console.log(`✅ [Reenvio] Usuário encontrado (${existingUser.id}) - usando type: ${linkType}`)
+        console.log(`📋 [Reenvio] Email confirmado: ${existingUser.email_confirmed_at ? 'SIM' : 'NÃO'}`)
+      } else {
+        console.log('ℹ️ [Reenvio] Usuário não encontrado - usando type: signup')
+      }
+    } catch (listErr: any) {
+      console.warn(`⚠️ [Reenvio] Erro ao verificar usuário: ${listErr.message}`)
+    }
+
+    // Gerar link via Admin API
+    console.log(`🔗 [Reenvio] Gerando link com type: ${linkType}...`)
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: linkType,
+      email: email,
+      options: { redirectTo: redirectTo }
+    } as any)
+
+    if (linkError || !linkData?.properties?.action_link) {
+      console.error('❌ [Reenvio] Erro ao gerar link:', linkError?.message)
+      return NextResponse.json(
+        {
+          error: linkError?.message || resendError?.message || 'Erro ao gerar link de confirmação.',
+          detail: 'Não foi possível gerar o link. Verifique se o usuário existe e se o SMTP está configurado.',
+        },
+        { status: 500 }
+      )
+    }
+
+    let linkGerado = linkData.properties.action_link
+    console.log(`✅ [Reenvio] Link gerado: ${linkGerado.substring(0, 150)}...`)
+
+    // Converter link do Supabase para formato correto (se necessário)
+    // O Supabase pode gerar: https://xxx.supabase.co/auth/v1/verify?token=...&redirect_to=...
+    // Precisamos garantir que use plenipay.com/auth/callback
+    const isLinkSupabase = linkGerado.includes('supabase.co/auth/v1/verify')
+    
+    if (isLinkSupabase) {
+      console.log('🔧 [Reenvio] Link do Supabase detectado - extraindo parâmetros...')
+      
+      // Extrair code ou token
+      const codeMatch = linkGerado.match(/[?&]code=([^&#]+)/i)
+      const tokenMatch = linkGerado.match(/[?&]token=([^&#]+)/i)
+      
+      if (codeMatch) {
+        // Se tem code, construir URL correta com code
+        linkGerado = `${siteUrl}/auth/callback?code=${encodeURIComponent(codeMatch[1])}&next=/home`
+        console.log('✅ [Reenvio] Link convertido para formato code')
+      } else if (tokenMatch) {
+        // Se tem token, converter para token_hash
+        linkGerado = `${siteUrl}/auth/callback?token_hash=${encodeURIComponent(tokenMatch[1])}&type=${linkType}&next=/home`
+        console.log('✅ [Reenvio] Link convertido para formato token_hash')
+      }
+    }
+
+    // Tentar enviar via SMTP próprio (se configurado)
+    const { isSmtpConfigured, sendMail } = await import('@/lib/mailer')
+    
+    if (isSmtpConfigured()) {
+      try {
+        console.log('📤 [Reenvio] Enviando via SMTP próprio...')
+        
+        const { readFileSync } = await import('fs')
+        const { join } = await import('path')
+        
+        const templatePath = join(process.cwd(), 'TEMPLATE-EMAIL-CONFIRMACAO-CORRETO.html')
+        let templateHtml = readFileSync(templatePath, 'utf-8')
+        templateHtml = templateHtml.replace(/\{\{ \.ConfirmationURL \}\}/g, linkGerado)
+        
+        await sendMail({
+          to: email,
+          subject: 'Confirme seu Cadastro - PLENIPAY',
+          html: templateHtml
+        })
+        
+        console.log('✅ [Reenvio] Email enviado via SMTP próprio!')
+        return NextResponse.json({
+          success: true,
+          linkGenerated: true,
+          message: 'Link de confirmação reenviado. Verifique sua caixa de entrada (e spam).',
+          method: 'admin_api_smtp'
+        })
+      } catch (smtpError: any) {
+        const code = (smtpError as any).code || smtpError.code
+        const msg = smtpError.message || ''
+        console.error('❌ [Reenvio] Erro ao enviar via SMTP próprio:', msg)
+        console.error('❌ [Reenvio] Código:', code)
+        // Mensagem amigável conforme o tipo de erro
+        let userMessage = 'Erro ao enviar email. Verifique a configuração SMTP no .env.local (host, porta, usuário e senha).'
+        if (code === 'EAUTH' || msg.includes('Invalid login') || msg.includes('authentication failed') || msg.includes('535')) {
+          userMessage = 'Erro de autenticação SMTP. No painel da Hostinger, confira o usuário (email completo) e a senha do email. Se usar 2FA, crie uma "Senha de app" para SMTP.'
+        } else if (code === 'ECONNECTION' || code === 'ETIMEDOUT' || msg.includes('timeout')) {
+          userMessage = 'Erro de conexão com o servidor SMTP. Verifique host (smtp.hostinger.com), porta (587) e se o firewall permite saída.'
+        }
+        return NextResponse.json({
+          success: false,
+          linkGenerated: true,
+          link: linkGerado,
+          message: userMessage,
+          error: userMessage,
+          method: 'admin_api_only',
+          smtpErrorCode: code
+        })
+      }
+    } else {
+      console.warn('⚠️ [Reenvio] SMTP próprio não configurado - retornando link gerado')
+      // Se SMTP não está configurado, retornar sucesso mas avisar que precisa enviar manualmente
       return NextResponse.json({
         success: true,
-        message: 'Link enviado! Verifique sua caixa de entrada.'
-      }, { status: 200 })
+        linkGenerated: true,
+        link: linkGerado, // Retornar link para debug/teste manual
+        message: 'Link gerado, mas SMTP não configurado. Configure SMTP_* no .env.local para envio automático.',
+        method: 'admin_api_only'
+      })
     }
-    
-    logError(`❌ Resend falhou: ${error.message}`, 'EMAIL_CONFIRMATION')
-    console.error(`❌ Resend falhou: ${error.message}`)
-    
-    if (error.message.toLowerCase().includes('rate limit')) {
-      return NextResponse.json({ error: 'Muitas tentativas. Aguarde alguns minutos.' }, { status: 429 })
-    }
-    
-    return NextResponse.json({
-      error: `Erro ao enviar email: ${error.message}`,
-      detail: !supabaseAdmin
-        ? 'Configure SUPABASE_SERVICE_ROLE_KEY no .env.local para usar SMTP próprio.'
-        : !isSmtpConfigured
-          ? 'Configure SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD no .env.local.'
-          : 'Supabase e SMTP próprio falharam. Verifique terminal para detalhes.'
-    }, { status: 500 })
-    
-  } catch (error: any) {
-    const msg = error?.message || 'Erro desconhecido'
-    const code = error?.code
-    logError(`❌ Erro inesperado: ${msg}`, 'EMAIL_CONFIRMATION')
-    console.error('❌ ========== ERRO INESPERADO ==========')
-    console.error('❌ Mensagem:', msg)
-    console.error('❌ Código:', code || 'N/A')
-    console.error('❌ Tipo:', typeof error)
-    if (error?.stack) {
-      console.error('❌ Stack:', error.stack.substring(0, 500))
-    }
-    if (error?.originalError) {
-      console.error('❌ Erro original:', error.originalError.message)
-      console.error('❌ Código original:', error.originalError.code || 'N/A')
-    }
-    return NextResponse.json({
-      error: `Erro ao enviar email: ${msg}`,
-      detail: code ? `Código: ${code}. Verifique terminal para mais detalhes.` : 'Verifique terminal para mais detalhes.'
-    }, { status: 500 })
+  } catch (err: any) {
+    console.error('❌ [Reenvio] Erro inesperado:', err)
+    return NextResponse.json(
+      { error: err?.message || 'Erro inesperado ao reenviar link de confirmação.' },
+      { status: 500 }
+    )
   }
 }
+

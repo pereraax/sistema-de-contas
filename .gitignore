@@ -30,7 +30,7 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
-# Vercel
+# Railway / legacy
 .vercel
 
 # TypeScript

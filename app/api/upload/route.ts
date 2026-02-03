@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Verificar se o bucket existe antes de fazer upload
+    // Verificar se o bucket existe; se for avatares/perfis e tivermos admin, criar o bucket se não existir
     const { data: buckets, error: listError } = await supabase.storage.listBuckets()
     
     let bucketToUse = bucket
@@ -56,26 +56,34 @@ export async function POST(request: NextRequest) {
     } else {
       const bucketExists = buckets?.some(b => b.name === bucket)
       if (!bucketExists) {
-        console.warn(`⚠️ Bucket "${bucket}" não encontrado. Buckets disponíveis:`, buckets?.map(b => b.name))
-        
-        // Se o bucket solicitado for "avatares" e não existir, tentar usar "emprestimos" como fallback
-        if (bucket === 'avatares' || bucket === 'perfis') {
+        // Se for avatares/perfis e temos admin client, tentar criar o bucket
+        let avataresCriadoOuExiste = false
+        if ((bucket === 'avatares' || bucket === 'perfis') && adminClient) {
+          const { error: createErr } = await adminClient.storage.createBucket('avatares', {
+            public: true,
+            fileSizeLimit: '2MB',
+            allowedMimeTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'],
+          })
+          if (!createErr) {
+            console.log('✅ Bucket "avatares" criado com sucesso')
+            avataresCriadoOuExiste = true
+          } else {
+            const listAfter = await adminClient.storage.listBuckets()
+            avataresCriadoOuExiste = listAfter.data?.some(b => b.name === 'avatares') ?? false
+          }
+          if (avataresCriadoOuExiste) bucketToUse = 'avatares'
+        }
+        if (!avataresCriadoOuExiste) {
           const emprestimosExists = buckets?.some(b => b.name === 'emprestimos')
           if (emprestimosExists) {
             console.log('ℹ️ Usando bucket "emprestimos" como fallback para avatares')
             bucketToUse = 'emprestimos'
           } else {
             return NextResponse.json({ 
-              error: `Bucket "${bucket}" não encontrado. Por favor, crie o bucket "avatares" no Supabase Storage (Dashboard > Storage > New bucket, nome: "avatares", público: sim).`,
+              error: `Bucket "avatares" não encontrado. Crie em Supabase: Storage > New bucket, nome "avatares", público: sim. Ou adicione SUPABASE_SERVICE_ROLE_KEY no .env.`,
               availableBuckets: buckets?.map(b => b.name) || [],
-              details: 'O bucket "avatares" não existe. Crie-o no Supabase Dashboard.'
             }, { status: 404 })
           }
-        } else {
-          return NextResponse.json({ 
-            error: `Bucket "${bucket}" não encontrado. Buckets disponíveis: ${buckets?.map(b => b.name).join(', ') || 'nenhum'}`,
-            availableBuckets: buckets?.map(b => b.name) || []
-          }, { status: 404 })
         }
       }
     }

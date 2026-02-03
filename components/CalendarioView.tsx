@@ -377,7 +377,7 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
             onClick={() => setMostrarFiltros(!mostrarFiltros)}
             className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-semibold text-xs sm:text-sm transition-smooth ${
               mostrarFiltros || temFiltrosAtivos
-                ? 'bg-brand-aqua text-brand-midnight shadow-md'
+                ? 'bg-brand-aqua text-white shadow-md'
                 : 'bg-gray-100 dark:bg-brand-midnight/80 text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-white/10'
             }`}
           >

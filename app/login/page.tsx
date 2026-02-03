@@ -298,203 +298,145 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-300 via-blue-500 to-blue-800 relative overflow-hidden flex">
-      {/* Fundo animado com gradiente desfocado - apenas azul claro e azul escuro */}
-      <div className="absolute inset-0 overflow-hidden">
-        {/* Gradiente 1 - Azul claro (canto superior direito) */}
-        <div 
-          className="absolute -top-1/3 -right-1/3 w-[180%] h-[180%] bg-gradient-to-br from-blue-200/70 via-blue-300/50 to-blue-400/40 rounded-full blur-3xl"
-          style={{
-            animation: 'gradientMove 16s ease-in-out infinite',
-          }}
-        ></div>
-        {/* Gradiente 2 - Azul escuro (canto inferior esquerdo) */}
-        <div 
-          className="absolute -bottom-1/3 -left-1/3 w-[180%] h-[180%] bg-gradient-to-br from-blue-700/60 via-blue-800/45 to-blue-900/35 rounded-full blur-3xl"
-          style={{
-            animation: 'gradientMove 18s ease-in-out infinite reverse',
-            animationDelay: '2s',
-          }}
-        ></div>
-        {/* Gradiente 3 - Azul claro (centro superior) */}
-        <div 
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-[160%] h-[160%] bg-gradient-to-br from-blue-200/55 via-blue-300/40 to-blue-400/30 rounded-full blur-3xl"
-          style={{
-            animation: 'gradientMove 14s ease-in-out infinite',
-            animationDelay: '1s',
-          }}
-        ></div>
-        {/* Gradiente 4 - Azul escuro (centro inferior) */}
-        <div 
-          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[160%] h-[160%] bg-gradient-to-br from-blue-700/50 via-blue-800/35 to-blue-900/25 rounded-full blur-3xl"
-          style={{
-            animation: 'gradientMove 20s ease-in-out infinite reverse',
-            animationDelay: '3s',
-          }}
-        ></div>
-      </div>
-      
-      {/* Estilos de animação global */}
-      <style jsx global>{`
-        @keyframes gradientMove {
-          0%, 100% {
-            transform: translate(0, 0) scale(1) rotate(0deg);
-          }
-          25% {
-            transform: translate(15%, -15%) scale(1.15) rotate(5deg);
-          }
-          50% {
-            transform: translate(-10%, 10%) scale(0.9) rotate(-5deg);
-          }
-          75% {
-            transform: translate(-15%, 15%) scale(1.1) rotate(3deg);
-          }
-        }
-      `}</style>
+    <div className="min-h-screen flex flex-col md:flex-row bg-neutral-50">
+      {/* Lado esquerdo - Janela de login */}
+      <div className="w-full md:w-1/2 flex items-center justify-center p-4 md:p-6 lg:p-8 order-2 md:order-1">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-8">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1e4976] transition-colors mb-5"
+          >
+            <ArrowLeft size={18} />
+            Voltar
+          </Link>
 
-      {/* Lado Esquerdo - Popup do Formulário */}
-      <div className="relative z-10 w-full md:w-1/2 flex items-center justify-center p-4 md:p-6 overflow-y-auto">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-white/20 backdrop-blur-sm animate-scale-up">
-          <div className="p-5 sm:p-6">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-gray-600 hover:text-[#00C2FF] transition-colors mb-4"
-            >
-              <ArrowLeft size={18} />
-              <span className="text-xs">Voltar para início</span>
-            </Link>
+          <div className="mb-6">
+            <h1 className="text-2xl font-semibold text-[#0D1B2A] mb-1">
+              Entrar
+            </h1>
+            <p className="text-sm text-gray-500">
+              Acesse sua conta para continuar
+            </p>
+          </div>
 
-            <div className="mb-6 text-center">
-              <div className="flex justify-center mb-4">
-                <Image 
-                  src="/logo azul.png" 
-                  alt="PLENIPAY" 
-                  width={140}
-                  height={32}
-                  className="h-8 w-auto object-contain"
-                  priority
-                />
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {errorMessage && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                <p className="text-xs text-red-600 font-medium">{errorMessage}</p>
               </div>
-              <h1 className="text-2xl md:text-3xl font-display font-bold text-[#0D1B2A] mb-1">
-                Entrar
-              </h1>
-              <p className="text-sm text-gray-600">
-                Acesse sua conta para continuar
-              </p>
+            )}
+            
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Email *
+              </label>
+              <input
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all"
+                placeholder="seu@email.com"
+              />
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {errorMessage && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-xs text-red-600 font-medium">{errorMessage}</p>
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                  Email *
-                </label>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Senha *
+              </label>
+              <div className="relative">
                 <input
-                  type="email"
+                  type={showPassword ? 'text' : 'password'}
                   required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#00C2FF] focus:ring-2 focus:ring-[#00C2FF]/20 transition-all"
-                  placeholder="seu@email.com"
+                  value={formData.senha}
+                  onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all pr-10"
+                  placeholder="Sua senha"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                  Senha *
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={formData.senha}
-                    onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
-                    className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#00C2FF] focus:ring-2 focus:ring-[#00C2FF]/20 transition-all pr-10"
-                    placeholder="Sua senha"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#00C2FF] transition-colors"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer group">
-                  <div className="relative">
-                    <input 
-                      type="checkbox" 
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="sr-only"
-                      id="remember-me"
-                    />
-                    <div className={`w-4 h-4 border-2 rounded transition-all duration-200 flex items-center justify-center ${
-                      rememberMe 
-                        ? 'bg-[#00C2FF] border-[#00C2FF] shadow-sm' 
-                        : 'border-gray-300 group-hover:border-[#00C2FF]'
-                    }`}>
-                      {rememberMe && (
-                        <svg 
-                          className="w-3 h-3 text-white" 
-                          fill="none" 
-                          strokeLinecap="round" 
-                          strokeLinejoin="round" 
-                          strokeWidth="3" 
-                          viewBox="0 0 24 24" 
-                          stroke="currentColor"
-                        >
-                          <path d="M5 13l4 4L19 7"></path>
-                        </svg>
-                      )}
-                    </div>
-                  </div>
-                  <span className="select-none group-hover:text-[#00C2FF] transition-colors">Lembrar-me</span>
-                </label>
-                <Link href="#" className="text-xs text-[#00C2FF] hover:underline font-medium">
-                  Esqueceu a senha?
-                </Link>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full px-4 py-2.5 bg-gradient-to-r from-[#00C2FF] via-[#00B8F5] to-[#0099CC] hover:from-[#00B8F5] hover:via-[#00C2FF] hover:to-[#00A8E6] text-white rounded-lg text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-2xl hover:shadow-[#00C2FF]/50 transform hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-              >
-                {loading ? 'Entrando...' : 'Entrar'}
-              </button>
-
-              <p className="text-center text-xs text-gray-600">
-                Não tem uma conta?{' '}
-                <Link 
-                  href="/cadastro?plano=teste"
-                  className="text-[#00C2FF] hover:underline font-medium"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    router.push('/cadastro?plano=teste')
-                  }}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#1e4976] transition-colors"
                 >
-                  Criar conta
-                </Link>
-              </p>
-            </form>
-          </div>
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer group">
+                <div className="relative">
+                  <input 
+                    type="checkbox" 
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="sr-only"
+                    id="remember-me"
+                  />
+                  <div className={`w-4 h-4 border-2 rounded transition-all duration-200 flex items-center justify-center ${
+                    rememberMe 
+                      ? 'bg-[#1e4976] border-[#1e4976] shadow-sm' 
+                      : 'border-gray-300 group-hover:border-[#1e4976]'
+                  }`}>
+                    {rememberMe && (
+                      <svg 
+                        className="w-3 h-3 text-white" 
+                        fill="none" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth="3" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path d="M5 13l4 4L19 7"></path>
+                      </svg>
+                    )}
+                  </div>
+                </div>
+                <span className="select-none group-hover:text-[#1e4976] transition-colors">Lembrar-me</span>
+              </label>
+              <Link href="#" className="text-xs text-[#1e4976] hover:text-[#163a5f] font-medium">
+                Esqueceu a senha?
+              </Link>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full px-4 py-3 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-xl text-sm font-semibold transition-all duration-300 shadow-md disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="animate-spin" size={18} />
+                  Entrando...
+                </span>
+              ) : (
+                'Entrar'
+              )}
+            </button>
+
+            <p className="text-center text-xs text-gray-500 leading-tight">
+              Não tem uma conta?{' '}
+              <Link 
+                href="/cadastro?plano=teste"
+                className="text-[#1e4976] hover:text-[#163a5f] font-medium"
+                onClick={(e) => {
+                  e.preventDefault()
+                  router.push('/cadastro?plano=teste')
+                }}
+              >
+                Criar conta
+              </Link>
+            </p>
+          </form>
         </div>
       </div>
 
-      {/* Lado Direito - Conteúdo Visual */}
-      <div className="hidden md:flex md:w-1/2 relative overflow-hidden">
+      {/* Lado direito - Imagem */}
+      <div className="w-full md:w-1/2 min-h-[40vh] md:min-h-screen relative order-1 md:order-2 bg-[#0D1B2A]">
         <Image
           src="/banner cadastro.png"
-          alt="Banner PLENIPAY"
+          alt="PLENIPAY"
           fill
           className="object-cover"
           priority
@@ -510,7 +452,6 @@ function LoginContent() {
         isOpen={showModalLoginConcluido}
         onClose={() => {
           setShowModalLoginConcluido(false)
-          // Redirecionar para home após fechar o popup
           window.location.href = '/home'
         }}
         titulo="Autenticado com Sucesso!"
@@ -524,7 +465,7 @@ export default function LoginPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-[#00C2FF]" size={48} />
+        <Loader2 className="animate-spin text-[#1e4976]" size={48} />
       </div>
     }>
       <LoginContent />

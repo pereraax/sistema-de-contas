@@ -236,11 +236,11 @@ export default function ModalConfirmarEmail({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-[#00C2FF]/5 to-[#0099CC]/5">
+        <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-[#1e4976]/5 to-[#163a5f]/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#00C2FF]/10 rounded-xl flex items-center justify-center">
-                <Mail size={20} className="text-[#00C2FF]" />
+              <div className="w-10 h-10 bg-[#1e4976]/10 rounded-xl flex items-center justify-center">
+                <Mail size={20} className="text-[#1e4976]" />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-gray-900">
@@ -266,8 +266,8 @@ export default function ModalConfirmarEmail({
         <div className="p-6 space-y-5">
           {/* Ícone e mensagem principal */}
           <div className="text-center space-y-4">
-            <div className="w-20 h-20 bg-gradient-to-br from-[#00C2FF]/10 to-[#0099CC]/10 rounded-2xl flex items-center justify-center mx-auto">
-              <Mail size={36} className="text-[#00C2FF]" />
+            <div className="w-20 h-20 bg-gradient-to-br from-[#1e4976]/10 to-[#163a5f]/10 rounded-2xl flex items-center justify-center mx-auto">
+              <Mail size={36} className="text-[#1e4976]" />
             </div>
             
             {linkEnviado ? (
@@ -281,12 +281,12 @@ export default function ModalConfirmarEmail({
                       ? 'Enviamos automaticamente um link de confirmação para:'
                       : 'Enviamos um link de confirmação para:'}
                   </p>
-                  <p className="text-[#00C2FF] font-semibold text-sm break-all px-2 pt-1">{email}</p>
+                  <p className="text-[#1e4976] font-semibold text-sm break-all px-2 pt-1">{email}</p>
                 </div>
                 
                 <div className="bg-blue-50 rounded-xl px-5 py-4 border border-blue-100 space-y-2.5">
                   <div className="flex items-center justify-center gap-2">
-                    <Mail size={18} className="text-[#00C2FF]" />
+                    <Mail size={18} className="text-[#1e4976]" />
                     <p className="text-sm font-semibold text-gray-900">
                       Verifique sua caixa de entrada
                     </p>
@@ -301,7 +301,7 @@ export default function ModalConfirmarEmail({
                 <p className="text-sm text-gray-600">
                   Enviando link de confirmação para:
                 </p>
-                <p className="text-[#00C2FF] font-semibold text-sm break-all px-2">{email}</p>
+                <p className="text-[#1e4976] font-semibold text-sm break-all px-2">{email}</p>
                 {obrigatorio && (
                   <div className="flex items-center justify-center gap-2 bg-amber-50 rounded-lg px-3 py-2 border border-amber-100">
                     <AlertCircle size={14} className="text-amber-600" />
@@ -328,7 +328,7 @@ export default function ModalConfirmarEmail({
               <button
                 onClick={handleReenviar}
                 disabled={reenviando || tempoRestante > 0}
-                className="w-full px-4 py-3 bg-gradient-to-r from-[#00C2FF] to-[#0099CC] text-white rounded-xl font-semibold hover:from-[#00B8F5] hover:to-[#0088BB] shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full px-4 py-3 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white rounded-xl font-semibold hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {reenviando ? (
                   <>
@@ -350,11 +350,11 @@ export default function ModalConfirmarEmail({
                 <button
                   onClick={handleReenviar}
                   disabled={reenviando || tempoRestante > 0}
-                  className="w-full text-sm text-[#00C2FF] hover:text-[#0099CC] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full text-sm text-[#1e4976] hover:text-[#163a5f] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {reenviando ? (
                     <>
-                      <div className="w-3 h-3 border-2 border-[#00C2FF] border-t-transparent rounded-full animate-spin inline-block mr-2" />
+                      <div className="w-3 h-3 border-2 border-[#1e4976] border-t-transparent rounded-full animate-spin inline-block mr-2" />
                       Reenviando...
                     </>
                   ) : tempoRestante > 0 ? (

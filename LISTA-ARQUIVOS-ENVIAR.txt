@@ -19,7 +19,7 @@ tsconfig.json
 postcss.config.js (se existir)
 .nvmrc
 server.js (se existir)
-vercel.json (opcional)
+railway.json (opcional)
 README.md (opcional)
 
 ❌ NÃO ENVIAR:

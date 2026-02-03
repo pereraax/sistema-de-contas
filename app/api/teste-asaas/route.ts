@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     let apiKey = process.env.ASAAS_API_KEY
     
     // Se não encontrou no process.env, tentar ler do arquivo diretamente (apenas em desenvolvimento)
-    if (!apiKey && process.env.NODE_ENV !== 'production' && !process.env.RENDER && !process.env.VERCEL) {
+    if (!apiKey && process.env.NODE_ENV !== 'production' && !process.env.RENDER && !process.env.RAILWAY) {
       try {
         const fs = require('fs')
         const path = require('path')

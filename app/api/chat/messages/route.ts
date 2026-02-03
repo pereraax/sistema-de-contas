@@ -1,82 +1,83 @@
+import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
 
-export const dynamic = 'force-dynamic'
+const TIMEOUT_MS = 5 * 60 * 1000 // 5 minutos para o usuário responder ao atendente
+const CLOSURE_MESSAGE =
+  'Esta conversa foi finalizada por inatividade. Se precisar de mais ajuda, abra um novo ticket. Obrigado! 👋'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      )
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    // Buscar mensagens do usuário
     const { data: messages, error } = await supabase
       .from('chat_messages')
-      .select('*')
+      .select('id, message, sender_type, is_read, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error('Erro ao buscar mensagens:', error)
-      return NextResponse.json(
-        { error: 'Erro ao buscar mensagens' },
-        { status: 500 }
-      )
+      console.error('[chat/messages] Erro:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Verificar se a conversa está finalizada e buscar nome do atendente
-    let isClosed = false
-    let assignedAgentName: string | null = null
-    
-    try {
-      // Tentar buscar conversa com todos os campos
-      const { data: conversation, error: conversationError } = await supabase
-        .from('chat_conversations')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle()
+    // Verificar se a conversa está fechada e obter nome do atendente
+    const { data: conv } = await supabase
+      .from('chat_conversations')
+      .select('is_closed, assigned_agent_name')
+      .eq('user_id', user.id)
+      .single()
 
-      // Se houver erro diferente de "não encontrado", logar mas continuar
-      if (conversationError && conversationError.code !== 'PGRST116') {
-        console.error('Erro ao buscar conversa:', conversationError)
-      }
-
-      if (conversation) {
-        isClosed = conversation.is_closed || false
-        // Tentar pegar assigned_agent_name se existir (campo pode não existir ainda no banco)
-        if ('assigned_agent_name' in conversation && conversation.assigned_agent_name) {
-          assignedAgentName = conversation.assigned_agent_name
-          console.log('📋 Nome do atendente encontrado no banco:', assignedAgentName)
-        } else {
-          console.log('ℹ️ Conversa encontrada mas sem nome de atendente atribuído')
+    // Se conversa aberta e última mensagem é do suporte há mais de 5 min, encerrar por timeout
+    const list = messages || []
+    if (!conv?.is_closed && list.length > 0) {
+      const last = list[list.length - 1]
+      if (last.sender_type === 'support') {
+        const lastAt = new Date(last.created_at).getTime()
+        if (Date.now() - lastAt >= TIMEOUT_MS) {
+          const admin = createAdminClient()
+          if (admin) {
+            await admin
+              .from('chat_conversations')
+              .update({
+                is_closed: true,
+                closed_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('user_id', user.id)
+            await admin.from('chat_messages').insert({
+              user_id: user.id,
+              message: CLOSURE_MESSAGE,
+              sender_type: 'support'
+            })
+            // Rebuscar mensagens para incluir a de encerramento
+            const { data: updated } = await supabase
+              .from('chat_messages')
+              .select('id, message, sender_type, is_read, created_at')
+              .eq('user_id', user.id)
+              .order('created_at', { ascending: true })
+            return NextResponse.json({
+              messages: updated || [],
+              isClosed: true,
+              assignedAgentName: null
+            })
+          }
         }
-      } else {
-        console.log('ℹ️ Nenhuma conversa encontrada para este usuário')
       }
-    } catch (error: any) {
-      // Se der erro ao buscar (campo não existe ou tabela não tem dados), usar valores padrão
-      console.error('Erro ao buscar conversa:', error?.message || error)
-      isClosed = false
-      assignedAgentName = null
     }
 
-    return NextResponse.json({ 
-      messages: messages || [],
-      isClosed,
-      assignedAgentName
+    return NextResponse.json({
+      messages: list,
+      isClosed: conv?.is_closed ?? false,
+      assignedAgentName: conv?.assigned_agent_name ?? null
     })
-  } catch (error: any) {
-    console.error('Erro inesperado:', error)
-    return NextResponse.json(
-      { error: 'Erro inesperado ao buscar mensagens' },
-      { status: 500 }
-    )
+  } catch (err: any) {
+    console.error('[chat/messages] Erro:', err)
+    return NextResponse.json({ error: err?.message || 'Erro ao carregar mensagens' }, { status: 500 })
   }
 }
-

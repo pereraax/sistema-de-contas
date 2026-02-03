@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@/lib/types'
-import { obterUsuarios, criarUsuario, resetarTodosRegistros, atualizarImagemPerfilUsuario } from '@/lib/actions'
+import { obterUsuarios, criarUsuario, resetarTodosRegistros, atualizarImagemPerfilUsuario, atualizarImagemProprioPerfil } from '@/lib/actions'
 import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown, Download, Smartphone, Share2, ArrowRight, Lightbulb, Copy, Check, Camera, Star } from 'lucide-react'
 import { createNotification } from './NotificationBell'
 import { atualizarSenha, reenviarEmailConfirmacao, signOut, limparBypassEmailConfirmacao } from '@/lib/auth'
@@ -72,6 +72,9 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
   const historyEntryAdded = useRef(false)
   const [showWhatsappKey, setShowWhatsappKey] = useState(false)
   const [copiedKey, setCopiedKey] = useState(false)
+  const [uploadingOwnPhoto, setUploadingOwnPhoto] = useState(false)
+  const photoPerfilRef = useRef<HTMLInputElement>(null)
+  const [avatarCacheKey, setAvatarCacheKey] = useState(0)
 
   // Inicializar dados do perfil se fornecidos pelo servidor IMEDIATAMENTE (antes de qualquer loading)
   useEffect(() => {
@@ -853,12 +856,90 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                     </h2>
                     
                     <div className="bg-white dark:bg-brand-royal/30 rounded-xl p-6 space-y-5 border border-gray-200 dark:border-brand-aqua/20 shadow-sm">
-                      {/* Avatar e Nome */}
+                      {/* Avatar (com coroa = dono da conta) e Nome */}
                       <div className="flex items-center gap-4 pb-4 border-b border-brand-midnight/10 dark:border-white/10">
-                        <div className="w-16 h-16 rounded-full bg-brand-aqua/20 flex items-center justify-center">
-                          <span className="text-brand-aqua font-bold text-2xl">
-                            {(userProfile.profile?.nome || userProfile.email || 'U').charAt(0).toUpperCase()}
-                          </span>
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="relative">
+                            {/* Ícone de coroa acima do avatar = dono da conta */}
+                            <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-7 h-7 rounded-full bg-amber-400 shadow-md" title="Dono da conta">
+                              <Crown size={14} className="text-amber-900" strokeWidth={2.5} />
+                            </div>
+                            <div className="w-16 h-16 rounded-full bg-brand-aqua/20 flex items-center justify-center overflow-hidden border-2 border-brand-aqua/30">
+                              {userProfile.profile?.imagem_url ? (
+                                <img
+                                  src={`/api/user/avatar?t=${avatarCacheKey}`}
+                                  alt={userProfile.profile?.nome || 'Perfil'}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement
+                                    target.style.display = 'none'
+                                    const parent = target.parentElement
+                                    if (parent) {
+                                      const inicial = (userProfile.profile?.nome || userProfile.email || 'U').charAt(0).toUpperCase()
+                                      const span = document.createElement('span')
+                                      span.className = 'text-brand-aqua font-bold text-2xl'
+                                      span.textContent = inicial
+                                      parent.appendChild(span)
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <span className="text-brand-aqua font-bold text-2xl">
+                                  {(userProfile.profile?.nome || userProfile.email || 'U').charAt(0).toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <input
+                              ref={photoPerfilRef}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0]
+                                if (!file) return
+                                const maxSize = 2 * 1024 * 1024 // 2MB
+                                if (file.size > maxSize) {
+                                  createNotification('A imagem ultrapassou o limite. Use uma foto com menos de 2MB.', 'warning')
+                                  e.target.value = ''
+                                  return
+                                }
+                                setUploadingOwnPhoto(true)
+                                try {
+                                  const formData = new FormData()
+                                  formData.append('file', file)
+                                  formData.append('folder', 'perfis')
+                                  formData.append('bucket', 'avatares')
+                                  const res = await fetch('/api/upload', { method: 'POST', body: formData, credentials: 'include' })
+                                  const data = await res.json().catch(() => ({}))
+                                  if (!res.ok) throw new Error(data?.error || `Erro no upload (${res.status})`)
+                                  const url = data?.url
+                                  if (!url) throw new Error('Upload retornou sem URL da imagem.')
+                                  const result = await atualizarImagemProprioPerfil(url)
+                                  if (result.error) throw new Error(result.error)
+                                  setUserProfile(prev => ({
+                                    ...prev,
+                                    profile: { ...(prev.profile || {}), imagem_url: data.url }
+                                  }))
+                                  setAvatarCacheKey(Date.now())
+                                  createNotification('Foto de perfil atualizada!', 'success')
+                                  await carregarPerfil()
+                                } catch (err: any) {
+                                  createNotification(err?.message || 'Erro ao adicionar foto', 'warning')
+                                } finally {
+                                  setUploadingOwnPhoto(false)
+                                  e.target.value = ''
+                                }
+                              }}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => photoPerfilRef.current?.click()}
+                            disabled={uploadingOwnPhoto}
+                            className="text-xs font-medium text-brand-aqua hover:text-brand-aqua/80 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {uploadingOwnPhoto ? 'Enviando...' : 'Adicionar foto'}
+                          </button>
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
@@ -877,6 +958,9 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                             </button>
                           </div>
                           <p className="text-sm text-brand-midnight dark:text-brand-clean/60 break-words">{userProfile.email || 'Email não disponível'}</p>
+                          <p className="text-xs text-brand-midnight/70 dark:text-brand-clean/50 mt-1">
+                            O usuário <span className="font-medium text-brand-midnight dark:text-brand-clean/80">{userProfile.profile?.nome || userProfile.email?.split('@')[0] || 'Usuário'}</span> é dono dessa conta.
+                          </p>
                         </div>
                       </div>
 
@@ -1306,7 +1390,27 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                                 <Key size={16} />
                                 {loadingWhatsappKey ? 'Gerando...' : 'Gerar Chave'}
                               </button>
+                              <a
+                                href="https://wa.me/553173403036"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center gap-2 w-full max-w-xs mt-3 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200 border-2 border-green-400/50"
+                              >
+                                <MessageCircle size={20} />
+                                Iniciar chat com a Assistente PLEN no WhatsApp
+                              </a>
                             </div>
+                          )}
+                          {whatsappKey && (
+                            <a
+                              href="https://wa.me/553173403036"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center gap-2 w-full max-w-xs mt-3 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200 border-2 border-green-400/50"
+                            >
+                              <MessageCircle size={20} />
+                              Iniciar chat com a Assistente PLEN no WhatsApp
+                            </a>
                           )}
                         </div>
                         {userProfile.profile?.plano && (
@@ -1604,7 +1708,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                             <button
                               onClick={handleRedefinirSenha}
                               disabled={loadingSenha}
-                              className="flex-1 px-4 py-3 bg-brand-aqua text-brand-midnight dark:text-brand-clean rounded-xl font-semibold hover:bg-brand-aqua/90 shadow-md transition-smooth disabled:opacity-50"
+                              className="flex-1 px-4 py-3 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 shadow-md transition-smooth disabled:opacity-50"
                             >
                               {loadingSenha ? 'Atualizando...' : 'Atualizar Senha'}
                             </button>
@@ -1708,7 +1812,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
               </h2>
               <button
                 onClick={() => setShowNovoUsuario(!showNovoUsuario)}
-                className="px-3 py-1.5 bg-brand-aqua/90 text-brand-midnight dark:text-brand-clean rounded-lg font-medium hover:bg-brand-aqua shadow-sm hover:shadow-md transition-smooth flex items-center gap-1.5 text-sm whitespace-nowrap"
+                className="px-3 py-1.5 bg-brand-aqua/90 text-white rounded-lg font-medium hover:bg-brand-aqua shadow-sm hover:shadow-md transition-smooth flex items-center gap-1.5 text-sm whitespace-nowrap"
               >
                 <Plus size={16} strokeWidth={2.5} />
                 <span>Novo Usuário</span>
@@ -2087,7 +2191,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                     }
                   }}
                   disabled={loading || !editandoUsuario.nome.trim()}
-                  className="flex-1 px-4 py-3 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-3 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Salvando...' : 'Salvar'}
                 </button>

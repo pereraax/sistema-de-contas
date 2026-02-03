@@ -422,7 +422,7 @@ export default function FormularioRegistro() {
                 onClick={() => setFormData({ ...formData, categoria: isSelected ? '' : cat.id })}
                 className={`flex flex-col items-center justify-center gap-2 px-3 py-4 rounded-xl font-medium transition-smooth min-h-[100px] ${
                   isSelected
-                    ? 'bg-brand-aqua/90 text-brand-midnight shadow-lg'
+                    ? 'bg-brand-aqua/90 text-white shadow-lg'
                     : 'bg-brand-clean/50 text-brand-midnight border border-gray-300 hover:bg-brand-clean/70'
                 }`}
                 title={cat.nome}
@@ -445,7 +445,7 @@ export default function FormularioRegistro() {
             onClick={() => setFormData({ ...formData, metodo_pagamento: 'pix' })}
             className={`flex flex-col items-center gap-2 px-4 py-3 rounded-xl font-medium transition-smooth ${
               formData.metodo_pagamento === 'pix'
-                ? 'bg-brand-aqua/90 text-brand-midnight shadow-lg'
+                ? 'bg-brand-aqua/90 text-white shadow-lg'
                 : 'bg-brand-clean/50 text-brand-midnight border border-gray-300'
             }`}
           >
@@ -457,7 +457,7 @@ export default function FormularioRegistro() {
             onClick={() => setFormData({ ...formData, metodo_pagamento: 'cartao' })}
             className={`flex flex-col items-center gap-2 px-4 py-3 rounded-xl font-medium transition-smooth ${
               formData.metodo_pagamento === 'cartao'
-                ? 'bg-brand-aqua/90 text-brand-midnight shadow-lg'
+                ? 'bg-brand-aqua/90 text-white shadow-lg'
                 : 'bg-brand-clean/50 text-brand-midnight border border-gray-300'
             }`}
           >
@@ -469,7 +469,7 @@ export default function FormularioRegistro() {
             onClick={() => setFormData({ ...formData, metodo_pagamento: 'dinheiro' })}
             className={`flex flex-col items-center gap-2 px-4 py-3 rounded-xl font-medium transition-smooth ${
               formData.metodo_pagamento === 'dinheiro'
-                ? 'bg-brand-aqua/90 text-brand-midnight shadow-lg'
+                ? 'bg-brand-aqua/90 text-white shadow-lg'
                 : 'bg-brand-clean/50 text-brand-midnight border border-gray-300'
             }`}
           >
@@ -684,7 +684,7 @@ export default function FormularioRegistro() {
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 px-6 py-3 bg-brand-aqua/90 text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua shadow-lg hover:shadow-xl backdrop-blur-md transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 px-6 py-3 bg-brand-aqua/90 text-white rounded-xl font-semibold hover:bg-brand-aqua shadow-lg hover:shadow-xl backdrop-blur-md transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Registrando...' : 'REGISTRAR'}
         </button>

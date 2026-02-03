@@ -16,9 +16,9 @@ Os logs aparecem no **terminal/console** onde você está rodando o aplicativo.
      - `✅ Email enviado com sucesso`
      - `❌ Erro ao enviar link`
 
-2. **Em produção (Render/Vercel/etc):**
+2. **Em produção (Railway, etc.):**
    - **Render:** Dashboard do Render → Seu serviço → "Logs" (aba)
-   - **Vercel:** Dashboard do Vercel → Seu projeto → "Deployments" → Clique no deployment → "Logs"
+   - **Railway:** https://railway.app → Seu projeto → Deployments → Clique no deploy → View Logs
    - **Railway:** Dashboard do Railway → Seu projeto → "Deployments" → Clique no deployment → "View Logs"
 
 ### **O que procurar:**

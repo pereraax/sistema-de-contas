@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { obterEstatisticas, atualizarImagemProprioPerfil } from '@/lib/actions'
-import { TrendingUp, TrendingDown, ChevronDown, ChevronLeft, ChevronRight, Check, Moon, Sun, User } from 'lucide-react'
+import { obterEstatisticas } from '@/lib/actions'
+import { TrendingUp, TrendingDown, ChevronDown, ChevronLeft, ChevronRight, Check, Moon, Sun, User, Crown } from 'lucide-react'
 import { useFiltroData } from './FiltroRapidoDataWrapper'
 import { MenuButton } from './MobileMenu'
 import NotificationBell from './NotificationBell'
@@ -11,8 +11,25 @@ import ReceitasDespesasDonut from './ReceitasDespesasDonut'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+const MESES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+]
+
+/** Retorna dataInicio e dataFim (ISO) para o primeiro e último dia do mês selecionado (ano atual). */
+function datasDoMes(nomeMes: string, ano: number = new Date().getFullYear()) {
+  const indice = MESES.indexOf(nomeMes)
+  if (indice < 0) return { dataInicio: undefined, dataFim: undefined }
+  const inicio = new Date(ano, indice, 1, 0, 0, 0, 0)
+  const fim = new Date(ano, indice + 1, 0, 23, 59, 59, 999)
+  return {
+    dataInicio: inicio.toISOString(),
+    dataFim: fim.toISOString()
+  }
+}
+
 export default function HomeLayoutNovo() {
-  const { dataInicio, dataFim } = useFiltroData()
+  const { dataInicio, dataFim, setFiltroData } = useFiltroData()
   const router = useRouter()
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [stats, setStats] = useState<{
@@ -26,13 +43,8 @@ export default function HomeLayoutNovo() {
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<{ nome: string; imagem_url?: string }>({ nome: 'Usuário' })
-  const [uploadingImage, setUploadingImage] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   
-  const meses = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-  ]
+  const meses = MESES
   
   // Obter mês atual
   const mesAtual = meses[new Date().getMonth()]
@@ -40,6 +52,12 @@ export default function HomeLayoutNovo() {
   const [dropdownAberto, setDropdownAberto] = useState(false)
   const [isFading, setIsFading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Sincronizar filtro de data com o mês selecionado: saldo e estatísticas do mês
+  useEffect(() => {
+    const { dataInicio: ini, dataFim: fim } = datasDoMes(mesSelecionado)
+    setFiltroData(ini, fim)
+  }, [mesSelecionado, setFiltroData])
 
   // Funções para navegar entre meses
   const irParaMesAnterior = () => {
@@ -97,76 +115,7 @@ export default function HomeLayoutNovo() {
   }
 
   const handlePerfilClick = () => {
-    // Abrir seletor de arquivo para upload de imagem
-    fileInputRef.current?.click()
-  }
-
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    // Validar tipo de arquivo
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
-    if (!allowedTypes.includes(file.type)) {
-      alert('Formato de imagem não suportado. Use JPG, PNG, WEBP ou GIF.')
-      return
-    }
-
-    // Validar tamanho (máximo 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Imagem muito grande. Máximo 2MB.')
-      return
-    }
-
-    setUploadingImage(true)
-
-    try {
-      // Fazer upload da imagem
-      const uploadFormData = new FormData()
-      uploadFormData.append('file', file)
-      uploadFormData.append('folder', 'perfis')
-      uploadFormData.append('bucket', 'avatares')
-
-      const uploadResponse = await fetch('/api/upload', {
-        method: 'POST',
-        body: uploadFormData,
-      })
-
-      const uploadData = await uploadResponse.json()
-
-      if (!uploadResponse.ok || uploadData.error) {
-        if (uploadData.error?.includes('Bucket') && uploadData.error?.includes('not found')) {
-          throw new Error('Bucket "avatares" não encontrado. Por favor, crie o bucket no Supabase Storage.')
-        }
-        throw new Error(uploadData.error || 'Erro ao fazer upload da imagem')
-      }
-
-      console.log('📤 [Upload] Upload concluído, URL recebida:', uploadData.url)
-
-      // Atualizar o perfil com a URL da imagem
-      const result = await atualizarImagemProprioPerfil(uploadData.url)
-
-      if (result.error) {
-        console.error('❌ Erro ao atualizar imagem:', result.error)
-        alert('Erro ao atualizar imagem de perfil: ' + result.error)
-      } else {
-        console.log('✅ [Upload] Imagem atualizada no perfil com sucesso')
-        // Atualizar o estado local
-        setUserProfile(prev => ({
-          ...prev,
-          imagem_url: uploadData.url
-        }))
-      }
-    } catch (error: any) {
-      console.error('❌ Erro no upload:', error)
-      alert('Erro ao fazer upload da imagem: ' + (error.message || 'Erro desconhecido'))
-    } finally {
-      setUploadingImage(false)
-      // Limpar o input para permitir selecionar o mesmo arquivo novamente
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-    }
+    router.push('/configuracoes?tab=perfil')
   }
 
   // Carregar perfil do usuário
@@ -296,48 +245,40 @@ export default function HomeLayoutNovo() {
         {/* Ícone de perfil com saudação e toggle à esquerda */}
         <div className="flex items-center gap-3 sm:gap-4">
           <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="relative">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-                accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
-                className="hidden"
-                disabled={uploadingImage}
-              />
-            <button
-              onClick={handlePerfilClick}
-                disabled={uploadingImage}
-                className="w-9 h-9 border-[2.5px] border-brand-aqua bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-full hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 transition-smooth flex items-center justify-center overflow-hidden flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed relative"
-                title={uploadingImage ? "Enviando imagem..." : "Adicionar foto de perfil"}
+            <div className="relative flex-shrink-0">
+              {/* Ícone de coroa acima do avatar = dono da conta */}
+              <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 shadow-sm" title="Dono da conta">
+                <Crown size={10} className="text-amber-900" strokeWidth={2.5} />
+              </div>
+              <button
+                onClick={handlePerfilClick}
+                type="button"
+                className="w-9 h-9 border-[2.5px] border-brand-aqua bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-full hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 transition-smooth flex items-center justify-center overflow-hidden flex-shrink-0 cursor-pointer relative"
+                title="Configurações de perfil"
               >
-                {uploadingImage ? (
-                  <div className="w-full h-full flex items-center justify-center bg-brand-aqua/20">
-                    <div className="w-4 h-4 border-2 border-brand-aqua border-t-transparent rounded-full animate-spin"></div>
-                  </div>
-                ) : userProfile?.imagem_url ? (
-                <img 
-                  src={userProfile.imagem_url} 
-                  alt={userProfile.nome || 'Perfil'}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement
-                    target.style.display = 'none'
-                    const parent = target.parentElement
-                    if (parent) {
-                      const inicial = (userProfile?.nome || 'U').charAt(0).toUpperCase()
-                      parent.innerHTML = `<span class="text-brand-aqua font-semibold text-sm">${inicial}</span>`
-                    }
-                  }}
-                />
-              ) : (
-                <span className="text-brand-aqua font-semibold text-sm">
-                  {(userProfile?.nome || 'U').charAt(0).toUpperCase()}
-                </span>
-              )}
-            </button>
+                {userProfile?.imagem_url ? (
+                  <img 
+                    src="/api/user/avatar"
+                    alt={userProfile.nome || 'Perfil'}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement
+                      target.style.display = 'none'
+                      const parent = target.parentElement
+                      if (parent) {
+                        const inicial = (userProfile?.nome || 'U').charAt(0).toUpperCase()
+                        parent.innerHTML = `<span class="text-brand-aqua font-semibold text-sm">${inicial}</span>`
+                      }
+                    }}
+                  />
+                ) : (
+                  <span className="text-brand-aqua font-semibold text-sm">
+                    {(userProfile?.nome || 'U').charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </button>
             </div>
-            <span className="text-xl sm:text-2xl font-bold text-brand-midnight dark:text-brand-clean -tracking-tight" style={{ fontFamily: '"SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif', fontWeight: 700 }}>
+            <span className="text-sm sm:text-base font-bold text-brand-midnight dark:text-brand-clean -tracking-tight min-w-0 truncate max-w-[180px] sm:max-w-[220px]" style={{ fontFamily: '"SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif', fontWeight: 700 }}>
               Olá, {userProfile.nome} 👋!
             </span>
           </div>

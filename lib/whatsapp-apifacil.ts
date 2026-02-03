@@ -79,6 +79,7 @@ export async function sendTextMessage(
       body: JSON.stringify({
         telefone: cleanPhone,
         mensagem: message,
+        instancia: config.instanceId,
       }),
     })
 

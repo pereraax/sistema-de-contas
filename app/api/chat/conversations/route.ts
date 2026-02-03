@@ -1,93 +1,75 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { verifyAdminToken } from '@/lib/admin-middleware'
+import { createAdminClient } from '@/lib/supabase/server'
 
-export const dynamic = 'force-dynamic'
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      )
+    const admin = await verifyAdminToken()
+    if (!admin) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    // TODO: Verificar se o usuário é admin/suporte
-    // Por enquanto, permitir qualquer usuário autenticado ver conversas
+    const supabase = createAdminClient()
+    if (!supabase) {
+      return NextResponse.json({ error: 'Serviço indisponível' }, { status: 503 })
+    }
 
-    // Buscar todas as conversas usando a função SQL
-    const { data: conversations, error } = await supabase
-      .rpc('get_chat_conversations')
+    const { data: messages, error } = await supabase
+      .from('chat_messages')
+      .select('user_id, message, sender_type, created_at')
+      .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Erro ao buscar conversas:', error)
-      
-      // Fallback: buscar manualmente se a função RPC não existir
-      const { data: messages, error: messagesError } = await supabase
-        .from('chat_messages')
-        .select(`
-          user_id,
-          message,
-          created_at,
-          sender_type,
-          is_read,
-          profiles:user_id (
-            email,
-            nome
-          )
-        `)
-        .order('created_at', { ascending: false })
-
-      if (messagesError) {
-        return NextResponse.json(
-          { error: 'Erro ao buscar conversas' },
-          { status: 500 }
-        )
-      }
-
-      // Agrupar mensagens por usuário
-      const conversationsMap = new Map()
-      messages?.forEach((msg: any) => {
-        if (!conversationsMap.has(msg.user_id)) {
-          conversationsMap.set(msg.user_id, {
-            user_id: msg.user_id,
-            user_email: msg.profiles?.email || 'N/A',
-            user_name: msg.profiles?.nome || 'Usuário',
-            last_message: msg.message,
-            last_message_time: msg.created_at,
-            unread_count: 0,
-            total_messages: 0
-          })
-        }
-        const conv = conversationsMap.get(msg.user_id)
-        conv.total_messages++
-        if (!msg.is_read && msg.sender_type === 'user') {
-          conv.unread_count++
-        }
-        if (new Date(msg.created_at) > new Date(conv.last_message_time)) {
-          conv.last_message = msg.message
-          conv.last_message_time = msg.created_at
-        }
-      })
-
-      return NextResponse.json({ 
-        conversations: Array.from(conversationsMap.values()) 
-      })
+      console.error('[chat/conversations] Erro:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ conversations: conversations || [] })
-  } catch (error: any) {
-    console.error('Erro inesperado:', error)
-    return NextResponse.json(
-      { error: 'Erro inesperado ao buscar conversas' },
-      { status: 500 }
-    )
+    const byUser = new Map<string, { last_message: string; last_message_time: string; unread_count: number; total_messages: number }>()
+    for (const m of messages || []) {
+      const uid = m.user_id
+      if (!byUser.has(uid)) {
+        const userMessages = (messages || []).filter((x: any) => x.user_id === uid)
+        const last = userMessages[0]
+        const unread = userMessages.filter((x: any) => x.sender_type === 'user').length
+        byUser.set(uid, {
+          last_message: last?.message || '',
+          last_message_time: last?.created_at || '',
+          unread_count: unread,
+          total_messages: userMessages.length
+        })
+      }
+    }
+
+    const userIds = Array.from(byUser.keys())
+    if (userIds.length === 0) {
+      return NextResponse.json({ conversations: [] })
+    }
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, email, nome')
+      .in('id', userIds)
+
+    const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]))
+    const conversations = userIds.map((user_id) => {
+      const info = byUser.get(user_id)!
+      const profile = profileMap.get(user_id)
+      return {
+        user_id,
+        user_email: profile?.email || '',
+        user_name: profile?.nome || 'Usuário',
+        last_message: info.last_message,
+        last_message_time: info.last_message_time,
+        unread_count: info.unread_count,
+        total_messages: info.total_messages
+      }
+    })
+
+    conversations.sort((a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime())
+
+    return NextResponse.json({ conversations })
+  } catch (err: any) {
+    console.error('[chat/conversations] Erro:', err)
+    return NextResponse.json({ error: err?.message || 'Erro ao carregar conversas' }, { status: 500 })
   }
 }
-
-
-
-

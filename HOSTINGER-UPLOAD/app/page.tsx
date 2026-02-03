@@ -212,9 +212,8 @@ export default function LandingPage() {
           />
         </div>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl relative z-10">
-          <div className="grid md:grid-cols-2 gap-6 md:gap-8 items-center">
-            {/* Texto à esquerda */}
-            <div className={`text-center md:text-left transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+          <div className="max-w-2xl mx-auto text-center">
+            <div className={`transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
               <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-[#E6F7FF] border border-[#00C2FF] rounded-full mb-4 sm:mb-6">
                 <TrendingUp size={14} className="text-[#00C2FF] sm:w-4 sm:h-4" />
                 <span className="text-xs sm:text-sm font-medium text-[#00C2FF]">Plataforma #1 em Controle Financeiro</span>
@@ -228,7 +227,7 @@ export default function LandingPage() {
                 Gerencie suas finanças pessoais, dívidas e empréstimos de forma inteligente e organizada. 
                 <span className="text-[#00C2FF] font-semibold"> Tudo em um só lugar</span>, com design moderno e intuitivo.
               </p>
-              <div className="flex justify-center md:justify-start">
+              <div className="flex justify-center">
                 <a
                   href="#planos"
                   className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm bg-gradient-to-r from-[#00C2FF] to-[#0099CC] text-white rounded-xl font-bold hover:shadow-xl hover:shadow-[#00C2FF]/30 transition-all duration-300 transform hover:scale-105"
@@ -236,22 +235,6 @@ export default function LandingPage() {
                   Testar Agora Grátis
                   <ArrowRight size={16} className="sm:w-5 sm:h-5" strokeWidth={2.5} />
                 </a>
-              </div>
-            </div>
-            
-            {/* Imagem à direita */}
-            <div className="relative z-10">
-              <div className="relative">
-                <Image
-                  src="/foto png mulher inicial.png"
-                  alt="PLENIPAY - Controle Financeiro Simplificado"
-                  width={600}
-                  height={800}
-                  className="w-full h-auto relative z-10"
-                  style={{ width: 'auto', height: 'auto' }}
-                  priority
-                  unoptimized
-                />
               </div>
             </div>
           </div>

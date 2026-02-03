@@ -346,6 +346,10 @@ export async function obterUsuariosAssinantes() {
   return { data: fallbackData || [], error: null }
 }
 
+// Preços mensais por plano (para cálculo de receita no dashboard)
+const PRECO_PLANO_BASICO = 29.9
+const PRECO_PLANO_PREMIUM = 49.9
+
 // Função para obter estatísticas de usuários
 export async function obterEstatisticasUsuarios() {
   // Usar obterTodosUsuarios para garantir que retorna todos os usuários
@@ -361,12 +365,24 @@ export async function obterEstatisticasUsuarios() {
   const total = usuarios.length
   const assinantes = usuarios.filter(u => u.plano === 'basico' || u.plano === 'premium').length
   const teste = usuarios.filter(u => u.plano === 'teste').length
+  const usuarios_basico = usuarios.filter(u => u.plano === 'basico').length
+  const usuarios_premium = usuarios.filter(u => u.plano === 'premium').length
+
+  // Receita estimada (assinantes × preço do plano)
+  const receita_basico = usuarios_basico * PRECO_PLANO_BASICO
+  const receita_premium = usuarios_premium * PRECO_PLANO_PREMIUM
+  const receita_total = receita_basico + receita_premium
 
     return {
       data: {
         total_usuarios: total,
         usuarios_assinantes: assinantes,
-        usuarios_teste: teste
+        usuarios_teste: teste,
+        usuarios_basico,
+        usuarios_premium,
+        receita_basico,
+        receita_premium,
+        receita_total
       },
       error: null
     }

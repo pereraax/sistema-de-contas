@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from './supabase/server'
+import { createClient, createAdminClient } from './supabase/server'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import type { Registro, TipoRegistro, User } from './types'
 
@@ -573,7 +573,11 @@ export async function atualizarImagemProprioPerfil(imagemUrl: string) {
   console.log('🖼️ [Atualizar Próprio Perfil] Atualizando imagem_url para:', user.id.substring(0, 8) + '...')
   console.log('🖼️ [Atualizar Próprio Perfil] URL da imagem:', imagemUrl)
 
-  const { data, error } = await supabase
+  // Usar admin client para garantir que a atualização persista (evita RLS bloqueando)
+  const admin = createAdminClient()
+  const clientToUse = admin || supabase
+
+  const { data, error } = await clientToUse
     .from('profiles')
     .update({ imagem_url: imagemUrl })
     .eq('id', user.id)
@@ -582,6 +586,10 @@ export async function atualizarImagemProprioPerfil(imagemUrl: string) {
 
   if (error) {
     console.error('❌ Erro ao atualizar imagem do próprio perfil:', error)
+    const msg = error.message || ''
+    if (msg.includes('imagem_url') && (msg.includes('does not exist') || msg.includes('column'))) {
+      return { error: 'A coluna imagem_url não existe na tabela profiles. Execute o SQL em ADICIONAR-IMAGEM-URL-PROFILES.sql no Supabase.' }
+    }
     return { error: error.message }
   }
 

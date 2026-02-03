@@ -34,7 +34,7 @@ export default function AnimatedBackground() {
     const colors = {
       midnight: '#0D1B2A',
       royal: '#1B263B',
-      aqua: '#00C2FF',
+      aqua: '#1e4976',
     }
 
     // Partículas de luz

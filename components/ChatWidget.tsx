@@ -39,6 +39,16 @@ export default function ChatWidget() {
   const closeTimerRef = useRef<NodeJS.Timeout | null>(null)
   const hasSentInactivityMessageRef = useRef(false)
   const lastSupportMessageIdRef = useRef<string | null>(null)
+  /** Timer de 5 min: se o usuário não responder à última mensagem do atendente, o chat é encerrado */
+  const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Nome fictício para exibir (nunca "Administrador" para o usuário)
+  const nomeExibidoAtendente = (nome: string | null): string | null => {
+    if (!nome) return null
+    const lower = nome.trim().toLowerCase()
+    if (lower === 'administrador' || lower === 'admin') return 'Ana Silva'
+    return nome
+  }
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
@@ -141,15 +151,8 @@ export default function ChatWidget() {
       inputRef.current?.focus()
     }
     
-    // Prevenir scroll do body quando chat estiver aberto no mobile
-    if (isOpen && !isMinimized) {
-      const isMobile = window.innerWidth < 640
-      if (isMobile) {
-        document.body.style.overflow = 'hidden'
-        document.body.style.position = 'fixed'
-        document.body.style.width = '100%'
-      }
-    } else {
+    // No mobile o chat é um painel menor (não tela cheia), então não travar o body
+    if (!isOpen || isMinimized) {
       document.body.style.overflow = ''
       document.body.style.position = ''
       document.body.style.width = ''
@@ -264,9 +267,13 @@ export default function ChatWidget() {
     setInputMessage('')
     setIsTyping(true)
 
-    // Atualizar última atividade e resetar timer
+    // Atualizar última atividade e resetar timer; cancelar timer de 5 min (usuário respondeu)
     lastUserActivityRef.current = new Date()
     resetInactivityTimer()
+    if (responseTimeoutRef.current) {
+      clearTimeout(responseTimeoutRef.current)
+      responseTimeoutRef.current = null
+    }
 
     try {
       // Enviar mensagem para a API
@@ -344,6 +351,10 @@ export default function ChatWidget() {
         
         // Se a conversa estiver finalizada, manter mensagens mas bloquear input
         if (closed) {
+          if (responseTimeoutRef.current) {
+            clearTimeout(responseTimeoutRef.current)
+            responseTimeoutRef.current = null
+          }
           setIsChatClosed(true)
           setHasStartedChat(true) // Manter como iniciado para mostrar mensagens
           setShowForm(false) // Não mostrar formulário, mostrar mensagens
@@ -354,6 +365,28 @@ export default function ChatWidget() {
           // Se houver mensagens e não estiver finalizada, ocultar formulário
           setHasStartedChat(true)
           setShowForm(false)
+          // Cronograma de 5 min: última mensagem do atendente → usuário deve responder em 5 min
+          const lastMsg = formattedMessages[formattedMessages.length - 1]
+          if (lastMsg.sender === 'support') {
+            if (responseTimeoutRef.current) {
+              clearTimeout(responseTimeoutRef.current)
+              responseTimeoutRef.current = null
+            }
+            const deadline = lastMsg.timestamp.getTime() + 5 * 60 * 1000
+            const remaining = deadline - Date.now()
+            if (remaining > 0) {
+              responseTimeoutRef.current = setTimeout(() => {
+                responseTimeoutRef.current = null
+                fetch('/api/chat/close-by-timeout', { method: 'POST' })
+                  .then(() => loadMessages())
+              }, remaining)
+            }
+          } else {
+            if (responseTimeoutRef.current) {
+              clearTimeout(responseTimeoutRef.current)
+              responseTimeoutRef.current = null
+            }
+          }
         } else {
           // Se não houver mensagens, mostrar formulário
           if (isOpen && !isMinimized) {
@@ -368,8 +401,12 @@ export default function ChatWidget() {
   }
 
   const handleStartChat = async () => {
+    // Visitante (não logado): mostrar formulário para preencher e depois pedir login para enviar
     if (!isAuthenticated) {
-      router.push('/login')
+      setShowForm(true)
+      setHasStartedChat(false)
+      setIsChatClosed(false)
+      setMessages([])
       return
     }
 
@@ -414,6 +451,12 @@ export default function ChatWidget() {
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    
+    // Visitante não logado: redirecionar para login para poder enviar
+    if (!isAuthenticated) {
+      router.push('/login?mensagem=Faça login para enviar sua mensagem ao suporte.')
+      return
+    }
     
     console.log('📝 Iniciando envio do formulário...', formData)
     
@@ -510,9 +553,10 @@ export default function ChatWidget() {
 
   useEffect(() => {
     if (isOpen && !isMinimized && isAuthenticated) {
-      // Carregar mensagens para verificar se já existe conversa
-      loadMessages()
-      
+      // Só carregar mensagens quando não estiver mostrando o formulário (evita que "Iniciar Nova Conversa" seja anulado)
+      if (!showForm) {
+        loadMessages()
+      }
       if (hasStartedChat && !showForm && !isChatClosed && messages.length > 0) {
         // Atualizar mensagens a cada 3 segundos quando o chat estiver aberto e já iniciado
         const interval = setInterval(loadMessages, 3000)
@@ -528,6 +572,10 @@ export default function ChatWidget() {
           if (closeTimerRef.current) {
             clearTimeout(closeTimerRef.current)
           }
+          if (responseTimeoutRef.current) {
+            clearTimeout(responseTimeoutRef.current)
+            responseTimeoutRef.current = null
+          }
         }
       }
     } else {
@@ -537,6 +585,10 @@ export default function ChatWidget() {
       }
       if (closeTimerRef.current) {
         clearTimeout(closeTimerRef.current)
+      }
+      if (responseTimeoutRef.current) {
+        clearTimeout(responseTimeoutRef.current)
+        responseTimeoutRef.current = null
       }
     }
   }, [isOpen, isMinimized, isAuthenticated, hasStartedChat, showForm, isChatClosed, messages.length])
@@ -568,11 +620,6 @@ export default function ChatWidget() {
     return null
   }
 
-  // Só mostrar o chat se o usuário estiver autenticado
-  if (!isAuthenticated) {
-    return null
-  }
-
   return (
     <>
       {/* Botão flutuante do chat */}
@@ -582,11 +629,11 @@ export default function ChatWidget() {
             setIsOpen(true)
             setIsMinimized(false)
           }}
-          className="fixed bottom-20 lg:bottom-4 sm:lg:bottom-6 right-4 sm:right-6 z-[40] lg:z-[9998] w-14 h-14 bg-brand-aqua text-brand-midnight rounded-full shadow-2xl hover:shadow-3xl hover:scale-110 transition-all duration-300 flex items-center justify-center group animate-bounce-subtle"
+          className="fixed bottom-20 lg:bottom-4 sm:lg:bottom-6 right-4 sm:right-6 z-[40] lg:z-[9998] w-14 h-14 bg-gradient-to-br from-[#2c5aa0] to-[#163a5f] text-white rounded-full shadow-lg shadow-[#1e4976]/30 hover:shadow-xl hover:shadow-[#1e4976]/40 hover:scale-105 active:scale-95 transition-all duration-300 flex items-center justify-center group"
           aria-label="Abrir chat de suporte"
         >
-          <MessageCircle size={24} className="group-hover:scale-110 transition-transform" />
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-brand-midnight animate-pulse"></span>
+          <MessageCircle size={24} className="text-white group-hover:scale-110 transition-transform" strokeWidth={2} />
+          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse" aria-hidden></span>
         </button>
       )}
 
@@ -596,19 +643,19 @@ export default function ChatWidget() {
           className={`fixed z-[9999] bg-white dark:bg-brand-midnight shadow-2xl flex flex-col transition-all duration-300 ${
             isMinimized
               ? 'bottom-20 lg:bottom-4 right-4 sm:right-6 lg:sm:bottom-6 w-[calc(100vw-2rem)] sm:w-80 h-14 rounded-2xl border-2 border-gray-200 dark:border-brand-aqua/30 overflow-hidden'
-              : 'inset-0 sm:bottom-20 lg:sm:bottom-6 sm:right-6 sm:top-auto sm:left-auto sm:w-96 sm:h-[680px] sm:max-h-[680px] sm:rounded-2xl sm:border-2 sm:border-gray-200 sm:dark:border-brand-aqua/30 rounded-none border-0 overflow-hidden'
+              : 'top-[10%] left-3 right-3 bottom-24 max-h-[78vh] rounded-2xl border-2 border-gray-200 dark:border-brand-aqua/30 overflow-hidden sm:top-auto sm:bottom-20 sm:left-auto sm:right-6 sm:w-96 sm:h-[680px] sm:max-h-[680px] lg:bottom-6'
           }`}
         >
-          {/* Header do chat - FIXO (não rolável) */}
-          <div className="bg-gradient-to-r from-brand-midnight to-brand-royal dark:from-brand-midnight dark:to-brand-royal sm:rounded-t-2xl overflow-hidden flex-shrink-0">
+          {/* Header do chat - FIXO (não rolável) - degradê para melhor leitura */}
+          <div className="bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] dark:from-[#2c5aa0] dark:via-[#1e4976] dark:to-[#163a5f] sm:rounded-t-2xl overflow-hidden flex-shrink-0 shadow-lg">
             <div className="p-3 sm:p-4 flex items-center justify-between">
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 dark:bg-brand-aqua/20 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
                   <MessageCircle size={18} className="sm:w-5 sm:h-5 text-white" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-white font-semibold text-xs sm:text-sm truncate">Suporte ao Vivo</h3>
-                  <p className="text-white/80 text-[10px] sm:text-xs truncate">Estamos aqui para ajudar</p>
+                  <p className="text-white/90 text-[10px] sm:text-xs truncate">Estamos aqui para ajudar</p>
                 </div>
               </div>
               <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
@@ -634,22 +681,28 @@ export default function ChatWidget() {
             </div>
             
             {/* Atendente Atribuído ou Atendentes Disponíveis */}
-            <div className="px-3 sm:px-4 pb-2 sm:pb-3 border-t border-white/10 pt-2 sm:pt-3">
+            <div className="px-3 sm:px-4 pb-2 sm:pb-3 border-t border-white/15 pt-2 sm:pt-3">
               {assignedAgentName ? (
-                // Mostrar nome do atendente quando atribuído
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <div className="relative flex-shrink-0">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-brand-aqua overflow-hidden bg-brand-aqua/20 flex items-center justify-center">
-                      <span className="text-brand-aqua text-[10px] sm:text-xs font-bold">
-                        {assignedAgentName.split(' ').map(n => n[0]).join('')}
-                      </span>
+                // Mostrar nome fictício do atendente (sempre em branco para boa leitura)
+                (() => {
+                  const nome = nomeExibidoAtendente(assignedAgentName)
+                  if (!nome) return null
+                  return (
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <div className="relative flex-shrink-0">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-white/50 overflow-hidden bg-white/20 flex items-center justify-center">
+                          <span className="text-white text-[10px] sm:text-xs font-bold">
+                            {nome.split(' ').map(n => n[0]).join('')}
+                          </span>
+                        </div>
+                        <div className="absolute -bottom-0.5 -right-0.5 sm:-bottom-1 sm:-right-1 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-green-400 rounded-full border-2 border-white"></div>
+                      </div>
+                      <p className="text-white text-xs sm:text-sm font-medium truncate min-w-0">
+                        <span className="text-white font-semibold">{nome}</span> está te atendendo agora
+                      </p>
                     </div>
-                    <div className="absolute -bottom-0.5 -right-0.5 sm:-bottom-1 sm:-right-1 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-green-400 rounded-full border-2 border-white dark:border-brand-midnight"></div>
-                  </div>
-                  <p className="text-white text-xs sm:text-sm font-medium truncate min-w-0">
-                    <span className="text-brand-aqua">{assignedAgentName}</span> está te atendendo agora
-                  </p>
-                </div>
+                  )
+                })()
               ) : (
                 // Mostrar atendentes disponíveis quando não há atendente atribuído
                 <>
@@ -712,17 +765,17 @@ export default function ChatWidget() {
                       <button
                         onClick={handleStartChat}
                         disabled={isStartingChat}
-                        className="px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto text-sm"
+                        className="px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto text-sm"
                       >
                         {isStartingChat ? (
                           <>
-                            <div className="w-4 h-4 border-2 border-brand-midnight border-t-transparent rounded-full animate-spin"></div>
-                            <span>Iniciando...</span>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span className="text-white">Iniciando...</span>
                           </>
                         ) : (
                           <>
-                            <MessageCircle size={18} className="sm:w-5 sm:h-5" />
-                            <span>Iniciar Chat</span>
+                            <MessageCircle size={18} className="sm:w-5 sm:h-5 text-white" />
+                            <span className="text-white">Iniciar Chat</span>
                           </>
                         )}
                       </button>
@@ -814,18 +867,18 @@ export default function ChatWidget() {
                           // Não prevenir default aqui, deixar o form onSubmit lidar
                         }}
                         disabled={isSubmittingForm || !formData.nome.trim() || !formData.email.trim() || !formData.motivo.trim()}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
                         style={{ cursor: isSubmittingForm || !formData.nome.trim() || !formData.email.trim() || !formData.motivo.trim() ? 'not-allowed' : 'pointer' }}
                       >
                         {isSubmittingForm ? (
                           <>
-                            <div className="w-4 h-4 border-2 border-brand-midnight border-t-transparent rounded-full animate-spin"></div>
-                            <span>Enviando...</span>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span className="text-white">Enviando...</span>
                           </>
                         ) : (
                           <>
-                            <Send size={18} strokeWidth={2.5} />
-                            <span>Enviar e Iniciar Conversa</span>
+                            <Send size={18} strokeWidth={2.5} className="text-white" />
+                            <span className="text-white">Enviar e Iniciar Conversa</span>
                           </>
                         )}
                       </button>
@@ -851,10 +904,10 @@ export default function ChatWidget() {
                       setMessages([])
                       setAssignedAgentName(null)
                     }}
-                    className="px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-lg hover:shadow-xl flex items-center gap-2 mx-auto text-sm"
+                    className="px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-lg hover:shadow-xl flex items-center gap-2 mx-auto text-sm"
                   >
-                    <MessageCircle size={18} className="sm:w-5 sm:h-5" />
-                    <span>Iniciar Nova Conversa</span>
+                    <MessageCircle size={18} className="sm:w-5 sm:h-5 text-white" />
+                    <span className="text-white">Iniciar Nova Conversa</span>
                   </button>
                     </div>
                   </div>
@@ -868,7 +921,7 @@ export default function ChatWidget() {
                     <div
                       className={`max-w-[85%] sm:max-w-[80%] rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 ${
                         message.sender === 'user'
-                          ? 'bg-brand-aqua text-brand-midnight rounded-br-sm'
+                          ? 'bg-brand-aqua text-white rounded-br-sm'
                           : 'bg-white dark:bg-brand-royal text-brand-midnight dark:text-brand-clean rounded-bl-sm border border-gray-200 dark:border-white/10'
                       }`}
                     >
@@ -876,7 +929,7 @@ export default function ChatWidget() {
                       <p
                         className={`text-[10px] sm:text-xs mt-1 ${
                           message.sender === 'user'
-                            ? 'text-brand-midnight/60'
+                            ? 'text-white/80'
                             : 'text-brand-midnight/50 dark:text-brand-clean/50'
                         }`}
                       >
@@ -919,10 +972,10 @@ export default function ChatWidget() {
                     <button
                       onClick={handleSendMessage}
                       disabled={!inputMessage.trim()}
-                      className="p-2 sm:p-2.5 bg-brand-aqua text-brand-midnight rounded-xl hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center flex-shrink-0"
+                      className="p-2 sm:p-2.5 bg-brand-aqua text-white rounded-xl hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center flex-shrink-0"
                       aria-label="Enviar mensagem"
                     >
-                      <Send size={18} strokeWidth={2.5} />
+                      <Send size={18} strokeWidth={2.5} className="text-white" />
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-brand-clean/50 mt-1.5 sm:mt-2 text-center">
@@ -955,10 +1008,10 @@ export default function ChatWidget() {
                       setMessages([])
                       setAssignedAgentName(null)
                     }}
-                    className="w-full mt-2 sm:mt-3 px-3 sm:px-4 py-2 sm:py-2.5 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-md hover:shadow-lg flex items-center justify-center gap-2 text-sm"
+                    className="w-full mt-2 sm:mt-3 px-3 sm:px-4 py-2 sm:py-2.5 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-md hover:shadow-lg flex items-center justify-center gap-2 text-sm"
                   >
-                    <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
-                    <span>Iniciar Nova Conversa</span>
+                    <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px] text-white" />
+                    <span className="text-white">Iniciar Nova Conversa</span>
                   </button>
                 </div>
               )}

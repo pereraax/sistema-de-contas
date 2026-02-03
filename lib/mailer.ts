@@ -1,5 +1,26 @@
 import nodemailer from 'nodemailer'
 
+// Garantir que .env.local seja carregado (Next.js já carrega, mas em alguns contextos pode faltar)
+if (typeof process !== 'undefined' && !process.env.SMTP_HOST && process.env.NODE_ENV !== 'production') {
+  try {
+    const path = require('path')
+    const fs = require('fs')
+    const envPath = path.resolve(process.cwd(), '.env.local')
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf-8')
+      content.split('\n').forEach((line: string) => {
+        const match = line.match(/^([^#=]+)=(.*)$/)
+        if (match) {
+          const key = match[1].trim()
+          let val = match[2].trim()
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) val = val.slice(1, -1)
+          if (!process.env[key]) process.env[key] = val
+        }
+      })
+    }
+  } catch (_) {}
+}
+
 export type SendMailArgs = {
   to: string
   subject: string
@@ -9,7 +30,7 @@ export type SendMailArgs = {
 function parseEnv(val: string | undefined): string {
   if (!val) return ''
   // Remove aspas do início e fim, mas preserva o conteúdo
-  let s = val.trim()
+  let s = String(val).trim()
   // Remove aspas simples ou duplas apenas se estiverem nas extremidades
   if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
     s = s.slice(1, -1)
@@ -25,12 +46,14 @@ function getSmtpConfig() {
   let from = parseEnv(process.env.SMTP_FROM)
   if (!from && user) from = user
 
-  console.log('🔍 [SMTP] Verificando configuração SMTP:')
-  console.log('  - SMTP_HOST:', host ? `✅ (${host})` : '❌')
-  console.log('  - SMTP_PORT:', portRaw ? `✅ (${portRaw})` : '❌')
-  console.log('  - SMTP_USER:', user ? `✅ (${user})` : '❌')
-  console.log('  - SMTP_PASSWORD:', pass ? `✅ (${pass.length} caracteres)` : '❌')
-  console.log('  - SMTP_FROM:', from ? `✅ (${from})` : '❌')
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔍 [SMTP] Verificando configuração SMTP:')
+    console.log('  - SMTP_HOST:', host ? `✅ (${host})` : '❌')
+    console.log('  - SMTP_PORT:', portRaw ? `✅ (${portRaw})` : '❌')
+    console.log('  - SMTP_USER:', user ? '✅ definido' : '❌')
+    console.log('  - SMTP_PASSWORD:', pass ? `✅ (${pass.length} caracteres)` : '❌')
+    console.log('  - SMTP_FROM:', from ? '✅ definido' : '❌ (usa SMTP_USER)')
+  }
 
   if (!host || !portRaw || !user || !pass) {
     console.warn('⚠️ [SMTP] Faltam variáveis SMTP_* (SMTP_FROM opcional, usa SMTP_USER)')
@@ -53,18 +76,33 @@ function getSmtpConfig() {
     fromFinal = emailMatch[1]
   }
 
-  console.log('✅ [SMTP] Configuração válida!')
-  console.log(`  - Porta: ${port} (${secure ? 'SSL' : 'STARTTLS'})`)
-  console.log(`  - Usuário: ${user}`)
-  console.log(`  - Senha: ${pass.length} caracteres (primeiro: ${pass[0]}, último: ${pass[pass.length - 1]})`)
-  console.log(`  - From: ${fromFinal}`)
-  console.log(`  ⚠️  Se ainda der EAUTH, a senha "${pass}" está incorreta.`)
-  console.log(`  ⚠️  Teste fazer login no webmail com: ${user} / ${pass}`)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('✅ [SMTP] Configuração válida!')
+    console.log(`  - Porta: ${port} (${secure ? 'SSL' : 'STARTTLS'})`)
+    console.log(`  - From: ${fromFinal}`)
+  }
   return { host, port, secure, auth: { user, pass }, from: fromFinal }
 }
 
 export function isSmtpConfigured() {
   return !!getSmtpConfig()
+}
+
+function createTransporter(cfg: { host: string; port: number; secure: boolean; auth: { user: string; pass: string }; from: string }) {
+  return nodemailer.createTransport({
+    host: cfg.host,
+    port: cfg.port,
+    secure: cfg.secure,
+    auth: cfg.auth,
+    connectionTimeout: 20000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
+    requireTLS: !cfg.secure,
+    tls: { rejectUnauthorized: false, minVersion: 'TLSv1.2' as const },
+    pool: false,
+    maxConnections: 1,
+    maxMessages: 1,
+  })
 }
 
 export async function sendMail({ to, subject, html }: SendMailArgs) {
@@ -75,72 +113,52 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
 
   console.log('📤 [SMTP] Preparando para enviar email...')
   console.log(`  - Para: ${to}`)
-  console.log(`  - Assunto: ${subject}`)
-  console.log(`  - Host: ${cfg.host}:${cfg.port}`)
+  console.log(`  - Host: ${cfg.host}:${cfg.port} (${cfg.secure ? 'SSL' : 'STARTTLS'})`)
 
-  // Configurar transporter com opções robustas
-  const transporter = nodemailer.createTransport({
-    host: cfg.host,
-    port: cfg.port,
-    secure: cfg.secure, // true para 465 (SSL), false para 587 (STARTTLS)
-    auth: cfg.auth,
-    // Timeouts
-    connectionTimeout: 15000, // 15 segundos
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-    // Para porta 587, garantir STARTTLS
-    requireTLS: !cfg.secure,
-    tls: {
-      rejectUnauthorized: false // Aceitar certificados auto-assinados se necessário
-    }
-  })
-
-  try {
-    console.log('🔍 [SMTP] Verificando conexão SMTP...')
-    try {
-      await transporter.verify()
-      console.log('✅ [SMTP] Conexão SMTP verificada!')
-    } catch (verifyError: any) {
-      console.error('⚠️ [SMTP] Verificação falhou, mas tentando enviar mesmo assim:', verifyError.message)
-      // Continuar mesmo se verificação falhar - pode ser que funcione
-    }
-    
-    console.log('📤 [SMTP] Enviando email...')
-    console.log(`  - De: ${cfg.from}`)
-    console.log(`  - Para: ${to}`)
-    console.log(`  - Assunto: ${subject}`)
-    
-    const result = await transporter.sendMail({
-      from: cfg.from,
+  const trySend = async (config: typeof cfg): Promise<any> => {
+    const transporter = createTransporter(config)
+    return transporter.sendMail({
+      from: config.from,
       to,
       subject,
       html,
     })
-    
+  }
+
+  try {
+    const result = await trySend(cfg)
     console.log('✅ [SMTP] Email enviado com sucesso!')
     console.log(`  - Message ID: ${result.messageId}`)
-    console.log(`  - Response: ${result.response}`)
-    
     return result
   } catch (error: any) {
+    const isAuthError = error.code === 'EAUTH' || error.message?.includes('Invalid login') || error.message?.includes('535') || error.message?.includes('authentication failed')
+    
+    // Se falhou por autenticação na porta 587, tentar porta 465 (SSL) - comum na Hostinger
+    if (isAuthError && cfg.port === 587 && cfg.host.includes('hostinger')) {
+      console.warn('⚠️ [SMTP] Autenticação falhou na porta 587. Tentando porta 465 (SSL)...')
+      try {
+        const cfg465 = { ...cfg, port: 465 as number, secure: true }
+        const result = await trySend(cfg465)
+        console.log('✅ [SMTP] Email enviado com sucesso via porta 465!')
+        return result
+      } catch (err465: any) {
+        console.error('❌ [SMTP] Porta 465 também falhou:', err465.message)
+        // Continua e lança o erro original abaixo
+      }
+    }
+
     console.error('❌ [SMTP] Erro ao enviar email:', error.message)
     console.error('❌ [SMTP] Código:', error.code)
-    console.error('❌ [SMTP] Command:', error.command || 'N/A')
-    console.error('❌ [SMTP] Response:', error.response || 'N/A')
-    console.error('❌ [SMTP] Stack:', error.stack?.substring(0, 300))
-    
-    // Mensagem de erro mais específica
+
     let errorMessage = error.message || 'Erro desconhecido ao enviar email'
-    if (error.code === 'EAUTH' || error.message?.includes('Invalid login')) {
-      errorMessage = 'Erro de autenticação SMTP. Verifique usuário e senha no .env.local'
+    if (error.code === 'EAUTH' || error.message?.includes('Invalid login') || error.message?.includes('535')) {
+      errorMessage = 'Erro de autenticação SMTP. Confira no painel da Hostinger: usuário (email completo) e senha do email. Se tiver 2FA, use uma "Senha de app" para SMTP.'
     } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
       errorMessage = `Erro de conexão SMTP. Verifique host (${cfg.host}) e porta (${cfg.port}).`
     } else if (error.code === 'EENVELOPE') {
       errorMessage = 'Erro no endereço de email. Verifique o formato.'
-    } else if (error.code === 'ECERT') {
-      errorMessage = 'Erro de certificado SSL. Verifique a configuração.'
     }
-    
+
     const smtpError = new Error(errorMessage)
     ;(smtpError as any).code = error.code
     ;(smtpError as any).originalError = error

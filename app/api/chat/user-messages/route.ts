@@ -1,75 +1,48 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { verifyAdminToken } from '@/lib/admin-middleware'
+import { createAdminClient } from '@/lib/supabase/server'
 
-export const dynamic = 'force-dynamic'
-
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      )
+    const admin = await verifyAdminToken()
+    if (!admin) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
-    const targetUserId = searchParams.get('user_id')
-
-    if (!targetUserId) {
-      return NextResponse.json(
-        { error: 'user_id é obrigatório' },
-        { status: 400 }
-      )
+    const userId = searchParams.get('user_id')
+    if (!userId) {
+      return NextResponse.json({ error: 'user_id é obrigatório' }, { status: 400 })
     }
 
-    // TODO: Verificar se o usuário é admin/suporte
-    // Por enquanto, permitir qualquer usuário autenticado ver mensagens de outros usuários
+    const supabase = createAdminClient()
+    if (!supabase) {
+      return NextResponse.json({ error: 'Serviço indisponível' }, { status: 503 })
+    }
 
-    // Buscar mensagens do usuário específico
     const { data: messages, error } = await supabase
       .from('chat_messages')
-      .select('*')
-      .eq('user_id', targetUserId)
+      .select('id, user_id, message, sender_type, is_read, created_at')
+      .eq('user_id', userId)
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error('Erro ao buscar mensagens:', error)
-      return NextResponse.json(
-        { error: 'Erro ao buscar mensagens' },
-        { status: 500 }
-      )
+      console.error('[chat/user-messages] Erro:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Marcar mensagens do usuário como lidas quando o suporte visualizar
-    await supabase
-      .from('chat_messages')
-      .update({ is_read: true })
-      .eq('user_id', targetUserId)
-      .eq('sender_type', 'user')
-      .eq('is_read', false)
-
-    // Verificar se a conversa está finalizada
-    const { data: conversation } = await supabase
+    const { data: conv } = await supabase
       .from('chat_conversations')
       .select('is_closed')
-      .eq('user_id', targetUserId)
+      .eq('user_id', userId)
       .single()
 
-    const is_closed = conversation?.is_closed || false
-
-    return NextResponse.json({ 
+    return NextResponse.json({
       messages: messages || [],
-      is_closed 
+      is_closed: conv?.is_closed ?? false
     })
-  } catch (error: any) {
-    console.error('Erro inesperado:', error)
-    return NextResponse.json(
-      { error: 'Erro inesperado ao buscar mensagens' },
-      { status: 500 }
-    )
+  } catch (err: any) {
+    console.error('[chat/user-messages] Erro:', err)
+    return NextResponse.json({ error: err?.message || 'Erro ao carregar mensagens' }, { status: 500 })
   }
 }
-

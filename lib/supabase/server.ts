@@ -45,20 +45,12 @@ export const createClient = cache(async () => {
 
 // Cliente admin que bypassa RLS usando service role key
 // Use apenas para operações administrativas no servidor
+// Retorna null se não configurado (evita 500 em componentes como FacebookPixelScript)
 export function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  if (!supabaseUrl) {
-    throw new Error(
-      `@supabase/ssr: NEXT_PUBLIC_SUPABASE_URL não configurada!\n` +
-      `Verifique se está definida no arquivo .env.local\n` +
-      `Acesse: https://supabase.com/dashboard/project/_/settings/api para obter essa credencial.`
-    )
-  }
-
-  if (!supabaseServiceKey) {
-    // Se não tiver service role key, retornar cliente normal (pode falhar por RLS)
+  if (!supabaseUrl || !supabaseServiceKey) {
     return null
   }
 

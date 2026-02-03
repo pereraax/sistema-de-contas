@@ -1,63 +1,48 @@
-# ✅ DEPLOY PRONTO - Depuração Completa
+# ✅ Deploy pronto – Railway
 
-## ✅ STATUS FINAL:
+## ✅ Status
 
-- ✅ **Build local funcionando perfeitamente**
+- ✅ **Build local funcionando**
 - ✅ **Erros críticos corrigidos**
-- ✅ **Avisos de TypeScript ignorados temporariamente** (código funciona)
-- ✅ **Pronto para deploy no Vercel**
+- ✅ **Pronto para deploy no Railway**
 
 ---
 
-## 🎯 O QUE FOI FEITO NA DEPURAÇÃO:
+## 🎯 O que foi feito
 
-### **1. Correções Aplicadas:**
-- ✅ Tipos de variáveis corrigidos (`Date | null`, `string | null`, etc.)
-- ✅ `searchParams` com optional chaining (`?.`)
-- ✅ `RegExpMatchArray | null` para matches
-- ✅ Arrays tipados explicitamente
-- ✅ Arquivo `_document.tsx` criado
-
-### **2. Configurações:**
-- ✅ `ignoreBuildErrors: true` (temporário)
-- ✅ `.nvmrc` com Node 20
-- ✅ `vercel.json` atualizado
+- Tipos e configurações ajustados
+- `railway.json` e `Dockerfile` para Railway
+- `.nvmrc` com Node 20
 
 ---
 
-## 🚀 FAZER DEPLOY AGORA:
+## 🚀 Fazer deploy no Railway
+
+O deploy é disparado pelo **Git** (projeto conectado ao GitHub no Railway):
 
 ```bash
-cd "/Users/charllestabordas/Documents/SISTEMA DE CONTAS"
-npx vercel@latest --prod
+git add .
+git commit -m "sua mensagem"
+git push origin main
 ```
 
-**OU:**
+Ou forçar redeploy sem mudar código:
 
 ```bash
-vercel --prod
+git commit --allow-empty -m "chore: redeploy"
+git push origin main
 ```
 
----
-
-## 📝 OBSERVAÇÕES:
-
-1. **Erros de TypeScript são avisos de tipo**, não erros de execução
-2. **O código funciona perfeitamente** (servidor local funcionando)
-3. **Avisos de tipo podem ser corrigidos depois** sem quebrar funcionalidade
-4. **Deploy deve funcionar agora** no Vercel
+No **Railway**: https://railway.app → seu projeto → Deployments → Redeploy.
 
 ---
 
-## 🔄 DEPOIS DO DEPLOY:
+## 📝 Observações
 
-Se quiser corrigir os avisos de tipo depois:
-
-1. Mudar `ignoreBuildErrors: false` no `next.config.js`
-2. Corrigir erros um por um
-3. Testar build local
-4. Fazer novo deploy
+1. Erros de TypeScript podem ser avisos de tipo; o build pode estar configurado para ignorá-los temporariamente.
+2. Variáveis de ambiente devem estar configuradas no Railway (Variables).
+3. Domínio customizado (ex.: plenipay.com) configurado no Railway → Settings → Domains.
 
 ---
 
-**✅ Projeto depurado e pronto para deploy!** 🚀
+**✅ Projeto pronto para deploy no Railway.** 🚂

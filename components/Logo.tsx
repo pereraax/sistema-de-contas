@@ -3,6 +3,8 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
+import logoTipoFundoClaro from '@/assets/fundo claro.png'
+import logoTipoFundoEscuro from '@/assets/fundo escuro.png'
 
 export default function Logo() {
   const [imageError, setImageError] = useState(false)
@@ -28,8 +30,8 @@ export default function Logo() {
     return () => observer.disconnect()
   }, [])
 
-  // Usar logo azul no modo claro e logo de 2 cores no modo escuro
-  const logoSrc = isDarkMode ? '/2 cores.png' : '/logo azul.png'
+  // Modo claro: fundo claro.png | Modo escuro: fundo escuro.png
+  const logoSrc = isDarkMode ? logoTipoFundoEscuro : logoTipoFundoClaro
 
   if (imageError) {
     // Fallback: mostrar texto do logo se a imagem não carregar

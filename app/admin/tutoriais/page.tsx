@@ -256,7 +256,7 @@ export default function AdminTutoriaisPage() {
           </div>
           <button
             onClick={handleNovoTutorial}
-            className="px-6 py-3 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth flex items-center gap-2"
+            className="px-6 py-3 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth flex items-center gap-2"
           >
             <Plus size={20} />
             Novo Tutorial
@@ -275,7 +275,7 @@ export default function AdminTutoriaisPage() {
             </p>
             <button
               onClick={handleNovoTutorial}
-              className="px-6 py-3 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth inline-flex items-center gap-2"
+              className="px-6 py-3 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth inline-flex items-center gap-2"
             >
               <Plus size={20} />
               Criar Primeiro Tutorial
@@ -515,7 +515,7 @@ export default function AdminTutoriaisPage() {
                   </button>
                   <button
                     onClick={handleSalvar}
-                    className="flex-1 px-4 py-2 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth flex items-center justify-center gap-2"
+                    className="flex-1 px-4 py-2 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth flex items-center justify-center gap-2"
                   >
                     <Save size={18} />
                     Salvar

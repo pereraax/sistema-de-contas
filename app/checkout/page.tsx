@@ -270,7 +270,7 @@ function CheckoutContent() {
       <div className="min-h-screen bg-white">
         <Sidebar />
         <main className="lg:ml-64 min-h-screen flex items-center justify-center">
-          <Loader2 className="animate-spin text-[#00C2FF]" size={48} />
+          <Loader2 className="animate-spin text-[#1e4976]" size={48} />
         </main>
       </div>
     )
@@ -298,7 +298,7 @@ function CheckoutContent() {
         <div className="max-w-xl mx-auto">
           <button
             onClick={() => router.push('/upgrade')}
-            className="flex items-center gap-2 text-gray-600 hover:text-[#00C2FF] mb-4 transition-colors"
+            className="flex items-center gap-2 text-gray-600 hover:text-[#1e4976] mb-4 transition-colors"
           >
             <ArrowLeft size={18} />
             <span className="text-sm">Voltar</span>
@@ -323,7 +323,7 @@ function CheckoutContent() {
                   required
                   value={formData.nome}
                   onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#00C2FF] focus:ring-2 focus:ring-[#00C2FF]/20 transition-smooth text-sm"
+                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/20 transition-smooth text-sm"
                   placeholder="Seu nome completo"
                 />
               </div>
@@ -343,7 +343,7 @@ function CheckoutContent() {
                   }}
                   placeholder="000.000.000-00"
                   maxLength={14}
-                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#00C2FF] focus:ring-2 focus:ring-[#00C2FF]/20 transition-smooth text-sm"
+                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/20 transition-smooth text-sm"
                 />
               </div>
 
@@ -358,11 +358,11 @@ function CheckoutContent() {
                     onClick={() => setFormData({ ...formData, metodoPagamento: 'PIX' })}
                     className={`w-full p-3 rounded-lg border-2 transition-all flex items-center gap-3 ${
                       formData.metodoPagamento === 'PIX'
-                        ? 'border-[#00C2FF] bg-[#00C2FF]/10'
-                        : 'border-gray-200 hover:border-[#00C2FF]/50 bg-white'
+                        ? 'border-[#1e4976] bg-[#1e4976]/10'
+                        : 'border-gray-200 hover:border-[#1e4976]/50 bg-white'
                     }`}
                   >
-                    <div className={`p-2 rounded-lg ${formData.metodoPagamento === 'PIX' ? 'bg-[#00C2FF]' : 'bg-gray-100'}`}>
+                    <div className={`p-2 rounded-lg ${formData.metodoPagamento === 'PIX' ? 'bg-[#1e4976]' : 'bg-gray-100'}`}>
                       <Smartphone size={20} className="text-white" />
                     </div>
                     <div className="flex-1 text-left">
@@ -370,7 +370,7 @@ function CheckoutContent() {
                       <p className="text-xs text-gray-500">Aprovação imediata</p>
                     </div>
                     {formData.metodoPagamento === 'PIX' && (
-                      <Check size={18} className="text-[#00C2FF]" />
+                      <Check size={18} className="text-[#1e4976]" />
                     )}
                   </button>
 
@@ -379,11 +379,11 @@ function CheckoutContent() {
                     onClick={() => setFormData({ ...formData, metodoPagamento: 'BOLETO' })}
                     className={`w-full p-3 rounded-lg border-2 transition-all flex items-center gap-3 ${
                       formData.metodoPagamento === 'BOLETO'
-                        ? 'border-[#00C2FF] bg-[#00C2FF]/10'
-                        : 'border-gray-200 hover:border-[#00C2FF]/50 bg-white'
+                        ? 'border-[#1e4976] bg-[#1e4976]/10'
+                        : 'border-gray-200 hover:border-[#1e4976]/50 bg-white'
                     }`}
                   >
-                    <div className={`p-2 rounded-lg ${formData.metodoPagamento === 'BOLETO' ? 'bg-[#00C2FF]' : 'bg-gray-100'}`}>
+                    <div className={`p-2 rounded-lg ${formData.metodoPagamento === 'BOLETO' ? 'bg-[#1e4976]' : 'bg-gray-100'}`}>
                       <Receipt size={20} className="text-white" />
                     </div>
                     <div className="flex-1 text-left">
@@ -391,7 +391,7 @@ function CheckoutContent() {
                       <p className="text-xs text-gray-500">Vencimento em 3 dias úteis</p>
                     </div>
                     {formData.metodoPagamento === 'BOLETO' && (
-                      <Check size={18} className="text-[#00C2FF]" />
+                      <Check size={18} className="text-[#1e4976]" />
                     )}
                   </button>
 
@@ -400,11 +400,11 @@ function CheckoutContent() {
                     onClick={() => setFormData({ ...formData, metodoPagamento: 'CREDIT_CARD' })}
                     className={`w-full p-3 rounded-lg border-2 transition-all flex items-center gap-3 ${
                       formData.metodoPagamento === 'CREDIT_CARD'
-                        ? 'border-[#00C2FF] bg-[#00C2FF]/10'
-                        : 'border-gray-200 hover:border-[#00C2FF]/50 bg-white'
+                        ? 'border-[#1e4976] bg-[#1e4976]/10'
+                        : 'border-gray-200 hover:border-[#1e4976]/50 bg-white'
                     }`}
                   >
-                    <div className={`p-2 rounded-lg ${formData.metodoPagamento === 'CREDIT_CARD' ? 'bg-[#00C2FF]' : 'bg-gray-100'}`}>
+                    <div className={`p-2 rounded-lg ${formData.metodoPagamento === 'CREDIT_CARD' ? 'bg-[#1e4976]' : 'bg-gray-100'}`}>
                       <CreditCard size={20} className="text-white" />
                     </div>
                     <div className="flex-1 text-left">
@@ -412,7 +412,7 @@ function CheckoutContent() {
                       <p className="text-xs text-gray-500">Aprovação imediata</p>
                     </div>
                     {formData.metodoPagamento === 'CREDIT_CARD' && (
-                      <Check size={18} className="text-[#00C2FF]" />
+                      <Check size={18} className="text-[#1e4976]" />
                     )}
                   </button>
                 </div>
@@ -422,7 +422,7 @@ function CheckoutContent() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full px-4 py-3 bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm shadow-md hover:shadow-lg"
+                className="w-full px-4 py-3 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm shadow-md hover:shadow-lg"
               >
                 {loading ? (
                   <>
@@ -448,7 +448,7 @@ export default function CheckoutPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <Loader2 className="animate-spin text-[#00C2FF]" size={48} />
+        <Loader2 className="animate-spin text-[#1e4976]" size={48} />
       </div>
     }>
       <CheckoutContent />

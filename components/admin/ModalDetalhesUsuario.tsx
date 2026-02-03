@@ -622,9 +622,20 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
                   </div>
                 )}
                 {usuarioLocal?.whatsapp && (
-                  <div className="flex items-center gap-2 text-xs text-brand-midnight dark:text-brand-clean/80">
-                    <Phone size={12} className="text-brand-midnight/60 dark:text-brand-clean/60" />
-                    <span>WhatsApp: {usuarioLocal.whatsapp}</span>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-xs text-brand-midnight dark:text-brand-clean/80">
+                      <Phone size={12} className="text-brand-midnight/60 dark:text-brand-clean/60" />
+                      <span>WhatsApp: {usuarioLocal.whatsapp}</span>
+                    </div>
+                    <a
+                      href={`https://wa.me/${usuarioLocal.whatsapp.replace(/\D/g, '').startsWith('55') ? usuarioLocal.whatsapp.replace(/\D/g, '') : '55' + usuarioLocal.whatsapp.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-xs font-medium transition-smooth shadow-sm hover:shadow-md"
+                    >
+                      <MessageCircle size={14} />
+                      Abrir no WhatsApp
+                    </a>
                   </div>
                 )}
                 {!usuarioLocal?.telefone && !usuarioLocal?.whatsapp && (
@@ -1061,7 +1072,7 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
               <button
                 onClick={handleEnviarLinkRecuperacao}
                 disabled={enviando}
-                className="px-4 py-2 bg-brand-aqua text-brand-midnight rounded-lg hover:bg-brand-aqua/90 transition-smooth font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="px-4 py-2 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 {enviando ? (
                   <>

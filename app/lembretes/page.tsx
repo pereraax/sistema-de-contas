@@ -616,7 +616,7 @@ export default function LembretesPage() {
             </div>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-brand-aqua hover:bg-brand-aqua/90 text-brand-midnight rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-brand-aqua hover:bg-brand-aqua/90 text-white rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg"
             >
               <Plus size={18} />
               <span className="hidden sm:inline">Novo Lembrete</span>
@@ -1143,7 +1143,7 @@ export default function LembretesPage() {
                   {(!searchTerm && filterStatus === 'todos') && (
                     <button
                       onClick={() => setShowCreateModal(true)}
-                      className="flex items-center gap-2 px-6 py-3 bg-brand-aqua hover:bg-brand-aqua/90 text-brand-midnight rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg"
+                      className="flex items-center gap-2 px-6 py-3 bg-brand-aqua hover:bg-brand-aqua/90 text-white rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg"
                     >
                       <Plus size={20} />
                       Criar Lembrete
@@ -1333,7 +1333,7 @@ export default function LembretesPage() {
                   <button
                     onClick={criarLembrete}
                     disabled={creating || !formData.descricao.trim()}
-                    className="flex-1 px-4 py-3 bg-brand-aqua hover:bg-brand-aqua/90 text-brand-midnight rounded-lg font-semibold transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-4 py-3 bg-brand-aqua hover:bg-brand-aqua/90 text-white rounded-lg font-semibold transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {creating ? 'Criando...' : 'Criar Lembrete'}
                   </button>
@@ -1500,7 +1500,7 @@ export default function LembretesPage() {
                   <button
                     onClick={salvarEdicao}
                     disabled={editing || !editFormData.descricao.trim()}
-                    className="flex-1 px-4 py-3 bg-brand-aqua hover:bg-brand-aqua/90 text-brand-midnight rounded-lg font-semibold transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-4 py-3 bg-brand-aqua hover:bg-brand-aqua/90 text-white rounded-lg font-semibold transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {editing ? 'Salvando...' : 'Salvar Alterações'}
                   </button>

@@ -91,21 +91,18 @@ export default function PlenAssistant() {
     }
   }, [])
 
-  // Escutar evento customizado para abrir via bottom nav
+  // Escutar evento customizado para abrir/fechar via bottom nav (toggle)
   useEffect(() => {
-    const handleOpenPlen = () => {
+    const handleTogglePlen = () => {
       if (isAuthenticated && !isCheckingAuth) {
-        setIsOpen(true)
-        // Focar no input após abrir
-        setTimeout(() => {
-          inputRef.current?.focus()
-        }, 300)
+        setIsOpen(prev => !prev)
+        // Foco no input já é tratado pelo useEffect quando isOpen vira true
       }
     }
-    
-    window.addEventListener('open-plen-assistant', handleOpenPlen)
+
+    window.addEventListener('open-plen-assistant', handleTogglePlen)
     return () => {
-      window.removeEventListener('open-plen-assistant', handleOpenPlen)
+      window.removeEventListener('open-plen-assistant', handleTogglePlen)
     }
   }, [isAuthenticated, isCheckingAuth])
 

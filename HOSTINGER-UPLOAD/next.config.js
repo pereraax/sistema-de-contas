@@ -11,7 +11,7 @@ const nextConfig = {
   
   // Configuração experimental
   experimental: {
-    // Desabilitar otimização de CSS para evitar erros no Vercel
+    // Desabilitar otimização de CSS em produção
     optimizeCss: false,
   },
   
@@ -124,7 +124,7 @@ const nextConfig = {
     } else {
       // No SERVIDOR, tentar usar bufferutil e utf-8-validate se disponíveis
       // Essas são dependências opcionais do ws que melhoram performance
-      // No Vercel, podem não estar disponíveis, então tratamos como opcionais
+      // Em produção podem não estar disponíveis, então tratamos como opcionais
       const fallback = { ...config.resolve.fallback }
       
       // Verificar se os módulos existem antes de tentar resolver
@@ -165,7 +165,7 @@ const nextConfig = {
       // Ignorar avisos de módulos não encontrados que são opcionais
       { message: /Module not found/ },
       { message: /Can't resolve/ },
-      // Ignorar avisos de CSS que podem aparecer no Vercel
+      // Ignorar avisos de CSS em build
       { message: /css-loader/ },
       { message: /postcss/ },
       { message: /globals\.css/ },

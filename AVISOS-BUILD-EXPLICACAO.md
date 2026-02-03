@@ -56,7 +56,7 @@ Os avisos são **normais** e **esperados** quando:
 
 O problema **NÃO é o build**. O problema é que:
 - ❌ IP não está servindo assets estáticos corretamente
-- ❌ DNS ainda não propagou (domínio aponta para Vercel)
+- ❌ DNS ainda não propagou (domínio aponta para outra plataforma)
 
 **Foque em:**
 1. ✅ Verificar configuração do Nginx

@@ -69,7 +69,7 @@ export default function GerenciarCategoriasView() {
   const [formData, setFormData] = useState({
     nome: '',
     icone: 'Tag',
-    cor: '#00C2FF',
+    cor: '#1e4976',
   })
   
   const handleCategoriaClick = (categoria: Categoria) => {
@@ -115,7 +115,7 @@ export default function GerenciarCategoriasView() {
     localStorage.setItem('categorias_personalizadas', JSON.stringify(personalizadas))
 
     setCategorias([...categoriasPadrao, ...personalizadas])
-    setFormData({ nome: '', icone: 'Tag', cor: '#00C2FF' })
+    setFormData({ nome: '', icone: 'Tag', cor: '#1e4976' })
     setModalCriarAberto(false)
   }
 
@@ -130,7 +130,7 @@ export default function GerenciarCategoriasView() {
     setCategorias([...categoriasPadrao, ...personalizadas])
     setModalEditarAberto(false)
     setCategoriaEditando(null)
-    setFormData({ nome: '', icone: 'Tag', cor: '#00C2FF' })
+    setFormData({ nome: '', icone: 'Tag', cor: '#1e4976' })
   }
 
   const handleExcluirCategoria = () => {
@@ -164,7 +164,7 @@ export default function GerenciarCategoriasView() {
   }
 
   const coresDisponiveis = [
-    '#00C2FF', '#10b981', '#ef4444', '#f59e0b', '#a855f7', '#ec4899', '#6366f1', '#06b6d4', '#6b7280'
+    '#1e4976', '#10b981', '#ef4444', '#f59e0b', '#a855f7', '#ec4899', '#6366f1', '#06b6d4', '#6b7280'
   ]
 
   return (
@@ -182,10 +182,10 @@ export default function GerenciarCategoriasView() {
         <div className="flex justify-end mb-6">
           <button
             onClick={() => {
-              setFormData({ nome: '', icone: 'Tag', cor: '#00C2FF' })
+              setFormData({ nome: '', icone: 'Tag', cor: '#1e4976' })
               setModalCriarAberto(true)
             }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg"
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg"
           >
             <Plus size={20} />
             <span>Nova Categoria</span>
@@ -289,7 +289,7 @@ export default function GerenciarCategoriasView() {
                   type="text"
                   value={formData.nome}
                   onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-brand-midnight text-gray-900 dark:text-brand-clean focus:outline-none focus:ring-2 focus:ring-[#00C2FF]"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-brand-midnight text-gray-900 dark:text-brand-clean focus:outline-none focus:ring-2 focus:ring-[#1e4976]"
                   placeholder="Ex: Pizzaria"
                 />
               </div>
@@ -308,8 +308,8 @@ export default function GerenciarCategoriasView() {
                         onClick={() => setFormData({ ...formData, icone: iconData.name })}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           isSelected
-                            ? 'border-[#00C2FF] bg-[#00C2FF]/10'
-                            : 'border-gray-200 dark:border-white/20 hover:border-[#00C2FF]/50'
+                            ? 'border-[#1e4976] bg-[#1e4976]/10'
+                            : 'border-gray-200 dark:border-white/20 hover:border-[#1e4976]/50'
                         }`}
                       >
                         <Icon size={24} className={iconData.color} />
@@ -346,7 +346,7 @@ export default function GerenciarCategoriasView() {
               </button>
               <button
                 onClick={handleCriarCategoria}
-                className="flex-1 px-4 py-2 bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-lg font-semibold transition-colors"
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-lg font-semibold transition-colors"
               >
                 Criar
               </button>
@@ -371,7 +371,7 @@ export default function GerenciarCategoriasView() {
                   type="text"
                   value={formData.nome}
                   onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-brand-midnight text-gray-900 dark:text-brand-clean focus:outline-none focus:ring-2 focus:ring-[#00C2FF]"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-brand-midnight text-gray-900 dark:text-brand-clean focus:outline-none focus:ring-2 focus:ring-[#1e4976]"
                 />
               </div>
               <div>
@@ -389,8 +389,8 @@ export default function GerenciarCategoriasView() {
                         onClick={() => setFormData({ ...formData, icone: iconData.name })}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           isSelected
-                            ? 'border-[#00C2FF] bg-[#00C2FF]/10'
-                            : 'border-gray-200 dark:border-white/20 hover:border-[#00C2FF]/50'
+                            ? 'border-[#1e4976] bg-[#1e4976]/10'
+                            : 'border-gray-200 dark:border-white/20 hover:border-[#1e4976]/50'
                         }`}
                       >
                         <Icon size={24} className={iconData.color} />
@@ -430,7 +430,7 @@ export default function GerenciarCategoriasView() {
               </button>
               <button
                 onClick={handleEditarCategoria}
-                className="flex-1 px-4 py-2 bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-lg font-semibold transition-colors"
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-lg font-semibold transition-colors"
               >
                 Salvar
               </button>

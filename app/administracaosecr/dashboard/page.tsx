@@ -1,6 +1,10 @@
 import { obterEstatisticasUsuarios } from '@/lib/admin-auth'
-import { Users, CreditCard, UserCheck, TrendingUp, Loader2, AlertCircle } from 'lucide-react'
+import { Users, CreditCard, UserCheck, TrendingUp, Loader2, AlertCircle, DollarSign, Wallet } from 'lucide-react'
 import VisitorStats from '@/components/VisitorStats'
+
+function formatBRL(value: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -109,6 +113,76 @@ export default async function AdminDashboardPage() {
             </div>
           )
         })}
+      </div>
+
+      {/* Saldo de vendas / Dashboard de vendas */}
+      <div className="mb-6 lg:mb-8">
+        <h2 className="text-lg lg:text-xl font-display font-bold text-brand-clean mb-3 lg:mb-4" style={{ fontWeight: 700 }}>
+          Saldo de vendas
+        </h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+          <div className="bg-brand-royal rounded-2xl p-6 shadow-lg border border-white/10 lg:col-span-2">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 rounded-xl bg-emerald-900/20">
+                <DollarSign size={24} className="text-emerald-400" strokeWidth={2} />
+              </div>
+              <div>
+                <p className="text-xs lg:text-sm text-brand-clean/70 font-bold" style={{ fontWeight: 700 }}>Receita total (vendas)</p>
+                <p className="text-2xl lg:text-3xl font-display font-bold text-emerald-400" style={{ fontWeight: 700 }}>
+                  {formatBRL(stats?.data?.receita_total ?? 0)}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-brand-clean/50">Valor estimado com base nos assinantes atuais (Básico e Premium).</p>
+          </div>
+          <div className="bg-brand-royal rounded-2xl p-6 shadow-lg border border-white/10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 rounded-xl bg-amber-900/20">
+                <Wallet size={24} className="text-amber-400" strokeWidth={2} />
+              </div>
+              <div>
+                <p className="text-xs lg:text-sm text-brand-clean/70 font-bold" style={{ fontWeight: 700 }}>Lucro estimado</p>
+                <p className="text-2xl lg:text-3xl font-display font-bold text-amber-400" style={{ fontWeight: 700 }}>
+                  {formatBRL(stats?.data?.receita_total ?? 0)}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-brand-clean/50">Receita das assinaturas (sem custos operacionais).</p>
+          </div>
+        </div>
+        <div className="mt-4 bg-brand-royal rounded-2xl p-4 lg:p-6 shadow-lg border border-white/10">
+          <p className="text-sm font-semibold text-brand-clean/80 mb-3" style={{ fontWeight: 600 }}>Por plano</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:gap-4">
+            <div className="flex items-center justify-between p-3 lg:p-4 bg-brand-midnight/50 rounded-xl border border-blue-500/20">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-blue-900/20">
+                  <CreditCard size={18} className="text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-brand-clean">Plano Básico</p>
+                  <p className="text-xs text-brand-clean/60">
+                    {stats?.data?.usuarios_basico ?? 0} assinante{(stats?.data?.usuarios_basico ?? 0) !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+              <span className="text-lg lg:text-xl font-bold text-blue-400">{formatBRL(stats?.data?.receita_basico ?? 0)}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 lg:p-4 bg-brand-midnight/50 rounded-xl border border-purple-500/20">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-purple-900/20">
+                  <CreditCard size={18} className="text-purple-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-brand-clean">Plano Premium</p>
+                  <p className="text-xs text-brand-clean/60">
+                    {stats?.data?.usuarios_premium ?? 0} assinante{(stats?.data?.usuarios_premium ?? 0) !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+              <span className="text-lg lg:text-xl font-bold text-purple-400">{formatBRL(stats?.data?.receita_premium ?? 0)}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Estatísticas de Tráfego */}

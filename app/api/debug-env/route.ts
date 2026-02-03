@@ -4,9 +4,9 @@ import path from 'path'
 
 export async function GET(request: NextRequest) {
   try {
-    // Em produção (Render/Vercel), não tentar ler .env.local
+    // Em produção (Railway, etc.), não tentar ler .env.local
     // As variáveis vêm de process.env diretamente
-    const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER || process.env.VERCEL
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY || process.env.RENDER
     
     // Ler arquivo .env.local diretamente (apenas em desenvolvimento)
     const envPath = path.join(process.cwd(), '.env.local')
