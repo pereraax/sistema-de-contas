@@ -59,9 +59,9 @@ export default async function ConfiguracoesPage({
   const profileData = await loadProfileData()
 
   return (
-    <div className="min-h-screen bg-brand-clean dark:bg-brand-midnight overflow-hidden">
+    <div className="min-h-screen bg-brand-clean dark:bg-[#1A1A1A] overflow-hidden">
       <Sidebar />
-      <main className="lg:ml-64 p-3 sm:p-4 lg:p-8 dark:bg-brand-midnight pt-6 lg:pt-4 overflow-y-auto h-screen">
+      <main className="lg:ml-64 p-3 sm:p-4 lg:p-8 dark:bg-[#1A1A1A] pt-6 lg:pt-4 overflow-y-auto h-screen">
         <div className="max-w-7xl mx-auto">
           {/* Logotipo centralizado acima do header */}
           <div className="flex justify-center mb-2 lg:hidden">

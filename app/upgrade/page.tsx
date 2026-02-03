@@ -136,11 +136,11 @@ export default function UpgradePage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white dark:bg-[#1A1A1A]">
       <Sidebar />
-      <main className="lg:ml-64 min-h-screen bg-white">
+      <main className="lg:ml-64 min-h-screen bg-white dark:bg-[#1A1A1A]">
         {/* Header Mobile */}
-        <div className="lg:hidden pt-6 pb-4 px-3 sm:px-4 bg-white border-b border-gray-200">
+        <div className="lg:hidden pt-6 pb-4 px-3 sm:px-4 bg-white dark:bg-[#1A1A1A] border-b border-gray-200 dark:border-white/10">
           <div className="flex justify-center mb-4">
             <div className="w-40 sm:w-52">
               <Logo />
@@ -148,14 +148,14 @@ export default function UpgradePage() {
           </div>
           <div className="flex items-center gap-3 px-3">
             <MenuButton />
-            <h1 className="text-xl sm:text-2xl font-display font-bold text-[#0D1B2A] leading-none">
+            <h1 className="text-xl sm:text-2xl font-display font-bold text-[#0D1B2A] dark:text-white leading-none">
               Upgrade de Plano
             </h1>
           </div>
         </div>
 
         {/* Conteúdo Principal */}
-        <section className="bg-white py-10 md:py-12">
+        <section className="bg-white dark:bg-[#1A1A1A] py-10 md:py-12">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-8">
               <h2 className="text-2xl md:text-3xl font-display font-bold text-[#0D1B2A] mb-3">

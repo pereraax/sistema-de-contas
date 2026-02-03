@@ -9,6 +9,7 @@ import NotificationBell from './NotificationBell'
 import UserProfileMenu from './UserProfileMenu'
 import ReceitasDespesasDonut from './ReceitasDespesasDonut'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 const MESES = [
@@ -41,6 +42,7 @@ export default function HomeLayoutNovo() {
     qtdReceitasPendentes: number
     qtdDespesasPendentes: number
   } | null>(null)
+  const [gastosPorBanco, setGastosPorBanco] = useState<Array<{ banco: string; gastos: number; saldo: number }>>([])
   const [loading, setLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<{ nome: string; imagem_url?: string }>({ nome: 'Usuário' })
   
@@ -92,10 +94,10 @@ export default function HomeLayoutNovo() {
   const applyTheme = (dark: boolean) => {
     if (dark) {
       document.documentElement.classList.add('dark')
-      document.body.style.backgroundColor = '#0D1B2A'
+      document.body.style.backgroundColor = '#1A1A1A'
       const mainElements = document.querySelectorAll('.min-h-screen, main')
       mainElements.forEach((el: any) => {
-        if (el) el.style.backgroundColor = '#0D1B2A'
+        if (el) el.style.backgroundColor = '#1A1A1A'
       })
     } else {
       document.documentElement.classList.remove('dark')
@@ -417,93 +419,150 @@ export default function HomeLayoutNovo() {
         </p>
       </div>
 
-      {/* Cards de Receitas e Despesas - Fundo compartilhado, lado a lado */}
-      <div className="bg-white dark:bg-brand-royal rounded-xl p-4 shadow-md border border-gray-100 dark:border-white/10 mb-6">
-        <div className="grid grid-cols-2 gap-4">
-          {/* Card Receitas */}
-          <div className="flex flex-col items-center justify-center">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 bg-green-50 dark:bg-green-900/30 rounded-lg">
-                <TrendingUp className="text-green-600 dark:text-green-400" size={18} />
+      {/* Cards de Receitas e Despesas - compacto, centralizado, visual clean */}
+      <div className="flex justify-center mb-6">
+        <div className="w-full max-w-sm sm:max-w-md bg-white dark:bg-[#252525] rounded-2xl px-5 py-4 shadow-sm border border-gray-100 dark:border-white/10">
+          <div className="grid grid-cols-2 gap-6">
+            {/* Receitas */}
+            <div className="flex flex-col items-center justify-center py-1">
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="p-1.5 bg-green-50 dark:bg-green-900/30 rounded-lg">
+                  <TrendingUp className="text-green-600 dark:text-green-400" size={18} />
+                </div>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Receitas</p>
               </div>
-              <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Receitas</p>
+              <p className="text-base sm:text-lg font-bold text-green-600 dark:text-green-400 tabular-nums">
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                }).format(totalEntradas)}
+              </p>
             </div>
-            <p className="text-lg font-bold text-green-600 dark:text-green-400">
-              {new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-              }).format(totalEntradas)}
-            </p>
-          </div>
 
-          {/* Card Despesas */}
-          <div className="flex flex-col items-center justify-center">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 bg-red-50 dark:bg-red-900/30 rounded-lg">
-                <TrendingDown className="text-red-600 dark:text-red-400" size={18} />
+            {/* Despesas */}
+            <div className="flex flex-col items-center justify-center py-1 border-l border-gray-200 dark:border-white/10">
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="p-1.5 bg-red-50 dark:bg-red-900/30 rounded-lg">
+                  <TrendingDown className="text-red-600 dark:text-red-400" size={18} />
+                </div>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Despesas</p>
               </div>
-              <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Despesas</p>
+              <p className="text-base sm:text-lg font-bold text-red-600 dark:text-red-400 tabular-nums">
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                }).format(totalSaidas)}
+              </p>
             </div>
-            <p className="text-lg font-bold text-red-600 dark:text-red-400">
-              {new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-              }).format(totalSaidas)}
-            </p>
           </div>
         </div>
       </div>
 
-      {/* Seção Pendências e alertas */}
-      <div className="mb-6">
-        <h2 className="text-lg font-bold text-brand-midnight dark:text-brand-clean mb-4">
+      {/* Seção Pendências e alertas + Gastos por banco: centralizada, dois blocos lado a lado */}
+      <div className="mb-6 flex flex-col items-center">
+        <h2 className="text-lg font-bold text-brand-midnight dark:text-brand-clean mb-4 w-full text-center">
           Pendências e alertas
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Card Receitas Pendentes */}
-          <div className="bg-white dark:bg-brand-royal rounded-xl p-6 shadow-lg border border-gray-100 dark:border-white/10 relative">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <TrendingUp className="text-green-600 dark:text-green-400" size={24} />
+        <div className="w-full max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Coluna esquerda: Receitas e Despesas pendentes (um acima do outro) */}
+          <div className="flex flex-col gap-3 min-w-0">
+            <div className="bg-white dark:bg-[#252525] rounded-2xl px-4 py-4 shadow-sm border border-gray-100 dark:border-white/10 relative">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                  <TrendingUp className="text-green-600 dark:text-green-400" size={20} />
+                </div>
+                <p className="text-sm font-semibold text-brand-midnight dark:text-brand-clean">
+                  Receitas pendentes
+                </p>
+                {qtdReceitasPendentes > 0 && (
+                  <span className="ml-auto bg-green-500 text-white text-xs font-bold min-w-[1.25rem] h-5 flex items-center justify-center rounded-full">
+                    {qtdReceitasPendentes}
+                  </span>
+                )}
               </div>
-              <p className="text-sm font-semibold text-brand-midnight dark:text-brand-clean">
-                Receitas pendentes
+              <p className="text-xl font-bold text-green-600 dark:text-green-400 tabular-nums">
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                }).format(receitasPendentes)}
               </p>
-              {qtdReceitasPendentes > 0 && (
-                <span className="ml-auto bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                  {qtdReceitasPendentes}
-                </span>
-              )}
             </div>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-              {new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-              }).format(receitasPendentes)}
-            </p>
+            <div className="bg-white dark:bg-[#252525] rounded-2xl px-4 py-4 shadow-sm border border-gray-100 dark:border-white/10 relative">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                  <TrendingDown className="text-red-600 dark:text-red-400" size={20} />
+                </div>
+                <p className="text-sm font-semibold text-brand-midnight dark:text-brand-clean">
+                  Despesas pendentes
+                </p>
+                {qtdDespesasPendentes > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-xs font-bold min-w-[1.25rem] h-5 flex items-center justify-center rounded-full">
+                    {qtdDespesasPendentes}
+                  </span>
+                )}
+              </div>
+              <p className="text-xl font-bold text-red-600 dark:text-red-400 tabular-nums">
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                }).format(despesasPendentes)}
+              </p>
+            </div>
           </div>
 
-          {/* Card Despesas Pendentes */}
-          <div className="bg-white dark:bg-brand-royal rounded-xl p-6 shadow-lg border border-gray-100 dark:border-white/10 relative">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <TrendingDown className="text-red-600 dark:text-red-400" size={24} />
-              </div>
+          {/* Coluna direita: Painel Gastos por banco */}
+          <div className="bg-white dark:bg-[#252525] rounded-2xl px-4 py-4 shadow-sm border border-gray-100 dark:border-white/10 min-w-0 flex flex-col">
+            <div className="flex items-center justify-between gap-2 mb-1">
               <p className="text-sm font-semibold text-brand-midnight dark:text-brand-clean">
-                Despesas pendentes
+                Gastos por banco
               </p>
-              {qtdDespesasPendentes > 0 && (
-                <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                  {qtdDespesasPendentes}
-                </span>
-              )}
+              <Link
+                href="/gastos-por-banco"
+                className="text-xs font-medium text-brand-aqua hover:underline shrink-0"
+              >
+                Ver detalhes
+              </Link>
             </div>
-            <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-              {new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-              }).format(despesasPendentes)}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 whitespace-normal">
+              Ao criar um registro, escolha o banco para ver gastos e saldo aqui.
             </p>
+            <div className="space-y-2 max-h-[200px] overflow-y-auto flex-1 min-h-0">
+              {[
+                { id: 'inter', nome: 'Inter' },
+                { id: 'c6bank', nome: 'C6 Bank' },
+                { id: 'nubank', nome: 'Nubank' },
+                { id: 'itau', nome: 'Itaú' },
+                { id: 'santander', nome: 'Santander' },
+                { id: 'picpay', nome: 'PicPay' },
+                { id: 'mercadopago', nome: 'Mercado Pago' },
+                { id: 'bradesco', nome: 'Bradesco' },
+                { id: 'caixa', nome: 'Caixa' },
+              ].map((b) => {
+                const row = gastosPorBanco.find((r) => r.banco === b.id) || { gastos: 0, saldo: 0 }
+                return (
+                  <div
+                    key={b.id}
+                    className="flex items-center justify-between gap-2 py-2 px-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 shrink-0"
+                  >
+                    <span className="text-sm font-medium text-brand-midnight dark:text-brand-clean truncate min-w-0">
+                      {b.nome}
+                    </span>
+                    <div className="flex items-center gap-2 sm:gap-3 text-xs shrink-0">
+                      <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        Gastos: <span className="font-medium text-red-600 dark:text-red-400">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(row.gastos)}
+                        </span>
+                      </span>
+                      <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        Saldo: <span className={`font-medium ${row.saldo >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(row.saldo)}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       </div>

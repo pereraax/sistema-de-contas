@@ -89,7 +89,7 @@ export default function AdminProtected({
   // Se estiver carregando, mostrar loading
   if (isLoading || !shouldRender) {
     return (
-      <div className="min-h-screen bg-brand-midnight flex items-center justify-center">
+      <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center">
         <div className="text-brand-clean">Verificando autenticação...</div>
       </div>
     )

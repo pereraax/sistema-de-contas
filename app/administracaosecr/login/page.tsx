@@ -72,9 +72,8 @@ export default function AdminLoginPage() {
 
   return (
     <div 
-      className="min-h-screen bg-gradient-to-br from-brand-midnight via-brand-royal to-brand-midnight flex items-center justify-center p-4"
+      className="min-h-screen bg-[#1A1A1A] flex items-center justify-center p-4"
       style={{
-        background: 'linear-gradient(to bottom right, #0D1B2A, #1B263B, #0D1B2A)',
         minHeight: '100vh',
         width: '100%',
         position: 'fixed',
@@ -86,9 +85,8 @@ export default function AdminLoginPage() {
     >
       <div className="w-full max-w-md">
         <div 
-          className="bg-brand-royal/90 backdrop-blur-lg rounded-3xl p-8 shadow-2xl border border-white/10"
+          className="bg-[#252525] backdrop-blur-lg rounded-3xl p-8 shadow-2xl border border-white/10"
           style={{
-            backgroundColor: 'rgba(27, 38, 59, 0.9)',
             backdropFilter: 'blur(16px)',
             borderRadius: '1.5rem',
             border: '1px solid rgba(255, 255, 255, 0.1)'

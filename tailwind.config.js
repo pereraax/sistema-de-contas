@@ -9,6 +9,9 @@ module.exports = {
   safelist: [
     // Cores customizadas
     'bg-[#1a1a1a]',
+    'bg-[#1A1A1A]',
+    'bg-[#252525]',
+    'bg-[#1f1f1f]',
     'bg-[#2a2a2a]',
     'bg-[#00C2FF]',
     'bg-[#0099CC]',
@@ -59,8 +62,8 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          midnight: '#0D1B2A',
-          royal: '#1B263B',
+          midnight: '#1A1A1A',
+          royal: '#252525',
           aqua: '#1e4976',
           white: '#FFFFFF',
           clean: '#E6E6E6',

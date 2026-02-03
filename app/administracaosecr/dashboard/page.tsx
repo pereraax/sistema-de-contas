@@ -97,7 +97,7 @@ export default async function AdminDashboardPage() {
           return (
             <div
               key={index}
-              className="bg-brand-royal rounded-2xl p-6 shadow-lg border border-white/10"
+              className="bg-[#252525] rounded-2xl p-6 shadow-lg border border-white/10"
             >
               <div className="flex items-center justify-between mb-4">
                 <div className={`p-3 rounded-xl ${card.bgColor}`}>
@@ -121,7 +121,7 @@ export default async function AdminDashboardPage() {
           Saldo de vendas
         </h2>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
-          <div className="bg-brand-royal rounded-2xl p-6 shadow-lg border border-white/10 lg:col-span-2">
+          <div className="bg-[#252525] rounded-2xl p-6 shadow-lg border border-white/10 lg:col-span-2">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-3 rounded-xl bg-emerald-900/20">
                 <DollarSign size={24} className="text-emerald-400" strokeWidth={2} />
@@ -135,7 +135,7 @@ export default async function AdminDashboardPage() {
             </div>
             <p className="text-xs text-brand-clean/50">Valor estimado com base nos assinantes atuais (Básico e Premium).</p>
           </div>
-          <div className="bg-brand-royal rounded-2xl p-6 shadow-lg border border-white/10">
+          <div className="bg-[#252525] rounded-2xl p-6 shadow-lg border border-white/10">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-3 rounded-xl bg-amber-900/20">
                 <Wallet size={24} className="text-amber-400" strokeWidth={2} />
@@ -150,10 +150,10 @@ export default async function AdminDashboardPage() {
             <p className="text-xs text-brand-clean/50">Receita das assinaturas (sem custos operacionais).</p>
           </div>
         </div>
-        <div className="mt-4 bg-brand-royal rounded-2xl p-4 lg:p-6 shadow-lg border border-white/10">
+        <div className="mt-4 bg-[#252525] rounded-2xl p-4 lg:p-6 shadow-lg border border-white/10">
           <p className="text-sm font-semibold text-brand-clean/80 mb-3" style={{ fontWeight: 600 }}>Por plano</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:gap-4">
-            <div className="flex items-center justify-between p-3 lg:p-4 bg-brand-midnight/50 rounded-xl border border-blue-500/20">
+            <div className="flex items-center justify-between p-3 lg:p-4 bg-[#1f1f1f] rounded-xl border border-white/10">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg bg-blue-900/20">
                   <CreditCard size={18} className="text-blue-400" />
@@ -167,7 +167,7 @@ export default async function AdminDashboardPage() {
               </div>
               <span className="text-lg lg:text-xl font-bold text-blue-400">{formatBRL(stats?.data?.receita_basico ?? 0)}</span>
             </div>
-            <div className="flex items-center justify-between p-3 lg:p-4 bg-brand-midnight/50 rounded-xl border border-purple-500/20">
+            <div className="flex items-center justify-between p-3 lg:p-4 bg-[#1f1f1f] rounded-xl border border-purple-500/20">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg bg-purple-900/20">
                   <CreditCard size={18} className="text-purple-400" />
@@ -190,24 +190,24 @@ export default async function AdminDashboardPage() {
         <VisitorStats />
       </div>
 
-      <div className="bg-brand-royal rounded-2xl p-4 lg:p-6 shadow-lg border border-white/10">
+      <div className="bg-[#252525] rounded-2xl p-4 lg:p-6 shadow-lg border border-white/10">
         <h2 className="text-lg lg:text-xl font-display font-bold text-brand-clean mb-3 lg:mb-4" style={{ fontWeight: 700 }}>
           Resumo
         </h2>
         <div className="space-y-3 lg:space-y-4">
-          <div className="flex items-center justify-between p-3 lg:p-4 bg-brand-midnight/50 rounded-xl">
+          <div className="flex items-center justify-between p-3 lg:p-4 bg-[#1f1f1f] rounded-xl">
             <span className="text-sm lg:text-base font-semibold text-brand-clean/80" style={{ fontWeight: 600 }}>Total de usuários cadastrados</span>
             <span className="text-xl lg:text-2xl font-bold text-brand-clean" style={{ fontWeight: 700 }}>
               {stats?.data?.total_usuarios || 0}
             </span>
           </div>
-          <div className="flex items-center justify-between p-3 lg:p-4 bg-brand-midnight/50 rounded-xl">
+          <div className="flex items-center justify-between p-3 lg:p-4 bg-[#1f1f1f] rounded-xl">
             <span className="text-sm lg:text-base font-semibold text-brand-clean/80" style={{ fontWeight: 600 }}>Usuários com plano ativo</span>
             <span className="text-xl lg:text-2xl font-bold text-green-400" style={{ fontWeight: 700 }}>
               {stats?.data?.usuarios_assinantes || 0}
             </span>
           </div>
-          <div className="flex items-center justify-between p-3 lg:p-4 bg-brand-midnight/50 rounded-xl">
+          <div className="flex items-center justify-between p-3 lg:p-4 bg-[#1f1f1f] rounded-xl">
             <span className="text-sm lg:text-base font-semibold text-brand-clean/80" style={{ fontWeight: 600 }}>Usuários em teste</span>
             <span className="text-xl lg:text-2xl font-bold text-orange-400" style={{ fontWeight: 700 }}>
               {stats?.data?.usuarios_teste || 0}

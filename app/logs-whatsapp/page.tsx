@@ -92,7 +92,7 @@ export default function LogsWhatsAppPage() {
     : logs
 
   return (
-    <div className="min-h-screen bg-brand-midnight text-brand-clean p-4 sm:p-6">
+    <div className="min-h-screen bg-[#1A1A1A] text-brand-clean p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">

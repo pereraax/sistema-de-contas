@@ -72,6 +72,7 @@ export default function ModalEditarRegistro({
     parcelas_totais: '1',
     valor_parcelas: '',
     data_registro: '',
+    banco: '',
   })
   const [temParcelas, setTemParcelas] = useState(false)
   
@@ -136,6 +137,18 @@ export default function ModalEditarRegistro({
   }
   const [dataInput, setDataInput] = useState(initialDateTime.date)
   const [horaInput, setHoraInput] = useState(initialDateTime.time)
+
+  const BANCOS = [
+    { id: 'inter', nome: 'Inter', cor: '#FF7A00', inicial: 'I' },
+    { id: 'c6bank', nome: 'C6 Bank', cor: '#000000', inicial: 'C' },
+    { id: 'nubank', nome: 'Nubank', cor: '#820AD1', inicial: 'N' },
+    { id: 'itau', nome: 'Itaú', cor: '#EC7000', inicial: 'I' },
+    { id: 'santander', nome: 'Santander', cor: '#EC0000', inicial: 'S' },
+    { id: 'picpay', nome: 'PicPay', cor: '#21C25E', inicial: 'P' },
+    { id: 'mercadopago', nome: 'Mercado Pago', cor: '#009EE3', inicial: 'M' },
+    { id: 'bradesco', nome: 'Bradesco', cor: '#CC092F', inicial: 'B' },
+    { id: 'caixa', nome: 'Caixa', cor: '#0066B3', inicial: 'C' },
+  ]
 
   const categoriasPadrao = [
     { id: 'alimentacao', nome: 'Alimentação', icon: UtensilsCrossed },
@@ -374,6 +387,7 @@ export default function ModalEditarRegistro({
         parcelas_totais: '1',
         valor_parcelas: '',
         data_registro: new Date().toISOString().slice(0, 16),
+        banco: '',
       })
       const now = new Date()
       const newDateTime = {
@@ -516,6 +530,7 @@ export default function ModalEditarRegistro({
             formOutraParcela.append('parcelas_totais', qtd.toString())
             formOutraParcela.append('parcelas_pagas', '0')
             formOutraParcela.append('data_registro', new Date(parcela.data).toISOString())
+            if (formData.banco) formOutraParcela.append('banco', formData.banco)
             
             return atualizarRegistro(parcela.id!, formOutraParcela).catch(err => {
               console.error('Erro ao atualizar parcela:', err)
@@ -589,6 +604,7 @@ export default function ModalEditarRegistro({
         form.append('parcelas_pagas', Math.min(parcelasPagas, parseInt(formData.parcelas_totais)).toString())
       }
       form.append('data_registro', new Date(formData.data_registro).toISOString())
+      if (formData.banco) form.append('banco', formData.banco)
 
       const result = await criarRegistro(form)
 
@@ -800,6 +816,41 @@ export default function ModalEditarRegistro({
                 placeholder="0,00"
                 className="w-full pl-10 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50"
               />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-2">
+              Banco (opcional)
+            </label>
+            <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-2">
+              Associe este registro a um banco para ver gastos e saldo no painel da home.
+            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              {BANCOS.map((banco) => {
+                const isSelected = formData.banco === banco.id
+                return (
+                  <button
+                    key={banco.id}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, banco: isSelected ? '' : banco.id })}
+                    className={`flex flex-col items-center justify-center gap-1.5 px-2 py-3 rounded-xl font-medium transition-smooth border-2 min-h-[72px] ${
+                      isSelected
+                        ? 'bg-brand-aqua/20 dark:bg-brand-aqua/30 border-brand-aqua text-brand-aqua shadow-md'
+                        : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 text-brand-midnight dark:text-brand-clean hover:border-brand-aqua/50 hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+                    }`}
+                    title={banco.nome}
+                  >
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm"
+                      style={{ backgroundColor: banco.cor }}
+                    >
+                      {banco.inicial}
+                    </div>
+                    <span className="text-[10px] sm:text-xs text-center leading-tight truncate w-full">{banco.nome}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
 

@@ -46,7 +46,7 @@ export default async function RegistrosPage({
 }) {
 
   return (
-    <div className="min-h-screen bg-brand-clean dark:bg-brand-midnight">
+    <div className="min-h-screen bg-brand-clean dark:bg-[#1A1A1A]">
       <Sidebar />
       <main className="lg:ml-64 p-3 sm:p-4 lg:p-8 dark:bg-brand-midnight pt-6 lg:pt-4">
         <div className="max-w-7xl mx-auto">

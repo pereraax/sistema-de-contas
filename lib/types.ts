@@ -31,6 +31,8 @@ export interface Registro {
   divida_original_id?: string
   proxima_recorrencia?: string
   ativo?: boolean
+  /** Banco associado ao registro (ex: inter, nubank, itau). Opcional. */
+  banco?: string
 }
 
 export interface Emprestimo {

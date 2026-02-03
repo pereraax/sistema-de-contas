@@ -73,6 +73,11 @@ export async function criarRegistro(formData: FormData) {
       data_registro: formData.get('data_registro') as string || new Date().toISOString(),
     }
 
+    const banco = formData.get('banco') as string
+    if (banco && banco.trim()) {
+      registro.banco = banco.trim()
+    }
+
     // Adicionar campos de recorrência se fornecidos
     const isRecorrente = formData.get('is_recorrente') === 'true'
     if (isRecorrente) {
@@ -130,19 +135,24 @@ export async function atualizarRegistro(id: string, formData: FormData) {
 
   const valorFinal = Math.round(valor * 100) / 100
 
+  const updatePayload: Record<string, unknown> = {
+    nome: formData.get('nome') as string,
+    observacao: (formData.get('observacao') as string) || null,
+    tipo: formData.get('tipo') as TipoRegistro,
+    valor: valorFinal,
+    categoria: (formData.get('categoria') as string) || null,
+    etiquetas: JSON.parse(formData.get('etiquetas') as string || '[]'),
+    parcelas_totais: parseInt(formData.get('parcelas_totais') as string || '1'),
+    parcelas_pagas: parseInt(formData.get('parcelas_pagas') as string || '0'),
+    data_registro: formData.get('data_registro') as string,
+  }
+  const banco = formData.get('banco') as string
+  if (banco !== null && banco !== undefined) {
+    updatePayload.banco = banco.trim() || null
+  }
   const { data, error } = await supabase
     .from('registros')
-    .update({
-      nome: formData.get('nome') as string,
-      observacao: (formData.get('observacao') as string) || null,
-      tipo: formData.get('tipo') as TipoRegistro,
-      valor: valorFinal,
-      categoria: (formData.get('categoria') as string) || null,
-      etiquetas: JSON.parse(formData.get('etiquetas') as string || '[]'),
-      parcelas_totais: parseInt(formData.get('parcelas_totais') as string || '1'),
-      parcelas_pagas: parseInt(formData.get('parcelas_pagas') as string || '0'),
-      data_registro: formData.get('data_registro') as string,
-    })
+    .update(updatePayload)
     .eq('id', id)
     .select()
     .single()
@@ -399,6 +409,9 @@ export async function obterRegistros(filtros: any = {}) {
   }
   if (filtros.data_fim) {
     query = query.lte('data_registro', filtros.data_fim)
+  }
+  if (filtros.banco && String(filtros.banco).trim()) {
+    query = query.eq('banco', String(filtros.banco).trim().toLowerCase())
   }
 
   const { data, error } = await query
@@ -704,6 +717,95 @@ export async function obterEstatisticas(dataInicio?: string, dataFim?: string) {
     // Saldo calculado apenas com entradas e saídas, SEM incluir dívidas
     // Dívidas têm seção própria e são gerenciadas separadamente
     saldo: totalEntradas - totalSaidas,
+  }
+}
+
+/** Lista de IDs de bancos exibidos no painel (mesma ordem do modal). */
+const BANCOS_IDS = ['inter', 'c6bank', 'nubank', 'itau', 'santander', 'picpay', 'mercadopago', 'bradesco', 'caixa']
+
+export async function obterGastosPorBanco(dataInicio?: string, dataFim?: string): Promise<{ data: Array<{ banco: string; gastos: number; saldo: number }>; error: string | null }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: [], error: 'Não autenticado' }
+
+    const { data: usuarios } = await supabase.from('users').select('id').eq('account_owner_id', user.id)
+    const userIds = (usuarios || []).map(u => u.id)
+    if (userIds.length === 0) return { data: BANCOS_IDS.map(banco => ({ banco, gastos: 0, saldo: 0 })), error: null }
+
+    let query = supabase
+      .from('registros')
+      .select('tipo, valor, banco')
+      .in('user_id', userIds)
+      .not('banco', 'is', null)
+    if (dataInicio) query = query.gte('data_registro', dataInicio)
+    if (dataFim) query = query.lte('data_registro', dataFim)
+
+    const { data: registros, error } = await query
+    if (error) return { data: [], error: error.message }
+
+    const map = new Map<string, { entradas: number; gastos: number }>()
+    for (const id of BANCOS_IDS) map.set(id, { entradas: 0, gastos: 0 })
+    ;(registros || []).forEach((r: { tipo: string; valor: number; banco: string }) => {
+      const key = (r.banco || '').trim().toLowerCase()
+      if (!map.has(key)) map.set(key, { entradas: 0, gastos: 0 })
+      const row = map.get(key)!
+      if (r.tipo === 'entrada') row.entradas += Number(r.valor)
+      else if (r.tipo === 'saida' || r.tipo === 'divida') row.gastos += Number(r.valor)
+    })
+
+    const data = BANCOS_IDS.map(banco => {
+      const row = map.get(banco) || { entradas: 0, gastos: 0 }
+      return { banco, gastos: row.gastos, saldo: row.entradas - row.gastos }
+    })
+    return { data, error: null }
+  } catch (e: any) {
+    return { data: [], error: e?.message || 'Erro ao buscar gastos por banco' }
+  }
+}
+
+/** Detalhes de um banco em um período: totais e lista de registros. */
+export async function obterDetalhesBanco(
+  bancoId: string,
+  dataInicio: string,
+  dataFim: string
+): Promise<{
+  data: {
+    entradas: number
+    gastos: number
+    saldo: number
+    disponivel: number
+    registros: any[]
+  } | null
+  error: string | null
+}> {
+  try {
+    const { data: registros, error } = await obterRegistros({
+      banco: bancoId,
+      data_inicio: dataInicio,
+      data_fim: dataFim,
+    })
+    if (error) return { data: null, error }
+    const list = registros || []
+    let entradas = 0
+    let gastos = 0
+    list.forEach((r: { tipo: string; valor: number }) => {
+      if (r.tipo === 'entrada') entradas += Number(r.valor)
+      else if (r.tipo === 'saida' || r.tipo === 'divida') gastos += Number(r.valor)
+    })
+    const saldo = entradas - gastos
+    return {
+      data: {
+        entradas,
+        gastos,
+        saldo,
+        disponivel: saldo,
+        registros: list,
+      },
+      error: null,
+    }
+  } catch (e: any) {
+    return { data: null, error: e?.message || 'Erro ao buscar detalhes do banco' }
   }
 }
 

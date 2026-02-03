@@ -166,7 +166,7 @@ function PagamentoPixContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-brand-midnight via-brand-royal to-brand-midnight">
+      <div className="min-h-screen bg-[#1A1A1A]">
         <Sidebar />
         <main className="lg:ml-64 min-h-screen flex items-center justify-center">
           <div className="text-center">
@@ -179,7 +179,7 @@ function PagamentoPixContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-midnight via-brand-royal to-brand-midnight">
+    <div className="min-h-screen bg-[#1A1A1A]">
       <Sidebar />
       <main className="lg:ml-64 min-h-screen p-4 lg:p-8">
         <div className="max-w-2xl mx-auto">

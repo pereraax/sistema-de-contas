@@ -35,7 +35,7 @@ async function MinhasMetasContent() {
 
 export default function MinhasMetasPage() {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gradient-to-br dark:from-brand-midnight dark:via-brand-royal dark:to-brand-midnight">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#1A1A1A]">
       <Sidebar />
       <main className="lg:ml-64 p-3 sm:p-4 md:p-8 bg-gray-50 dark:bg-brand-midnight pt-6 lg:pt-4">
         <div className="max-w-7xl mx-auto">

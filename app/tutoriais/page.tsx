@@ -75,7 +75,7 @@ export default function TutoriaisPage() {
   })
 
   return (
-    <div className="min-h-screen bg-brand-clean dark:bg-brand-midnight">
+    <div className="min-h-screen bg-brand-clean dark:bg-[#1A1A1A]">
       <Sidebar />
       <main className="lg:ml-64 p-4 lg:p-8 dark:bg-brand-midnight">
         <div className="max-w-7xl mx-auto">

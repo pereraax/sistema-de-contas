@@ -22,11 +22,11 @@ export default function AdminLayoutWrapper({
   // Para outras rotas, usar proteção e sidebar
   return (
     <AdminProtected>
-      <div className="min-h-screen bg-brand-midnight">
+      <div className="admin-panel-layout min-h-screen bg-[#1A1A1A]">
         {/* Botão de menu mobile */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-brand-royal border border-white/10 rounded-lg text-brand-clean hover:bg-white/10 transition-smooth"
+          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-[#1A1A1A] border border-white/10 rounded-lg text-white hover:bg-white/10 transition-smooth"
           aria-label="Toggle menu"
         >
           {sidebarOpen ? <X size={24} /> : <Menu size={24} />}

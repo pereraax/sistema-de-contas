@@ -16,7 +16,8 @@ import {
   Clock,
   Tag,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Landmark
 } from 'lucide-react'
 import Logo from './Logo'
 
@@ -25,6 +26,7 @@ const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed'
 const menuItems = [
   { href: '/home', label: 'Home', icon: Home },
   { href: '/registros', label: 'Todos os Registros', icon: FileText },
+  { href: '/gastos-por-banco', label: 'Gastos por banco', icon: Landmark },
   { href: '/dividas', label: 'Dívidas', icon: CreditCard },
   { href: '/lembretes', label: 'Lembretes', icon: Clock },
   { href: '/minhas-metas', label: 'Minhas Metas', icon: PiggyBank },
@@ -78,7 +80,7 @@ export default function Sidebar() {
   return (
     <>
       <aside
-        className={`fixed left-0 top-0 h-screen bg-white dark:bg-brand-royal border-r border-gray-200 dark:border-brand-midnight/50 shadow-lg z-50 hidden lg:flex flex-col overflow-y-auto transition-all duration-300 ${
+        className={`fixed left-0 top-0 h-screen bg-white dark:bg-[#1A1A1A] border-r border-gray-200 dark:border-white/10 shadow-lg z-50 hidden lg:flex flex-col overflow-y-auto transition-all duration-300 ${
           collapsed ? 'w-20 sidebar-collapsed' : 'w-64'
         }`}
       >
@@ -104,19 +106,19 @@ export default function Sidebar() {
                     collapsed ? 'justify-center px-0 py-3' : 'px-4 py-3'
                   } ${
                     isActive
-                      ? 'bg-brand-aqua text-white shadow-md'
+                      ? 'bg-brand-aqua text-white dark:bg-[#252525] dark:text-white shadow-md'
                       : collapsed
-                        ? 'text-brand-aqua dark:text-white hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
-                        : 'text-brand-aqua dark:text-brand-aqua/90 hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+                        ? 'text-brand-aqua dark:text-white hover:bg-brand-aqua/10 dark:hover:bg-white/10'
+                        : 'text-brand-aqua dark:text-white hover:bg-brand-aqua/10 dark:hover:bg-white/10'
                   }`}
                 >
                   {isLoading ? (
-                    <Loader2 size={20} strokeWidth={2} className={`animate-spin flex-shrink-0 ${isActive ? 'text-white' : collapsed ? 'text-brand-aqua dark:text-white' : 'text-brand-aqua'}`} />
+                    <Loader2 size={20} strokeWidth={2} className={`animate-spin flex-shrink-0 ${isActive ? 'text-white' : 'text-brand-aqua dark:text-white'}`} />
                   ) : (
-                    <Icon size={20} strokeWidth={2} className={`flex-shrink-0 ${isActive ? 'text-white' : ''}`} />
+                    <Icon size={20} strokeWidth={2} className={`flex-shrink-0 ${isActive ? 'text-white' : 'dark:text-white'}`} />
                   )}
                   {!collapsed && (
-                    <span className={`font-medium truncate ${isActive ? 'text-white' : 'text-gray-700 dark:text-brand-clean'}`}>
+                    <span className={`font-medium truncate ${isActive ? 'text-white' : 'text-gray-700 dark:text-white'}`}>
                       {item.label}
                     </span>
                   )}
@@ -124,17 +126,17 @@ export default function Sidebar() {
               )
             })}
 
-            <div className={`pt-6 border-t border-gray-200 dark:border-brand-midnight/30 ${collapsed ? 'px-0' : ''}`}>
+            <div className={`pt-6 border-t border-gray-200 dark:border-white/10 ${collapsed ? 'px-0' : ''}`}>
               <button
                 onClick={() => router.push('/upgrade')}
                 onMouseEnter={() => router.prefetch('/upgrade')}
                 title={collapsed ? 'Fazer Upgrade' : undefined}
-                className={`w-full flex items-center rounded-xl transition-all duration-200 bg-gradient-to-r from-brand-aqua to-primary-500 hover:from-brand-aqua/90 hover:to-primary-400 shadow-md hover:shadow-lg text-left group ${
+                className={`w-full flex items-center rounded-xl transition-all duration-200 shadow-md hover:shadow-lg text-left group ${
                   collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-4 py-3'
-                }`}
+                } bg-gradient-to-r from-brand-aqua to-primary-500 hover:from-brand-aqua/90 hover:to-primary-400 dark:from-amber-400 dark:to-yellow-500 dark:hover:from-amber-300 dark:hover:to-yellow-400`}
               >
-                <Crown size={20} strokeWidth={2} className="text-white flex-shrink-0 group-hover:scale-110 transition-transform" />
-                {!collapsed && <span className="font-semibold text-white truncate">Fazer Upgrade</span>}
+                <Crown size={20} strokeWidth={2} className="text-white dark:text-amber-900 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                {!collapsed && <span className="font-semibold text-white dark:text-amber-900 truncate">Fazer Upgrade</span>}
               </button>
             </div>
           </nav>
@@ -150,12 +152,12 @@ export default function Sidebar() {
         <button
           onClick={toggleCollapsed}
           aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          className="w-11 h-11 rounded-full bg-white dark:bg-brand-royal border-2 border-gray-200 dark:border-brand-aqua/30 shadow-lg hover:shadow-xl hover:border-brand-aqua/50 dark:hover:border-brand-aqua/50 flex items-center justify-center text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/15 transition-all duration-200"
+          className="w-11 h-11 rounded-full bg-white dark:bg-[#252525] border-2 border-gray-200 dark:border-white/20 shadow-lg hover:shadow-xl hover:border-brand-aqua/50 dark:hover:border-brand-aqua/50 flex items-center justify-center text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/15 transition-all duration-200"
         >
           {collapsed ? (
-            <ChevronRight size={20} strokeWidth={2.5} className="text-brand-aqua" />
+            <ChevronRight size={20} strokeWidth={2.5} className="text-brand-aqua dark:text-white" />
           ) : (
-            <ChevronLeft size={20} strokeWidth={2.5} className="text-brand-aqua" />
+            <ChevronLeft size={20} strokeWidth={2.5} className="text-brand-aqua dark:text-white" />
           )}
         </button>
       </div>

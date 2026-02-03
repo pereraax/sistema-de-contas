@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@/lib/types'
 import { obterUsuarios, criarUsuario, resetarTodosRegistros, atualizarImagemPerfilUsuario, atualizarImagemProprioPerfil } from '@/lib/actions'
-import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown, Download, Smartphone, Share2, ArrowRight, Lightbulb, Copy, Check, Camera, Star } from 'lucide-react'
+import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown, Download, Smartphone, Share2, ArrowRight, Lightbulb, Copy, Check, Camera } from 'lucide-react'
 import { createNotification } from './NotificationBell'
 import { atualizarSenha, reenviarEmailConfirmacao, signOut, limparBypassEmailConfirmacao } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/client'
@@ -560,6 +560,20 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
     }
   }
 
+  // Lista para exibição: sempre incluir o dono da conta no topo se não estiver na tabela users
+  const usuariosParaExibir = useMemo(() => {
+    if (!userProfile?.id) return usuarios
+    const donoJaEstaNaLista = usuarios.some((u) => u.id === userProfile.id)
+    if (donoJaEstaNaLista) return usuarios
+    const dono: User = {
+      id: userProfile.id,
+      nome: userProfile.profile?.nome?.trim() || userProfile.email?.split('@')[0] || 'Você (dono da conta)',
+      created_at: (userProfile as any).created_at || new Date().toISOString(),
+      imagem_url: userProfile.profile?.imagem_url,
+    }
+    return [dono, ...usuarios]
+  }, [usuarios, userProfile])
+
   const handleCriarUsuario = async () => {
     if (!novoUsuarioNome.trim()) return
 
@@ -789,7 +803,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                 className={`flex items-center gap-2 px-6 py-4 font-medium transition-smooth whitespace-nowrap flex-shrink-0 ${
                   tabAtivo === tab.id
                     ? 'bg-brand-aqua/10 text-brand-aqua border-b-2 border-brand-aqua'
-                    : 'text-brand-midnight dark:text-brand-clean/60 hover:text-brand-midnight dark:text-brand-clean hover:bg-brand-clean dark:bg-brand-royal/50'
+                    : 'text-brand-midnight dark:text-white/80 hover:text-brand-midnight dark:hover:text-white hover:bg-brand-clean dark:bg-brand-royal/50'
                 }`}
               >
                 <Icon size={20} strokeWidth={2} />
@@ -1807,7 +1821,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
         {tabAtivo === 'usuarios' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
+              <h2 className="text-xl font-display font-bold text-brand-midnight dark:text-white">
                 Gerenciar Usuários/Pessoas
               </h2>
               <button
@@ -1852,25 +1866,25 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
               </div>
             )}
 
-            {/* Lista de usuários */}
+            {/* Lista de usuários (sempre inclui o dono da conta no topo) */}
             <div className="space-y-3">
-              {usuarios.length === 0 ? (
+              {usuariosParaExibir.length === 0 ? (
                 <div className="text-center py-12 bg-brand-clean dark:bg-brand-royal/30 rounded-xl">
                   <p className="text-brand-midnight dark:text-brand-clean/60">
                     Nenhum usuário cadastrado ainda
                   </p>
                 </div>
               ) : (
-                usuarios.map((user) => (
+                usuariosParaExibir.map((user) => (
                   <div
                     key={user.id}
                     className="p-4 bg-white dark:bg-brand-midnight/60 border border-gray-200 rounded-xl hover:bg-brand-clean dark:bg-brand-royal/50 transition-smooth backdrop-blur-sm flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3">
-                      {user.imagem_url ? (
+                      {(user.imagem_url || (user.id === userProfile?.id && userProfile?.profile?.imagem_url)) ? (
                         <div className="w-12 h-12 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border-2 border-brand-aqua/30">
                           <img 
-                            src={user.imagem_url} 
+                            src={user.id === userProfile?.id ? `/api/user/avatar?t=${avatarCacheKey}` : (user.imagem_url || '')} 
                             alt={user.nome}
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -1892,13 +1906,16 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                         </div>
                       )}
                       <div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-medium text-brand-midnight dark:text-brand-clean">{user.nome}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-medium text-brand-midnight dark:text-white">{user.nome}</p>
                           {userProfile?.id === user.id && (
-                            <Star size={14} className="text-yellow-500 fill-yellow-500" strokeWidth={2.5} />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-medium border border-amber-500/40">
+                              <Crown size={12} className="text-amber-400" strokeWidth={2.5} />
+                              Dono da conta
+                            </span>
                           )}
                         </div>
-                        <p className="text-xs text-brand-midnight dark:text-brand-clean/50">
+                        <p className="text-xs text-brand-midnight/70 dark:text-white/70">
                           Criado em {new Date(user.created_at).toLocaleDateString('pt-BR')}
                         </p>
                       </div>
@@ -1911,16 +1928,18 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                       >
                         <Edit size={18} strokeWidth={2} />
                       </button>
-                      <button
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-smooth"
-                        title="Excluir"
-                        onClick={() => {
-                          setUsuarioParaExcluir(user)
-                          setShowModalExcluirUsuario(true)
-                        }}
-                      >
-                        <Trash2 size={18} strokeWidth={2} />
-                      </button>
+                      {user.id !== userProfile?.id && (
+                        <button
+                          className="p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
+                          title="Excluir"
+                          onClick={() => {
+                            setUsuarioParaExcluir(user)
+                            setShowModalExcluirUsuario(true)
+                          }}
+                        >
+                          <Trash2 size={18} strokeWidth={2} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))
