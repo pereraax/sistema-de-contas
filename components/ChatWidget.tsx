@@ -620,21 +620,31 @@ export default function ChatWidget() {
     return null
   }
 
+  // Páginas sem barra inferior (mobile): botão mais baixo
+  const publicRoutesNoBottomNav = ['/', '/login', '/cadastro', '/planos', '/termos', '/privacidade', '/suporte']
+  const isPublicPage = pathname != null && publicRoutesNoBottomNav.includes(pathname)
+
   return (
     <>
-      {/* Botão flutuante do chat */}
+      {/* Botão flutuante do chat — leve movimento (float sutil) */}
       {!isOpen && (
-        <button
-          onClick={() => {
-            setIsOpen(true)
-            setIsMinimized(false)
-          }}
-          className="fixed bottom-20 lg:bottom-4 sm:lg:bottom-6 right-4 sm:right-6 z-[40] lg:z-[9998] w-14 h-14 bg-gradient-to-br from-[#2c5aa0] to-[#163a5f] text-white rounded-full shadow-lg shadow-[#1e4976]/30 hover:shadow-xl hover:shadow-[#1e4976]/40 hover:scale-105 active:scale-95 transition-all duration-300 flex items-center justify-center group"
-          aria-label="Abrir chat de suporte"
+        <div
+          className={`fixed right-4 sm:right-6 z-[40] lg:z-[9998] animate-float-subtle ${
+            isPublicPage ? 'bottom-6 lg:bottom-4' : 'bottom-20 lg:bottom-4 sm:lg:bottom-6'
+          }`}
         >
-          <MessageCircle size={24} className="text-white group-hover:scale-110 transition-transform" strokeWidth={2} />
-          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse" aria-hidden></span>
-        </button>
+          <button
+            onClick={() => {
+              setIsOpen(true)
+              setIsMinimized(false)
+            }}
+            className="w-14 h-14 bg-gradient-to-br from-[#2c5aa0] to-[#163a5f] text-white rounded-full shadow-lg shadow-[#1e4976]/30 hover:shadow-xl hover:shadow-[#1e4976]/40 hover:scale-105 active:scale-95 transition-all duration-300 flex items-center justify-center group"
+            aria-label="Abrir chat de suporte"
+          >
+            <MessageCircle size={24} className="text-white group-hover:scale-110 transition-transform" strokeWidth={2} />
+            <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse" aria-hidden></span>
+          </button>
+        </div>
       )}
 
       {/* Widget de chat */}
@@ -642,7 +652,7 @@ export default function ChatWidget() {
         <div
           className={`fixed z-[9999] bg-white dark:bg-brand-midnight shadow-2xl flex flex-col transition-all duration-300 ${
             isMinimized
-              ? 'bottom-20 lg:bottom-4 right-4 sm:right-6 lg:sm:bottom-6 w-[calc(100vw-2rem)] sm:w-80 h-14 rounded-2xl border-2 border-gray-200 dark:border-brand-aqua/30 overflow-hidden'
+              ? `right-4 sm:right-6 w-[calc(100vw-2rem)] sm:w-80 h-14 rounded-2xl border-2 border-gray-200 dark:border-brand-aqua/30 overflow-hidden ${isPublicPage ? 'bottom-6 lg:bottom-4' : 'bottom-20 lg:bottom-4 lg:sm:bottom-6'}`
               : 'top-[10%] left-3 right-3 bottom-24 max-h-[78vh] rounded-2xl border-2 border-gray-200 dark:border-brand-aqua/30 overflow-hidden sm:top-auto sm:bottom-20 sm:left-auto sm:right-6 sm:w-96 sm:h-[680px] sm:max-h-[680px] lg:bottom-6'
           }`}
         >

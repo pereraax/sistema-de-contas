@@ -257,10 +257,10 @@ export default function LandingPage() {
               <p className="text-base text-gray-500 max-w-lg mx-auto mb-8 leading-relaxed">
                 Gerencie finanças, dívidas e metas de forma inteligente. Tudo em um só lugar, via WhatsApp.
               </p>
-              <div className="flex flex-col sm:flex-row justify-center gap-3">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-[220px] sm:max-w-none mx-auto">
                 <a
                   href="#planos"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-medium text-white bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] rounded-lg transition-all duration-300 shadow-md"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-white bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] rounded-xl transition-all duration-300 shadow-md"
                 >
                   Crie sua conta gratuita
                   <ArrowRight size={18} strokeWidth={2} />
@@ -271,7 +271,7 @@ export default function LandingPage() {
                     e.preventDefault()
                     document.getElementById('funcionalidades')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }}
-                  className="inline-flex items-center justify-center px-6 py-3.5 text-sm font-medium text-[#1e4976] border border-[#1e4976] rounded-lg hover:border-[#163a5f] transition-colors font-sans"
+                  className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-3 text-sm font-medium text-[#1e4976] border border-[#1e4976] rounded-xl hover:border-[#163a5f] transition-colors font-sans"
                 >
                   Ver funcionalidades
                 </a>
@@ -1191,33 +1191,34 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer - compacto e centralizado */}
-      <footer className="bg-[#F5F5F5] border-t border-gray-200 py-6 md:py-8">
+      {/* Footer - compacto no mobile, organizado e com espaço para o chat */}
+      <footer className="bg-[#F5F5F5] border-t border-gray-200 py-4 md:py-8 pb-20 md:pb-8">
         <div className="container mx-auto px-4 max-w-3xl md:max-w-4xl">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 items-start">
+          {/* Mobile: marca no topo, depois Produto + Legal lado a lado */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 items-start">
             {/* Coluna 1: Marca e redes */}
-            <div className="space-y-2 flex flex-col items-center md:items-start text-center md:text-left">
+            <div className="space-y-1.5 md:space-y-2 flex flex-col items-center md:items-start text-center md:text-left md:col-span-1">
               <Link href="/" className="inline-block">
                 <Image
                   src="/logo-header.png"
                   alt="PLENIPAY"
                   width={96}
                   height={32}
-                  className="h-7 w-auto object-contain"
+                  className="h-6 md:h-7 w-auto object-contain"
                 />
               </Link>
-              <p className="text-xs text-gray-600 leading-snug max-w-[200px]">
+              <p className="text-[11px] md:text-xs text-gray-600 leading-snug max-w-[200px]">
                 Gestão financeira pessoal em uma só plataforma.
               </p>
-              <p className="text-xs text-gray-600 leading-snug max-w-[200px] -mt-1">
+              <p className="text-[11px] md:text-xs text-gray-600 leading-snug max-w-[200px] -mt-0.5 hidden sm:block">
                 Organize seu dinheiro com clareza e praticidade.
               </p>
-              <div className="flex gap-2">
+              <div className="flex gap-1.5 md:gap-2">
                 <a
                   href="https://instagram.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-7 h-7 rounded border border-gray-700 flex items-center justify-center text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976] transition-colors"
+                  className="w-8 h-8 md:w-7 md:h-7 rounded-lg md:rounded border border-gray-700 flex items-center justify-center text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976] transition-colors"
                   aria-label="Instagram"
                 >
                   <Instagram size={14} strokeWidth={1.5} />
@@ -1226,7 +1227,7 @@ export default function LandingPage() {
                   href="https://twitter.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-7 h-7 rounded border border-gray-700 flex items-center justify-center text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976] transition-colors"
+                  className="w-8 h-8 md:w-7 md:h-7 rounded-lg md:rounded border border-gray-700 flex items-center justify-center text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976] transition-colors"
                   aria-label="Twitter/X"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -1235,7 +1236,7 @@ export default function LandingPage() {
                 </a>
                 <a
                   href="mailto:contato@plenipay.com"
-                  className="w-7 h-7 rounded border border-gray-700 flex items-center justify-center text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976] transition-colors"
+                  className="w-8 h-8 md:w-7 md:h-7 rounded-lg md:rounded border border-gray-700 flex items-center justify-center text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976] transition-colors"
                   aria-label="E-mail"
                 >
                   <Mail size={14} strokeWidth={1.5} />
@@ -1243,30 +1244,33 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Coluna 2: Produto */}
-            <div className="flex flex-col items-center md:items-start">
-              <h3 className="text-[10px] font-semibold text-gray-700 uppercase tracking-wider mb-2">Produto</h3>
-              <ul className="space-y-1">
-                <li><Link href="#funcionalidades" className="text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Recursos</Link></li>
-                <li><Link href="#planos" className="text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Preços</Link></li>
-                <li><Link href="#faq" className="text-xs text-gray-600 hover:text-[#1e4976] transition-colors">FAQ</Link></li>
-                <li><Link href="/home" className="text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Dashboard</Link></li>
-              </ul>
-            </div>
+            {/* Coluna 2 e 3: no mobile ficam lado a lado (Produto | Legal) */}
+            <div className="grid grid-cols-2 md:contents gap-x-6 gap-y-4 md:gap-0">
+              {/* Produto */}
+              <div className="flex flex-col items-center md:items-start">
+                <h3 className="text-[10px] font-semibold text-gray-700 uppercase tracking-wider mb-1.5 md:mb-2">Produto</h3>
+                <ul className="space-y-0.5 md:space-y-1">
+                  <li><Link href="#funcionalidades" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Recursos</Link></li>
+                  <li><Link href="#planos" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Preços</Link></li>
+                  <li><Link href="#faq" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">FAQ</Link></li>
+                  <li><Link href="/home" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Dashboard</Link></li>
+                </ul>
+              </div>
 
-            {/* Coluna 3: Legal */}
-            <div className="flex flex-col items-center md:items-start">
-              <h3 className="text-[10px] font-semibold text-gray-700 uppercase tracking-wider mb-2">Legal</h3>
-              <ul className="space-y-1">
-                <li><Link href="/privacidade" className="text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Política de Privacidade</Link></li>
-                <li><Link href="/termos" className="text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Termos de Uso</Link></li>
-                <li><Link href="/suporte" className="text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Suporte</Link></li>
-              </ul>
+              {/* Legal */}
+              <div className="flex flex-col items-center md:items-start">
+                <h3 className="text-[10px] font-semibold text-gray-700 uppercase tracking-wider mb-1.5 md:mb-2">Legal</h3>
+                <ul className="space-y-0.5 md:space-y-1">
+                  <li><Link href="/privacidade" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Política de Privacidade</Link></li>
+                  <li><Link href="/termos" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Termos de Uso</Link></li>
+                  <li><Link href="/suporte" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Suporte</Link></li>
+                </ul>
+              </div>
             </div>
           </div>
 
-          <div className="mt-5 pt-4 border-t border-gray-300 text-center">
-            <p className="text-[11px] text-gray-500">© 2025 PLENIPAY. Todos os direitos reservados.</p>
+          <div className="mt-4 md:mt-5 pt-3 md:pt-4 border-t border-gray-300 text-center">
+            <p className="text-[10px] md:text-[11px] text-gray-500">© 2025 PLENIPAY. Todos os direitos reservados.</p>
           </div>
         </div>
       </footer>

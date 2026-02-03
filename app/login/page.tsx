@@ -299,8 +299,8 @@ function LoginContent() {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-neutral-50">
-      {/* Lado esquerdo - Janela de login */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-4 md:p-6 lg:p-8 order-2 md:order-1">
+      {/* Janela de login — no mobile: única área, centralizada; no desktop: metade esquerda */}
+      <div className="w-full md:w-1/2 flex items-center justify-center p-4 md:p-6 lg:p-8 min-h-screen md:min-h-0">
         <div className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-8">
           <Link
             href="/"
@@ -432,8 +432,8 @@ function LoginContent() {
         </div>
       </div>
 
-      {/* Lado direito - Imagem */}
-      <div className="w-full md:w-1/2 min-h-[40vh] md:min-h-screen relative order-1 md:order-2 bg-[#0D1B2A]">
+      {/* Lado direito - Imagem (oculta no mobile para tela clean e só o formulário centralizado) */}
+      <div className="hidden md:block w-full md:w-1/2 min-h-screen relative bg-[#0D1B2A]">
         <Image
           src="/banner cadastro.png"
           alt="PLENIPAY"
