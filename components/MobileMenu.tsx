@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, createContext, useContext, ReactNode, useEffect } from 'react'
+import { useState, createContext, useContext, ReactNode, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
@@ -16,22 +16,25 @@ import {
   PlayCircle,
   Crown,
   Clock,
-  Tag
+  Tag,
+  Landmark
 } from 'lucide-react'
 import Logo from './Logo'
 import { createClient } from '@/lib/supabase/client'
 
+// Mesmos itens do Sidebar desktop para manter consistência
 const menuItems = [
-  { href: '/home', label: 'Home', icon: Home, color: 'text-blue-600 dark:text-blue-400' },
-  { href: '/registros', label: 'Todos os Registros', icon: FileText, color: 'text-green-600 dark:text-green-400' },
-  { href: '/dividas', label: 'Dívidas', icon: CreditCard, color: 'text-red-600 dark:text-red-400' },
-  { href: '/lembretes', label: 'Lembretes', icon: Clock, color: 'text-orange-600 dark:text-orange-400' },
-  { href: '/minhas-metas', label: 'Minhas Metas', icon: PiggyBank, color: 'text-yellow-600 dark:text-yellow-400' },
-  { href: '/calendario', label: 'Calendário', icon: Calendar, color: 'text-purple-600 dark:text-purple-400' },
-  { href: '/dashboard', label: 'Dashboard', icon: BarChart3, color: 'text-cyan-600 dark:text-cyan-400' },
-  { href: '/categorias', label: 'Categorias', icon: Tag, color: 'text-teal-600 dark:text-teal-400' },
-  { href: '/tutoriais', label: 'Tutoriais', icon: PlayCircle, color: 'text-pink-600 dark:text-pink-400' },
-  { href: '/configuracoes', label: 'Configurações', icon: Settings, color: 'text-gray-600 dark:text-gray-400' },
+  { href: '/home', label: 'Home', icon: Home },
+  { href: '/registros', label: 'Todos os Registros', icon: FileText },
+  { href: '/gastos-por-banco', label: 'Gastos por banco', icon: Landmark },
+  { href: '/dividas', label: 'Dívidas', icon: CreditCard },
+  { href: '/lembretes', label: 'Lembretes', icon: Clock },
+  { href: '/minhas-metas', label: 'Minhas Metas', icon: PiggyBank },
+  { href: '/calendario', label: 'Calendário', icon: Calendar },
+  { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
+  { href: '/categorias', label: 'Categorias', icon: Tag },
+  { href: '/tutoriais', label: 'Tutoriais', icon: PlayCircle },
+  { href: '/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
 // Context para compartilhar estado do menu
@@ -67,7 +70,18 @@ export default function MobileMenu() {
   const pathname = usePathname()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isChecking, setIsChecking] = useState(true)
-  
+  const sidebarRef = useRef<HTMLElement>(null)
+  const touchStartX = useRef<number>(0)
+
+  // Fechar sidebar ao deslizar para a esquerda (swipe left)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+  }
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const endX = e.changedTouches[0].clientX
+    if (touchStartX.current - endX > 50) setIsOpen(false)
+  }
+
   // Verificar autenticação
   useEffect(() => {
     const checkAuth = async () => {
@@ -119,12 +133,22 @@ export default function MobileMenu() {
             className="fixed inset-0 bg-black/50 dark:bg-brand-midnight/50 z-40 lg:hidden animate-fade-in"
             onClick={() => setIsOpen(false)}
           />
-          <aside className="fixed left-0 top-0 h-screen w-64 bg-white dark:bg-brand-royal border-r border-gray-200 dark:border-brand-midnight shadow-lg z-40 lg:hidden animate-slide-in-from-left overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
-            <div className="p-6 pt-20 pb-6">
-              <div className="mb-8">
+          <aside
+            ref={sidebarRef}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            className="fixed left-0 top-0 h-screen w-64 bg-white dark:bg-[#1A1A1A] border-r border-gray-200 dark:border-white/10 shadow-lg z-40 lg:hidden animate-slide-in-from-left flex flex-col overflow-hidden"
+          >
+            {/* Área rolável: rolar deslizando no celular */}
+            <div
+              className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-6"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              {/* Logo menor, menos espaço em cima e embaixo (igual ao desktop) */}
+              <div className="mb-5 flex items-center justify-center shrink-0 max-h-12 [&_a]:!block [&_img]:!h-10 [&_img]:!w-auto [&_img]:!object-contain">
                 <Logo />
               </div>
-              <nav className="space-y-2">
+              <nav className="space-y-1.5">
                 {menuItems.map((item) => {
                   const Icon = item.icon
                   const isActive = pathname === item.href || 
@@ -135,37 +159,37 @@ export default function MobileMenu() {
                       key={item.href}
                       href={item.href}
                       onClick={() => setIsOpen(false)}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth ${
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-left ${
                         isActive
-                          ? 'bg-brand-aqua text-white shadow-lg'
-                          : 'text-gray-700 dark:text-brand-clean hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
+                          ? 'bg-brand-aqua text-white dark:bg-[#252525] dark:text-white shadow-md'
+                          : 'text-brand-aqua dark:text-white hover:bg-brand-aqua/10 dark:hover:bg-white/10'
                       }`}
                     >
                       <Icon 
                         size={20} 
                         strokeWidth={2} 
-                        className={isActive ? 'text-white' : item.color}
+                        className={`flex-shrink-0 ${isActive ? 'text-white' : ''}`}
                       />
-                      <span className={`font-medium ${isActive ? 'text-white' : 'text-gray-700 dark:text-brand-clean'}`}>
+                      <span className="font-medium truncate">
                         {item.label}
                       </span>
                     </Link>
                   )
                 })}
                 
-                {/* Botão Fazer Upgrade - abaixo de Configurações */}
-                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-brand-midnight/30">
+                {/* Botão Fazer Upgrade - mesmo estilo do desktop */}
+                <div className="pt-6 border-t border-gray-200 dark:border-white/10">
                   <Link
                     href="/upgrade"
                     onClick={() => setIsOpen(false)}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth bg-gradient-to-r from-brand-aqua to-blue-500 hover:from-brand-aqua/90 hover:to-blue-400 shadow-lg hover:shadow-xl text-left group"
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg text-left group bg-gradient-to-r from-brand-aqua to-primary-500 hover:from-brand-aqua/90 hover:to-primary-400 dark:from-amber-400 dark:to-yellow-500 dark:hover:from-amber-300 dark:hover:to-yellow-400"
                   >
                     <Crown 
                       size={20} 
                       strokeWidth={2} 
-                      className="text-white group-hover:scale-110 transition-transform"
+                      className="text-white dark:text-amber-900 flex-shrink-0 group-hover:scale-110 transition-transform"
                     />
-                    <span className="font-semibold text-white">
+                    <span className="font-semibold text-white dark:text-amber-900 truncate">
                       Fazer Upgrade
                     </span>
                   </Link>

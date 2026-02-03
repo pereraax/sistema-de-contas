@@ -5,7 +5,6 @@ import QuickActionCard from '@/components/QuickActionCard'
 import SupportPanel from '@/components/SupportPanel'
 import NotificationBell from '@/components/NotificationBell'
 import UserProfileMenu from '@/components/UserProfileMenu'
-import Logo from '@/components/Logo'
 import FiltroRapidoDataWrapper, { FiltroDataProvider } from '@/components/FiltroRapidoDataWrapper'
 import HomeLayoutNovo from '@/components/HomeLayoutNovo'
 import { Suspense } from 'react'
@@ -50,15 +49,8 @@ export default async function HomePage() {
     <FiltroDataProvider>
       <div className="min-h-screen bg-brand-clean dark:bg-[#1A1A1A]">
         <Sidebar />
-        <main className="lg:ml-64 p-3 sm:p-4 lg:p-8 dark:bg-[#1A1A1A] pt-6 lg:pt-4 pb-24 sm:pb-28">
+        <main className="lg:ml-64 p-3 sm:p-4 lg:p-8 dark:bg-[#1A1A1A] pt-3 lg:pt-4 pb-24 sm:pb-28">
           <div className="max-w-7xl mx-auto">
-          {/* Logotipo centralizado acima do header */}
-          <div className="flex justify-center mb-2 lg:hidden">
-            <div className="w-40 sm:w-52">
-              <Logo />
-            </div>
-          </div>
-
           {/* Avisos Administrativos (Popup) */}
           <AvisosAdmin />
 

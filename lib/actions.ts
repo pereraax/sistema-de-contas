@@ -677,11 +677,6 @@ export async function obterEstatisticas(dataInicio?: string, dataFim?: string) {
   }
   
   const { data: registros, error } = await query
-  
-  // Debug temporário - remover depois
-  if (dataInicio || dataFim) {
-    console.log('📊 Registros encontrados:', registros?.length || 0, 'com filtro de data')
-  }
 
   if (error) {
     console.error('Erro ao buscar estatísticas:', error)

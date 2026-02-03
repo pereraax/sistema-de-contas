@@ -63,18 +63,18 @@ export default function BottomNavigation() {
             onClick={() => handleNavClick('/home')}
             className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all ${
               isActive('/home')
-                ? 'bg-brand-aqua/10 dark:bg-brand-aqua/20'
+                ? 'bg-brand-aqua dark:bg-[#252525]'
                 : 'hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
             }`}
           >
             <Home 
               size={24} 
-              className={isActive('/home') ? 'text-brand-aqua dark:text-brand-aqua' : 'text-gray-600 dark:text-gray-400'} 
+              className={isActive('/home') ? 'text-white' : 'text-gray-600 dark:text-gray-400'} 
               strokeWidth={isActive('/home') ? 2.5 : 2}
             />
             <span className={`text-xs font-medium ${
               isActive('/home') 
-                ? 'text-brand-aqua dark:text-brand-aqua' 
+                ? 'text-white' 
                 : 'text-gray-600 dark:text-gray-400'
             }`}>
               Principal
@@ -86,18 +86,18 @@ export default function BottomNavigation() {
             onClick={() => handleNavClick('/registros')}
             className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all ${
               isActive('/registros')
-                ? 'bg-brand-aqua/10 dark:bg-brand-aqua/20'
+                ? 'bg-brand-aqua dark:bg-[#252525]'
                 : 'hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
             }`}
           >
             <FileText 
               size={24} 
-              className={isActive('/registros') ? 'text-brand-aqua dark:text-brand-aqua' : 'text-gray-600 dark:text-gray-400'} 
+              className={isActive('/registros') ? 'text-white' : 'text-gray-600 dark:text-gray-400'} 
               strokeWidth={isActive('/registros') ? 2.5 : 2}
             />
             <span className={`text-xs font-medium ${
               isActive('/registros') 
-                ? 'text-brand-aqua dark:text-brand-aqua' 
+                ? 'text-white' 
                 : 'text-gray-600 dark:text-gray-400'
             }`}>
               Transações
@@ -161,59 +161,34 @@ export default function BottomNavigation() {
           </button>
 
           {/* Mais */}
-          <button
-            onClick={handleMoreClick}
-            className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all ${
-              pathname?.startsWith('/dividas') || 
+          {(() => {
+            const isMoreActive = pathname?.startsWith('/dividas') || 
               pathname?.startsWith('/lembretes') || 
               pathname?.startsWith('/minhas-metas') || 
               pathname?.startsWith('/dashboard') || 
               pathname?.startsWith('/categorias') || 
               pathname?.startsWith('/tutoriais') || 
               pathname?.startsWith('/configuracoes')
-                ? 'bg-brand-aqua/10 dark:bg-brand-aqua/20'
-                : 'hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
-            }`}
-          >
-            <Menu 
-              size={24} 
-              className={
-                pathname?.startsWith('/dividas') || 
-                pathname?.startsWith('/lembretes') || 
-                pathname?.startsWith('/minhas-metas') || 
-                pathname?.startsWith('/dashboard') || 
-                pathname?.startsWith('/categorias') || 
-                pathname?.startsWith('/tutoriais') || 
-                pathname?.startsWith('/configuracoes')
-                  ? 'text-brand-aqua dark:text-brand-aqua' 
-                  : 'text-gray-600 dark:text-gray-400'
-              } 
-              strokeWidth={
-                pathname?.startsWith('/dividas') || 
-                pathname?.startsWith('/lembretes') || 
-                pathname?.startsWith('/minhas-metas') || 
-                pathname?.startsWith('/dashboard') || 
-                pathname?.startsWith('/categorias') || 
-                pathname?.startsWith('/tutoriais') || 
-                pathname?.startsWith('/configuracoes')
-                  ? 2.5 
-                  : 2
-              }
-            />
-            <span className={`text-xs font-medium ${
-              pathname?.startsWith('/dividas') || 
-              pathname?.startsWith('/lembretes') || 
-              pathname?.startsWith('/minhas-metas') || 
-              pathname?.startsWith('/dashboard') || 
-              pathname?.startsWith('/categorias') || 
-              pathname?.startsWith('/tutoriais') || 
-              pathname?.startsWith('/configuracoes')
-                ? 'text-brand-aqua dark:text-brand-aqua' 
-                : 'text-gray-600 dark:text-gray-400'
-            }`}>
-              Mais
-            </span>
-          </button>
+            return (
+              <button
+                onClick={handleMoreClick}
+                className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all ${
+                  isMoreActive
+                    ? 'bg-brand-aqua dark:bg-[#252525]'
+                    : 'hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
+                }`}
+              >
+                <Menu 
+                  size={24} 
+                  className={isMoreActive ? 'text-white' : 'text-gray-600 dark:text-gray-400'} 
+                  strokeWidth={isMoreActive ? 2.5 : 2}
+                />
+                <span className={`text-xs font-medium ${isMoreActive ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`}>
+                  Mais
+                </span>
+              </button>
+            )
+          })()}
         </div>
       </nav>
 

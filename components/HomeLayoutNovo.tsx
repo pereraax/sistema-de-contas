@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { obterEstatisticas } from '@/lib/actions'
 import { TrendingUp, TrendingDown, ChevronDown, ChevronLeft, ChevronRight, Check, Moon, Sun, User, Crown } from 'lucide-react'
 import { useFiltroData } from './FiltroRapidoDataWrapper'
@@ -11,6 +11,7 @@ import ReceitasDespesasDonut from './ReceitasDespesasDonut'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import Logo from './Logo'
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -28,6 +29,18 @@ function datasDoMes(nomeMes: string, ano: number = new Date().getFullYear()) {
     dataFim: fim.toISOString()
   }
 }
+
+/** Retorna dataInicio e dataFim (ISO) para os últimos N dias (incluindo hoje). */
+function datasUltimosDias(dias: number) {
+  const fim = new Date()
+  fim.setHours(23, 59, 59, 999)
+  const inicio = new Date(fim)
+  inicio.setDate(inicio.getDate() - (dias - 1))
+  inicio.setHours(0, 0, 0, 0)
+  return { dataInicio: inicio.toISOString(), dataFim: fim.toISOString() }
+}
+
+const FILTROS_DIAS = [3, 5, 7, 10] as const
 
 export default function HomeLayoutNovo() {
   const { dataInicio, dataFim, setFiltroData } = useFiltroData()
@@ -51,15 +64,21 @@ export default function HomeLayoutNovo() {
   // Obter mês atual
   const mesAtual = meses[new Date().getMonth()]
   const [mesSelecionado, setMesSelecionado] = useState<string>(mesAtual)
+  const [diasSelecionado, setDiasSelecionado] = useState<number | null>(null)
   const [dropdownAberto, setDropdownAberto] = useState(false)
   const [isFading, setIsFading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Sincronizar filtro de data com o mês selecionado: saldo e estatísticas do mês
+  // Sincronizar filtro de data: se filtro por dias ativo usa últimos N dias; senão usa o mês
   useEffect(() => {
-    const { dataInicio: ini, dataFim: fim } = datasDoMes(mesSelecionado)
-    setFiltroData(ini, fim)
-  }, [mesSelecionado, setFiltroData])
+    if (diasSelecionado !== null) {
+      const { dataInicio: ini, dataFim: fim } = datasUltimosDias(diasSelecionado)
+      setFiltroData(ini, fim)
+    } else {
+      const { dataInicio: ini, dataFim: fim } = datasDoMes(mesSelecionado)
+      setFiltroData(ini, fim)
+    }
+  }, [mesSelecionado, diasSelecionado, setFiltroData])
 
   // Funções para navegar entre meses
   const irParaMesAnterior = () => {
@@ -176,10 +195,9 @@ export default function HomeLayoutNovo() {
     }
   }, [dropdownAberto])
 
-  const carregarEstatisticas = async () => {
+  const carregarEstatisticas = useCallback(async () => {
     try {
       const result = await obterEstatisticas(dataInicio, dataFim)
-      
       if (result.error) {
         setStats({
           totalEntradas: 0,
@@ -194,9 +212,6 @@ export default function HomeLayoutNovo() {
         const totalEntradas = result.totalEntradas || 0
         const totalSaidas = result.totalSaidas || 0
         const saldo = totalEntradas - totalSaidas
-        
-        // TODO: Buscar receitas e despesas pendentes do banco
-        // Por enquanto, usando valores mockados
         setStats({
           totalEntradas,
           totalSaidas,
@@ -207,9 +222,7 @@ export default function HomeLayoutNovo() {
           qtdDespesasPendentes: 2
         })
       }
-      setLoading(false)
-    } catch (error) {
-      console.error('Erro ao carregar estatísticas:', error)
+    } catch {
       setStats({
         totalEntradas: 0,
         totalSaidas: 0,
@@ -219,17 +232,17 @@ export default function HomeLayoutNovo() {
         qtdReceitasPendentes: 0,
         qtdDespesasPendentes: 0
       })
+    } finally {
       setLoading(false)
     }
-  }
+  }, [dataInicio, dataFim])
 
   useEffect(() => {
+    setLoading(true)
     carregarEstatisticas()
-    const interval = setInterval(() => {
-      carregarEstatisticas()
-    }, 10000)
-    return () => clearInterval(interval)
-  }, [dataInicio, dataFim])
+    const t = setInterval(carregarEstatisticas, 60000)
+    return () => clearInterval(t)
+  }, [carregarEstatisticas])
 
   // Valores padrão enquanto carrega
   const totalEntradas = stats?.totalEntradas ?? 0
@@ -242,11 +255,15 @@ export default function HomeLayoutNovo() {
 
   return (
     <div className="space-y-6">
-      {/* Header com ícone de perfil e toggle à esquerda, e ícones de notificação/perfil à direita */}
-      <div className="flex items-center justify-between gap-4 mb-0">
-        {/* Ícone de perfil com saudação e toggle à esquerda */}
-        <div className="flex items-center gap-3 sm:gap-4">
-          <div className="flex items-center gap-2.5 sm:gap-3">
+      {/* Header: no mobile logo ao lado do perfil; headbar compacta */}
+      <div className="flex items-center justify-between gap-2 sm:gap-4 py-1 lg:py-0">
+        {/* Esquerda: no mobile Logo + perfil + saudação + toggle; no desktop perfil + saudação + toggle */}
+        <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 min-w-0">
+          {/* Logo só no mobile, mesmo tamanho do ícone de perfil (36px) */}
+          <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center overflow-hidden rounded-lg lg:hidden [&_a]:!p-0 [&_a]:!w-full [&_a]:!h-full [&_img]:!w-full [&_img]:!h-full [&_img]:!object-contain">
+            <Logo />
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="relative flex-shrink-0">
               {/* Ícone de coroa acima do avatar = dono da conta */}
               <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 shadow-sm" title="Dono da conta">
@@ -404,6 +421,27 @@ export default function HomeLayoutNovo() {
             strokeWidth={2.5}
           />
         </button>
+      </div>
+
+      {/* Filtros de dias: 3, 5, 7, 10 dias — filtragem imediata */}
+      <div className="flex flex-wrap justify-center gap-2 mb-4">
+        {FILTROS_DIAS.map((d) => {
+          const ativo = diasSelecionado === d
+          return (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDiasSelecionado(ativo ? null : d)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                ativo
+                  ? 'bg-brand-aqua text-white dark:bg-[#252525] dark:text-white shadow-md'
+                  : 'bg-white dark:bg-brand-midnight border border-gray-200 dark:border-white/20 text-brand-midnight dark:text-brand-clean hover:border-brand-aqua/50'
+              }`}
+            >
+              {d} dias
+            </button>
+          )
+        })}
       </div>
 
       {/* Saldo atual em contas - CENTRALIZADO */}
