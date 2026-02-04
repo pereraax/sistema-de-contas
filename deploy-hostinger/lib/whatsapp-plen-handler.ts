@@ -6,6 +6,10 @@
 // Formato: phoneNumber -> email
 const pendingEmails = new Map<string, string>()
 
+// Armazenar assistentes PLEN ativados por número de telefone
+// Formato: phoneNumber -> true (se ativado)
+const plenActivated = new Map<string, boolean>()
+
 interface WhatsAppMessage {
   key: {
     remoteJid: string
@@ -52,6 +56,14 @@ export function registerSentMessage(phoneNumber: string, message: string) {
   const key = `${phoneNumber}-${message.substring(0, 100)}`
   sentMessages.set(key, Date.now())
   console.log('📝 [WhatsApp PLEN] Mensagem enviada registrada:', key.substring(0, 50))
+  
+  // Adicionar log ao sistema
+  try {
+    const { addLog } = require('@/lib/server-logs')
+    addLog('info', `📝 [WhatsApp PLEN] Mensagem enviada registrada: ${phoneNumber}-${message.substring(0, 50)}`)
+  } catch (e) {
+    // Ignorar erro
+  }
 }
 
 /**
@@ -73,20 +85,284 @@ function isRecentlySentMessage(phoneNumber: string, text: string): boolean {
 }
 
 /**
+ * Verificar se a mensagem contém chamada para ativar o assistente PLEN
+ */
+function isActivationMessage(text: string): boolean {
+  if (!text || typeof text !== 'string') return false
+  
+  const lowerText = text.toLowerCase().trim()
+  
+  // Palavras-chave para ativar o assistente
+  const activationKeywords = [
+    'assistente plen',
+    'chamar assistente plen',
+    'ativar assistente plen',
+    'assistente plenipay',
+    'chamar plen',
+    'ativar plen',
+    'plen assistente',
+    'quero falar com o assistente',
+    'quero falar com plen',
+    'preciso do assistente',
+    'preciso do plen',
+  ]
+  
+  // Verificar se contém alguma palavra-chave
+  for (const keyword of activationKeywords) {
+    if (lowerText.includes(keyword)) {
+      console.log(`✅ [WhatsApp PLEN] Mensagem de ativação detectada: "${keyword}"`)
+      return true
+    }
+  }
+  
+  return false
+}
+
+/**
+ * Verificar se a mensagem contém chamada para desativar o assistente PLEN
+ */
+async function isDeactivationMessage(text: string): Promise<boolean> {
+  if (!text || typeof text !== 'string') {
+    console.log('❌ [WhatsApp PLEN] isDeactivationMessage: text inválido')
+    process.stdout.write(`\n❌ isDeactivationMessage: text inválido\n`)
+    return false
+  }
+  
+  const lowerText = text.toLowerCase().trim()
+  console.log(`🔍 [WhatsApp PLEN] isDeactivationMessage: verificando "${lowerText}"`)
+  process.stdout.write(`\n🔍 isDeactivationMessage: verificando "${lowerText}"\n`)
+  
+  // Importar addLog dinamicamente
+  const { addLog } = await import('@/lib/server-logs')
+  addLog('info', `🔍 [PLEN WhatsApp] Verificando desativação: "${lowerText}"`)
+  
+  // CRÍTICO: Verificação SIMPLES e DIRETA primeiro (mais comum)
+  // "parar assistente plen" - formato exato mais comum
+  // Verificar EXATAMENTE primeiro (sem espaços extras)
+  const exactMatches = [
+    'parar assistente plen',
+    'para assistente plen',
+    'pare assistente plen',
+    'parar assistente plenipay',
+    'para assistente plenipay',
+    'pare assistente plenipay',
+  ]
+  
+  if (exactMatches.includes(lowerText)) {
+    console.log(`🛑 [WhatsApp PLEN] ✅ DESATIVAÇÃO DETECTADA (exato): "${lowerText}"`)
+    process.stdout.write(`\n🛑✅ DESATIVAÇÃO DETECTADA (exato): "${lowerText}"\n`)
+    addLog('info', `🛑 [PLEN WhatsApp] ✅ DESATIVAÇÃO DETECTADA (exato): "${lowerText}"`)
+    return true
+  }
+  
+  // Verificar se CONTÉM a frase (mesmo com texto adicional)
+  if (lowerText.includes('parar assistente plen') || 
+      lowerText.includes('para assistente plen') ||
+      lowerText.includes('pare assistente plen') ||
+      lowerText.includes('desativar assistente plen')) {
+    console.log(`🛑 [WhatsApp PLEN] ✅ DESATIVAÇÃO DETECTADA (contém): "${lowerText}"`)
+    process.stdout.write(`\n🛑✅ DESATIVAÇÃO DETECTADA (contém): "${lowerText}"\n`)
+    addLog('info', `🛑 [PLEN WhatsApp] ✅ DESATIVAÇÃO DETECTADA (contém): "${lowerText}"`)
+    return true
+  }
+  
+  // Palavras-chave para desativar o assistente (ordem de prioridade: mais específicas primeiro)
+  const deactivationKeywords = [
+    'parar assistente plen',
+    'para assistente plen',
+    'desativar assistente plen',
+    'parar plen',
+    'desativar plen',
+    'para plen',
+    'silenciar assistente',
+    'silenciar plen',
+    'pare assistente',
+    'pare plen',
+    'stop assistente',
+    'stop plen',
+  ]
+  
+  // Verificar se contém alguma palavra-chave (busca exata ou parcial)
+  for (const keyword of deactivationKeywords) {
+    // Verificar se a mensagem contém a palavra-chave completa
+    if (lowerText.includes(keyword)) {
+      console.log(`🛑 [WhatsApp PLEN] ✅ DESATIVAÇÃO DETECTADA: "${keyword}" na mensagem "${lowerText}"`)
+      process.stdout.write(`\n🛑✅ DESATIVAÇÃO DETECTADA: "${keyword}"\n`)
+      addLog('info', `🛑 [PLEN WhatsApp] ✅ DESATIVAÇÃO DETECTADA: "${keyword}" na mensagem "${lowerText}"`)
+      return true
+    }
+    
+    // Verificar também variações com espaços extras ou sem acentos
+    const keywordNormalized = keyword.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const textNormalized = lowerText.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    
+    if (textNormalized.includes(keywordNormalized)) {
+      console.log(`🛑 [WhatsApp PLEN] ✅ DESATIVAÇÃO DETECTADA (normalizada): "${keyword}" na mensagem "${lowerText}"`)
+      process.stdout.write(`\n🛑✅ DESATIVAÇÃO DETECTADA (normalizada): "${keyword}"\n`)
+      addLog('info', `🛑 [PLEN WhatsApp] ✅ DESATIVAÇÃO DETECTADA (normalizada): "${keyword}" na mensagem "${lowerText}"`)
+      return true
+    }
+  }
+  
+  // Verificação adicional: procurar por "parar" + "assistente" + "plen" em qualquer ordem
+  const hasParar = lowerText.includes('parar') || lowerText.includes('para') || lowerText.includes('pare')
+  const hasAssistente = lowerText.includes('assistente')
+  const hasPlen = lowerText.includes('plen')
+  
+  console.log(`🔍 [WhatsApp PLEN] Verificação de combinação:`, {
+    hasParar,
+    hasAssistente,
+    hasPlen,
+    lowerText
+  })
+  
+  if (hasParar && hasAssistente && hasPlen) {
+    console.log(`🛑 [WhatsApp PLEN] ✅ DESATIVAÇÃO DETECTADA (combinação): "parar assistente plen" na mensagem "${lowerText}"`)
+    process.stdout.write(`\n🛑✅ DESATIVAÇÃO DETECTADA (combinação): parar + assistente + plen\n`)
+    addLog('info', `🛑 [PLEN WhatsApp] ✅ DESATIVAÇÃO DETECTADA (combinação): "parar assistente plen" na mensagem "${lowerText}"`)
+    return true
+  }
+  
+  console.log(`❌ [WhatsApp PLEN] Nenhuma desativação detectada na mensagem: "${lowerText}"`)
+  addLog('warn', `❌ [PLEN WhatsApp] Nenhuma desativação detectada na mensagem: "${lowerText}"`)
+  return false
+}
+
+/**
+ * Verificar se o assistente PLEN está ativado para este número
+ * Verifica primeiro na memória, depois no banco de dados
+ */
+async function isPlenActivated(phoneNumber: string): Promise<boolean> {
+  // Verificar primeiro na memória (mais rápido)
+  const memoryStatus = plenActivated.get(phoneNumber)
+  if (memoryStatus !== undefined) {
+    return memoryStatus === true
+  }
+
+  // Se não está na memória, verificar no banco de dados
+  try {
+    const { createAdminClient } = await import('./supabase/server')
+    const supabaseAdmin = createAdminClient()
+
+    if (!supabaseAdmin) {
+      return false
+    }
+
+    const { data: session, error } = await supabaseAdmin
+      .from('whatsapp_sessions')
+      .select('plen_activated')
+      .eq('phone_number', phoneNumber)
+      .maybeSingle()
+
+    if (error && error.code !== 'PGRST116') {
+      console.warn('⚠️ [WhatsApp PLEN] Erro ao buscar status do assistente no banco:', error.message)
+      return false
+    }
+
+    const dbStatus = session?.plen_activated === true
+    
+    // Atualizar memória com o status do banco
+    plenActivated.set(phoneNumber, dbStatus)
+    
+    return dbStatus
+  } catch (error) {
+    console.error('❌ [WhatsApp PLEN] Erro ao verificar status do assistente no banco:', error)
+    return false
+  }
+}
+
+/**
+ * Ativar assistente PLEN para este número
+ * Atualiza memória e banco de dados
+ */
+async function activatePlen(phoneNumber: string) {
+  plenActivated.set(phoneNumber, true)
+  console.log(`✅ [WhatsApp PLEN] Assistente PLEN ativado na memória para: ${phoneNumber}`)
+  
+  // Atualizar também no banco de dados
+  try {
+    const { createAdminClient } = await import('./supabase/server')
+    const supabaseAdmin = createAdminClient()
+
+    if (supabaseAdmin) {
+      const { error } = await supabaseAdmin
+        .from('whatsapp_sessions')
+        .update({ 
+          plen_activated: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('phone_number', phoneNumber)
+
+      if (error && error.code !== 'PGRST116') {
+        console.warn('⚠️ [WhatsApp PLEN] Erro ao atualizar status no banco:', error.message)
+      } else {
+        console.log(`✅ [WhatsApp PLEN] Assistente PLEN ativado no banco para: ${phoneNumber}`)
+      }
+    }
+  } catch (error) {
+    console.error('❌ [WhatsApp PLEN] Erro ao ativar assistente no banco:', error)
+  }
+}
+
+/**
+ * Desativar assistente PLEN para este número
+ * Atualiza memória e banco de dados
+ */
+async function deactivatePlen(phoneNumber: string) {
+  plenActivated.set(phoneNumber, false)
+  console.log(`🛑 [WhatsApp PLEN] Assistente PLEN desativado na memória para: ${phoneNumber}`)
+  
+  // Atualizar também no banco de dados
+  try {
+    const { createAdminClient } = await import('./supabase/server')
+    const supabaseAdmin = createAdminClient()
+
+    if (supabaseAdmin) {
+      const { error } = await supabaseAdmin
+        .from('whatsapp_sessions')
+        .update({ 
+          plen_activated: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('phone_number', phoneNumber)
+
+      if (error && error.code !== 'PGRST116') {
+        console.warn('⚠️ [WhatsApp PLEN] Erro ao atualizar status no banco:', error.message)
+      } else {
+        console.log(`🛑 [WhatsApp PLEN] Assistente PLEN desativado no banco para: ${phoneNumber}`)
+      }
+    }
+  } catch (error) {
+    console.error('❌ [WhatsApp PLEN] Erro ao desativar assistente no banco:', error)
+  }
+}
+
+/**
  * Processar mensagem recebida do WhatsApp
  */
 export async function processWhatsAppMessage(message: WhatsAppMessage) {
   try {
+    // Importar addLog dinamicamente
+    const { addLog } = await import('@/lib/server-logs')
+    
     console.log('🔄 [WhatsApp PLEN] ==========================================')
     console.log('🔄 [WhatsApp PLEN] PROCESSANDO MENSAGEM WHATSAPP')
     console.log('🔄 [WhatsApp PLEN] Message:', JSON.stringify(message, null, 2).substring(0, 500))
     console.log('🔄 [WhatsApp PLEN] ==========================================')
+    
+    // CRÍTICO: Usar addLog para garantir que aparece no Render
+    addLog('info', '🔄 [PLEN WhatsApp] PROCESSANDO MENSAGEM WHATSAPP')
+    addLog('info', `🔄 [PLEN WhatsApp] Message: ${JSON.stringify(message, null, 2).substring(0, 200)}`)
     
     const phoneNumber = extractPhoneNumber(message.key.remoteJid)
     let text = extractMessageText(message)
     
     console.log('📱 [WhatsApp PLEN] Phone Number:', phoneNumber)
     console.log('📱 [WhatsApp PLEN] Text extraído:', text ? text.substring(0, 100) : 'null')
+    
+    // CRÍTICO: Logar no sistema de logs também
+    addLog('info', `📱 [PLEN WhatsApp] Phone Number: ${phoneNumber}`)
+    addLog('info', `📱 [PLEN WhatsApp] Text extraído: ${text ? text.substring(0, 100) : 'null'}`)
     
     // Garantir que text é string
     if (text && typeof text !== 'string') {
@@ -118,6 +394,190 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
     console.log('📨 [WhatsApp PLEN] Text:', typeof text === 'string' ? text.substring(0, 200) : String(text).substring(0, 200))
     console.log('📨 [WhatsApp PLEN] ==========================================')
 
+    // CRÍTICO: Verificar desativação PRIMEIRO, antes de qualquer outra coisa
+    // Isso garante que mesmo usuários autenticados possam desativar
+    // VERIFICAÇÃO ULTRA SIMPLES E DIRETA PRIMEIRO (sem await para ser mais rápido)
+    const lowerTextForCheck = text.toLowerCase().trim()
+    
+    // Lista de todas as variações possíveis (exatas e parciais)
+    const deactivationPhrases = [
+      'parar assistente plen',
+      'para assistente plen',
+      'pare assistente plen',
+      'parar assistente plenipay',
+      'para assistente plenipay',
+      'pare assistente plenipay',
+      'desativar assistente plen',
+      'desativar assistente plenipay',
+    ]
+    
+    // Verificar EXATO primeiro
+    const exactMatch = deactivationPhrases.includes(lowerTextForCheck)
+    
+    // Verificar se CONTÉM alguma frase
+    const containsMatch = deactivationPhrases.some(phrase => lowerTextForCheck.includes(phrase))
+    
+    // Verificar combinação de palavras (parar + assistente + plen)
+    const hasParar = lowerTextForCheck.includes('parar') || lowerTextForCheck.includes('para') || lowerTextForCheck.includes('pare')
+    const hasAssistente = lowerTextForCheck.includes('assistente')
+    const hasPlen = lowerTextForCheck.includes('plen')
+    const combinationMatch = hasParar && hasAssistente && hasPlen
+    
+    const quickCheck = exactMatch || containsMatch || combinationMatch
+    
+    console.log('🔍 [WhatsApp PLEN] ==========================================')
+    console.log('🔍 [WhatsApp PLEN] VERIFICANDO DESATIVAÇÃO')
+    console.log('🔍 [WhatsApp PLEN] Text original:', text)
+    console.log('🔍 [WhatsApp PLEN] Text lower:', lowerTextForCheck)
+    console.log('🔍 [WhatsApp PLEN] Exact match:', exactMatch)
+    console.log('🔍 [WhatsApp PLEN] Contains match:', containsMatch)
+    console.log('🔍 [WhatsApp PLEN] Combination match:', combinationMatch, `(parar: ${hasParar}, assistente: ${hasAssistente}, plen: ${hasPlen})`)
+    console.log('🔍 [WhatsApp PLEN] Quick check final:', quickCheck)
+    console.log('🔍 [WhatsApp PLEN] ==========================================')
+    
+    // CRÍTICO: Logar no stdout também
+    process.stdout.write('\n')
+    process.stdout.write('='.repeat(80) + '\n')
+    process.stdout.write('[WhatsApp PLEN] VERIFICANDO DESATIVAÇÃO\n')
+    process.stdout.write('[WhatsApp PLEN] Text: ' + text + '\n')
+    process.stdout.write('[WhatsApp PLEN] Text lower: ' + lowerTextForCheck + '\n')
+    process.stdout.write('[WhatsApp PLEN] Exact match: ' + exactMatch + '\n')
+    process.stdout.write('[WhatsApp PLEN] Contains match: ' + containsMatch + '\n')
+    process.stdout.write('[WhatsApp PLEN] Combination match: ' + combinationMatch + '\n')
+    process.stdout.write('[WhatsApp PLEN] Quick check: ' + quickCheck + '\n')
+    process.stdout.write('='.repeat(80) + '\n')
+    
+    // Se a verificação rápida detectou, desativar IMEDIATAMENTE
+    if (quickCheck) {
+      await deactivatePlen(phoneNumber)
+      console.log('🛑 [WhatsApp PLEN] ==========================================')
+      console.log('🛑 [WhatsApp PLEN] ASSISTENTE DESATIVADO (QUICK CHECK) - RETORNANDO IMEDIATAMENTE')
+      console.log('🛑 [WhatsApp PLEN] Phone Number:', phoneNumber)
+      console.log('🛑 [WhatsApp PLEN] Message:', text)
+      console.log('🛑 [WhatsApp PLEN] ==========================================')
+      
+      // CRÍTICO: Logar no sistema de logs também
+      addLog('info', `🛑 [PLEN WhatsApp] ASSISTENTE DESATIVADO (QUICK CHECK) - Phone: ${phoneNumber}, Message: ${text}`)
+      
+      // CRÍTICO: Logar no stdout também
+      process.stdout.write('\n')
+      process.stdout.write('='.repeat(80) + '\n')
+      process.stdout.write('[WhatsApp PLEN] ✅✅✅ ASSISTENTE DESATIVADO (QUICK CHECK)! ✅✅✅\n')
+      process.stdout.write('[WhatsApp PLEN] Phone: ' + phoneNumber + '\n')
+      process.stdout.write('[WhatsApp PLEN] Message: ' + text + '\n')
+      process.stdout.write('='.repeat(80) + '\n')
+      
+      return {
+        success: true,
+        message: `☕ Ok, vou beber um cafezinho enquanto isso! 😊\n\nQuando precisar, é só mandar "chamar assistente plen" que eu já volto! 👋\n\n💤 Estou descansando... zzz`,
+      }
+    }
+    
+    // Verificação completa (para outras variações)
+    const isDeactivation = await isDeactivationMessage(text)
+    console.log('🔍 [WhatsApp PLEN] isDeactivation (completo):', isDeactivation)
+    process.stdout.write(`\n🔍 isDeactivation (completo): ${isDeactivation}\n`)
+    
+    if (isDeactivation) {
+      await deactivatePlen(phoneNumber)
+      console.log('🛑 [WhatsApp PLEN] ==========================================')
+      console.log('🛑 [WhatsApp PLEN] ASSISTENTE DESATIVADO (VERIFICAÇÃO COMPLETA) - RETORNANDO IMEDIATAMENTE')
+      console.log('🛑 [WhatsApp PLEN] Phone Number:', phoneNumber)
+      console.log('🛑 [WhatsApp PLEN] ==========================================')
+      
+      // CRÍTICO: Logar no sistema de logs também
+      addLog('info', `🛑 [PLEN WhatsApp] ASSISTENTE DESATIVADO (VERIFICAÇÃO COMPLETA) - Phone: ${phoneNumber}, Message: ${text}`)
+      
+      // CRÍTICO: Logar no stdout também
+      process.stdout.write('\n')
+      process.stdout.write('='.repeat(80) + '\n')
+      process.stdout.write('[WhatsApp PLEN] ✅✅✅ ASSISTENTE DESATIVADO (VERIFICAÇÃO COMPLETA)! ✅✅✅\n')
+      process.stdout.write('[WhatsApp PLEN] Phone: ' + phoneNumber + '\n')
+      process.stdout.write('[WhatsApp PLEN] Message: ' + text + '\n')
+      process.stdout.write('='.repeat(80) + '\n')
+      
+      return {
+        success: true,
+        message: `☕ Ok, vou beber um cafezinho enquanto isso! 😊\n\nQuando precisar, é só mandar "chamar assistente plen" que eu já volto! 👋\n\n💤 Estou descansando... zzz`,
+      }
+    }
+
+    // PRIORIDADE 2: Verificar mensagem de boas-vindas específica
+    // Esta mensagem deve ser respondida ANTES de qualquer outra verificação
+    const welcomeMessage = text.toLowerCase().trim()
+    const isWelcomeMessage = 
+      welcomeMessage === 'olá! quero começar a usar a plenipay, pode me explicar?' ||
+      welcomeMessage === 'olá quero começar a usar a plenipay, pode me explicar?' ||
+      welcomeMessage === 'ola! quero começar a usar a plenipay, pode me explicar?' ||
+      welcomeMessage === 'ola quero começar a usar a plenipay, pode me explicar?' ||
+      welcomeMessage.includes('quero começar a usar a plenipay') ||
+      welcomeMessage.includes('quero começar a usar plenipay') ||
+      (welcomeMessage.includes('quero começar') && welcomeMessage.includes('plenipay'))
+    
+    if (isWelcomeMessage) {
+      console.log('👋 [WhatsApp PLEN] ==========================================')
+      console.log('👋 [WhatsApp PLEN] MENSAGEM DE BOAS-VINDAS DETECTADA!')
+      console.log('👋 [WhatsApp PLEN] Text:', text)
+      console.log('👋 [WhatsApp PLEN] ==========================================')
+      
+      addLog('info', `👋 [PLEN WhatsApp] MENSAGEM DE BOAS-VINDAS DETECTADA: ${text}`)
+      process.stdout.write(`\n👋 MENSAGEM DE BOAS-VINDAS DETECTADA: ${text}\n`)
+      
+      // Retornar mensagem de boas-vindas exata
+      // CRÍTICO: Quebrar o link para evitar pré-visualização do WhatsApp
+      // Usando zero-width space (U+200B) antes do link para desabilitar preview
+      const zeroWidthSpace = '\u200B'
+      const link = `${zeroWidthSpace}https://plenipay.com/`
+      
+      return {
+        success: true,
+        message: `👋 Oi! Seja bem-vindo(a) à PleniPay
+
+Eu sou a Plen, sua assistente financeira 🤖💙
+Estou aqui pra te ajudar a registrar seus gastos e ganhos de forma simples e acompanhar como está o seu controle financeiro no dia a dia, sem planilhas e sem complicação.
+
+✨ Você pode começar gratuitamente agora mesmo
+👉 Crie sua conta aqui: ${link}
+
+Depois do cadastro, é só me mandar mensagens pelo WhatsApp que eu te ajudo a registrar tudo de forma rápida e organizada 📊💬
+
+Se tiver qualquer dúvida, pode falar comigo por aqui. E, se precisar, eu chamo nosso suporte humano pra te ajudar 😉
+
+Pronto(a) pra começar a entender melhor para onde seu dinheiro está indo e organizar sua vida financeira com mais clareza?
+Estou por aqui pra começarmos 🚀`,
+      }
+    }
+    
+    // NOVA LÓGICA: Verificar se o assistente está ativado
+    // Se não estiver ativado, verificar se a mensagem é uma chamada para ativar
+    const isActivated = await isPlenActivated(phoneNumber)
+    const isActivation = isActivationMessage(text)
+    
+    console.log('🔍 [WhatsApp PLEN] Verificando status do assistente:', {
+      phoneNumber,
+      isActivated,
+      isActivation,
+      isDeactivation: false, // Já verificamos acima
+    })
+    
+    // PRIORIDADE 3: Se é mensagem de ativação, ativar o assistente
+    if (isActivation) {
+      await activatePlen(phoneNumber)
+      console.log('✅ [WhatsApp PLEN] Assistente ativado! Respondendo com mensagem de boas-vindas')
+      
+      // Retornar mensagem de boas-vindas
+      return {
+        success: true,
+        message: `👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n• "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n• "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n• "gastei 30 reais de ônibus hoje"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais do cliente"\n• "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯\n\n📧 Para começar, me envie seu email de cadastro para eu identificar sua conta...`,
+      }
+    }
+    
+    // PRIORIDADE 3: Se não está ativado e não é mensagem de ativação/desativação, ignorar completamente
+    if (!isActivated) {
+      console.log('⚠️ [WhatsApp PLEN] Assistente não está ativado e mensagem não é de ativação/desativação - ignorando')
+      return null // Não retorna nada, silenciosamente ignora
+    }
+
     // Verificar se usuário está autenticado via WhatsApp
     console.log('🔍 [WhatsApp PLEN] Buscando contexto do usuário...')
     const userContext = await getUserContext(phoneNumber)
@@ -133,36 +593,21 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
     if (!userContext.whatsappAuthenticated) {
       console.log('⚠️ [WhatsApp PLEN] Usuário não autenticado via WhatsApp, iniciando autenticação...')
       
-      // MODO TESTE: Se a mensagem é "oi" ou similar, sempre responder mesmo sem autenticação
-      // Isso permite testar se o problema é autenticação ou envio
-      const lowerText = text.toLowerCase().trim()
-      const isGreeting = lowerText === 'oi' || lowerText === 'olá' || lowerText === 'ola' || lowerText === 'hello' || lowerText === 'hi'
-      
-      if (isGreeting) {
-        console.log('🧪 [WhatsApp PLEN] MODO TESTE: Respondendo "oi" mesmo sem autenticação para diagnóstico')
-        const authResult = await handleWhatsAppAuthentication(phoneNumber, text, userContext)
-        console.log('📤 [WhatsApp PLEN] Resultado da autenticação:', authResult ? `success: ${authResult.success}` : 'null')
-        
-        // CRÍTICO: Se a autenticação retornou resposta, usar ela
-        // Se não retornou, criar resposta padrão para teste
-        if (authResult && authResult.success && authResult.message) {
-          return authResult
-        }
-        
-        // Se não retornou resposta, criar uma para teste
-        console.log('🧪 [WhatsApp PLEN] Criando resposta de teste (autenticação não retornou resposta)')
-        return {
-          success: true,
-          message: `Olá! 👋 Bem-vindo ao assistente PLEN!\n\nPara usar o assistente, preciso identificar sua conta.\n\n📧 Me envie seu email de cadastro...`,
-        }
-      }
-      
+      // Processar autenticação normalmente
       const authResult = await handleWhatsAppAuthentication(phoneNumber, text, userContext)
       console.log('📤 [WhatsApp PLEN] Resultado da autenticação:', authResult ? `success: ${authResult.success}` : 'null')
       return authResult
     }
 
-    // Se está autenticado, processar com assistente PLEN
+    // Se está autenticado, verificar se assistente está ativado
+    // NOTA: Não ativamos automaticamente aqui porque o usuário pode ter desativado explicitamente
+    // A ativação automática só acontece após autenticação bem-sucedida (no handleWhatsAppAuthentication)
+    if (!(await isPlenActivated(phoneNumber))) {
+      console.log('⚠️ [WhatsApp PLEN] Assistente não está ativado para usuário autenticado - ignorando mensagem')
+      return null // Não processa se não estiver ativado
+    }
+    
+    // Processar com assistente PLEN
     console.log('✅ [WhatsApp PLEN] ==========================================')
     console.log('✅ [WhatsApp PLEN] USUÁRIO AUTENTICADO, PROCESSANDO COM PLEN')
     console.log('✅ [WhatsApp PLEN] User ID:', userContext.userId)
@@ -190,36 +635,41 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
     console.log('📤 [WhatsApp PLEN] Result completo:', plenResult ? JSON.stringify(plenResult, null, 2).substring(0, 500) : 'null')
     console.log('📤 [WhatsApp PLEN] ==========================================')
     
-    // CRÍTICO: Se não retornou resultado válido, retornar mensagem padrão
+    // Se não retornou resultado válido, devolver mensagem útil (nunca genérica)
     if (!plenResult || !plenResult.success || !plenResult.message) {
-      console.error('❌ [WhatsApp PLEN] ==========================================')
-      console.error('❌ [WhatsApp PLEN] RESULTADO INVÁLIDO DO PLEN')
-      console.error('❌ [WhatsApp PLEN] Result é null?', plenResult === null)
-      console.error('❌ [WhatsApp PLEN] Result tem success?', plenResult?.success)
-      console.error('❌ [WhatsApp PLEN] Result tem message?', !!plenResult?.message)
-      console.error('❌ [WhatsApp PLEN] Result completo:', plenResult ? JSON.stringify(plenResult, null, 2).substring(0, 500) : 'null')
-      console.error('❌ [WhatsApp PLEN] Retornando mensagem padrão')
-      console.error('❌ [WhatsApp PLEN] ==========================================')
-      
-      return {
-        success: true,
-        message: 'Desculpe, não consegui processar sua mensagem. Por favor, tente novamente.',
-      }
+      console.error('❌ [WhatsApp PLEN] RESULTADO INVÁLIDO DO PLEN:', plenResult === null ? 'null' : JSON.stringify(plenResult).slice(0, 300))
+      try {
+        const { plenWhatsAppLog } = await import('@/lib/plen-whatsapp-logs')
+        plenWhatsAppLog({
+          step: 'invalid_result',
+          userId: userContext.userId ?? undefined,
+          message: text.substring(0, 200),
+          plenResult: plenResult ?? undefined,
+          error: 'Resultado null ou sem success/message',
+        })
+      } catch (_) {}
+      const fallback = (plenResult?.message && String(plenResult.message).trim()) || 'Erro: resultado inválido do assistente (sem mensagem).'
+      return { success: true, message: fallback }
     }
     
     console.log('✅ [WhatsApp PLEN] Resultado válido, retornando resposta')
+    
+    // Adicionar log ao sistema
+    try {
+      const { addLog } = await import('@/lib/server-logs')
+      addLog('info', `✅ [WhatsApp PLEN] Resultado válido, retornando resposta - Success: ${plenResult?.success}, HasMessage: ${!!plenResult?.message}`)
+    } catch (e) {
+      // Ignorar erro de importação
+    }
+    
     return plenResult
   } catch (error: any) {
-    console.error('❌ [WhatsApp PLEN] ==========================================')
-    console.error('❌ [WhatsApp PLEN] ERRO AO PROCESSAR MENSAGEM')
-    console.error('❌ [WhatsApp PLEN] Error:', error.message)
-    console.error('❌ [WhatsApp PLEN] Stack:', error.stack?.substring(0, 500))
-    console.error('❌ [WhatsApp PLEN] ==========================================')
-    
-    // CRÍTICO: Sempre retornar uma resposta, mesmo em caso de erro
+    const errMsg = error?.message ?? String(error)
+    console.error('❌ [WhatsApp PLEN] ERRO AO PROCESSAR MENSAGEM:', errMsg)
+    console.error('❌ [WhatsApp PLEN] Stack:', error?.stack?.substring(0, 400))
     return {
       success: true,
-      message: 'Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente.',
+      message: `Erro: ${errMsg}`,
     }
   }
 }
@@ -236,14 +686,38 @@ function extractPhoneNumber(remoteJid: string): string {
  * Extrair texto da mensagem
  */
 function extractMessageText(message: WhatsAppMessage): string {
-  if (message.message.conversation) {
-    return message.message.conversation
+  // CRÍTICO: Logar para debug
+  console.log('🔍 [WhatsApp PLEN] Extraindo texto da mensagem:', {
+    hasConversation: !!message.message?.conversation,
+    hasExtendedText: !!message.message?.extendedTextMessage?.text,
+    messageKeys: message.message ? Object.keys(message.message) : [],
+  })
+  
+  if (message.message?.conversation) {
+    const text = message.message.conversation
+    console.log('✅ [WhatsApp PLEN] Texto extraído de conversation:', text.substring(0, 100))
+    return text
   }
   
-  if (message.message.extendedTextMessage?.text) {
-    return message.message.extendedTextMessage.text
+  if (message.message?.extendedTextMessage?.text) {
+    const text = message.message.extendedTextMessage.text
+    console.log('✅ [WhatsApp PLEN] Texto extraído de extendedTextMessage:', text.substring(0, 100))
+    return text
   }
   
+  // Tentar extrair de outros campos possíveis
+  const messageObj = message.message as any
+  if (messageObj?.text) {
+    console.log('✅ [WhatsApp PLEN] Texto extraído de text:', messageObj.text.substring(0, 100))
+    return messageObj.text
+  }
+  
+  if (messageObj?.body) {
+    console.log('✅ [WhatsApp PLEN] Texto extraído de body:', messageObj.body.substring(0, 100))
+    return messageObj.body
+  }
+  
+  console.log('⚠️ [WhatsApp PLEN] Nenhum texto encontrado na mensagem')
   return ''
 }
 
@@ -339,12 +813,12 @@ async function handleWhatsAppAuthentication(
   const trimmedText = text.trim()
 
   // Verificar se é primeira mensagem (oi, olá, etc)
-  if (lowerText === 'oi' || lowerText === 'olá' || lowerText === 'ola' || lowerText === 'hello' || lowerText === 'hi') {
+  if (lowerText === 'oi' || lowerText === 'olá' || lowerText === 'ola' || lowerText === 'hello' || lowerText === 'hi' || lowerText === 'bom dia' || lowerText === 'boa tarde' || lowerText === 'boa noite') {
     // Limpar qualquer email pendente anterior
     pendingEmails.delete(phoneNumber)
     return {
       success: true,
-      message: `Olá! 👋 Bem-vindo ao assistente PLEN!\n\nPara usar o assistente, preciso identificar sua conta.\n\n📧 Me envie seu email de cadastro...`,
+      message: `👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n• "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n• "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n• "gastei 30 reais de ônibus hoje"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais do cliente"\n• "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯\n\n📧 Para começar, me envie seu email de cadastro para eu identificar sua conta...`,
     }
   }
 
@@ -380,6 +854,10 @@ async function handleWhatsAppAuthentication(
       pendingEmails.delete(phoneNumber)
       
       if (authResult.success) {
+        // Ativar assistente automaticamente após autenticação bem-sucedida
+        await activatePlen(phoneNumber)
+        console.log('✅ [WhatsApp PLEN] Assistente ativado automaticamente após autenticação')
+        
         return {
           success: true,
           message: `✅ Autenticação realizada com sucesso!\n\nOlá, ${authResult.nome || 'usuário'}! 👋\n\nAgora você pode usar o assistente PLEN. Como posso ajudá-lo hoje?`,
@@ -515,6 +993,7 @@ async function authenticateWhatsAppUser(
           user_id: profile.id,
           expires_at: expiresAt.toISOString(),
           updated_at: new Date().toISOString(),
+          plen_activated: true, // Ativar automaticamente após autenticação bem-sucedida
         }, {
           onConflict: 'phone_number',
         })
@@ -558,175 +1037,65 @@ async function authenticateWhatsAppUser(
 
 /**
  * Processar mensagem com assistente PLEN
- * 
- * IMPORTANTE: Para integrar com PLEN, precisamos chamar a API interna
- * Como estamos em um webhook, vamos fazer uma chamada HTTP interna
+ * Chamada direta à lógica (sem fetch), para não depender de URL ou rede.
  */
 async function processWithPLEN(userId: string, text: string, imageBase64?: string) {
   try {
-    // Chamar API especial do PLEN para WhatsApp (não precisa autenticação)
-    // CRÍTICO: Em ambiente server-side, usar URL absoluta baseada no host da requisição
-    // Se não tiver, usar localhost como fallback
-    let apiUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : undefined) || 'http://localhost:3000'
+    const { addLog } = await import('@/lib/server-logs')
     
-    // Garantir que tem protocolo
-    if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
-      apiUrl = `http://${apiUrl}`
+    // Verificar desativação antes de processar
+    if (text && typeof text === 'string') {
+      const msgLower = text.toLowerCase().trim()
+      const isDeactivation = 
+        msgLower === 'parar assistente plen' ||
+        msgLower === 'para assistente plen' ||
+        msgLower === 'pare assistente plen' ||
+        msgLower.includes('parar assistente plen') ||
+        msgLower.includes('para assistente plen') ||
+        msgLower.includes('desativar assistente plen') ||
+        (msgLower.includes('parar') && msgLower.includes('assistente') && msgLower.includes('plen')) ||
+        (msgLower.includes('para') && msgLower.includes('assistente') && msgLower.includes('plen'))
+      
+      if (isDeactivation) {
+        console.log('🛑 [WhatsApp PLEN] DESATIVAÇÃO DETECTADA')
+        addLog('info', `🛑 [PLEN WhatsApp] DESATIVAÇÃO: ${text}`)
+        return {
+          success: true,
+          message: `☕ Ok, vou beber um cafezinho enquanto isso! 😊\n\nQuando precisar, é só mandar "chamar assistente plen" que eu já volto! 👋\n\n💤 Estou descansando... zzz`,
+        }
+      }
     }
     
-    const url = `${apiUrl}/api/plen/whatsapp-chat`
+    // Chamada direta (sem HTTP): não depende de NEXT_PUBLIC_SITE_URL nem da rota estar acessível
+    const { processPlenWhatsAppMessage } = await import('@/lib/plen-whatsapp-chat')
+    const result = await processPlenWhatsAppMessage(userId, text)
     
-    console.log('📞 [WhatsApp PLEN] ==========================================')
-    console.log('📞 [WhatsApp PLEN] CHAMANDO API PLEN WHATSAPP')
-    console.log('📞 [WhatsApp PLEN] URL:', url)
-    console.log('📞 [WhatsApp PLEN] API URL Base:', apiUrl)
-    console.log('📞 [WhatsApp PLEN] User ID:', userId)
-    console.log('📞 [WhatsApp PLEN] Text Length:', text.length)
-    console.log('📞 [WhatsApp PLEN] Text Preview:', typeof text === 'string' ? text.substring(0, 100) : String(text).substring(0, 100))
-    console.log('📞 [WhatsApp PLEN] Has Image:', !!imageBase64)
-    console.log('📞 [WhatsApp PLEN] Image Size:', imageBase64 ? imageBase64.length : 0)
-    console.log('📞 [WhatsApp PLEN] ==========================================')
+    console.log('✅ [WhatsApp PLEN] Resposta direta:', result.response?.substring(0, 80))
+    addLog('info', `✅ [PLEN WhatsApp] Resposta: ${result.response?.substring(0, 100)}`)
     
-    // CRÍTICO: Adicionar timeout e melhor tratamento de erros
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 segundos timeout
-    
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId,
-          message: text,
-          imageBase64: imageBase64, // Enviar imagem se disponível
-        }),
-        signal: controller.signal,
-      })
-      
-      clearTimeout(timeoutId)
-
-      console.log('📡 [WhatsApp PLEN] Status da resposta:', response.status, response.statusText)
-
-      // Ler resposta como texto primeiro para debug
-      const responseText = await response.text()
-      console.log('📡 [WhatsApp PLEN] Resposta bruta (primeiros 500 chars):', responseText.substring(0, 500))
-      
-      let data: any = {}
-      try {
-        data = JSON.parse(responseText)
-        console.log('✅ [WhatsApp PLEN] JSON parseado com sucesso')
-      } catch (parseError) {
-        console.error('❌ [WhatsApp PLEN] Erro ao fazer parse do JSON:', parseError)
-        console.error('❌ [WhatsApp PLEN] Resposta completa:', responseText)
-        
-        // Se não conseguiu fazer parse mas status é OK, tentar usar texto como resposta
-        if (response.ok && responseText.trim()) {
-          return {
-            success: true,
-            message: responseText.substring(0, 1000), // Limitar tamanho
-          }
-        }
-        
-        throw new Error(`Resposta inválida da API: ${responseText.substring(0, 200)}`)
-      }
-
-      if (!response.ok) {
-        console.error('❌ [WhatsApp PLEN] Erro na resposta da API:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData: data,
-        })
-        
-        // CRÍTICO: Mesmo com erro, se tem campo "response", usar ele
-        // A API pode retornar status 500 mas ainda ter uma mensagem útil
-        if (data.response) {
-          console.log('✅ [WhatsApp PLEN] Usando campo response mesmo com erro HTTP')
-          return {
-            success: true,
-            message: data.response,
-          }
-        }
-        
-        throw new Error(`API retornou ${response.status}: ${data.error || data.details || 'Erro desconhecido'}`)
-      }
-
-      console.log('✅ [WhatsApp PLEN] Resposta recebida:', { 
-        hasResponse: !!data.response,
-        responseLength: data.response?.length || 0,
-        error: data.error || null,
-        dataKeys: Object.keys(data),
-      })
-
-      // CRÍTICO: Sempre verificar campo "response" primeiro
-      if (data.response) {
-        console.log('✅ [WhatsApp PLEN] Retornando resposta do campo response')
-        return {
-          success: true,
-          message: data.response,
-        }
-      }
-
-      // Se veio erro na resposta mas não tem response
-      if (data.error) {
-        console.error('❌ [WhatsApp PLEN] Erro na resposta:', data.error)
-        return {
-          success: true,
-          message: `❌ Erro: ${data.error}. ${data.details || ''}`,
-        }
-      }
-
-      // Se não tem response nem error, retornar mensagem padrão
-      console.warn('⚠️ [WhatsApp PLEN] Resposta sem campo response nem error')
-      return {
-        success: true,
-        message: 'Desculpe, não consegui processar sua mensagem. Tente novamente.',
-      }
-    } catch (fetchError: any) {
-      clearTimeout(timeoutId)
-      
-      if (fetchError.name === 'AbortError') {
-        console.error('❌ [WhatsApp PLEN] Timeout ao chamar API PLEN (30 segundos)')
-        return {
-          success: true,
-          message: '⏱️ A requisição demorou muito. Tente novamente em alguns instantes.',
-        }
-      }
-      
-      throw fetchError
+    return {
+      success: true,
+      message: result.response,
     }
   } catch (error: any) {
-    console.error('❌ [WhatsApp PLEN] ==========================================')
-    console.error('❌ [WhatsApp PLEN] ERRO AO CHAMAR PLEN')
-    console.error('❌ [WhatsApp PLEN] Error:', error.message)
-    console.error('❌ [WhatsApp PLEN] Stack:', error.stack?.substring(0, 500))
-    console.error('❌ [WhatsApp PLEN] Name:', error.name)
-    console.error('❌ [WhatsApp PLEN] Code:', error.code)
-    console.error('❌ [WhatsApp PLEN] ==========================================')
+    const errMsg = error?.message ?? String(error)
+    console.error('❌ [WhatsApp PLEN] ERRO:', errMsg)
+    console.error('❌ [WhatsApp PLEN] Stack:', error?.stack?.substring(0, 400))
     
-    // CRÍTICO: Sempre retornar uma resposta, mesmo em caso de erro
+    try {
+      const { plenWhatsAppLog } = await import('@/lib/plen-whatsapp-logs')
+      plenWhatsAppLog({
+        step: 'error',
+        userId,
+        message: text?.substring(0, 200),
+        error: errMsg,
+      })
+    } catch (_) {}
+    
+    // Sempre devolver o erro REAL para o usuário ver no WhatsApp e descobrirmos a causa
     return {
       success: true,
-      message: 'Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente.',
-    }
-    
-    // Mensagem de erro mais específica
-    let errorMessage = 'Desculpe, ocorreu um erro. Tente novamente em alguns instantes.'
-    
-    if (error.message?.includes('usuário') || error.message?.includes('user')) {
-      errorMessage = '❌ Para registrar transações, você precisa criar pelo menos um usuário/pessoa primeiro.\n\n📱 Acesse: https://plenipay.com/configuracoes\n\nVá em "Usuários/Pessoas" e clique em "+ Novo Usuário".'
-    } else if (error.message?.includes('plano') || error.message?.includes('limite')) {
-      errorMessage = `❌ ${error.message}`
-    } else if (error.message?.includes('permission') || error.message?.includes('permissão')) {
-      errorMessage = '❌ Erro de permissão. Verifique se sua conta está ativa.'
-    } else if (error.message) {
-      errorMessage = `❌ Erro: ${error.message}`
-    }
-    
-    return {
-      success: true,
-      message: errorMessage,
+      message: `Erro: ${errMsg}`,
     }
   }
 }

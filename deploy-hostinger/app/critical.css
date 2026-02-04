@@ -1,0 +1,33 @@
+/* CSS Crítico - Carregado inline no <head> para renderização imediata */
+/* Apenas estilos essenciais para primeira renderização */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #ffffff;
+  color: #0D1B2A;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html.dark body {
+  background-color: #0D1B2A;
+  color: #ffffff;
+}
+
+/* Otimização: renderizar imediatamente sem FOUC */
+body {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Prevenir layout shift */
+* {
+  box-sizing: border-box;
+}
+

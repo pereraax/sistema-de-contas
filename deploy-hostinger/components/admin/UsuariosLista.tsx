@@ -189,25 +189,25 @@ export default function UsuariosLista({ usuarios: usuariosIniciais, error }: Usu
             <table className="w-full">
               <thead className="bg-brand-midnight border-b border-white/10">
                 <tr>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     ID Admin
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     Nome
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     Email
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     Contato
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     Plano
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     Cadastrado em
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean uppercase tracking-wider">
                     Ações
                   </th>
                 </tr>
@@ -364,21 +364,7 @@ export default function UsuariosLista({ usuarios: usuariosIniciais, error }: Usu
         )}
       </div>
 
-      {error && (
-        <div className="bg-red-900/20 border border-red-800/50 rounded-2xl p-6 shadow-lg">
-          <p className="text-red-400 font-semibold mb-2">Erro ao carregar usuários</p>
-          <p className="text-red-300/80 text-sm">{error}</p>
-          <p className="text-red-300/60 text-xs mt-2">
-            Verifique se a função RPC get_all_profiles está criada no banco de dados ou configure a variável SUPABASE_SERVICE_ROLE_KEY.
-          </p>
-        </div>
-      )}
-
-      {!error && usuariosFiltrados.length === 0 && (
-        <div className="bg-brand-royal rounded-2xl p-12 text-center shadow-lg border border-white/10">
-          <p className="text-brand-clean/60 text-lg">Nenhum usuário encontrado</p>
-        </div>
-      )}
+      {/* Removido: mensagem de erro duplicada - já existe uma acima */}
 
       {/* Modal de Detalhes */}
       {usuarioSelecionado && (
@@ -386,6 +372,12 @@ export default function UsuariosLista({ usuarios: usuariosIniciais, error }: Usu
           usuario={usuarioSelecionado}
           onClose={() => setUsuarioSelecionado(null)}
           onPlanoAlterado={handlePlanoAlterado}
+          onUsuarioDeletado={(usuarioId) => {
+            // Remover usuário da lista local imediatamente (feedback visual)
+            setUsuarios(prev => prev.filter(u => u.id !== usuarioId))
+            setUsuarioSelecionado(null)
+            // A página será recarregada pelo modal após 1.5s
+          }}
         />
       )}
     </div>

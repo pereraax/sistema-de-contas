@@ -22,9 +22,9 @@ export default function RegistroCard({ registro, onEdit }: RegistroCardProps) {
   const [showModalExcluir, setShowModalExcluir] = useState(false)
 
   const tipoColors = {
-    entrada: 'bg-green-100 text-green-700 border-green-300',
-    saida: 'bg-red-100 text-red-700 border-red-300',
-    divida: 'bg-orange-100 text-orange-700 border-orange-300',
+    entrada: 'bg-green-500 text-white border-green-600 dark:bg-green-600 dark:border-green-700',
+    saida: 'bg-red-500 text-white border-red-600 dark:bg-red-600 dark:border-red-700',
+    divida: 'bg-orange-500 text-white border-orange-600 dark:bg-orange-600 dark:border-orange-700',
   }
 
   const tipoLabels = {
@@ -82,29 +82,52 @@ export default function RegistroCard({ registro, onEdit }: RegistroCardProps) {
   }
 
   return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+    <div className="bg-white dark:bg-brand-royal rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-white/10 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-brand-clean mb-1">
             {registro.nome}
           </h3>
           {limparObservacao(registro.observacao) && (
-            <p className="text-sm text-gray-600 mb-2">{limparObservacao(registro.observacao)}</p>
+            <p className="text-sm text-gray-600 dark:text-brand-clean/70 mb-2">{limparObservacao(registro.observacao)}</p>
           )}
         </div>
         <span
-          className={`px-3 py-1 rounded-full text-xs font-medium border ${tipoColors[registro.tipo]}`}
+          className={`px-3 py-1 rounded-full text-xs font-semibold border shadow-sm ${tipoColors[registro.tipo]}`}
         >
           {tipoLabels[registro.tipo]}
         </span>
       </div>
 
       <div className="flex items-center justify-between mb-4">
-        <span className="text-2xl font-bold text-gray-900">{valorFormatado}</span>
+        <span className="text-2xl font-bold text-gray-900 dark:text-brand-clean">{valorFormatado}</span>
         {registro.user && (
-          <span className="text-sm text-gray-600">
-            👤 {registro.user.nome}
-          </span>
+          <div className="flex items-center gap-2">
+            {registro.user.imagem_url ? (
+              <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                <img 
+                  src={registro.user.imagem_url} 
+                  alt={registro.user.nome}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                    const parent = target.parentElement
+                    if (parent) {
+                      parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${registro.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                    }
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                <span className="text-brand-aqua font-bold text-xs">
+                  {registro.user.nome?.charAt(0).toUpperCase() || '?'}
+                </span>
+              </div>
+            )}
+            <span className="text-sm text-gray-600 dark:text-brand-clean/80">{registro.user.nome}</span>
+          </div>
         )}
       </div>
 
@@ -113,7 +136,7 @@ export default function RegistroCard({ registro, onEdit }: RegistroCardProps) {
           {registro.etiquetas.map((tag, index) => (
             <span
               key={index}
-              className="px-2 py-1 bg-primary-50 text-primary-600 text-xs rounded-lg"
+              className="px-2 py-1 bg-brand-aqua/10 dark:bg-brand-aqua/20 text-brand-aqua dark:text-brand-aqua text-xs rounded-lg"
             >
               {tag}
             </span>
@@ -123,8 +146,8 @@ export default function RegistroCard({ registro, onEdit }: RegistroCardProps) {
 
       {registro.categoria && (
         <div className="mb-4">
-          <span className="text-sm text-gray-500">Categoria: </span>
-          <span className="text-sm font-medium text-gray-700">{registro.categoria}</span>
+          <span className="text-sm text-gray-500 dark:text-brand-clean/60">Categoria: </span>
+          <span className="text-sm font-medium text-gray-700 dark:text-brand-clean/80">{registro.categoria}</span>
         </div>
       )}
 
@@ -138,9 +161,9 @@ export default function RegistroCard({ registro, onEdit }: RegistroCardProps) {
               Faltam {registro.parcelas_totais - registro.parcelas_pagas} parcelas
             </span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-gray-200 dark:bg-brand-midnight/50 rounded-full h-2">
             <div
-              className="bg-primary-500 h-2 rounded-full transition-all"
+              className="bg-brand-aqua dark:bg-brand-aqua h-2 rounded-full transition-all"
               style={{
                 width: `${(registro.parcelas_pagas / registro.parcelas_totais) * 100}%`,
               }}
@@ -149,8 +172,8 @@ export default function RegistroCard({ registro, onEdit }: RegistroCardProps) {
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-        <span className="text-xs text-gray-500">{dataFormatada}</span>
+      <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-white/10">
+        <span className="text-xs text-gray-500 dark:text-brand-clean/60">{dataFormatada}</span>
         <div className="flex gap-2">
           {registro.tipo === 'divida' && registro.parcelas_pagas < registro.parcelas_totais && (
             <button

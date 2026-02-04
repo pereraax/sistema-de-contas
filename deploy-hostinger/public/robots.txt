@@ -1,0 +1,20 @@
+# robots.txt para PLENIPAY
+# Permite que todos os bots indexem o site
+
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://plenipay.com/sitemap.xml
+
+# Bloquear áreas administrativas e APIs
+Disallow: /administracaosecr/
+Disallow: /api/
+Disallow: /_next/
+Disallow: /admin/
+
+# Permitir recursos públicos
+Allow: /app_icon.png
+Allow: /logo*.png
+Allow: /banner*.png
+

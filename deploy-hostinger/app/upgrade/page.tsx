@@ -9,6 +9,9 @@ import Logo from '@/components/Logo'
 import { createClient } from '@/lib/supabase/client'
 import { createNotification } from '@/components/NotificationBell'
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 const planos = [
   {
     id: 'gratuito' as const,
@@ -45,9 +48,9 @@ const planos = [
       'Até 10 usuários',
       'Suporte prioritário',
     ],
-    corHeader: 'bg-[#00C2FF]',
+    corHeader: 'bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f]',
     corTexto: 'text-white',
-    corBotao: 'bg-[#00C2FF] hover:bg-[#0099CC]',
+    corBotao: 'bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847]',
     corTextoBotao: 'text-white',
     destacado: false,
   },
@@ -69,8 +72,8 @@ const planos = [
     ],
     corHeader: 'bg-white/20 backdrop-blur-sm border border-white/30',
     corTexto: 'text-white',
-    corBotao: 'bg-white hover:bg-gray-100',
-    corTextoBotao: 'text-[#00C2FF]',
+    corBotao: 'bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847]',
+    corTextoBotao: 'text-white',
     destacado: true,
     badge: 'MAIS POPULAR',
   },
@@ -91,8 +94,8 @@ const planos = [
     ],
     corHeader: 'bg-white/20 backdrop-blur-sm border border-white/30',
     corTexto: 'text-white',
-    corBotao: 'bg-white hover:bg-gray-100',
-    corTextoBotao: 'text-[#0D1B2A]',
+    corBotao: 'bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847]',
+    corTextoBotao: 'text-white',
     destacado: true,
     badge: 'Economia: R$ 120',
   },
@@ -127,17 +130,17 @@ export default function UpgradePage() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <Loader2 className="animate-spin text-[#00C2FF]" size={48} />
+        <Loader2 className="animate-spin text-[#1e4976]" size={48} />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white dark:bg-[#1A1A1A]">
       <Sidebar />
-      <main className="lg:ml-64 min-h-screen bg-white">
+      <main className="lg:ml-64 min-h-screen bg-white dark:bg-[#1A1A1A]">
         {/* Header Mobile */}
-        <div className="lg:hidden pt-6 pb-4 px-3 sm:px-4 bg-white border-b border-gray-200">
+        <div className="lg:hidden pt-6 pb-4 px-3 sm:px-4 bg-white dark:bg-[#1A1A1A] border-b border-gray-200 dark:border-white/10">
           <div className="flex justify-center mb-4">
             <div className="w-40 sm:w-52">
               <Logo />
@@ -145,18 +148,18 @@ export default function UpgradePage() {
           </div>
           <div className="flex items-center gap-3 px-3">
             <MenuButton />
-            <h1 className="text-xl sm:text-2xl font-display font-bold text-[#0D1B2A] leading-none">
+            <h1 className="text-xl sm:text-2xl font-display font-bold text-[#0D1B2A] dark:text-white leading-none">
               Upgrade de Plano
             </h1>
           </div>
         </div>
 
         {/* Conteúdo Principal */}
-        <section className="bg-white py-10 md:py-12">
+        <section className="bg-white dark:bg-[#1A1A1A] py-10 md:py-12">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-8">
               <h2 className="text-2xl md:text-3xl font-display font-bold text-[#0D1B2A] mb-3">
-                Escolha o <span className="text-[#00C2FF]">Plano Ideal</span> para Você
+                Escolha o <span className="text-[#1e4976]">Plano Ideal</span> para Você
               </h2>
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">
                 Planos que se adaptam às suas necessidades. Comece grátis e evolua conforme cresce.
@@ -170,7 +173,7 @@ export default function UpgradePage() {
                   className={`${
                     plano.destacado
                       ? plano.id === 'premium'
-                        ? 'bg-gradient-to-br from-[#00C2FF] to-[#0099CC] rounded-2xl p-5 md:p-6 shadow-xl border-2 border-white relative transform scale-[1.02] hover:scale-[1.03] transition-all duration-300 z-10'
+                        ? 'bg-gradient-to-br from-[#2c5aa0] via-[#1e4976] to-[#163a5f] rounded-2xl p-5 md:p-6 shadow-xl border-2 border-white relative transform scale-[1.02] hover:scale-[1.03] transition-all duration-300 z-10'
                         : 'bg-gradient-to-br from-[#0D1B2A] via-[#1B263B] to-[#0D1B2A] rounded-2xl p-5 md:p-6 shadow-xl border-2 border-white relative transform scale-[1.02] hover:scale-[1.03] transition-all duration-300 z-10'
                       : 'bg-white rounded-2xl p-5 shadow-lg border-2 border-gray-200 transform hover:scale-105 transition-all duration-300'
                   }`}
@@ -181,12 +184,12 @@ export default function UpgradePage() {
                       plano.id === 'premium'
                         ? 'bg-yellow-400 text-[#0D1B2A]'
                         : 'bg-yellow-400 text-[#0D1B2A]'
-                    } text-xs font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 ${
+                    } text-xs font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 whitespace-nowrap ${
                       plano.id === 'anual' ? 'px-4 py-1.5' : ''
                     }`}>
-                      {plano.id === 'premium' && <Sparkles size={14} className="text-[#0D1B2A]" />}
+                      {plano.id === 'premium' && <Sparkles size={14} className="text-[#0D1B2A] flex-shrink-0" />}
                       {plano.id === 'anual' && <DollarSign size={14} className="text-[#0D1B2A] flex-shrink-0" />}
-                      <span className={plano.id === 'anual' ? 'leading-tight whitespace-nowrap' : ''}>
+                      <span className="whitespace-nowrap">
                         {plano.badge}
                       </span>
                     </div>
@@ -239,7 +242,7 @@ export default function UpgradePage() {
                         <CheckCircle2
                           size={18}
                           className={`flex-shrink-0 ${
-                            plano.destacado ? 'text-white' : 'text-[#00C2FF]'
+                            plano.destacado ? 'text-white' : 'text-[#1e4976]'
                           }`}
                         />
                         <span className={`text-sm ${
@@ -255,7 +258,7 @@ export default function UpgradePage() {
                   <button
                     onClick={() => handleSelecionarPlano(plano.id)}
                     disabled={loadingCheckout === plano.id}
-                    className={`w-full text-center py-3 ${plano.corBotao} ${plano.corTextoBotao} rounded-xl font-bold transition-all duration-300 ${
+                    className={`w-full text-center py-3 text-sm sm:text-base ${plano.corBotao} ${plano.corTextoBotao} rounded-xl font-bold transition-all duration-300 ${
                       plano.destacado
                         ? 'shadow-lg hover:shadow-xl transform hover:scale-105'
                         : 'shadow-lg'
@@ -293,7 +296,7 @@ export default function UpgradePage() {
                   href="https://wa.me/message/PLHJUVZSV2B5O1"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-3 bg-[#25D366] hover:bg-[#20BA5A] text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                  className="inline-flex items-center justify-center gap-3 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg"
                 >
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" fill="currentColor"/>

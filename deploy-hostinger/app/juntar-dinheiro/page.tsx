@@ -9,8 +9,7 @@ import JuntarDinheiroView from '@/components/JuntarDinheiroView'
 import { obterMetasCofrinho } from '@/lib/actions'
 import { redirect } from 'next/navigation'
 
-// Otimizar: cache de 60 segundos (metas mudam pouco frequentemente)
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
 
 async function JuntarDinheiroContent({ metaId }: { metaId?: string }) {
   try {
@@ -53,7 +52,7 @@ export default function JuntarDinheiroPage({
   const metaId = searchParams?.meta
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gradient-to-br dark:from-brand-midnight dark:via-brand-royal dark:to-brand-midnight">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#1A1A1A]">
       <Sidebar />
       <main className="lg:ml-64 p-3 sm:p-4 md:p-8 bg-gray-50 dark:bg-brand-midnight pt-6 lg:pt-4">
         <div className="max-w-7xl mx-auto">

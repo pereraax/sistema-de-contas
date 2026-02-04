@@ -133,24 +133,24 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
       >
         {/* Modal - Compacto e Organizado */}
         <div 
-          className="bg-white dark:bg-brand-royal rounded-2xl w-full max-w-md shadow-2xl border border-gray-200 dark:border-white/10 animate-slide-up max-h-[85vh] flex flex-col"
+          className="bg-white dark:bg-brand-royal rounded-3xl w-full max-w-md shadow-2xl border border-gray-200 dark:border-white/10 animate-slide-up max-h-[85vh] flex flex-col overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header Fixo */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-white/10 flex-shrink-0 bg-white dark:bg-brand-midnight">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-brand-aqua/20 dark:border-white/10 flex-shrink-0 bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal rounded-t-3xl">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-brand-aqua rounded-lg">
-                <Target size={16} className="text-brand-midnight" />
+              <div className="p-1.5 bg-white/20 rounded-lg">
+                <Target size={16} className="text-white" />
               </div>
-              <h2 className="text-lg font-display font-bold text-brand-midnight dark:text-brand-clean">
+              <h2 className="text-lg font-display font-bold text-white dark:text-brand-clean">
                 {metaParaEditar ? 'Editar Meta' : 'Criar Nova Meta'}
               </h2>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-smooth"
+              className="p-1.5 hover:bg-white/20 dark:hover:bg-white/10 rounded-lg transition-smooth"
             >
-              <X size={18} className="text-brand-midnight dark:text-brand-clean" />
+              <X size={18} className="text-white dark:text-brand-clean" />
             </button>
           </div>
 
@@ -273,7 +273,7 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
                       onClick={() => setPeriodicidade('diario')}
                       className={`p-1.5 rounded-lg border transition-smooth ${
                         periodicidade === 'diario'
-                          ? 'bg-brand-aqua border-brand-aqua text-brand-midnight shadow-sm'
+                          ? 'bg-brand-aqua border-brand-aqua text-white shadow-sm'
                           : 'bg-white dark:bg-brand-royal border-gray-300 dark:border-white/10 text-brand-midnight dark:text-brand-clean hover:border-brand-aqua'
                       }`}
                     >
@@ -286,7 +286,7 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
                       onClick={() => setPeriodicidade('semanal')}
                       className={`p-1.5 rounded-lg border transition-smooth ${
                         periodicidade === 'semanal'
-                          ? 'bg-brand-aqua border-brand-aqua text-brand-midnight shadow-sm'
+                          ? 'bg-brand-aqua border-brand-aqua text-white shadow-sm'
                           : 'bg-white dark:bg-brand-royal border-gray-300 dark:border-white/10 text-brand-midnight dark:text-brand-clean hover:border-brand-aqua'
                       }`}
                     >
@@ -299,7 +299,7 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
                       onClick={() => setPeriodicidade('mensal')}
                       className={`p-1.5 rounded-lg border transition-smooth ${
                         periodicidade === 'mensal'
-                          ? 'bg-brand-aqua border-brand-aqua text-brand-midnight shadow-sm'
+                          ? 'bg-brand-aqua border-brand-aqua text-white shadow-sm'
                           : 'bg-white dark:bg-brand-royal border-gray-300 dark:border-white/10 text-brand-midnight dark:text-brand-clean hover:border-brand-aqua'
                       }`}
                     >
@@ -313,7 +313,7 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
             </div>
 
             {/* Botões Fixos */}
-            <div className="flex gap-2 px-5 py-4 border-t border-gray-200 dark:border-white/10 flex-shrink-0 bg-white dark:bg-brand-midnight">
+            <div className="flex gap-2 px-5 py-4 border-t border-gray-200 dark:border-white/10 flex-shrink-0 bg-white dark:bg-brand-midnight rounded-b-3xl">
               <button
                 type="button"
                 onClick={onClose}
@@ -325,7 +325,7 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-4 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg hover:bg-brand-aqua/90 transition-smooth font-bold text-sm disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth font-bold text-sm disabled:opacity-50"
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">

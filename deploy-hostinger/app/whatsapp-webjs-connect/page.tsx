@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import { MessageCircle, QrCode, CheckCircle, XCircle, Loader2, RefreshCw, ExternalLink } from 'lucide-react'
 import { createNotification } from '@/components/NotificationBell'
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 export default function WhatsAppWebJSConnectPage() {
   const [status, setStatus] = useState<{
     connected: boolean
@@ -339,6 +342,8 @@ export default function WhatsAppWebJSConnectPage() {
     </div>
   )
 }
+
+
 
 
 

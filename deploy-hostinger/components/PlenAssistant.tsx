@@ -24,7 +24,7 @@ export default function PlenAssistant() {
     {
       id: '1',
       role: 'assistant',
-      content: 'Olá! Eu sou o PLEN, seu assistente financeiro inteligente. Estou aqui para ajudá-lo a gerenciar suas finanças de forma simples e eficiente.\n\n📝 Para registrar um novo lançamento, você pode me informar de forma natural, por exemplo:\n\n• "ganhei 100 reais de ana"\n• "gastei 40 no shopping"\n• "ganhei 20 da tia"\n• "divida de 2000 sofá"\n\nEu processarei e registrarei essas informações da melhor forma possível. Como posso ajudá-lo hoje?',
+      content: '👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n• "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n• "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n• "gastei 30 reais de ônibus hoje"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais do cliente"\n• "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯\n\nComo posso ajudar você hoje? 🤗',
       timestamp: new Date()
     }
   ])
@@ -50,7 +50,7 @@ export default function PlenAssistant() {
           setMessages([{
             id: '1',
             role: 'assistant',
-            content: 'Olá! Eu sou o PLEN, seu assistente financeiro inteligente. Estou aqui para ajudá-lo a gerenciar suas finanças de forma simples e eficiente.\n\n📝 Para registrar um novo lançamento, você pode me informar de forma natural, por exemplo:\n\n• "ganhei 100 reais de ana"\n• "gastei 40 no shopping"\n• "ganhei 20 da tia"\n• "divida de 2000 sofá"\n\nEu processarei e registrarei essas informações da melhor forma possível. Como posso ajudá-lo hoje?',
+            content: '👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n• "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n• "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n• "gastei 30 reais de ônibus hoje"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais do cliente"\n• "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯\n\nComo posso ajudar você hoje? 🤗',
             timestamp: new Date()
           }])
           setInput('')
@@ -75,7 +75,7 @@ export default function PlenAssistant() {
         setMessages([{
           id: '1',
           role: 'assistant',
-          content: 'Olá! Eu sou o PLEN, seu assistente financeiro inteligente. Estou aqui para ajudá-lo a gerenciar suas finanças de forma simples e eficiente.\n\n📝 Para registrar um novo lançamento, você pode me informar de forma natural, por exemplo:\n\n• "ganhei 100 reais de ana"\n• "gastei 40 no shopping"\n• "ganhei 20 da tia"\n• "divida de 2000 sofá"\n\nEu processarei e registrarei essas informações da melhor forma possível. Como posso ajudá-lo hoje?',
+          content: '👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n• "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n• "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n• "gastei 30 reais de ônibus hoje"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais do cliente"\n• "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯\n\nComo posso ajudar você hoje? 🤗',
           timestamp: new Date()
         }])
         setInput('')
@@ -90,6 +90,21 @@ export default function PlenAssistant() {
       subscription.unsubscribe()
     }
   }, [])
+
+  // Escutar evento customizado para abrir/fechar via bottom nav (toggle)
+  useEffect(() => {
+    const handleTogglePlen = () => {
+      if (isAuthenticated && !isCheckingAuth) {
+        setIsOpen(prev => !prev)
+        // Foco no input já é tratado pelo useEffect quando isOpen vira true
+      }
+    }
+
+    window.addEventListener('open-plen-assistant', handleTogglePlen)
+    return () => {
+      window.removeEventListener('open-plen-assistant', handleTogglePlen)
+    }
+  }, [isAuthenticated, isCheckingAuth])
 
   // Scroll para última mensagem
   useEffect(() => {
@@ -295,24 +310,44 @@ export default function PlenAssistant() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/plen/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: messageText,
-          conversationHistory: messages.slice(-10).map(m => ({
-            role: m.role,
-            content: m.content
-          }))
-        }),
-      })
+      let response: Response
+      try {
+        response = await fetch('/api/plen/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            message: messageText,
+            conversationHistory: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
+          }),
+        })
+      } catch (fetchErr: any) {
+        const networkMsg = fetchErr?.message || String(fetchErr)
+        throw new Error(networkMsg === 'Failed to fetch' ? 'Não foi possível conectar ao servidor. Verifique a internet ou tente de novo.' : networkMsg)
+      }
 
-      const data = await response.json()
+      let data: { response?: string; error?: string; actionData?: any; pendingAction?: any } = {}
+      try {
+        data = await response.json()
+      } catch (_) {
+        const text = (await response.text().catch(() => '')) || ''
+        const is404 = response.status === 404
+        const is500 = response.status === 500
+        throw new Error(
+          is404
+            ? 'Rota do assistente não encontrada (404). Faça deploy da aplicação ou rode em desenvolvimento.'
+            : is500
+              ? `Servidor retornou erro 500. ${text.slice(0, 100)}`
+              : text || `Erro HTTP ${response.status}`
+        )
+      }
 
       if (data.error) {
         throw new Error(data.error)
+      }
+
+      if (!response.ok && !data.response) {
+        throw new Error(data.error || `Erro ${response.status}`)
       }
 
       // Verificar se há confirmação pendente
@@ -338,15 +373,20 @@ export default function PlenAssistant() {
         setPendingConfirmation(null) // Limpar confirmação pendente após registro
       }
     } catch (error: any) {
-      console.error('Erro ao enviar mensagem:', error)
+      const errMsg =
+        (error && typeof error === 'object' && error.message) ||
+        (typeof error === 'string' && error) ||
+        (error && String(error)) ||
+        'Erro desconhecido'
+      console.error('[PLEN] Erro ao enviar mensagem:', error, '-> exibindo:', errMsg)
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente.',
+        content: `Erro: ${errMsg}. Verifique sua conexão e se está logado.`,
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errorMessage])
-      createNotification('Erro ao processar mensagem', 'warning')
+      createNotification(errMsg, 'warning')
     } finally {
       setIsLoading(false)
     }
@@ -386,10 +426,12 @@ export default function PlenAssistant() {
 
   return (
     <>
-      {/* Botão Flutuante PLEN */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center justify-center">
+      {/* Botão Flutuante PLEN - Escondido em mobile (usa bottom nav) */}
+      <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] hidden lg:flex items-center justify-center">
           <button
             onClick={() => setIsOpen(!isOpen)}
+            data-plen-button
+            aria-label="Abrir PLEN Assistant"
           className={`relative w-16 h-16 rounded-full bg-gradient-to-r from-brand-aqua to-blue-500 text-white shadow-2xl hover:shadow-3xl transition-all duration-300 flex items-center justify-center hover:scale-110 overflow-hidden ${
             isOpen ? '' : 'animate-plen-glow'
             }`}

@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@/lib/types'
-import { obterUsuarios, criarUsuario, resetarTodosRegistros } from '@/lib/actions'
-import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown } from 'lucide-react'
+import { obterUsuarios, criarUsuario, resetarTodosRegistros, atualizarImagemPerfilUsuario, atualizarImagemProprioPerfil } from '@/lib/actions'
+import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown, Download, Smartphone, Share2, ArrowRight, Lightbulb, Copy, Check, Camera } from 'lucide-react'
 import { createNotification } from './NotificationBell'
 import { atualizarSenha, reenviarEmailConfirmacao, signOut, limparBypassEmailConfirmacao } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/client'
@@ -13,9 +13,18 @@ import ModalConfirmarEmail from './ModalConfirmarEmail'
 
 interface ConfiguracoesViewProps {
   tabAtivo: string
+  initialProfileData?: {
+    user: {
+      id: string
+      email: string
+      email_confirmed_at: string | null
+    }
+    profile: any
+    whatsappKey: string | null
+  } | null
 }
 
-export default function ConfiguracoesView({ tabAtivo: tabInicial }: ConfiguracoesViewProps) {
+export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfileData }: ConfiguracoesViewProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [tabAtivo, setTabAtivo] = useState(tabInicial)
@@ -28,8 +37,9 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
   const [touchEnd, setTouchEnd] = useState<number | null>(null)
   
   // Estados para perfil
+  // Se tiver initialProfileData, começar sem loading para mostrar imediatamente
   const [userProfile, setUserProfile] = useState<any>(null)
-  const [loadingProfile, setLoadingProfile] = useState(true)
+  const [loadingProfile, setLoadingProfile] = useState(!initialProfileData)
   const [showRedefinirSenha, setShowRedefinirSenha] = useState(false)
   const [senhaAtual, setSenhaAtual] = useState('')
   const [novaSenha, setNovaSenha] = useState('')
@@ -52,13 +62,53 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(false)
   const [nome, setNome] = useState('')
   const [showModalEditarNome, setShowModalEditarNome] = useState(false)
+  const [uploadingImagem, setUploadingImagem] = useState<string | null>(null)
   const [loadingNome, setLoadingNome] = useState(false)
   const [showModalVerificarEmail, setShowModalVerificarEmail] = useState(false)
   const [bypassLimpo, setBypassLimpo] = useState(false) // Flag para evitar limpar bypass múltiplas vezes
   const [carregandoPerfil, setCarregandoPerfil] = useState(false) // Flag para evitar múltiplos carregamentos simultâneos
   const [whatsappKey, setWhatsappKey] = useState<string | null>(null)
   const [loadingWhatsappKey, setLoadingWhatsappKey] = useState(false)
+  const historyEntryAdded = useRef(false)
   const [showWhatsappKey, setShowWhatsappKey] = useState(false)
+  const [copiedKey, setCopiedKey] = useState(false)
+  const [uploadingOwnPhoto, setUploadingOwnPhoto] = useState(false)
+  const photoPerfilRef = useRef<HTMLInputElement>(null)
+  const [avatarCacheKey, setAvatarCacheKey] = useState(0)
+
+  // Inicializar dados do perfil se fornecidos pelo servidor IMEDIATAMENTE (antes de qualquer loading)
+  useEffect(() => {
+    if (initialProfileData) {
+      const { user, profile, whatsappKey } = initialProfileData
+      
+      // Montar estrutura de userProfile
+      const profileData: any = {
+        ...user,
+        email: user.email || '',
+        email_confirmed_at: user.email_confirmed_at || null,
+        profile: profile,
+      }
+      
+      setUserProfile(profileData)
+      setLoadingProfile(false)
+      setCarregandoPerfil(false)
+      
+      // Carregar dados adicionais
+      if (profile?.cpf) {
+        setCpf(profile.cpf)
+      }
+      if (profile?.whatsapp) {
+        setWhatsapp(profile.whatsapp)
+      }
+      if (whatsappKey) {
+        setWhatsappKey(whatsappKey)
+      }
+      if (profile?.nome) {
+        setNome(profile.nome)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Executar apenas uma vez na montagem
 
   useEffect(() => {
     const tab = searchParams.get('tab')
@@ -72,15 +122,16 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
       setTabAtivo('perfil') // Padrão agora é Perfil ao invés de Geral
     }
     carregarUsuarios()
-    // Carregar perfil apenas se estiver na aba de perfil e não houver erro de sessão
-    if (tab === 'perfil' && !userProfile?.error) {
+    // NUNCA carregar perfil se já tiver initialProfileData do servidor
+    // Carregar perfil apenas se não houver dados iniciais E não houver userProfile
+    if (tab === 'perfil' && !initialProfileData && !userProfile && !userProfile?.error) {
       carregarPerfil()
     }
-    // Carregar chave WhatsApp se estiver na aba de perfil
-    if (tab === 'perfil') {
+    // Carregar chave WhatsApp apenas se não foi fornecida pelo servidor e não existir
+    if (tab === 'perfil' && !initialProfileData?.whatsappKey && !whatsappKey) {
       carregarWhatsappKey()
     }
-  }, [searchParams, userProfile?.error])
+  }, [searchParams, initialProfileData])
   
   // Função para carregar chave WhatsApp
   const carregarWhatsappKey = async () => {
@@ -147,15 +198,14 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
   }, [tabAtivo, carregandoPerfil, loadingProfile])
 
   // Recarregar perfil quando a aba de perfil for ativada
-  // CRÍTICO: Não incluir userProfile nas dependências para evitar loop infinito
-  // NÃO recarregar se já houver erro de sessão
+  // CRÍTICO: NÃO recarregar se já tiver initialProfileData do servidor
   useEffect(() => {
-    if (tabAtivo === 'perfil' && !userProfile && !loadingProfile && !carregandoPerfil) {
-      console.log('🔄 Recarregando perfil porque está na aba perfil e não há userProfile')
+    if (tabAtivo === 'perfil' && !initialProfileData && !userProfile && !loadingProfile && !carregandoPerfil) {
+      console.log('🔄 Recarregando perfil porque está na aba perfil e não há userProfile nem initialProfileData')
       carregarPerfil()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabAtivo]) // Apenas tabAtivo como dependência
+  }, [tabAtivo, initialProfileData]) // Adicionar initialProfileData para evitar recarregamento
 
   // Debug: monitorar mudanças no userProfile
   useEffect(() => {
@@ -167,6 +217,87 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
       loading: loadingProfile
     })
   }, [userProfile, loadingProfile])
+
+  // Bloquear scroll do body quando modais estiverem abertos
+  useEffect(() => {
+    const hasOpenModal = showModalResetar || showModalLogout || showModalExcluirUsuario || showRedefinirSenha || showModalEditarNome
+    
+    if (hasOpenModal) {
+      // Salvar a posição atual do scroll
+      const scrollY = window.scrollY
+      document.body.style.position = 'fixed'
+      document.body.style.top = `-${scrollY}px`
+      document.body.style.width = '100%'
+      document.body.style.overflow = 'hidden'
+    } else {
+      // Restaurar o scroll quando o modal fechar
+      const scrollY = document.body.style.top
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
+      document.body.style.overflow = ''
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0') * -1)
+      }
+    }
+
+    // Cleanup: garantir que o scroll seja restaurado quando o componente desmontar
+    return () => {
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
+      document.body.style.overflow = ''
+    }
+  }, [showModalResetar, showModalLogout, showModalExcluirUsuario, showRedefinirSenha, showModalEditarNome])
+
+  // Detectar botão "voltar" do navegador e fechar modais
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      // Fechar todos os modais quando o usuário clicar em "voltar"
+      if (showModalResetar) {
+        setShowModalResetar(false)
+        setConfirmacaoResetar('')
+      }
+      if (showModalLogout) {
+        setShowModalLogout(false)
+      }
+      if (showModalExcluirUsuario) {
+        setShowModalExcluirUsuario(false)
+        setUsuarioParaExcluir(null)
+      }
+      if (showRedefinirSenha) {
+        setShowRedefinirSenha(false)
+        setSenhaAtual('')
+        setNovaSenha('')
+        setConfirmarSenha('')
+      }
+      if (showModalEditarNome) {
+        setShowModalEditarNome(false)
+        setNome(userProfile?.profile?.nome || userProfile?.email?.split('@')[0] || 'Usuário')
+      }
+      // Resetar a flag quando o modal fechar via popstate
+      historyEntryAdded.current = false
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [showModalResetar, showModalLogout, showModalExcluirUsuario, showRedefinirSenha, showModalEditarNome, userProfile])
+
+  // Adicionar entrada no histórico quando modais abrirem
+  useEffect(() => {
+    const hasOpenModal = showModalResetar || showModalLogout || showModalExcluirUsuario || showRedefinirSenha || showModalEditarNome
+    
+    if (hasOpenModal && !historyEntryAdded.current) {
+      // Adicionar uma entrada no histórico quando o modal abrir pela primeira vez
+      window.history.pushState({ modalOpen: true }, '')
+      historyEntryAdded.current = true
+    } else if (!hasOpenModal && historyEntryAdded.current) {
+      // Resetar a flag quando todos os modais fecharem
+      historyEntryAdded.current = false
+    }
+  }, [showModalResetar, showModalLogout, showModalExcluirUsuario, showRedefinirSenha, showModalEditarNome])
   
   const carregarPerfil = async () => {
     // Evitar múltiplos carregamentos simultâneos
@@ -429,6 +560,20 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
     }
   }
 
+  // Lista para exibição: sempre incluir o dono da conta no topo se não estiver na tabela users
+  const usuariosParaExibir = useMemo(() => {
+    if (!userProfile?.id) return usuarios
+    const donoJaEstaNaLista = usuarios.some((u) => u.id === userProfile.id)
+    if (donoJaEstaNaLista) return usuarios
+    const dono: User = {
+      id: userProfile.id,
+      nome: userProfile.profile?.nome?.trim() || userProfile.email?.split('@')[0] || 'Você (dono da conta)',
+      created_at: (userProfile as any).created_at || new Date().toISOString(),
+      imagem_url: userProfile.profile?.imagem_url,
+    }
+    return [dono, ...usuarios]
+  }, [usuarios, userProfile])
+
   const handleCriarUsuario = async () => {
     if (!novoUsuarioNome.trim()) return
 
@@ -452,6 +597,64 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
       setShowNovoUsuario(false)
     }
     setLoading(false)
+  }
+
+  const handleUploadImagem = async (userId: string, file: File) => {
+    setUploadingImagem(userId)
+    
+    try {
+      // Fazer upload da imagem
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', file)
+      uploadFormData.append('folder', 'perfis')
+      uploadFormData.append('bucket', 'avatares') // Usar bucket específico para avatares
+
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadFormData,
+      })
+
+      const uploadData = await uploadResponse.json()
+
+      if (!uploadResponse.ok || uploadData.error) {
+        // Mensagem mais clara se o bucket não existir
+        if (uploadData.error?.includes('Bucket') && uploadData.error?.includes('not found')) {
+          throw new Error('Bucket "avatares" não encontrado. Por favor, crie o bucket no Supabase Storage (Dashboard > Storage > New bucket, nome: "avatares", público: sim).')
+        }
+        throw new Error(uploadData.error || 'Erro ao fazer upload da imagem')
+      }
+
+      console.log('📤 [Upload] Upload concluído, URL recebida:', uploadData.url)
+      
+      // Atualizar o usuário com a URL da imagem
+      const result = await atualizarImagemPerfilUsuario(userId, uploadData.url)
+
+      if (result.error) {
+        console.error('❌ [Upload] Erro ao atualizar no banco:', result.error)
+        createNotification('Erro ao atualizar imagem: ' + result.error, 'warning')
+      } else {
+        console.log('✅ [Upload] Imagem atualizada no banco:', result.data)
+        createNotification('Imagem de perfil atualizada com sucesso!', 'success')
+        // Atualizar o estado do usuário sendo editado se estiver no modal
+        if (editandoUsuario && editandoUsuario.id === userId) {
+          setEditandoUsuario({ ...editandoUsuario, imagem_url: uploadData.url })
+        }
+        await carregarUsuarios()
+        
+        // Verificar se a imagem foi carregada corretamente
+        const usuariosAtualizados = await obterUsuarios()
+        const usuarioAtualizado = usuariosAtualizados.data?.find(u => u.id === userId)
+        console.log('🔍 [Upload] Usuário após recarregar:', usuarioAtualizado)
+        if (usuarioAtualizado) {
+          console.log('🔍 [Upload] imagem_url do usuário:', usuarioAtualizado.imagem_url)
+        }
+      }
+    } catch (error: any) {
+      console.error('Erro ao fazer upload da imagem:', error)
+      createNotification('Erro ao fazer upload da imagem: ' + (error.message || 'Erro desconhecido'), 'warning')
+    } finally {
+      setUploadingImagem(null)
+    }
   }
 
   // Função para validar senha
@@ -580,6 +783,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
   const tabs = [
     { id: 'usuarios', label: 'Usuários/Pessoas', icon: Users },
     { id: 'perfil', label: 'Perfil', icon: UserIcon },
+    { id: 'baixar', label: 'Baixar Plataforma', icon: Download },
   ]
 
   return (
@@ -599,7 +803,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                 className={`flex items-center gap-2 px-6 py-4 font-medium transition-smooth whitespace-nowrap flex-shrink-0 ${
                   tabAtivo === tab.id
                     ? 'bg-brand-aqua/10 text-brand-aqua border-b-2 border-brand-aqua'
-                    : 'text-brand-midnight dark:text-brand-clean/60 hover:text-brand-midnight dark:text-brand-clean hover:bg-brand-clean dark:bg-brand-royal/50'
+                    : 'text-brand-midnight dark:text-white/80 hover:text-brand-midnight dark:hover:text-white hover:bg-brand-clean dark:bg-brand-royal/50'
                 }`}
               >
                 <Icon size={20} strokeWidth={2} />
@@ -666,12 +870,90 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                     </h2>
                     
                     <div className="bg-white dark:bg-brand-royal/30 rounded-xl p-6 space-y-5 border border-gray-200 dark:border-brand-aqua/20 shadow-sm">
-                      {/* Avatar e Nome */}
+                      {/* Avatar (com coroa = dono da conta) e Nome */}
                       <div className="flex items-center gap-4 pb-4 border-b border-brand-midnight/10 dark:border-white/10">
-                        <div className="w-16 h-16 rounded-full bg-brand-aqua/20 flex items-center justify-center">
-                          <span className="text-brand-aqua font-bold text-2xl">
-                            {(userProfile.profile?.nome || userProfile.email || 'U').charAt(0).toUpperCase()}
-                          </span>
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="relative">
+                            {/* Ícone de coroa acima do avatar = dono da conta */}
+                            <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-7 h-7 rounded-full bg-amber-400 shadow-md" title="Dono da conta">
+                              <Crown size={14} className="text-amber-900" strokeWidth={2.5} />
+                            </div>
+                            <div className="w-16 h-16 rounded-full bg-brand-aqua/20 flex items-center justify-center overflow-hidden border-2 border-brand-aqua/30">
+                              {userProfile.profile?.imagem_url ? (
+                                <img
+                                  src={`/api/user/avatar?t=${avatarCacheKey}`}
+                                  alt={userProfile.profile?.nome || 'Perfil'}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement
+                                    target.style.display = 'none'
+                                    const parent = target.parentElement
+                                    if (parent) {
+                                      const inicial = (userProfile.profile?.nome || userProfile.email || 'U').charAt(0).toUpperCase()
+                                      const span = document.createElement('span')
+                                      span.className = 'text-brand-aqua font-bold text-2xl'
+                                      span.textContent = inicial
+                                      parent.appendChild(span)
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <span className="text-brand-aqua font-bold text-2xl">
+                                  {(userProfile.profile?.nome || userProfile.email || 'U').charAt(0).toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <input
+                              ref={photoPerfilRef}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0]
+                                if (!file) return
+                                const maxSize = 2 * 1024 * 1024 // 2MB
+                                if (file.size > maxSize) {
+                                  createNotification('A imagem ultrapassou o limite. Use uma foto com menos de 2MB.', 'warning')
+                                  e.target.value = ''
+                                  return
+                                }
+                                setUploadingOwnPhoto(true)
+                                try {
+                                  const formData = new FormData()
+                                  formData.append('file', file)
+                                  formData.append('folder', 'perfis')
+                                  formData.append('bucket', 'avatares')
+                                  const res = await fetch('/api/upload', { method: 'POST', body: formData, credentials: 'include' })
+                                  const data = await res.json().catch(() => ({}))
+                                  if (!res.ok) throw new Error(data?.error || `Erro no upload (${res.status})`)
+                                  const url = data?.url
+                                  if (!url) throw new Error('Upload retornou sem URL da imagem.')
+                                  const result = await atualizarImagemProprioPerfil(url)
+                                  if (result.error) throw new Error(result.error)
+                                  setUserProfile(prev => ({
+                                    ...prev,
+                                    profile: { ...(prev.profile || {}), imagem_url: data.url }
+                                  }))
+                                  setAvatarCacheKey(Date.now())
+                                  createNotification('Foto de perfil atualizada!', 'success')
+                                  await carregarPerfil()
+                                } catch (err: any) {
+                                  createNotification(err?.message || 'Erro ao adicionar foto', 'warning')
+                                } finally {
+                                  setUploadingOwnPhoto(false)
+                                  e.target.value = ''
+                                }
+                              }}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => photoPerfilRef.current?.click()}
+                            disabled={uploadingOwnPhoto}
+                            className="text-xs font-medium text-brand-aqua hover:text-brand-aqua/80 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {uploadingOwnPhoto ? 'Enviando...' : 'Adicionar foto'}
+                          </button>
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
@@ -690,6 +972,9 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                             </button>
                           </div>
                           <p className="text-sm text-brand-midnight dark:text-brand-clean/60 break-words">{userProfile.email || 'Email não disponível'}</p>
+                          <p className="text-xs text-brand-midnight/70 dark:text-brand-clean/50 mt-1">
+                            O usuário <span className="font-medium text-brand-midnight dark:text-brand-clean/80">{userProfile.profile?.nome || userProfile.email?.split('@')[0] || 'Usuário'}</span> é dono dessa conta.
+                          </p>
                         </div>
                       </div>
 
@@ -969,8 +1254,52 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                                   {showWhatsappKey ? whatsappKey : '•••••-•••••-•••••'}
                                 </code>
                                 <button
+                                  onClick={async () => {
+                                    if (!showWhatsappKey) {
+                                      // Se a chave estiver oculta, mostrar primeiro
+                                      setShowWhatsappKey(true)
+                                      // Aguardar um pouco para o usuário ver a chave
+                                      await new Promise(resolve => setTimeout(resolve, 100))
+                                    }
+                                    // Copiar para o clipboard
+                                    if (whatsappKey) {
+                                      try {
+                                        await navigator.clipboard.writeText(whatsappKey)
+                                        setCopiedKey(true)
+                                        setTimeout(() => setCopiedKey(false), 2000)
+                                      } catch (err) {
+                                        console.error('Erro ao copiar:', err)
+                                        // Fallback para navegadores antigos
+                                        const textArea = document.createElement('textarea')
+                                        textArea.value = whatsappKey
+                                        textArea.style.position = 'fixed'
+                                        textArea.style.opacity = '0'
+                                        document.body.appendChild(textArea)
+                                        textArea.select()
+                                        try {
+                                          document.execCommand('copy')
+                                          setCopiedKey(true)
+                                          setTimeout(() => setCopiedKey(false), 2000)
+                                        } catch (fallbackErr) {
+                                          console.error('Erro ao copiar (fallback):', fallbackErr)
+                                        }
+                                        document.body.removeChild(textArea)
+                                      }
+                                    }
+                                  }}
+                                  className="p-2 text-brand-aqua hover:text-brand-aqua/80 transition-smooth relative"
+                                  title="Copiar chave"
+                                >
+                                  {copiedKey ? (
+                                    <Check size={18} className="text-green-500" />
+                                  ) : (
+                                    <Copy size={18} />
+                                  )}
+                                </button>
+                                <button
                                   onClick={() => setShowWhatsappKey(!showWhatsappKey)}
                                   className="p-2 text-brand-aqua hover:text-brand-aqua/80 transition-smooth"
+                                  title={showWhatsappKey ? "Ocultar chave" : "Mostrar chave"}
                                 >
                                   {showWhatsappKey ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
@@ -1009,7 +1338,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                                 </button>
                                 <button
                                   onClick={async () => {
-                                    if (!confirm('Tem certeza que deseja remover a chave? Você precisará gerar uma nova para usar o assistente WhatsApp.')) {
+                                    if (!confirm('Desvincular WhatsApp?\n\nSerá removida a chave e a sessão. Para reconectar: gere uma nova chave aqui e envie no WhatsApp seu email + a chave (o assistente pedirá).')) {
                                       return
                                     }
                                     setLoadingWhatsappKey(true)
@@ -1021,21 +1350,22 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                                       if (data.success) {
                                         setWhatsappKey(null)
                                         setShowWhatsappKey(false)
-                                        createNotification('Chave removida com sucesso!', 'success')
+                                        createNotification('WhatsApp desvinculado. Gere uma nova chave e envie (email + chave) no WhatsApp para reconectar.', 'success')
                                         carregarPerfil()
                                       } else {
-                                        createNotification('Erro ao remover chave: ' + (data.error || 'Erro desconhecido'), 'warning')
+                                        createNotification('Erro ao desvincular: ' + (data.error || 'Erro desconhecido'), 'warning')
                                       }
                                     } catch (error: any) {
-                                      createNotification('Erro ao remover chave', 'warning')
+                                      createNotification('Erro ao desvincular', 'warning')
                                     } finally {
                                       setLoadingWhatsappKey(false)
                                     }
                                   }}
                                   disabled={loadingWhatsappKey}
                                   className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-smooth font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Desvincula a chave e a sessão WhatsApp para você reconectar e o sistema reconhecer de novo"
                                 >
-                                  Remover
+                                  Desvincular WhatsApp
                                 </button>
                               </div>
                               <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -1075,7 +1405,27 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                                 <Key size={16} />
                                 {loadingWhatsappKey ? 'Gerando...' : 'Gerar Chave'}
                               </button>
+                              <a
+                                href="https://wa.me/553173403036"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center gap-2 w-full max-w-xs mt-3 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200 border-2 border-green-400/50"
+                              >
+                                <MessageCircle size={20} />
+                                Iniciar chat com a Assistente PLEN no WhatsApp
+                              </a>
                             </div>
+                          )}
+                          {whatsappKey && (
+                            <a
+                              href="https://wa.me/553173403036"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center gap-2 w-full max-w-xs mt-3 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200 border-2 border-green-400/50"
+                            >
+                              <MessageCircle size={20} />
+                              Iniciar chat com a Assistente PLEN no WhatsApp
+                            </a>
                           )}
                         </div>
                         {userProfile.profile?.plano && (
@@ -1373,7 +1723,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                             <button
                               onClick={handleRedefinirSenha}
                               disabled={loadingSenha}
-                              className="flex-1 px-4 py-3 bg-brand-aqua text-brand-midnight dark:text-brand-clean rounded-xl font-semibold hover:bg-brand-aqua/90 shadow-md transition-smooth disabled:opacity-50"
+                              className="flex-1 px-4 py-3 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 shadow-md transition-smooth disabled:opacity-50"
                             >
                               {loadingSenha ? 'Atualizando...' : 'Atualizar Senha'}
                             </button>
@@ -1472,12 +1822,12 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
         {tabAtivo === 'usuarios' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
+              <h2 className="text-xl font-display font-bold text-brand-midnight dark:text-white">
                 Gerenciar Usuários/Pessoas
               </h2>
               <button
                 onClick={() => setShowNovoUsuario(!showNovoUsuario)}
-                className="px-3 py-1.5 bg-brand-aqua/90 text-brand-midnight dark:text-brand-clean rounded-lg font-medium hover:bg-brand-aqua shadow-sm hover:shadow-md transition-smooth flex items-center gap-1.5 text-sm whitespace-nowrap"
+                className="px-3 py-1.5 bg-brand-aqua/90 text-white rounded-lg font-medium hover:bg-brand-aqua shadow-sm hover:shadow-md transition-smooth flex items-center gap-1.5 text-sm whitespace-nowrap"
               >
                 <Plus size={16} strokeWidth={2.5} />
                 <span>Novo Usuário</span>
@@ -1517,29 +1867,56 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
               </div>
             )}
 
-            {/* Lista de usuários */}
+            {/* Lista de usuários (sempre inclui o dono da conta no topo) */}
             <div className="space-y-3">
-              {usuarios.length === 0 ? (
+              {usuariosParaExibir.length === 0 ? (
                 <div className="text-center py-12 bg-brand-clean dark:bg-brand-royal/30 rounded-xl">
                   <p className="text-brand-midnight dark:text-brand-clean/60">
                     Nenhum usuário cadastrado ainda
                   </p>
                 </div>
               ) : (
-                usuarios.map((user) => (
+                usuariosParaExibir.map((user) => (
                   <div
                     key={user.id}
                     className="p-4 bg-white dark:bg-brand-midnight/60 border border-gray-200 rounded-xl hover:bg-brand-clean dark:bg-brand-royal/50 transition-smooth backdrop-blur-sm flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-brand-aqua/20 flex items-center justify-center">
-                        <span className="text-brand-aqua font-bold text-xl">
-                          {user.nome.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
+                      {(user.imagem_url || (user.id === userProfile?.id && userProfile?.profile?.imagem_url)) ? (
+                        <div className="w-12 h-12 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border-2 border-brand-aqua/30">
+                          <img 
+                            src={user.id === userProfile?.id ? `/api/user/avatar?t=${avatarCacheKey}` : (user.imagem_url || '')} 
+                            alt={user.nome}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              // Fallback para inicial do nome se a imagem falhar
+                              const target = e.target as HTMLImageElement
+                              target.style.display = 'none'
+                              const parent = target.parentElement
+                              if (parent) {
+                                parent.innerHTML = `<span class="text-brand-aqua font-bold text-xl">${user.nome.charAt(0).toUpperCase()}</span>`
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-brand-aqua/20 flex items-center justify-center">
+                          <span className="text-brand-aqua font-bold text-xl">
+                            {user.nome.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
                       <div>
-                        <p className="font-medium text-brand-midnight dark:text-brand-clean">{user.nome}</p>
-                        <p className="text-xs text-brand-midnight dark:text-brand-clean/50">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-medium text-brand-midnight dark:text-white">{user.nome}</p>
+                          {userProfile?.id === user.id && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-medium border border-amber-500/40">
+                              <Crown size={12} className="text-amber-400" strokeWidth={2.5} />
+                              Dono da conta
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-brand-midnight/70 dark:text-white/70">
                           Criado em {new Date(user.created_at).toLocaleDateString('pt-BR')}
                         </p>
                       </div>
@@ -1552,16 +1929,18 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                       >
                         <Edit size={18} strokeWidth={2} />
                       </button>
-                      <button
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-smooth"
-                        title="Excluir"
-                        onClick={() => {
-                          setUsuarioParaExcluir(user)
-                          setShowModalExcluirUsuario(true)
-                        }}
-                      >
-                        <Trash2 size={18} strokeWidth={2} />
-                      </button>
+                      {user.id !== userProfile?.id && (
+                        <button
+                          className="p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
+                          title="Excluir"
+                          onClick={() => {
+                            setUsuarioParaExcluir(user)
+                            setShowModalExcluirUsuario(true)
+                          }}
+                        >
+                          <Trash2 size={18} strokeWidth={2} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))
@@ -1573,62 +1952,77 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
 
       {/* Modal de Confirmação para Resetar Registros */}
       {showModalResetar && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 glass-backdrop">
-          <div className="bg-brand-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up border border-brand-clean">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 bg-red-100 rounded-xl">
-                <AlertTriangle className="text-red-600" size={24} strokeWidth={2} />
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 glass-backdrop overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowModalResetar(false)
+              setConfirmacaoResetar('')
+            }
+          }}
+          onTouchMove={(e) => {
+            // Prevenir scroll no backdrop
+            if (e.target === e.currentTarget) {
+              e.preventDefault()
+            }
+          }}
+        >
+          <div 
+            className="bg-white dark:bg-brand-royal rounded-xl shadow-2xl max-w-sm w-full p-4 sm:p-5 animate-slide-up border border-gray-200 dark:border-white/20 my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                <AlertTriangle className="text-red-600 dark:text-red-400" size={18} strokeWidth={2} />
               </div>
-              <h3 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
+              <h3 className="text-base sm:text-lg font-display font-bold text-brand-midnight dark:text-brand-clean">
                 Confirmar Reset de Registros
               </h3>
             </div>
 
-            <div className="space-y-4 mb-6">
-              <p className="text-brand-midnight dark:text-brand-clean/80">
-                Você está prestes a <strong className="text-red-600">permanentemente deletar</strong> todos os seus registros financeiros.
+            <div className="space-y-2.5 mb-4">
+              <p className="text-sm text-brand-midnight dark:text-brand-clean/90">
+                Você está prestes a <strong className="text-red-600 dark:text-red-400">permanentemente deletar</strong> todos os seus registros financeiros.
               </p>
-              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                <p className="text-sm text-red-800 font-medium">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg p-2.5">
+                <p className="text-xs text-red-800 dark:text-red-300 font-medium mb-1.5">
                   ⚠️ Esta ação não pode ser desfeita!
                 </p>
-                <ul className="mt-2 text-sm text-red-700 space-y-1 list-disc list-inside">
-                  <li>Todos os registros de entrada serão deletados</li>
-                  <li>Todos os registros de saída serão deletados</li>
-                  <li>Todas as dívidas serão deletadas</li>
-                  <li>Todos os empréstimos serão deletados</li>
+                <ul className="text-xs text-red-700 dark:text-red-300/80 space-y-0.5 list-disc list-inside">
+                  <li>Registros de entrada e saída</li>
+                  <li>Dívidas e empréstimos</li>
                 </ul>
               </div>
               <div>
-                <label className="block text-sm font-medium text-brand-midnight dark:text-brand-clean mb-2">
-                  Digite <strong className="text-red-600">RESETAR</strong> para confirmar:
+                <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
+                  Digite <strong className="text-red-600 dark:text-red-400">RESETAR</strong> para confirmar:
                 </label>
                 <input
                   type="text"
                   value={confirmacaoResetar}
                   onChange={(e) => setConfirmacaoResetar(e.target.value)}
                   placeholder="Digite RESETAR"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:border-red-500 transition-smooth text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:border-red-500 dark:focus:border-red-400 transition-smooth text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   autoFocus
                 />
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <button
                 onClick={() => {
                   setShowModalResetar(false)
                   setConfirmacaoResetar('')
                 }}
                 disabled={loadingResetar}
-                className="flex-1 px-4 py-2 bg-brand-clean dark:bg-brand-royal text-brand-midnight dark:text-brand-clean rounded-xl hover:bg-brand-clean dark:bg-brand-royal/80 transition-smooth font-medium disabled:opacity-50"
+                className="flex-1 px-3 py-2 text-sm bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-gray-200 dark:hover:bg-brand-midnight/80 transition-smooth font-medium disabled:opacity-50 border border-gray-200 dark:border-white/20"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleResetarRegistros}
                 disabled={loadingResetar || confirmacaoResetar !== 'RESETAR'}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-smooth font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 px-3 py-2 text-sm bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-smooth font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
               >
                 {loadingResetar ? (
                   <>
@@ -1637,8 +2031,8 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
                   </>
                 ) : (
                   <>
-                    <RotateCcw size={18} strokeWidth={2} />
-                    <span>Confirmar Reset</span>
+                    <RotateCcw size={16} strokeWidth={2} />
+                    <span>Confirmar</span>
                   </>
                 )}
               </button>
@@ -1676,6 +2070,155 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
           textoConfirmar="Excluir"
           tipo="danger"
         />
+      )}
+
+      {/* Modal de Editar Usuário */}
+      {editandoUsuario && (
+        <div
+          className="fixed inset-0 bg-black/60 z-[99999] flex items-center justify-center p-4"
+          onClick={() => setEditandoUsuario(null)}
+          style={{
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+          }}
+        >
+          <div
+            className="bg-white dark:bg-brand-royal rounded-2xl shadow-2xl w-full max-w-md p-6 animate-scale-up max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
+                Editar Usuário
+              </h3>
+              <button
+                onClick={() => setEditandoUsuario(null)}
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-brand-midnight dark:text-brand-clean" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Avatar e Upload de Imagem */}
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  {editandoUsuario.imagem_url ? (
+                    <div className="w-24 h-24 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border-2 border-brand-aqua/30">
+                      <img 
+                        src={editandoUsuario.imagem_url} 
+                        alt={editandoUsuario.nome}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.style.display = 'none'
+                          const parent = target.parentElement
+                          if (parent) {
+                            parent.innerHTML = `<span class="text-brand-aqua font-bold text-3xl">${editandoUsuario.nome.charAt(0).toUpperCase()}</span>`
+                          }
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-brand-aqua/20 flex items-center justify-center border-2 border-brand-aqua/30">
+                      <span className="text-brand-aqua font-bold text-3xl">
+                        {editandoUsuario.nome.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        handleUploadImagem(editandoUsuario.id, file)
+                      }
+                    }}
+                    disabled={uploadingImagem === editandoUsuario.id}
+                  />
+                  <div className="px-4 py-2 bg-brand-aqua/10 hover:bg-brand-aqua/20 dark:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-lg transition-colors flex items-center gap-2 text-brand-aqua font-medium text-sm">
+                    {uploadingImagem === editandoUsuario.id ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-brand-aqua border-t-transparent rounded-full animate-spin" />
+                        <span>Enviando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera size={18} strokeWidth={2} />
+                        <span>Alterar foto de perfil</span>
+                      </>
+                    )}
+                  </div>
+                </label>
+              </div>
+
+              {/* Nome do Usuário */}
+              <div>
+                <label className="block text-sm font-medium text-brand-midnight dark:text-brand-clean mb-2">
+                  Nome
+                </label>
+                <input
+                  type="text"
+                  value={editandoUsuario.nome}
+                  onChange={(e) => setEditandoUsuario({ ...editandoUsuario, nome: e.target.value })}
+                  placeholder="Digite o nome do usuário"
+                  maxLength={50}
+                  className="w-full px-4 py-3 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg text-brand-midnight dark:text-brand-clean text-base focus:outline-none focus:border-brand-aqua transition-smooth"
+                  autoFocus
+                />
+              </div>
+
+              {/* Botões */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setEditandoUsuario(null)}
+                  className="flex-1 px-4 py-3 bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/10 transition-smooth"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!editandoUsuario.nome.trim()) {
+                      createNotification('O nome não pode estar vazio', 'warning')
+                      return
+                    }
+                    setLoading(true)
+                    try {
+                      const supabase = createClient()
+                      const { data: { user } } = await supabase.auth.getUser()
+                      if (user) {
+                        const { error } = await supabase
+                          .from('users')
+                          .update({ nome: editandoUsuario.nome.trim() })
+                          .eq('id', editandoUsuario.id)
+                          .eq('account_owner_id', user.id)
+                        
+                        if (error) {
+                          createNotification('Erro ao salvar: ' + error.message, 'warning')
+                        } else {
+                          createNotification('Usuário atualizado com sucesso!', 'success')
+                          setEditandoUsuario(null)
+                          await carregarUsuarios()
+                        }
+                      }
+                    } catch (error: any) {
+                      createNotification('Erro ao salvar usuário', 'warning')
+                    } finally {
+                      setLoading(false)
+                    }
+                  }}
+                  disabled={loading || !editandoUsuario.nome.trim()}
+                  className="flex-1 px-4 py-3 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal de Verificação de Email */}
@@ -1816,6 +2359,137 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial }: Configuracoe
             </div>
           </div>
         </>
+      )}
+
+      {tabAtivo === 'baixar' && (
+        <div className="space-y-5 sm:space-y-6 pb-24 sm:pb-28 px-1 sm:px-0">
+          <div className="px-2 sm:px-0">
+            <h2 className="text-lg sm:text-xl font-display font-bold text-brand-midnight dark:text-brand-clean mb-2 sm:mb-2.5">
+              Baixar Plataforma
+            </h2>
+            <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70 mb-5 sm:mb-6 leading-relaxed">
+              Adicione o PLENIPAY à tela inicial do seu iPhone para acesso rápido e fácil.
+            </p>
+          </div>
+
+          {/* Tutorial para iPhone */}
+          <div className="bg-white dark:bg-brand-royal/30 rounded-xl px-5 py-5 sm:px-6 sm:py-6 border border-gray-200 dark:border-brand-aqua/20 shadow-sm">
+            <div className="space-y-4 sm:space-y-5">
+              {/* Ícone e Título */}
+              <div className="flex items-center gap-3 sm:gap-3.5">
+                <div className="p-2.5 sm:p-3 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg flex-shrink-0">
+                  <Smartphone size={20} className="sm:w-6 sm:h-6 text-brand-aqua" />
+                </div>
+                <h3 className="text-base sm:text-lg font-semibold text-brand-midnight dark:text-brand-clean leading-tight">
+                  Como adicionar à Tela Inicial no iPhone
+                </h3>
+              </div>
+              
+              {/* Passos - Alinhados à esquerda com o ícone */}
+              <div className="space-y-4 sm:space-y-5">
+                {/* Passo 1 */}
+                <div className="flex gap-3.5 sm:gap-4">
+                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-xs sm:text-sm">
+                    1
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1 sm:mb-1.5">
+                      Abra o Safari no seu iPhone
+                    </p>
+                    <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70 leading-relaxed">
+                      Acesse a plataforma PLENIPAY através do navegador Safari.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Passo 2 */}
+                <div className="flex gap-3.5 sm:gap-4">
+                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-xs sm:text-sm">
+                    2
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1 sm:mb-1.5">
+                      Toque no botão de Compartilhar
+                    </p>
+                    <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70 leading-relaxed">
+                      Localize e toque no ícone de compartilhar na parte inferior da tela.{' '}
+                      <span className="inline-flex items-center gap-1.5 text-brand-aqua font-medium mt-1">
+                        <Share2 size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
+                        <span className="text-xs">Ícone de Compartilhar</span>
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Passo 3 */}
+                <div className="flex gap-3.5 sm:gap-4">
+                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-xs sm:text-sm">
+                    3
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1 sm:mb-1.5">
+                      Selecione "Adicionar à Tela de Início"
+                    </p>
+                    <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70 leading-relaxed">
+                      Role a lista de opções e toque em "Adicionar à Tela de Início".{' '}
+                      <span className="inline-flex items-center gap-1.5 text-brand-aqua font-medium mt-1">
+                        <ArrowRight size={14} className="sm:w-4 sm:h-4 flex-shrink-0" />
+                        <span className="text-xs">Adicionar à Tela de Início</span>
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Passo 4 */}
+                <div className="flex gap-3.5 sm:gap-4">
+                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-xs sm:text-sm">
+                    4
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1 sm:mb-1.5">
+                      Personalize o nome (opcional)
+                    </p>
+                    <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70 leading-relaxed">
+                      Você pode editar o nome do ícone antes de adicionar. O nome padrão será "PLENIPAY".
+                    </p>
+                  </div>
+                </div>
+
+                {/* Passo 5 */}
+                <div className="flex gap-3.5 sm:gap-4">
+                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-brand-aqua text-white flex items-center justify-center font-bold text-xs sm:text-sm">
+                    5
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1 sm:mb-1.5">
+                      Toque em "Adicionar"
+                    </p>
+                    <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70 leading-relaxed">
+                      Confirme a ação tocando no botão "Adicionar" no canto superior direito.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dica */}
+              <div className="mt-5 sm:mt-6 px-4 py-3.5 sm:px-5 sm:py-4 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg border border-brand-aqua/30">
+                <div className="flex items-start gap-3 sm:gap-3.5">
+                  <div className="p-1.5 sm:p-2 bg-brand-aqua/20 rounded flex-shrink-0">
+                    <Lightbulb size={16} className="sm:w-[18px] sm:h-[18px] text-brand-aqua" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1 sm:mb-1.5">
+                      Dica
+                    </p>
+                    <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70 leading-relaxed">
+                      Após adicionar, o ícone do PLENIPAY aparecerá na sua tela inicial. Toque nele para acessar a plataforma rapidamente, como um app nativo!
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

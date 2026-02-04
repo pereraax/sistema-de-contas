@@ -40,7 +40,7 @@ export default function ModalLoginConcluido({ isOpen, onClose, mensagem, titulo 
       onClick={onClose}
     >
       <div 
-        className={`bg-gradient-to-br from-[#00C2FF] via-[#0099CC] to-[#007A99] rounded-xl max-w-xs w-full shadow-2xl overflow-hidden border border-[#00C2FF]/30 transition-all duration-500 ${
+        className={`bg-gradient-to-br from-[#2c5aa0] via-[#1e4976] to-[#163a5f] rounded-xl max-w-xs w-full shadow-2xl overflow-hidden border border-[#1e4976]/30 transition-all duration-500 ${
           show ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
         }`}
         onClick={(e) => e.stopPropagation()}

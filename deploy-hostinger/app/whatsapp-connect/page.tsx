@@ -5,6 +5,9 @@ import { MessageCircle, QrCode, CheckCircle, XCircle, Loader2, RefreshCw } from 
 import { useRouter } from 'next/navigation'
 import { createNotification } from '@/components/NotificationBell'
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 export default function WhatsAppConnectPage() {
   const router = useRouter()
   const [status, setStatus] = useState<{

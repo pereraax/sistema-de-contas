@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { criarRegistro, obterUsuarios } from '@/lib/actions'
 import { User } from '@/lib/types'
 import { X, Plus, User as UserIcon, CreditCard, Wallet, Smartphone } from 'lucide-react'
@@ -21,6 +21,7 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
   const [usuarios, setUsuarios] = useState<User[]>([])
   const [showModalUsuario, setShowModalUsuario] = useState(false)
   const [usuarioSelecionado, setUsuarioSelecionado] = useState<User | null>(null)
+  const usuarioButtonRef = useRef<HTMLButtonElement>(null)
   const [planoAtual, setPlanoAtual] = useState<'teste' | 'basico' | 'premium'>('teste')
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
 
@@ -104,13 +105,13 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
   return (
     <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in">
       <div className="bg-white dark:bg-brand-royal rounded-2xl max-w-md w-full max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border border-gray-200 dark:border-white/10">
-        <div className="flex-shrink-0 border-b border-gray-200 dark:border-white/10 px-5 py-4 flex items-center justify-between bg-white dark:bg-brand-midnight">
-          <h2 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">Registrar Salário</h2>
+        <div className="flex-shrink-0 border-b border-brand-aqua/20 dark:border-white/10 px-5 py-4 flex items-center justify-between bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal">
+          <h2 className="text-xl font-display font-bold text-white dark:text-brand-clean">Registrar Salário</h2>
           <button
             onClick={onClose}
-            className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-smooth"
+            className="p-1.5 hover:bg-white/20 dark:hover:bg-white/10 rounded-lg transition-smooth"
           >
-            <X size={20} className="text-brand-midnight dark:text-brand-clean" />
+            <X size={20} className="text-white dark:text-brand-clean" />
           </button>
         </div>
 
@@ -138,11 +139,12 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
             </div>
           </div>
 
-          <div>
+          <div className="relative">
             <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
               Usuário
             </label>
             <button
+              ref={usuarioButtonRef}
               type="button"
               onClick={() => setShowModalUsuario(true)}
               className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 focus:outline-none focus:border-brand-aqua transition-smooth flex items-center justify-between text-left"
@@ -166,6 +168,18 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
               </div>
               <Plus size={18} className="text-brand-aqua" />
             </button>
+            
+            {/* Dropdown de seleção de usuário */}
+            <ModalSelecionarUsuario
+              isOpen={showModalUsuario}
+              onClose={() => setShowModalUsuario(false)}
+              onSelect={(user) => {
+                setUsuarioSelecionado(user)
+                setFormData({ ...formData, user_id: user.id })
+              }}
+              selectedUserId={formData.user_id}
+              buttonRef={usuarioButtonRef}
+            />
           </div>
 
           <div>
@@ -190,7 +204,7 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'pix' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'pix'
-                    ? 'bg-brand-aqua/90 dark:bg-brand-aqua text-brand-midnight shadow-lg'
+                    ? 'bg-brand-aqua/90 dark:bg-brand-aqua text-white shadow-lg'
                     : 'bg-gray-50 dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border border-gray-300 dark:border-white/10'
                 }`}
               >
@@ -202,7 +216,7 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'cartao' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'cartao'
-                    ? 'bg-brand-aqua/90 dark:bg-brand-aqua text-brand-midnight shadow-lg'
+                    ? 'bg-brand-aqua/90 dark:bg-brand-aqua text-white shadow-lg'
                     : 'bg-gray-50 dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border border-gray-300 dark:border-white/10'
                 }`}
               >
@@ -214,7 +228,7 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'dinheiro' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'dinheiro'
-                    ? 'bg-brand-aqua/90 dark:bg-brand-aqua text-brand-midnight shadow-lg'
+                    ? 'bg-brand-aqua/90 dark:bg-brand-aqua text-white shadow-lg'
                     : 'bg-gray-50 dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border border-gray-300 dark:border-white/10'
                 }`}
               >
@@ -238,7 +252,7 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-4 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="flex-1 px-4 py-2.5 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 {loading ? 'Registrando...' : 'REGISTRAR'}
               </button>
@@ -246,16 +260,6 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
           </div>
         </form>
       </div>
-
-      <ModalSelecionarUsuario
-        isOpen={showModalUsuario}
-        onClose={() => setShowModalUsuario(false)}
-        onSelect={(user) => {
-          setUsuarioSelecionado(user)
-          setFormData({ ...formData, user_id: user.id })
-        }}
-        selectedUserId={formData.user_id}
-      />
     </div>
   )
 }

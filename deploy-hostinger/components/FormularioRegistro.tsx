@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { criarRegistro, obterUsuarios } from '@/lib/actions'
 import { User } from '@/lib/types'
 import { Plus, X, User as UserIcon, CreditCard, Wallet, Smartphone, UtensilsCrossed, Car, Home, ShoppingBag, Heart, GraduationCap, Briefcase, Gamepad2, Music, Film, Dumbbell, Plane, Coffee, HelpCircle, Check } from 'lucide-react'
@@ -15,6 +15,7 @@ export default function FormularioRegistro() {
   const [usuarios, setUsuarios] = useState<User[]>([])
   const [showModalUsuario, setShowModalUsuario] = useState(false)
   const [usuarioSelecionado, setUsuarioSelecionado] = useState<User | null>(null)
+  const usuarioButtonRef = useRef<HTMLButtonElement>(null)
   const [etiquetas, setEtiquetas] = useState<string[]>([])
   const [novaEtiqueta, setNovaEtiqueta] = useState('')
   const [showHelpNome, setShowHelpNome] = useState(false)
@@ -37,6 +38,58 @@ export default function FormularioRegistro() {
       }
     }
   }, [showHelpNome, showHelpObservacao])
+  // Funções para formatar data DD/MM/AAAA
+  const formatDateToDisplay = (isoString: string) => {
+    const date = new Date(isoString)
+    const dia = String(date.getDate()).padStart(2, '0')
+    const mes = String(date.getMonth() + 1).padStart(2, '0')
+    const ano = date.getFullYear()
+    return `${dia}/${mes}/${ano}`
+  }
+
+  const formatTimeToDisplay = (isoString: string) => {
+    const date = new Date(isoString)
+    return date.toTimeString().slice(0, 5)
+  }
+
+  const parseDateFromDisplay = (dateStr: string): string | null => {
+    // Aceitar formato DD/MM/AAAA
+    const match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+    if (match) {
+      const [, dia, mes, ano] = match
+      const date = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia))
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().slice(0, 10)
+      }
+    }
+    return null
+  }
+
+  const combineDateTimeToISO = (dateStr: string, time: string) => {
+    const dateISO = parseDateFromDisplay(dateStr) || new Date().toISOString().slice(0, 10)
+    if (!time) time = new Date().toTimeString().slice(0, 5)
+    return new Date(`${dateISO}T${time}`).toISOString().slice(0, 16)
+  }
+
+  const formatDateInput = (value: string) => {
+    // Remove tudo que não é número
+    const numbers = value.replace(/\D/g, '')
+    
+    // Aplica a máscara DD/MM/AAAA
+    if (numbers.length <= 2) {
+      return numbers
+    } else if (numbers.length <= 4) {
+      return `${numbers.slice(0, 2)}/${numbers.slice(2)}`
+    } else {
+      return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`
+    }
+  }
+
+  const initialDateTime = {
+    date: formatDateToDisplay(new Date().toISOString()),
+    time: formatTimeToDisplay(new Date().toISOString())
+  }
+  
   const [formData, setFormData] = useState({
     nome: '',
     observacao: '',
@@ -49,6 +102,8 @@ export default function FormularioRegistro() {
     valor_parcelas: '',
     data_registro: new Date().toISOString().slice(0, 16),
   })
+  const [dataInput, setDataInput] = useState(initialDateTime.date)
+  const [horaInput, setHoraInput] = useState(initialDateTime.time)
   const [temParcelas, setTemParcelas] = useState(false)
 
   const categorias = [
@@ -130,6 +185,11 @@ export default function FormularioRegistro() {
     } else {
       createNotification(`Registro "${formData.nome}" criado com sucesso!`, 'success')
       // Reset form
+      const now = new Date()
+      const newDateTime = {
+        date: formatDateToDisplay(now.toISOString()),
+        time: formatTimeToDisplay(now.toISOString())
+      }
       setFormData({
         nome: '',
         observacao: '',
@@ -142,6 +202,8 @@ export default function FormularioRegistro() {
         valor_parcelas: '',
         data_registro: new Date().toISOString().slice(0, 16),
       })
+      setDataInput(newDateTime.date)
+      setHoraInput(newDateTime.time)
       setTemParcelas(false)
       setEtiquetas([])
       router.refresh()
@@ -236,11 +298,12 @@ export default function FormularioRegistro() {
         />
       </div>
 
-      <div>
+      <div className="relative">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Usuário/Envolvido
         </label>
         <button
+          ref={usuarioButtonRef}
           type="button"
           onClick={() => setShowModalUsuario(true)}
           className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 focus:outline-none focus:border-brand-aqua transition-smooth flex items-center justify-between text-left"
@@ -267,6 +330,18 @@ export default function FormularioRegistro() {
         <p className="mt-1.5 text-xs text-gray-500">
           Selecione a pessoa responsável ou envolvida neste registro. Ex: Você mesmo, Cônjuge, Filho, etc.
         </p>
+        
+        {/* Dropdown de seleção de usuário */}
+        <ModalSelecionarUsuario
+          isOpen={showModalUsuario}
+          onClose={() => setShowModalUsuario(false)}
+          onSelect={(user) => {
+            setUsuarioSelecionado(user)
+            setFormData({ ...formData, user_id: user.id })
+          }}
+          selectedUserId={formData.user_id}
+          buttonRef={usuarioButtonRef}
+        />
       </div>
 
       <div>
@@ -347,7 +422,7 @@ export default function FormularioRegistro() {
                 onClick={() => setFormData({ ...formData, categoria: isSelected ? '' : cat.id })}
                 className={`flex flex-col items-center justify-center gap-2 px-3 py-4 rounded-xl font-medium transition-smooth min-h-[100px] ${
                   isSelected
-                    ? 'bg-brand-aqua/90 text-brand-midnight shadow-lg'
+                    ? 'bg-brand-aqua/90 text-white shadow-lg'
                     : 'bg-brand-clean/50 text-brand-midnight border border-gray-300 hover:bg-brand-clean/70'
                 }`}
                 title={cat.nome}
@@ -370,7 +445,7 @@ export default function FormularioRegistro() {
             onClick={() => setFormData({ ...formData, metodo_pagamento: 'pix' })}
             className={`flex flex-col items-center gap-2 px-4 py-3 rounded-xl font-medium transition-smooth ${
               formData.metodo_pagamento === 'pix'
-                ? 'bg-brand-aqua/90 text-brand-midnight shadow-lg'
+                ? 'bg-brand-aqua/90 text-white shadow-lg'
                 : 'bg-brand-clean/50 text-brand-midnight border border-gray-300'
             }`}
           >
@@ -382,7 +457,7 @@ export default function FormularioRegistro() {
             onClick={() => setFormData({ ...formData, metodo_pagamento: 'cartao' })}
             className={`flex flex-col items-center gap-2 px-4 py-3 rounded-xl font-medium transition-smooth ${
               formData.metodo_pagamento === 'cartao'
-                ? 'bg-brand-aqua/90 text-brand-midnight shadow-lg'
+                ? 'bg-brand-aqua/90 text-white shadow-lg'
                 : 'bg-brand-clean/50 text-brand-midnight border border-gray-300'
             }`}
           >
@@ -394,7 +469,7 @@ export default function FormularioRegistro() {
             onClick={() => setFormData({ ...formData, metodo_pagamento: 'dinheiro' })}
             className={`flex flex-col items-center gap-2 px-4 py-3 rounded-xl font-medium transition-smooth ${
               formData.metodo_pagamento === 'dinheiro'
-                ? 'bg-brand-aqua/90 text-brand-midnight shadow-lg'
+                ? 'bg-brand-aqua/90 text-white shadow-lg'
                 : 'bg-brand-clean/50 text-brand-midnight border border-gray-300'
             }`}
           >
@@ -553,12 +628,34 @@ export default function FormularioRegistro() {
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Data e hora
         </label>
-        <input
-          type="datetime-local"
-          value={formData.data_registro}
-          onChange={(e) => setFormData({ ...formData, data_registro: e.target.value })}
-          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight"
-        />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <input
+              type="text"
+              value={dataInput}
+              onChange={(e) => {
+                const formatted = formatDateInput(e.target.value)
+                setDataInput(formatted)
+                const isoDate = combineDateTimeToISO(formatted, horaInput)
+                setFormData({ ...formData, data_registro: isoDate })
+              }}
+              placeholder="DD/MM/AAAA"
+              maxLength={10}
+              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight placeholder-gray-400"
+            />
+          </div>
+          <div>
+            <input
+              type="time"
+              value={horaInput}
+              onChange={(e) => {
+                setHoraInput(e.target.value)
+                setFormData({ ...formData, data_registro: combineDateTimeToISO(dataInput, e.target.value) })
+              }}
+              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="flex gap-4 pt-4 border-t border-brand-clean">
@@ -587,22 +684,12 @@ export default function FormularioRegistro() {
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 px-6 py-3 bg-brand-aqua/90 text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua shadow-lg hover:shadow-xl backdrop-blur-md transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 px-6 py-3 bg-brand-aqua/90 text-white rounded-xl font-semibold hover:bg-brand-aqua shadow-lg hover:shadow-xl backdrop-blur-md transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Registrando...' : 'REGISTRAR'}
         </button>
       </div>
     </form>
-
-    <ModalSelecionarUsuario
-      isOpen={showModalUsuario}
-      onClose={() => setShowModalUsuario(false)}
-      onSelect={(user) => {
-        setUsuarioSelecionado(user)
-        setFormData({ ...formData, user_id: user.id })
-      }}
-      selectedUserId={formData.user_id}
-    />
   </>
   )
 }

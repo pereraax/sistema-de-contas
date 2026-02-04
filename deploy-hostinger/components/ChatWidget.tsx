@@ -39,6 +39,16 @@ export default function ChatWidget() {
   const closeTimerRef = useRef<NodeJS.Timeout | null>(null)
   const hasSentInactivityMessageRef = useRef(false)
   const lastSupportMessageIdRef = useRef<string | null>(null)
+  /** Timer de 5 min: se o usuário não responder à última mensagem do atendente, o chat é encerrado */
+  const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Nome fictício para exibir (nunca "Administrador" para o usuário)
+  const nomeExibidoAtendente = (nome: string | null): string | null => {
+    if (!nome) return null
+    const lower = nome.trim().toLowerCase()
+    if (lower === 'administrador' || lower === 'admin') return 'Ana Silva'
+    return nome
+  }
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
@@ -139,6 +149,19 @@ export default function ChatWidget() {
   useEffect(() => {
     if (isOpen && !isMinimized) {
       inputRef.current?.focus()
+    }
+    
+    // No mobile o chat é um painel menor (não tela cheia), então não travar o body
+    if (!isOpen || isMinimized) {
+      document.body.style.overflow = ''
+      document.body.style.position = ''
+      document.body.style.width = ''
+    }
+    
+    return () => {
+      document.body.style.overflow = ''
+      document.body.style.position = ''
+      document.body.style.width = ''
     }
   }, [isOpen, isMinimized])
 
@@ -244,9 +267,13 @@ export default function ChatWidget() {
     setInputMessage('')
     setIsTyping(true)
 
-    // Atualizar última atividade e resetar timer
+    // Atualizar última atividade e resetar timer; cancelar timer de 5 min (usuário respondeu)
     lastUserActivityRef.current = new Date()
     resetInactivityTimer()
+    if (responseTimeoutRef.current) {
+      clearTimeout(responseTimeoutRef.current)
+      responseTimeoutRef.current = null
+    }
 
     try {
       // Enviar mensagem para a API
@@ -324,6 +351,10 @@ export default function ChatWidget() {
         
         // Se a conversa estiver finalizada, manter mensagens mas bloquear input
         if (closed) {
+          if (responseTimeoutRef.current) {
+            clearTimeout(responseTimeoutRef.current)
+            responseTimeoutRef.current = null
+          }
           setIsChatClosed(true)
           setHasStartedChat(true) // Manter como iniciado para mostrar mensagens
           setShowForm(false) // Não mostrar formulário, mostrar mensagens
@@ -334,6 +365,28 @@ export default function ChatWidget() {
           // Se houver mensagens e não estiver finalizada, ocultar formulário
           setHasStartedChat(true)
           setShowForm(false)
+          // Cronograma de 5 min: última mensagem do atendente → usuário deve responder em 5 min
+          const lastMsg = formattedMessages[formattedMessages.length - 1]
+          if (lastMsg.sender === 'support') {
+            if (responseTimeoutRef.current) {
+              clearTimeout(responseTimeoutRef.current)
+              responseTimeoutRef.current = null
+            }
+            const deadline = lastMsg.timestamp.getTime() + 5 * 60 * 1000
+            const remaining = deadline - Date.now()
+            if (remaining > 0) {
+              responseTimeoutRef.current = setTimeout(() => {
+                responseTimeoutRef.current = null
+                fetch('/api/chat/close-by-timeout', { method: 'POST' })
+                  .then(() => loadMessages())
+              }, remaining)
+            }
+          } else {
+            if (responseTimeoutRef.current) {
+              clearTimeout(responseTimeoutRef.current)
+              responseTimeoutRef.current = null
+            }
+          }
         } else {
           // Se não houver mensagens, mostrar formulário
           if (isOpen && !isMinimized) {
@@ -348,8 +401,12 @@ export default function ChatWidget() {
   }
 
   const handleStartChat = async () => {
+    // Visitante (não logado): mostrar formulário para preencher e depois pedir login para enviar
     if (!isAuthenticated) {
-      router.push('/login')
+      setShowForm(true)
+      setHasStartedChat(false)
+      setIsChatClosed(false)
+      setMessages([])
       return
     }
 
@@ -394,6 +451,12 @@ export default function ChatWidget() {
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    
+    // Visitante não logado: redirecionar para login para poder enviar
+    if (!isAuthenticated) {
+      router.push('/login?mensagem=Faça login para enviar sua mensagem ao suporte.')
+      return
+    }
     
     console.log('📝 Iniciando envio do formulário...', formData)
     
@@ -490,9 +553,10 @@ export default function ChatWidget() {
 
   useEffect(() => {
     if (isOpen && !isMinimized && isAuthenticated) {
-      // Carregar mensagens para verificar se já existe conversa
-      loadMessages()
-      
+      // Só carregar mensagens quando não estiver mostrando o formulário (evita que "Iniciar Nova Conversa" seja anulado)
+      if (!showForm) {
+        loadMessages()
+      }
       if (hasStartedChat && !showForm && !isChatClosed && messages.length > 0) {
         // Atualizar mensagens a cada 3 segundos quando o chat estiver aberto e já iniciado
         const interval = setInterval(loadMessages, 3000)
@@ -508,6 +572,10 @@ export default function ChatWidget() {
           if (closeTimerRef.current) {
             clearTimeout(closeTimerRef.current)
           }
+          if (responseTimeoutRef.current) {
+            clearTimeout(responseTimeoutRef.current)
+            responseTimeoutRef.current = null
+          }
         }
       }
     } else {
@@ -517,6 +585,10 @@ export default function ChatWidget() {
       }
       if (closeTimerRef.current) {
         clearTimeout(closeTimerRef.current)
+      }
+      if (responseTimeoutRef.current) {
+        clearTimeout(responseTimeoutRef.current)
+        responseTimeoutRef.current = null
       }
     }
   }, [isOpen, isMinimized, isAuthenticated, hasStartedChat, showForm, isChatClosed, messages.length])
@@ -548,60 +620,61 @@ export default function ChatWidget() {
     return null
   }
 
-  // Só mostrar o chat se o usuário estiver autenticado
-  if (!isAuthenticated) {
-    return null
-  }
+  // Páginas sem barra inferior (mobile): botão mais baixo
+  const publicRoutesNoBottomNav = ['/', '/login', '/cadastro', '/planos', '/termos', '/privacidade', '/suporte']
+  const isPublicPage = pathname != null && publicRoutesNoBottomNav.includes(pathname)
 
   return (
     <>
-      {/* Botão flutuante do chat */}
+      {/* Botão flutuante do chat — leve movimento (float sutil) */}
       {!isOpen && (
-        <button
-          onClick={() => {
-            setIsOpen(true)
-            setIsMinimized(false)
-          }}
-          className="fixed bottom-6 right-6 z-[70] w-14 h-14 bg-brand-aqua text-brand-midnight rounded-full shadow-2xl hover:shadow-3xl hover:scale-110 transition-all duration-300 flex items-center justify-center group animate-bounce-subtle"
-          aria-label="Abrir chat de suporte"
+        <div
+          className={`fixed right-4 sm:right-6 z-[40] lg:z-[9998] animate-float-subtle ${
+            isPublicPage ? 'bottom-6 lg:bottom-4' : 'bottom-20 lg:bottom-4 sm:lg:bottom-6'
+          }`}
         >
-          <MessageCircle size={24} className="group-hover:scale-110 transition-transform" />
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-brand-midnight animate-pulse"></span>
-        </button>
+          <button
+            onClick={() => {
+              setIsOpen(true)
+              setIsMinimized(false)
+            }}
+            className="w-14 h-14 bg-gradient-to-br from-[#2c5aa0] to-[#163a5f] text-white rounded-full shadow-lg shadow-[#1e4976]/30 hover:shadow-xl hover:shadow-[#1e4976]/40 hover:scale-105 active:scale-95 transition-all duration-300 flex items-center justify-center group"
+            aria-label="Abrir chat de suporte"
+          >
+            <MessageCircle size={24} className="text-white group-hover:scale-110 transition-transform" strokeWidth={2} />
+            <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse" aria-hidden></span>
+          </button>
+        </div>
       )}
 
       {/* Widget de chat */}
       {isOpen && (
         <div
-          className={`fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[70] bg-white dark:bg-brand-midnight rounded-2xl shadow-2xl border-2 border-gray-200 dark:border-brand-aqua/30 flex flex-col transition-all duration-300 ${
+          className={`fixed z-[9999] bg-white dark:bg-brand-midnight shadow-2xl flex flex-col transition-all duration-300 ${
             isMinimized
-              ? 'w-[calc(100vw-2rem)] sm:w-80 h-14 overflow-hidden'
-              : 'w-[calc(100vw-2rem)] sm:w-96 h-[calc(100vh-10rem)] sm:h-[680px] max-h-[calc(100vh-10rem)] sm:max-h-[680px] overflow-hidden'
+              ? `right-4 sm:right-6 w-[calc(100vw-2rem)] sm:w-80 h-14 rounded-2xl border-2 border-gray-200 dark:border-brand-aqua/30 overflow-hidden ${isPublicPage ? 'bottom-6 lg:bottom-4' : 'bottom-20 lg:bottom-4 lg:sm:bottom-6'}`
+              : 'top-[10%] left-3 right-3 bottom-24 max-h-[78vh] rounded-2xl border-2 border-gray-200 dark:border-brand-aqua/30 overflow-hidden sm:top-auto sm:bottom-20 sm:left-auto sm:right-6 sm:w-96 sm:h-[680px] sm:max-h-[680px] lg:bottom-6'
           }`}
-          style={{
-            height: isMinimized ? '3.5rem' : showForm ? 'calc(100vh - 10rem)' : 'calc(100vh - 10rem)',
-            maxHeight: isMinimized ? '3.5rem' : showForm ? 'calc(100vh - 10rem)' : 'calc(100vh - 10rem)'
-          }}
         >
-          {/* Header do chat - FIXO (não rolável) */}
-          <div className="bg-gradient-to-r from-brand-aqua to-brand-royal dark:from-brand-midnight dark:to-brand-royal rounded-t-2xl overflow-hidden flex-shrink-0">
-            <div className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 dark:bg-brand-aqua/20 rounded-full flex items-center justify-center">
-                  <MessageCircle size={20} className="text-white" />
+          {/* Header do chat - FIXO (não rolável) - degradê para melhor leitura */}
+          <div className="bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] dark:from-[#2c5aa0] dark:via-[#1e4976] dark:to-[#163a5f] sm:rounded-t-2xl overflow-hidden flex-shrink-0 shadow-lg">
+            <div className="p-3 sm:p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                  <MessageCircle size={18} className="sm:w-5 sm:h-5 text-white" />
                 </div>
-                <div>
-                  <h3 className="text-white font-semibold text-sm">Suporte ao Vivo</h3>
-                  <p className="text-white/80 text-xs">Estamos aqui para ajudar</p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-white font-semibold text-xs sm:text-sm truncate">Suporte ao Vivo</h3>
+                  <p className="text-white/90 text-[10px] sm:text-xs truncate">Estamos aqui para ajudar</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                 <button
                   onClick={() => setIsMinimized(!isMinimized)}
-                  className="p-1.5 hover:bg-white/20 rounded-lg transition-smooth"
+                  className="p-1 sm:p-1.5 hover:bg-white/20 rounded-lg transition-smooth"
                   aria-label={isMinimized ? 'Expandir chat' : 'Minimizar chat'}
                 >
-                  <Minimize2 size={18} className="text-white" />
+                  <Minimize2 size={16} className="sm:w-[18px] sm:h-[18px] text-white" />
                 </button>
                 <button
                   onClick={() => {
@@ -609,44 +682,50 @@ export default function ChatWidget() {
                     setIsMinimized(false)
                     lastSupportMessageIdRef.current = null // Resetar referência ao fechar chat
                   }}
-                  className="p-1.5 hover:bg-white/20 rounded-lg transition-smooth"
+                  className="p-1 sm:p-1.5 hover:bg-white/20 rounded-lg transition-smooth"
                   aria-label="Fechar chat"
                 >
-                  <X size={18} className="text-white" />
+                  <X size={16} className="sm:w-[18px] sm:h-[18px] text-white" />
                 </button>
               </div>
             </div>
             
             {/* Atendente Atribuído ou Atendentes Disponíveis */}
-            <div className="px-4 pb-3 border-t border-white/10 pt-3">
+            <div className="px-3 sm:px-4 pb-2 sm:pb-3 border-t border-white/15 pt-2 sm:pt-3">
               {assignedAgentName ? (
-                // Mostrar nome do atendente quando atribuído
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <div className="w-8 h-8 rounded-full border-2 border-brand-aqua overflow-hidden bg-brand-aqua/20 flex items-center justify-center">
-                      <span className="text-brand-aqua text-xs font-bold">
-                        {assignedAgentName.split(' ').map(n => n[0]).join('')}
-                      </span>
+                // Mostrar nome fictício do atendente (sempre em branco para boa leitura)
+                (() => {
+                  const nome = nomeExibidoAtendente(assignedAgentName)
+                  if (!nome) return null
+                  return (
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <div className="relative flex-shrink-0">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-white/50 overflow-hidden bg-white/20 flex items-center justify-center">
+                          <span className="text-white text-[10px] sm:text-xs font-bold">
+                            {nome.split(' ').map(n => n[0]).join('')}
+                          </span>
+                        </div>
+                        <div className="absolute -bottom-0.5 -right-0.5 sm:-bottom-1 sm:-right-1 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-green-400 rounded-full border-2 border-white"></div>
+                      </div>
+                      <p className="text-white text-xs sm:text-sm font-medium truncate min-w-0">
+                        <span className="text-white font-semibold">{nome}</span> está te atendendo agora
+                      </p>
                     </div>
-                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white dark:border-brand-midnight"></div>
-                  </div>
-                  <p className="text-white text-sm font-medium">
-                    <span className="text-brand-aqua">{assignedAgentName}</span> está te atendendo agora
-                  </p>
-                </div>
+                  )
+                })()
               ) : (
                 // Mostrar atendentes disponíveis quando não há atendente atribuído
                 <>
-                  <p className="text-white/70 text-xs mb-2 font-medium">Atendentes disponíveis:</p>
-                  <div className="flex items-center gap-2">
+                  <p className="text-white/70 text-[10px] sm:text-xs mb-1.5 sm:mb-2 font-medium">Atendentes disponíveis:</p>
+                  <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto">
                     {[
                       { name: 'Ana Silva', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AnaSilva&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf' },
                       { name: 'Carlos Santos', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=CarlosSantos&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf' },
                       { name: 'Mariana Costa', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=MarianaCosta&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf' },
                       { name: 'Rafael Oliveira', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=RafaelOliveira&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf' }
                     ].map((atendente, index) => (
-                      <div key={index} className="relative group">
-                        <div className="w-8 h-8 rounded-full border-2 border-white/30 overflow-hidden bg-white/10 flex items-center justify-center">
+                      <div key={index} className="relative group flex-shrink-0">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-white/30 overflow-hidden bg-white/10 flex items-center justify-center">
                           <img 
                             src={atendente.avatar} 
                             alt={atendente.name}
@@ -657,15 +736,15 @@ export default function ChatWidget() {
                               target.style.display = 'none'
                               const parent = target.parentElement
                               if (parent) {
-                                parent.innerHTML = `<span class="text-white text-xs font-semibold">${atendente.name.charAt(0)}</span>`
+                                parent.innerHTML = `<span class="text-white text-[10px] sm:text-xs font-semibold">${atendente.name.charAt(0)}</span>`
                               }
                             }}
                           />
                         </div>
-                        <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white dark:border-brand-midnight"></div>
+                        <div className="absolute -bottom-0.5 -right-0.5 sm:-bottom-1 sm:-right-1 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-green-400 rounded-full border-2 border-white dark:border-brand-midnight"></div>
                       </div>
                     ))}
-                    <div className="ml-1 text-white/60 text-xs font-medium">
+                    <div className="ml-0.5 sm:ml-1 text-white/60 text-[10px] sm:text-xs font-medium flex-shrink-0">
                       +4 online
                     </div>
                   </div>
@@ -677,51 +756,51 @@ export default function ChatWidget() {
           {!isMinimized && (
             <>
               {/* Área de mensagens - ÚNICA ÁREA ROLÁVEL */}
-              <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 bg-gray-50 dark:bg-brand-royal/30 min-h-0" style={{ 
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50 dark:bg-brand-royal/30 min-h-0" style={{ 
                 WebkitOverflowScrolling: 'touch',
                 scrollbarWidth: 'thin'
               }}>
                 {!hasStartedChat && !showForm ? (
-                  <div className="flex flex-col items-center justify-center h-full py-12">
-                    <div className="text-center mb-6">
-                      <div className="w-20 h-20 bg-brand-aqua/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <MessageCircle size={40} className="text-brand-aqua" />
+                  <div className="flex flex-col items-center justify-center h-full py-8 sm:py-12 px-4">
+                    <div className="text-center mb-4 sm:mb-6">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-brand-aqua/20 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                        <MessageCircle size={32} className="sm:w-10 sm:h-10 text-brand-aqua" />
                       </div>
-                      <h3 className="text-lg font-semibold text-brand-midnight dark:text-brand-clean mb-2">
+                      <h3 className="text-base sm:text-lg font-semibold text-brand-midnight dark:text-brand-clean mb-1.5 sm:mb-2">
                         Bem-vindo ao Suporte!
                       </h3>
-                      <p className="text-sm text-gray-600 dark:text-brand-clean/70 mb-6">
+                      <p className="text-xs sm:text-sm text-gray-600 dark:text-brand-clean/70 mb-4 sm:mb-6">
                         Clique no botão abaixo para iniciar uma conversa com nosso suporte
                       </p>
                       <button
                         onClick={handleStartChat}
                         disabled={isStartingChat}
-                        className="px-6 py-3 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
+                        className="px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto text-sm"
                       >
                         {isStartingChat ? (
                           <>
-                            <div className="w-4 h-4 border-2 border-brand-midnight border-t-transparent rounded-full animate-spin"></div>
-                            <span>Iniciando...</span>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span className="text-white">Iniciando...</span>
                           </>
                         ) : (
                           <>
-                            <MessageCircle size={20} />
-                            <span>Iniciar Chat</span>
+                            <MessageCircle size={18} className="sm:w-5 sm:h-5 text-white" />
+                            <span className="text-white">Iniciar Chat</span>
                           </>
                         )}
                       </button>
                     </div>
                   </div>
                 ) : showForm ? (
-                  <div className="flex flex-col h-full py-4 overflow-y-auto overflow-x-hidden min-h-0" style={{ 
+                  <div className="flex flex-col h-full py-3 sm:py-4 overflow-y-auto overflow-x-hidden min-h-0" style={{ 
                     WebkitOverflowScrolling: 'touch',
                     scrollbarWidth: 'thin'
                   }}>
-                    <div className="bg-white dark:bg-brand-royal rounded-2xl rounded-bl-sm px-4 py-3 border border-gray-200 dark:border-white/10 mb-4">
-                      <h3 className="text-base font-semibold text-brand-midnight dark:text-brand-clean mb-2">
+                    <div className="bg-white dark:bg-brand-royal rounded-xl sm:rounded-2xl rounded-bl-sm px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-200 dark:border-white/10 mb-3 sm:mb-4">
+                      <h3 className="text-sm sm:text-base font-semibold text-brand-midnight dark:text-brand-clean mb-1.5 sm:mb-2">
                         {isChatClosed ? 'Iniciar Nova Conversa' : 'Olá! 👋 Bem-vindo ao nosso suporte!'}
                       </h3>
-                      <p className="text-sm text-gray-600 dark:text-brand-clean/70">
+                      <p className="text-xs sm:text-sm text-gray-600 dark:text-brand-clean/70">
                         {isChatClosed 
                           ? 'Preencha o formulário abaixo para iniciar uma nova conversa com nosso suporte:'
                           : 'Para começarmos, precisamos de algumas informações:'
@@ -734,11 +813,11 @@ export default function ChatWidget() {
                         console.log('📋 Form submit event disparado!')
                         handleSubmitForm(e)
                       }} 
-                      className="space-y-4"
+                      className="space-y-3 sm:space-y-4"
                       noValidate
                     >
                       <div>
-                        <label className="block text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
+                        <label className="block text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1 sm:mb-1.5">
                           Nome Completo *
                         </label>
                         <input
@@ -747,13 +826,13 @@ export default function ChatWidget() {
                           value={formData.nome}
                           onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                           placeholder="Seu nome completo"
-                          className="w-full px-4 py-2.5 bg-white dark:bg-brand-midnight border border-gray-200 dark:border-white/10 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50 text-sm"
+                          className="w-full px-3 sm:px-4 py-2 sm:py-2.5 bg-white dark:bg-brand-midnight border border-gray-200 dark:border-white/10 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50 text-sm"
                           disabled={isSubmittingForm}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
+                        <label className="block text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1 sm:mb-1.5">
                           E-mail *
                         </label>
                         <input
@@ -762,13 +841,13 @@ export default function ChatWidget() {
                           value={formData.email}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                           placeholder="seu@email.com"
-                          className="w-full px-4 py-2.5 bg-white dark:bg-brand-midnight border border-gray-200 dark:border-white/10 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50 text-sm"
+                          className="w-full px-3 sm:px-4 py-2 sm:py-2.5 bg-white dark:bg-brand-midnight border border-gray-200 dark:border-white/10 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50 text-sm"
                           disabled={isSubmittingForm}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
+                        <label className="block text-xs sm:text-sm font-medium text-brand-midnight dark:text-brand-clean mb-1 sm:mb-1.5">
                           Motivo da Ajuda *
                         </label>
                         <textarea
@@ -777,7 +856,7 @@ export default function ChatWidget() {
                           onChange={(e) => setFormData({ ...formData, motivo: e.target.value })}
                           placeholder="Descreva como podemos ajudá-lo..."
                           rows={4}
-                          className="w-full px-4 py-2.5 bg-white dark:bg-brand-midnight border border-gray-200 dark:border-white/10 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50 text-sm resize-none"
+                          className="w-full px-3 sm:px-4 py-2 sm:py-2.5 bg-white dark:bg-brand-midnight border border-gray-200 dark:border-white/10 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50 text-sm resize-none"
                           disabled={isSubmittingForm}
                         />
                       </div>
@@ -798,33 +877,33 @@ export default function ChatWidget() {
                           // Não prevenir default aqui, deixar o form onSubmit lidar
                         }}
                         disabled={isSubmittingForm || !formData.nome.trim() || !formData.email.trim() || !formData.motivo.trim()}
-                        className="w-full px-4 py-3 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
                         style={{ cursor: isSubmittingForm || !formData.nome.trim() || !formData.email.trim() || !formData.motivo.trim() ? 'not-allowed' : 'pointer' }}
                       >
                         {isSubmittingForm ? (
                           <>
-                            <div className="w-4 h-4 border-2 border-brand-midnight border-t-transparent rounded-full animate-spin"></div>
-                            <span>Enviando...</span>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span className="text-white">Enviando...</span>
                           </>
                         ) : (
                           <>
-                            <Send size={18} strokeWidth={2.5} />
-                            <span>Enviar e Iniciar Conversa</span>
+                            <Send size={18} strokeWidth={2.5} className="text-white" />
+                            <span className="text-white">Enviar e Iniciar Conversa</span>
                           </>
                         )}
                       </button>
                     </form>
                   </div>
                 ) : isChatClosed && messages.length > 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full py-12">
-                    <div className="text-center mb-6">
-                      <div className="w-20 h-20 bg-orange-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <MessageCircle size={40} className="text-orange-500" />
+                  <div className="flex flex-col items-center justify-center h-full py-8 sm:py-12 px-4">
+                    <div className="text-center mb-4 sm:mb-6">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-500/20 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                        <MessageCircle size={32} className="sm:w-10 sm:h-10 text-orange-500" />
                       </div>
-                      <h3 className="text-lg font-semibold text-brand-midnight dark:text-brand-clean mb-2">
+                      <h3 className="text-base sm:text-lg font-semibold text-brand-midnight dark:text-brand-clean mb-1.5 sm:mb-2">
                         Conversa Finalizada
                       </h3>
-                      <p className="text-sm text-gray-600 dark:text-brand-clean/70 mb-6">
+                      <p className="text-xs sm:text-sm text-gray-600 dark:text-brand-clean/70 mb-4 sm:mb-6">
                         Esta conversa foi finalizada. Clique no botão abaixo para iniciar uma nova conversa com nosso suporte.
                       </p>
                   <button
@@ -835,10 +914,10 @@ export default function ChatWidget() {
                       setMessages([])
                       setAssignedAgentName(null)
                     }}
-                    className="px-6 py-3 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-lg hover:shadow-xl flex items-center gap-2 mx-auto"
+                    className="px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-lg hover:shadow-xl flex items-center gap-2 mx-auto text-sm"
                   >
-                    <MessageCircle size={20} />
-                    <span>Iniciar Nova Conversa</span>
+                    <MessageCircle size={18} className="sm:w-5 sm:h-5 text-white" />
+                    <span className="text-white">Iniciar Nova Conversa</span>
                   </button>
                     </div>
                   </div>
@@ -850,17 +929,17 @@ export default function ChatWidget() {
                     className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+                      className={`max-w-[85%] sm:max-w-[80%] rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 ${
                         message.sender === 'user'
-                          ? 'bg-brand-aqua text-brand-midnight rounded-br-sm'
+                          ? 'bg-brand-aqua text-white rounded-br-sm'
                           : 'bg-white dark:bg-brand-royal text-brand-midnight dark:text-brand-clean rounded-bl-sm border border-gray-200 dark:border-white/10'
                       }`}
                     >
-                      <p className="text-sm leading-relaxed">{message.text}</p>
+                      <p className="text-xs sm:text-sm leading-relaxed break-words">{message.text}</p>
                       <p
-                        className={`text-xs mt-1 ${
+                        className={`text-[10px] sm:text-xs mt-1 ${
                           message.sender === 'user'
-                            ? 'text-brand-midnight/60'
+                            ? 'text-white/80'
                             : 'text-brand-midnight/50 dark:text-brand-clean/50'
                         }`}
                       >
@@ -872,11 +951,11 @@ export default function ChatWidget() {
 
                     {isTyping && (
                       <div className="flex justify-start">
-                        <div className="bg-white dark:bg-brand-royal rounded-2xl rounded-bl-sm px-4 py-2 border border-gray-200 dark:border-white/10">
+                        <div className="bg-white dark:bg-brand-royal rounded-xl sm:rounded-2xl rounded-bl-sm px-3 sm:px-4 py-2 border border-gray-200 dark:border-white/10">
                           <div className="flex gap-1">
-                            <span className="w-2 h-2 bg-brand-aqua rounded-full animate-bounce"></span>
-                            <span className="w-2 h-2 bg-brand-aqua rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>
-                            <span className="w-2 h-2 bg-brand-aqua rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
+                            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-brand-aqua rounded-full animate-bounce"></span>
+                            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-brand-aqua rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>
+                            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-brand-aqua rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
                           </div>
                         </div>
                       </div>
@@ -889,7 +968,7 @@ export default function ChatWidget() {
 
               {/* Input de mensagem - FIXO (não rolável) - só aparece se conversa estiver aberta */}
               {hasStartedChat && !showForm && !isChatClosed && (
-                <div className="p-4 border-t border-gray-200 dark:border-white/10 bg-white dark:bg-brand-midnight flex-shrink-0">
+                <div className="p-3 sm:p-4 border-t border-gray-200 dark:border-white/10 bg-white dark:bg-brand-midnight flex-shrink-0 safe-area-inset-bottom">
                   <div className="flex items-center gap-2">
                     <input
                       ref={inputRef}
@@ -898,18 +977,18 @@ export default function ChatWidget() {
                       onChange={(e) => setInputMessage(e.target.value)}
                       onKeyPress={handleKeyPress}
                       placeholder="Digite sua mensagem..."
-                      className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-brand-royal border border-gray-200 dark:border-white/10 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50 text-sm"
+                      className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-100 dark:bg-brand-royal border border-gray-200 dark:border-white/10 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50 text-sm"
                     />
                     <button
                       onClick={handleSendMessage}
                       disabled={!inputMessage.trim()}
-                      className="p-2.5 bg-brand-aqua text-brand-midnight rounded-xl hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      className="p-2 sm:p-2.5 bg-brand-aqua text-white rounded-xl hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center flex-shrink-0"
                       aria-label="Enviar mensagem"
                     >
-                      <Send size={18} strokeWidth={2.5} />
+                      <Send size={18} strokeWidth={2.5} className="text-white" />
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-brand-clean/50 mt-2 text-center">
+                  <p className="text-xs text-gray-500 dark:text-brand-clean/50 mt-1.5 sm:mt-2 text-center">
                     Resposta média: menos de 1 minuto
                   </p>
                 </div>
@@ -917,16 +996,16 @@ export default function ChatWidget() {
 
               {/* Mensagem quando conversa está fechada - FIXO (não rolável) - aparece no lugar do input */}
               {hasStartedChat && !showForm && isChatClosed && (
-                <div className="p-4 border-t border-gray-200 dark:border-white/10 bg-orange-50 dark:bg-orange-900/20 flex-shrink-0">
-                  <div className="flex items-center gap-3 p-3 bg-orange-100 dark:bg-orange-900/30 rounded-xl border border-orange-200 dark:border-orange-800">
+                <div className="p-3 sm:p-4 border-t border-gray-200 dark:border-white/10 bg-orange-50 dark:bg-orange-900/20 flex-shrink-0 safe-area-inset-bottom">
+                  <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 bg-orange-100 dark:bg-orange-900/30 rounded-xl border border-orange-200 dark:border-orange-800">
                     <div className="flex-shrink-0">
-                      <MessageCircle size={20} className="text-orange-600 dark:text-orange-400" />
+                      <MessageCircle size={18} className="sm:w-5 sm:h-5 text-orange-600 dark:text-orange-400" />
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-orange-900 dark:text-orange-200 mb-1">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm font-semibold text-orange-900 dark:text-orange-200 mb-0.5 sm:mb-1">
                         Conversa Finalizada
                       </p>
-                      <p className="text-xs text-orange-700 dark:text-orange-300">
+                      <p className="text-[10px] sm:text-xs text-orange-700 dark:text-orange-300">
                         Esta conversa foi finalizada pelo suporte. Clique no botão abaixo para iniciar uma nova conversa.
                       </p>
                     </div>
@@ -939,10 +1018,10 @@ export default function ChatWidget() {
                       setMessages([])
                       setAssignedAgentName(null)
                     }}
-                    className="w-full mt-3 px-4 py-2.5 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                    className="w-full mt-2 sm:mt-3 px-3 sm:px-4 py-2 sm:py-2.5 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-md hover:shadow-lg flex items-center justify-center gap-2 text-sm"
                   >
-                    <MessageCircle size={18} />
-                    <span>Iniciar Nova Conversa</span>
+                    <MessageCircle size={16} className="sm:w-[18px] sm:h-[18px] text-white" />
+                    <span className="text-white">Iniciar Nova Conversa</span>
                   </button>
                 </div>
               )}

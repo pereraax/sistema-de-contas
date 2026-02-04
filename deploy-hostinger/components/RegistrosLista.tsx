@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Registro, User } from '@/lib/types'
-import { Edit, Trash2, CheckCircle, X, Search, Filter, ChevronDown, Check } from 'lucide-react'
-import { format } from 'date-fns'
+import { Edit, Trash2, CheckCircle, X, Search, Filter, ChevronDown, Check, Calendar, Download } from 'lucide-react'
+import { format, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import { marcarParcelaPaga, excluirRegistro } from '@/lib/actions'
 import ModalConfirmacao from './ModalConfirmacao'
@@ -28,6 +28,7 @@ export default function RegistrosLista({
     tipo: filtrosAtuais.tipo || '',
     user_id: filtrosAtuais.user_id || '',
     etiqueta: filtrosAtuais.etiqueta || '',
+    categoria: filtrosAtuais.categoria || '',
     data_inicio: filtrosAtuais.data_inicio || '',
     data_fim: filtrosAtuais.data_fim || '',
   })
@@ -37,7 +38,12 @@ export default function RegistrosLista({
   const [dropdownEtiquetaAberto, setDropdownEtiquetaAberto] = useState(false)
   const [dropdownTipoAberto, setDropdownTipoAberto] = useState(false)
   const [dropdownUsuarioAberto, setDropdownUsuarioAberto] = useState(false)
+  const [dropdownCategoriaAberto, setDropdownCategoriaAberto] = useState(false)
   const [modalFiltrosAberto, setModalFiltrosAberto] = useState(false)
+  const [modalExportarAberto, setModalExportarAberto] = useState(false)
+  const [periodoExportacao, setPeriodoExportacao] = useState<number | null>(null)
+  const [exportando, setExportando] = useState(false)
+  const [filtroDiasSelecionado, setFiltroDiasSelecionado] = useState<number | null>(null)
 
   const aplicarFiltros = () => {
     const params = new URLSearchParams()
@@ -45,6 +51,7 @@ export default function RegistrosLista({
     if (filtros.tipo) params.set('tipo', filtros.tipo)
     if (filtros.user_id) params.set('user_id', filtros.user_id)
     if (filtros.etiqueta) params.set('etiqueta', filtros.etiqueta)
+    if (filtros.categoria) params.set('categoria', filtros.categoria)
     if (filtros.data_inicio) params.set('data_inicio', filtros.data_inicio)
     if (filtros.data_fim) params.set('data_fim', filtros.data_fim)
     router.push(`/registros?${params.toString()}`)
@@ -56,17 +63,84 @@ export default function RegistrosLista({
       tipo: '',
       user_id: '',
       etiqueta: '',
+      categoria: '',
       data_inicio: '',
       data_fim: '',
     })
+    setFiltroDiasSelecionado(null)
     router.push('/registros')
   }
 
+  const aplicarFiltroDias = (dias: number | null) => {
+    setFiltroDiasSelecionado(dias)
+    
+    if (dias === null) {
+      // Limpar filtro de data
+      const params = new URLSearchParams(searchParams.toString())
+      params.delete('data_inicio')
+      params.delete('data_fim')
+      router.push(`/registros?${params.toString()}`)
+      return
+    }
+
+    const hoje = new Date()
+    const dataInicio = subDays(hoje, dias)
+    const dataFim = hoje
+
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('data_inicio', format(dataInicio, 'yyyy-MM-dd'))
+    params.set('data_fim', format(dataFim, 'yyyy-MM-dd'))
+    router.push(`/registros?${params.toString()}`)
+  }
+
+  // Verificar se há filtro de dias ativo baseado nos filtros atuais
+  useEffect(() => {
+    if (filtrosAtuais.data_inicio && filtrosAtuais.data_fim) {
+      const dataInicio = new Date(filtrosAtuais.data_inicio)
+      const dataFim = new Date(filtrosAtuais.data_fim)
+      const hoje = new Date()
+      hoje.setHours(23, 59, 59, 999)
+      
+      // Verificar se a data fim é hoje
+      if (format(dataFim, 'yyyy-MM-dd') === format(hoje, 'yyyy-MM-dd')) {
+        const diasDiff = Math.ceil((hoje.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24))
+        if ([7, 30, 60, 90].includes(diasDiff)) {
+          setFiltroDiasSelecionado(diasDiff)
+        }
+      }
+    } else {
+      setFiltroDiasSelecionado(null)
+    }
+  }, [filtrosAtuais.data_inicio, filtrosAtuais.data_fim])
+
+  // Associar dados do usuário aos registros
+  const registrosComUsuarios = registros.map((registro) => {
+    const user = usuarios.find((u) => u.id === registro.user_id)
+    return {
+      ...registro,
+      user: user || undefined,
+    }
+  })
+
   const todasEtiquetas = Array.from(
-    new Set(registros.flatMap((r) => r.etiquetas || []))
+    new Set(registrosComUsuarios.flatMap((r) => r.etiquetas || []))
   )
 
-  const temFiltrosAtivos = Object.values(filtrosAtuais).some((v) => v)
+  // Extrair todas as categorias únicas dos registros
+  const todasCategorias: string[] = Array.from(
+    new Set(
+      registrosComUsuarios
+        .map((r) => r.categoria)
+        .filter((cat): cat is string => !!cat && cat.toLowerCase() !== 'entrada' && cat.toLowerCase() !== 'saida')
+    )
+  ).sort()
+
+  // Verificar se há filtros ativos, excluindo data_inicio e data_fim (gerenciados pelos filtros rápidos de dias)
+  const temFiltrosAtivos = Object.entries(filtrosAtuais).some(([key, value]) => {
+    // Ignorar data_inicio e data_fim pois são gerenciados pelos filtros rápidos de dias
+    if (key === 'data_inicio' || key === 'data_fim') return false
+    return !!value
+  })
 
   const handleMarcarPago = async (id: string) => {
     await marcarParcelaPaga(id)
@@ -88,9 +162,105 @@ export default function RegistrosLista({
   }
 
   const tipoColors = {
-    entrada: 'bg-green-100 text-green-700 border-green-300',
-    saida: 'bg-red-100 text-red-700 border-red-300',
-    divida: 'bg-orange-100 text-orange-700 border-orange-300',
+    entrada: 'bg-green-500 text-white border-green-600 dark:bg-green-600 dark:border-green-700',
+    saida: 'bg-red-500 text-white border-red-600 dark:bg-red-600 dark:border-red-700',
+    divida: 'bg-orange-500 text-white border-orange-600 dark:bg-orange-600 dark:border-orange-700',
+  }
+  
+  // Mapeamento completo de cores únicas para cada categoria (com fundo transparente)
+  // Cada categoria tem uma cor única e não se repete
+  const coresCategorias: Record<string, { bg: string; text: string; border: string }> = {
+    // Categorias padrão
+    alimentacao: { bg: 'bg-amber-100/80 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-300 dark:border-amber-700' },
+    transporte: { bg: 'bg-blue-100/80 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-300 dark:border-blue-700' },
+    moradia: { bg: 'bg-purple-100/80 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-300 dark:border-purple-700' },
+    compras: { bg: 'bg-pink-100/80 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-300 dark:border-pink-700' },
+    saude: { bg: 'bg-red-100/80 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', border: 'border-red-300 dark:border-red-700' },
+    educacao: { bg: 'bg-indigo-100/80 dark:bg-indigo-900/40', text: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-300 dark:border-indigo-700' },
+    trabalho: { bg: 'bg-slate-100/80 dark:bg-slate-900/40', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-300 dark:border-slate-700' },
+    entretenimento: { bg: 'bg-fuchsia-100/80 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300', border: 'border-fuchsia-300 dark:border-fuchsia-700' },
+    fitness: { bg: 'bg-emerald-100/80 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-300 dark:border-emerald-700' },
+    viagem: { bg: 'bg-cyan-100/80 dark:bg-cyan-900/40', text: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-300 dark:border-cyan-700' },
+    outros: { bg: 'bg-yellow-100/80 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-300 dark:border-yellow-700' },
+    
+    // Categorias personalizadas comuns (com cores únicas)
+    sorvete: { bg: 'bg-violet-100/80 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', border: 'border-violet-300 dark:border-violet-700' },
+    comida: { bg: 'bg-sky-100/80 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-300 dark:border-sky-700' },
+    por: { bg: 'bg-green-100/80 dark:bg-green-900/40', text: 'text-green-700 dark:text-green-300', border: 'border-green-300 dark:border-green-700' },
+    lojas: { bg: 'bg-teal-100/80 dark:bg-teal-900/40', text: 'text-teal-700 dark:text-teal-300', border: 'border-teal-300 dark:border-teal-700' },
+    carro: { bg: 'bg-rose-100/80 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', border: 'border-rose-300 dark:border-rose-700' },
+    casa: { bg: 'bg-orange-100/80 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-300 dark:border-orange-700' },
+    pessoa: { bg: 'bg-lime-100/80 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', border: 'border-lime-300 dark:border-lime-700' },
+    'dívida - dinheiro': { bg: 'bg-amber-100/80 dark:bg-amber-900/40', text: 'text-amber-800 dark:text-amber-200', border: 'border-amber-400 dark:border-amber-600' },
+    'dívida - pix': { bg: 'bg-emerald-100/80 dark:bg-emerald-900/40', text: 'text-emerald-800 dark:text-emerald-200', border: 'border-emerald-400 dark:border-emerald-600' },
+    'dívida - cartao': { bg: 'bg-blue-100/80 dark:bg-blue-900/40', text: 'text-blue-800 dark:text-blue-200', border: 'border-blue-400 dark:border-blue-600' },
+    dinheiro: { bg: 'bg-sky-100/80 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-300 dark:border-sky-700' },
+    comprovante: { bg: 'bg-violet-100/80 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', border: 'border-violet-300 dark:border-violet-700' },
+    roupas: { bg: 'bg-fuchsia-100/80 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300', border: 'border-fuchsia-300 dark:border-fuchsia-700' },
+  }
+
+  // Função para obter cor de categoria (com fallback para categorias personalizadas não mapeadas)
+  const obterCorCategoria = (categoria: string): string => {
+    if (!categoria) return 'bg-gray-100/80 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700'
+    
+    const catLower = categoria.toLowerCase().trim()
+    
+    // Verificar se já tem cor definida
+    if (coresCategorias[catLower]) {
+      const cor = coresCategorias[catLower]
+      return `${cor.bg} ${cor.text} ${cor.border}`
+    }
+
+    // Para categorias personalizadas não mapeadas, gerar cor baseada no hash da string
+    // Usando uma paleta de cores únicas com transparência
+    const coresPersonalizadas = [
+      { bg: 'bg-violet-100/80 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', border: 'border-violet-300 dark:border-violet-700' },
+      { bg: 'bg-teal-100/80 dark:bg-teal-900/40', text: 'text-teal-700 dark:text-teal-300', border: 'border-teal-300 dark:border-teal-700' },
+      { bg: 'bg-rose-100/80 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', border: 'border-rose-300 dark:border-rose-700' },
+      { bg: 'bg-orange-100/80 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-300 dark:border-orange-700' },
+      { bg: 'bg-lime-100/80 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', border: 'border-lime-300 dark:border-lime-700' },
+      { bg: 'bg-sky-100/80 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-300 dark:border-sky-700' },
+      { bg: 'bg-amber-100/80 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-300 dark:border-amber-700' },
+      { bg: 'bg-emerald-100/80 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-300 dark:border-emerald-700' },
+      { bg: 'bg-pink-100/80 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-300 dark:border-pink-700' },
+      { bg: 'bg-indigo-100/80 dark:bg-indigo-900/40', text: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-300 dark:border-indigo-700' },
+      { bg: 'bg-red-100/80 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', border: 'border-red-300 dark:border-red-700' },
+      { bg: 'bg-blue-100/80 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-300 dark:border-blue-700' },
+      { bg: 'bg-purple-100/80 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-300 dark:border-purple-700' },
+      { bg: 'bg-cyan-100/80 dark:bg-cyan-900/40', text: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-300 dark:border-cyan-700' },
+      { bg: 'bg-fuchsia-100/80 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300', border: 'border-fuchsia-300 dark:border-fuchsia-700' },
+      { bg: 'bg-green-100/80 dark:bg-green-900/40', text: 'text-green-700 dark:text-green-300', border: 'border-green-300 dark:border-green-700' },
+      { bg: 'bg-yellow-100/80 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-300 dark:border-yellow-700' },
+      { bg: 'bg-slate-100/80 dark:bg-slate-900/40', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-300 dark:border-slate-700' },
+    ]
+
+    // Gerar índice baseado no hash da string para garantir consistência
+    // Usar catLower para garantir que a mesma categoria sempre tenha a mesma cor
+    let hash = 0
+    for (let i = 0; i < catLower.length; i++) {
+      hash = catLower.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    const index = Math.abs(hash) % coresPersonalizadas.length
+    const cor = coresPersonalizadas[index]
+    return `${cor.bg} ${cor.text} ${cor.border}`
+  }
+
+  // Cores para categorias (mantido para compatibilidade, mas não usado mais)
+  const categoriaColors: Record<string, string> = {}
+  
+  // Mapeamento de nomes de categorias
+  const categoriaNomes: Record<string, string> = {
+    alimentacao: 'Alimentação',
+    transporte: 'Transporte',
+    moradia: 'Moradia',
+    compras: 'Compras',
+    saude: 'Saúde',
+    educacao: 'Educação',
+    trabalho: 'Trabalho',
+    entretenimento: 'Entretenimento',
+    fitness: 'Fitness',
+    viagem: 'Viagem',
+    outros: 'Outros',
   }
 
   const tipoLabels = {
@@ -120,6 +290,39 @@ export default function RegistrosLista({
     return observacaoLimpa
   }
 
+  const handleExportarCSV = async () => {
+    if (!periodoExportacao) {
+      return
+    }
+
+    setExportando(true)
+    try {
+      const response = await fetch(`/api/registros/exportar-csv?dias=${periodoExportacao}`)
+      
+      if (!response.ok) {
+        throw new Error('Erro ao exportar registros')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `registros-${periodoExportacao}-dias-${format(new Date(), 'yyyy-MM-dd')}.csv`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      setModalExportarAberto(false)
+      setPeriodoExportacao(null)
+    } catch (error) {
+      console.error('Erro ao exportar:', error)
+      alert('Erro ao exportar registros. Tente novamente.')
+    } finally {
+      setExportando(false)
+    }
+  }
+
   return (
     <div>
       {/* Barra de busca */}
@@ -137,8 +340,36 @@ export default function RegistrosLista({
         </div>
       </div>
 
-      {/* Mobile: Filtros sempre abertos */}
-      <div className="md:hidden mb-4 bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-xl p-3 shadow-lg border border-brand-aqua/20 dark:border-brand-aqua/30">
+      {/* Mobile: Botão de Filtro */}
+      <div className="md:hidden mb-4">
+        <button
+          type="button"
+          onClick={() => setModalFiltrosAberto(!modalFiltrosAberto)}
+          className={`w-full px-4 py-3 bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-xl shadow-lg border border-brand-aqua/20 dark:border-brand-aqua/30 flex items-center justify-between transition-all ${
+            modalFiltrosAberto ? 'border-brand-aqua' : ''
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Filter size={18} className="text-brand-aqua" />
+            <span className="text-sm font-semibold text-brand-midnight dark:text-brand-clean">
+              Filtros
+            </span>
+            {temFiltrosAtivos && (
+              <span className="px-2 py-0.5 bg-brand-aqua text-white text-xs font-bold rounded-full">
+                {Object.values(filtrosAtuais).filter(v => v && v !== filtrosAtuais.data_inicio && v !== filtrosAtuais.data_fim).length}
+              </span>
+            )}
+          </div>
+          <ChevronDown 
+            size={18} 
+            className={`text-brand-aqua transition-transform ${modalFiltrosAberto ? 'rotate-180' : ''}`} 
+          />
+        </button>
+      </div>
+
+      {/* Mobile: Filtros (ocultos por padrão, aparecem ao clicar no botão) */}
+      {modalFiltrosAberto && (
+        <div className="md:hidden mb-4 bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-xl p-3 shadow-lg border border-brand-aqua/20 dark:border-brand-aqua/30 animate-in slide-in-from-top-2 duration-200">
         <div className="space-y-2.5">
           {/* Tipo */}
           <div className="relative">
@@ -148,7 +379,9 @@ export default function RegistrosLista({
               onClick={() => setDropdownTipoAberto(!dropdownTipoAberto)}
               className="w-full px-3 py-2 border border-gray-200 dark:border-white/20 rounded-lg text-xs text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight flex items-center justify-between"
             >
-              <span className={filtros.tipo ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}>
+              <span className={`flex items-center gap-2 ${filtros.tipo ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}`}>
+                {filtros.tipo === 'entrada' && <div className="w-2 h-2 rounded-full bg-green-500" />}
+                {filtros.tipo === 'saida' && <div className="w-2 h-2 rounded-full bg-red-500" />}
                 {filtros.tipo === 'entrada' ? 'Entrada' : filtros.tipo === 'saida' ? 'Saída' : 'Todos'}
               </span>
               <ChevronDown size={14} className={`text-brand-aqua transition-transform ${dropdownTipoAberto ? 'rotate-180' : ''}`} />
@@ -166,17 +399,31 @@ export default function RegistrosLista({
                 <button
                   type="button"
                   onClick={() => { setFiltros({ ...filtros, tipo: 'entrada' }); setDropdownTipoAberto(false); }}
-                  className={`w-full px-3 py-2 text-left flex items-center justify-between border-t text-xs ${filtros.tipo === 'entrada' ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold' : 'text-brand-midnight dark:text-brand-clean'}`}
+                  className={`w-full px-3 py-2 text-left flex items-center justify-between border-t text-xs transition-all ${
+                    filtros.tipo === 'entrada' 
+                      ? 'bg-gradient-to-r from-green-500 to-green-600 text-white font-bold shadow-md' 
+                      : 'text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
+                  }`}
                 >
-                  <span>Entrada</span>
+                  <span className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${filtros.tipo === 'entrada' ? 'bg-white' : 'bg-green-500'}`} />
+                    Entrada
+                  </span>
                   {filtros.tipo === 'entrada' && <Check size={14} />}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setFiltros({ ...filtros, tipo: 'saida' }); setDropdownTipoAberto(false); }}
-                  className={`w-full px-3 py-2 text-left flex items-center justify-between border-t text-xs ${filtros.tipo === 'saida' ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold' : 'text-brand-midnight dark:text-brand-clean'}`}
+                  className={`w-full px-3 py-2 text-left flex items-center justify-between border-t text-xs transition-all ${
+                    filtros.tipo === 'saida' 
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 text-white font-bold shadow-md' 
+                      : 'text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+                  }`}
                 >
-                  <span>Saída</span>
+                  <span className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${filtros.tipo === 'saida' ? 'bg-white' : 'bg-red-500'}`} />
+                    Saída
+                  </span>
                   {filtros.tipo === 'saida' && <Check size={14} />}
                 </button>
               </div>
@@ -217,6 +464,52 @@ export default function RegistrosLista({
                     {filtros.user_id === user.id && <Check size={14} />}
                   </button>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Categoria */}
+          <div className="relative">
+            <label className="block text-xs font-medium text-gray-700 dark:text-brand-clean/90 mb-1">Categoria</label>
+            <button
+              type="button"
+              onClick={() => setDropdownCategoriaAberto(!dropdownCategoriaAberto)}
+              className="w-full px-3 py-2 border border-gray-200 dark:border-white/20 rounded-lg text-xs text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight flex items-center justify-between"
+            >
+              <span className={filtros.categoria ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}>
+                {filtros.categoria ? (categoriaNomes[filtros.categoria.toLowerCase()] || filtros.categoria) : 'Todas'}
+              </span>
+              <ChevronDown size={14} className={`text-brand-aqua transition-transform ${dropdownCategoriaAberto ? 'rotate-180' : ''}`} />
+            </button>
+            {dropdownCategoriaAberto && (
+              <div className="absolute z-20 w-full mt-1 bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-midnight dark:via-brand-royal dark:to-brand-midnight rounded-lg shadow-xl border border-brand-aqua/30 max-h-48 overflow-y-auto">
+                <button
+                  type="button"
+                  onClick={() => { setFiltros({ ...filtros, categoria: '' }); setDropdownCategoriaAberto(false); }}
+                  className={`w-full px-3 py-2 text-left flex items-center justify-between text-xs ${filtros.categoria === '' ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold' : 'text-brand-midnight dark:text-brand-clean'}`}
+                >
+                  <span>Todas</span>
+                  {filtros.categoria === '' && <Check size={14} />}
+                </button>
+                {todasCategorias.filter(cat => cat).map((cat) => {
+                  const catLower = cat.toLowerCase()
+                  const categoriaColor = obterCorCategoria(cat)
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => { setFiltros({ ...filtros, categoria: cat }); setDropdownCategoriaAberto(false); }}
+                      className={`w-full px-3 py-2 text-left flex items-center justify-between border-t text-xs transition-all ${
+                        filtros.categoria === cat
+                          ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
+                          : `${categoriaColor} hover:opacity-90`
+                      }`}
+                    >
+                      <span>{categoriaNomes[catLower] || cat}</span>
+                      {filtros.categoria === cat && <Check size={14} />}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -263,21 +556,27 @@ export default function RegistrosLista({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-brand-clean/90 mb-1">Data início</label>
-              <input
-                type="date"
-                value={filtros.data_inicio}
-                onChange={(e) => setFiltros({ ...filtros, data_inicio: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-white/20 rounded-lg text-xs text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight"
-              />
+              <div className="relative">
+                <input
+                  type="date"
+                  value={filtros.data_inicio}
+                  onChange={(e) => setFiltros({ ...filtros, data_inicio: e.target.value })}
+                  className="w-full px-3 py-2 pr-8 border border-gray-200 dark:border-white/20 rounded-lg text-xs text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full cursor-pointer"
+                />
+                <Calendar size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-white pointer-events-none" />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-brand-clean/90 mb-1">Data fim</label>
-              <input
-                type="date"
-                value={filtros.data_fim}
-                onChange={(e) => setFiltros({ ...filtros, data_fim: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-white/20 rounded-lg text-xs text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight"
-              />
+              <div className="relative">
+                <input
+                  type="date"
+                  value={filtros.data_fim}
+                  onChange={(e) => setFiltros({ ...filtros, data_fim: e.target.value })}
+                  className="w-full px-3 py-2 pr-8 border border-gray-200 dark:border-white/20 rounded-lg text-xs text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full cursor-pointer"
+                />
+                <Calendar size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-white pointer-events-none" />
+              </div>
             </div>
           </div>
 
@@ -285,12 +584,20 @@ export default function RegistrosLista({
           <div className="flex gap-2 pt-2">
             <button
               type="button"
+              onClick={() => setModalExportarAberto(true)}
+              className="flex-1 px-4 py-2.5 bg-white dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean rounded-lg text-xs font-semibold border border-gray-200 dark:border-white/20 hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 flex items-center justify-center gap-2"
+            >
+              <Download size={16} className="text-brand-aqua" />
+              <span>Exportar CSV</span>
+            </button>
+            <button
+              type="button"
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
                 aplicarFiltros()
               }}
-              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-brand-aqua via-brand-aqua to-blue-500 text-white rounded-lg font-bold shadow-lg text-xs flex items-center justify-center gap-1.5 hover:shadow-xl transition-all"
+              className="px-4 py-2.5 bg-brand-aqua text-white rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 hover:bg-brand-aqua/90 transition-all border-2 border-brand-aqua"
             >
               <Filter size={14} strokeWidth={2.5} />
               Aplicar
@@ -311,14 +618,15 @@ export default function RegistrosLista({
           </div>
         </div>
       </div>
+      )}
 
-      {/* Desktop: Botão de filtro */}
+      {/* Desktop: Botões de filtro e exportação */}
       <div className="hidden md:flex items-center gap-3 mb-4 sm:mb-6">
         <button
           onClick={() => setModalFiltrosAberto(!modalFiltrosAberto)}
           className={`flex items-center justify-center gap-2 px-4 py-2.5 border-2 rounded-xl transition-smooth text-sm font-semibold whitespace-nowrap ${
             temFiltrosAtivos
-              ? 'bg-brand-aqua text-brand-midnight border-brand-aqua shadow-md'
+              ? 'bg-brand-aqua text-white border-brand-aqua shadow-md'
               : 'bg-white dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border-gray-200 dark:border-white/20 hover:border-brand-aqua'
           }`}
         >
@@ -326,10 +634,48 @@ export default function RegistrosLista({
           <span>Filtros</span>
           {temFiltrosAtivos && (
             <span className="px-1.5 py-0.5 bg-brand-midnight dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-full text-xs font-bold">
-              {Object.values(filtrosAtuais).filter(v => v).length}
+              {Object.entries(filtrosAtuais).filter(([key, value]) => {
+                // Excluir data_inicio e data_fim da contagem
+                if (key === 'data_inicio' || key === 'data_fim') return false
+                return !!value
+              }).length}
             </span>
           )}
         </button>
+        <button
+          onClick={() => setModalExportarAberto(true)}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 border-2 rounded-xl transition-smooth text-sm font-semibold whitespace-nowrap bg-white dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border-gray-200 dark:border-white/20 hover:border-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20"
+        >
+          <Download size={18} className="text-brand-aqua" strokeWidth={2.5} />
+          <span>Exportar CSV</span>
+        </button>
+      </div>
+
+      {/* Desktop: Filtros Rápidos de Dias */}
+      <div className="hidden md:flex items-center gap-2 mb-4">
+        <button
+          onClick={() => aplicarFiltroDias(null)}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            filtroDiasSelecionado === null
+              ? 'bg-gradient-to-r from-brand-aqua to-blue-500 text-white shadow-md'
+              : 'bg-transparent text-brand-midnight dark:text-brand-clean border-2 border-gray-200 dark:border-white/20 hover:border-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+          }`}
+        >
+          Todos
+        </button>
+        {[7, 30, 60, 90].map((dias) => (
+          <button
+            key={dias}
+            onClick={() => aplicarFiltroDias(dias)}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              filtroDiasSelecionado === dias
+                ? 'bg-gradient-to-r from-brand-aqua to-blue-500 text-white shadow-md'
+                : 'bg-transparent text-brand-midnight dark:text-brand-clean border-2 border-gray-200 dark:border-white/20 hover:border-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+            }`}
+          >
+            {dias} dias
+          </button>
+        ))}
       </div>
 
       {/* Desktop: Filtros - aparecem quando o botão é clicado */}
@@ -366,7 +712,9 @@ export default function RegistrosLista({
                 onClick={() => setDropdownTipoAberto(!dropdownTipoAberto)}
                 className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight hover:border-brand-aqua/50 flex items-center justify-between shadow-sm hover:shadow-md"
               >
-                <span className={filtros.tipo ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}>
+                <span className={`flex items-center gap-2 ${filtros.tipo ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}`}>
+                  {filtros.tipo === 'entrada' && <div className="w-2.5 h-2.5 rounded-full bg-green-500" />}
+                  {filtros.tipo === 'saida' && <div className="w-2.5 h-2.5 rounded-full bg-red-500" />}
                   {filtros.tipo === 'entrada' ? 'Entrada' : filtros.tipo === 'saida' ? 'Saída' : 'Todos'}
                 </span>
                 <ChevronDown 
@@ -407,13 +755,16 @@ export default function RegistrosLista({
                           setFiltros({ ...filtros, tipo: 'entrada' })
                           setDropdownTipoAberto(false)
                         }}
-                        className={`w-full px-4 py-3 text-left flex items-center justify-between transition-smooth border-t border-gray-100 dark:border-white/10 ${
+                        className={`w-full px-4 py-3 text-left flex items-center justify-between transition-all border-t border-gray-100 dark:border-white/10 ${
                           filtros.tipo === 'entrada'
-                            ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
-                            : 'text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+                            ? 'bg-gradient-to-r from-green-500 to-green-600 text-white font-bold shadow-md'
+                            : 'text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
                         }`}
                       >
-                        <span>Entrada</span>
+                        <span className="flex items-center gap-2">
+                          <div className={`w-2.5 h-2.5 rounded-full ${filtros.tipo === 'entrada' ? 'bg-white' : 'bg-green-500'}`} />
+                          Entrada
+                        </span>
                         {filtros.tipo === 'entrada' && (
                           <Check size={18} strokeWidth={3} />
                         )}
@@ -424,13 +775,16 @@ export default function RegistrosLista({
                           setFiltros({ ...filtros, tipo: 'saida' })
                           setDropdownTipoAberto(false)
                         }}
-                        className={`w-full px-4 py-3 text-left flex items-center justify-between transition-smooth border-t border-gray-100 dark:border-white/10 ${
+                        className={`w-full px-4 py-3 text-left flex items-center justify-between transition-all border-t border-gray-100 dark:border-white/10 ${
                           filtros.tipo === 'saida'
-                            ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
-                            : 'text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white font-bold shadow-md'
+                            : 'text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
                         }`}
                       >
-                        <span>Saída</span>
+                        <span className="flex items-center gap-2">
+                          <div className={`w-2.5 h-2.5 rounded-full ${filtros.tipo === 'saida' ? 'bg-white' : 'bg-red-500'}`} />
+                          Saída
+                        </span>
                         {filtros.tipo === 'saida' && (
                           <Check size={18} strokeWidth={3} />
                         )}
@@ -508,6 +862,83 @@ export default function RegistrosLista({
                           )}
                         </button>
                       ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Categoria */}
+          <div className="relative">
+            <label className="block text-sm font-medium text-gray-700 dark:text-brand-clean/90 mb-1.5">
+              Categoria
+            </label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setDropdownCategoriaAberto(!dropdownCategoriaAberto)}
+                className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight hover:border-brand-aqua/50 flex items-center justify-between shadow-sm hover:shadow-md"
+              >
+                <span className={filtros.categoria ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}>
+                  {filtros.categoria ? (categoriaNomes[filtros.categoria.toLowerCase()] || filtros.categoria) : 'Todas'}
+                </span>
+                <ChevronDown 
+                  size={18} 
+                  className={`text-brand-aqua transition-transform duration-200 ${dropdownCategoriaAberto ? 'rotate-180' : ''}`}
+                  strokeWidth={2.5}
+                />
+              </button>
+              
+              {dropdownCategoriaAberto && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setDropdownCategoriaAberto(false)}
+                  />
+                  <div className="absolute z-20 w-full mt-2 bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-midnight dark:via-brand-royal dark:to-brand-midnight rounded-xl shadow-2xl border-2 border-brand-aqua/30 dark:border-brand-aqua/40 overflow-hidden animate-slide-up">
+                    <div className="max-h-60 overflow-y-auto">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFiltros({ ...filtros, categoria: '' })
+                          setDropdownCategoriaAberto(false)
+                        }}
+                        className={`w-full px-4 py-3 text-left flex items-center justify-between transition-smooth ${
+                          filtros.categoria === ''
+                            ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
+                            : 'text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+                        }`}
+                      >
+                        <span>Todas</span>
+                        {filtros.categoria === '' && (
+                          <Check size={18} strokeWidth={3} />
+                        )}
+                      </button>
+                      {todasCategorias.filter(cat => cat).map((cat) => {
+                        const catLower = cat.toLowerCase()
+                        const categoriaColor = obterCorCategoria(cat)
+                        return (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => {
+                              setFiltros({ ...filtros, categoria: cat })
+                              setDropdownCategoriaAberto(false)
+                            }}
+                            className={`w-full px-4 py-3 text-left flex items-center justify-between transition-all border-t border-gray-100 dark:border-white/10 ${
+                              filtros.categoria === cat
+                                ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
+                                : `${categoriaColor} hover:opacity-90`
+                            }`}
+                          >
+                            <span>{categoriaNomes[catLower] || cat}</span>
+                            {filtros.categoria === cat && (
+                              <Check size={18} strokeWidth={3} />
+                            )}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 </>
@@ -593,12 +1024,15 @@ export default function RegistrosLista({
             <label className="block text-sm font-medium text-gray-700 dark:text-brand-clean/90 mb-1.5">
               Data início
             </label>
-            <input
-              type="date"
-              value={filtros.data_inicio}
-              onChange={(e) => setFiltros({ ...filtros, data_inicio: e.target.value })}
-              className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight hover:border-brand-aqua/50 shadow-sm hover:shadow-md"
-            />
+            <div className="relative">
+              <input
+                type="date"
+                value={filtros.data_inicio}
+                onChange={(e) => setFiltros({ ...filtros, data_inicio: e.target.value })}
+                className="w-full px-4 py-2.5 pr-10 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight hover:border-brand-aqua/50 shadow-sm hover:shadow-md [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full cursor-pointer"
+              />
+              <Calendar size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-white pointer-events-none" />
+            </div>
           </div>
 
           {/* Data fim */}
@@ -606,19 +1040,22 @@ export default function RegistrosLista({
             <label className="block text-sm font-medium text-gray-700 dark:text-brand-clean/90 mb-1.5">
               Data fim
             </label>
-            <input
-              type="date"
-              value={filtros.data_fim}
-              onChange={(e) => setFiltros({ ...filtros, data_fim: e.target.value })}
-              className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight hover:border-brand-aqua/50 shadow-sm hover:shadow-md"
-            />
+            <div className="relative">
+              <input
+                type="date"
+                value={filtros.data_fim}
+                onChange={(e) => setFiltros({ ...filtros, data_fim: e.target.value })}
+                className="w-full px-4 py-2.5 pr-10 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight hover:border-brand-aqua/50 shadow-sm hover:shadow-md [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full cursor-pointer"
+              />
+              <Calendar size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-white pointer-events-none" />
+            </div>
           </div>
         </div>
         
         <div className="mt-4 flex gap-3">
           <button
             onClick={aplicarFiltros}
-            className="flex-1 px-6 py-3 bg-gradient-to-r from-brand-aqua to-brand-blue text-brand-midnight rounded-xl hover:from-brand-aqua/90 hover:to-brand-blue/90 transition-smooth font-bold shadow-lg hover:shadow-xl text-sm flex items-center justify-center gap-2"
+            className="px-6 py-3 bg-brand-aqua text-white rounded-xl hover:bg-brand-aqua/90 transition-smooth font-semibold text-sm flex items-center justify-center gap-2 border-2 border-brand-aqua"
           >
             <Filter size={18} strokeWidth={2.5} />
             Aplicar Filtros
@@ -635,17 +1072,24 @@ export default function RegistrosLista({
 
       {/* Lista de registros */}
       {registros.length === 0 ? (
-        <div className="bg-brand-white dark:bg-brand-royal rounded-2xl p-12 text-center shadow-lg border border-brand-clean dark:border-white/10">
+        <div className="bg-white dark:bg-brand-royal rounded-2xl p-12 text-center shadow-lg border border-gray-200 dark:border-white/10">
           <p className="text-brand-midnight/60 dark:text-brand-clean/60 text-lg">Nenhum registro encontrado</p>
         </div>
       ) : (
-        <div className="bg-brand-white dark:bg-brand-royal rounded-2xl shadow-lg border border-brand-clean dark:border-white/10 overflow-hidden animate-fade-in">
+        <div className="bg-white dark:bg-brand-royal rounded-2xl shadow-lg border border-gray-200 dark:border-white/10 overflow-hidden animate-fade-in">
           {/* Mobile: Cards */}
           <div className="md:hidden space-y-4 p-4">
-            {registros.map((registro) => (
-              <div key={registro.id} className="bg-brand-royal dark:bg-brand-midnight rounded-xl p-3 border border-brand-clean/20 dark:border-white/10 relative">
+            {registrosComUsuarios.map((registro) => (
+              <div 
+                key={registro.id} 
+                onClick={() => setRegistroEditando(registro)}
+                className="bg-white dark:bg-brand-midnight rounded-xl p-3 border border-gray-200 dark:border-white/10 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-brand-aqua/50 active:scale-[0.98] relative"
+              >
                 {/* Botões de ação no canto superior direito */}
-                <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
+                <div 
+                  className="absolute top-2 right-2 flex flex-col gap-1 z-10"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <button
                     onClick={() => handleExcluir(registro.id)}
                     className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
@@ -663,18 +1107,11 @@ export default function RegistrosLista({
                 </div>
                 
                 <div className="space-y-2 pr-12">
-                  {/* Nome e Tipo */}
+                  {/* Nome */}
                   <div>
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <h3 className="text-base font-semibold text-brand-midnight dark:text-brand-clean">
-                        {registro.nome}
-                      </h3>
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium border ${tipoColors[registro.tipo]} dark:opacity-90`}
-                      >
-                        {tipoLabels[registro.tipo]}
-                      </span>
-                    </div>
+                    <h3 className="text-base font-semibold text-brand-midnight dark:text-brand-clean mb-1">
+                      {registro.nome}
+                    </h3>
                     {limparObservacao(registro.observacao) && (
                       <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">
                         {limparObservacao(registro.observacao)}
@@ -686,17 +1123,57 @@ export default function RegistrosLista({
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Valor</p>
-                      <p className="text-sm font-bold text-brand-midnight dark:text-brand-clean">
+                      <p className="text-sm font-bold text-brand-midnight dark:text-brand-clean mb-1">
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(registro.valor)}
                       </p>
+                      <span
+                        className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold border shadow-sm ${tipoColors[registro.tipo]}`}
+                      >
+                        {tipoLabels[registro.tipo]}
+                      </span>
                     </div>
                     <div>
                       <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Usuário</p>
-                      <p className="text-xs text-brand-midnight/80 dark:text-brand-clean/80">👤 {registro.user?.nome || 'N/A'}</p>
+                      {registro.user ? (
+                        <div className="flex items-center gap-2">
+                          {registro.user.imagem_url ? (
+                            <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                              <img 
+                                src={registro.user.imagem_url} 
+                                alt={registro.user.nome}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement
+                                  target.style.display = 'none'
+                                  const parent = target.parentElement
+                                  if (parent) {
+                                    parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${registro.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                              <span className="text-brand-aqua font-bold text-xs">
+                                {registro.user.nome?.charAt(0).toUpperCase() || '?'}
+                              </span>
+                            </div>
+                          )}
+                          <span className="text-xs text-brand-midnight/80 dark:text-brand-clean/80">{registro.user.nome}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">N/A</span>
+                      )}
                     </div>
                     <div>
                       <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Categoria</p>
-                      <p className="text-xs font-medium text-brand-midnight/80 dark:text-brand-clean/80">{registro.categoria || '-'}</p>
+                      {registro.categoria && registro.categoria.toLowerCase() !== 'entrada' && registro.categoria.toLowerCase() !== 'saida' ? (
+                        <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium border whitespace-nowrap ${obterCorCategoria(registro.categoria)}`}>
+                          {categoriaNomes[registro.categoria.toLowerCase()] || registro.categoria}
+                        </span>
+                      ) : (
+                        <p className="text-xs font-medium text-brand-midnight/80 dark:text-brand-clean/80">-</p>
+                      )}
                     </div>
                     <div>
                       <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Data</p>
@@ -735,7 +1212,10 @@ export default function RegistrosLista({
 
                   {/* Ações - apenas botão de marcar pago se for dívida */}
                   {registro.tipo === 'divida' && registro.parcelas_pagas < registro.parcelas_totais && (
-                    <div className="pt-1 border-t border-brand-clean/20 dark:border-white/10">
+                    <div 
+                      className="pt-1 border-t border-brand-clean/20 dark:border-white/10"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         onClick={() => handleMarcarPago(registro.id)}
                         className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
@@ -753,40 +1233,44 @@ export default function RegistrosLista({
           {/* Desktop: Tabela */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-brand-royal dark:bg-brand-midnight border-b border-brand-midnight dark:border-white/10">
+              <thead className="bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal border-b border-brand-aqua/20 dark:border-white/10">
                 <tr>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Nome
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Tipo
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Valor
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Usuário
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Categoria
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Etiquetas
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Parcelas
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Data
                   </th>
-                  <th className="px-4 py-4 text-left text-xs font-display font-bold text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                  <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                     Ações
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-brand-white dark:bg-brand-royal divide-y divide-brand-clean dark:divide-white/10">
-                {registros.map((registro) => (
-                  <tr key={registro.id} className="hover:bg-brand-clean/50 dark:hover:bg-white/5 transition-smooth">
+              <tbody className="bg-white dark:bg-brand-royal divide-y divide-gray-200 dark:divide-white/10">
+                {registrosComUsuarios.map((registro) => (
+                  <tr 
+                    key={registro.id} 
+                    onClick={() => setRegistroEditando(registro)}
+                    className="hover:bg-gray-50 dark:hover:bg-white/5 transition-smooth cursor-pointer active:bg-gray-100 dark:active:bg-white/10"
+                  >
                     <td className="px-4 py-4">
                       <div>
                         <div className="text-sm font-medium text-brand-midnight dark:text-brand-clean">
@@ -801,7 +1285,7 @@ export default function RegistrosLista({
                     </td>
                     <td className="px-4 py-4">
                       <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium border ${tipoColors[registro.tipo]} dark:opacity-90`}
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold border shadow-sm ${tipoColors[registro.tipo]}`}
                       >
                         {tipoLabels[registro.tipo]}
                       </span>
@@ -815,14 +1299,45 @@ export default function RegistrosLista({
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">
-                        👤 {registro.user?.nome || 'N/A'}
-                      </span>
+                      {registro.user ? (
+                        <div className="flex items-center gap-2">
+                          {registro.user.imagem_url ? (
+                            <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                              <img 
+                                src={registro.user.imagem_url} 
+                                alt={registro.user.nome}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement
+                                  target.style.display = 'none'
+                                  const parent = target.parentElement
+                                  if (parent) {
+                                    parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${registro.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                              <span className="text-brand-aqua font-bold text-xs">
+                                {registro.user.nome?.charAt(0).toUpperCase() || '?'}
+                              </span>
+                            </div>
+                          )}
+                          <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">{registro.user.nome}</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-brand-midnight/60 dark:text-brand-clean/60">N/A</span>
+                      )}
                     </td>
                     <td className="px-4 py-4">
-                      <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">
-                        {registro.categoria || '-'}
-                      </span>
+                      {registro.categoria && registro.categoria.toLowerCase() !== 'entrada' && registro.categoria.toLowerCase() !== 'saida' ? (
+                        <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium border whitespace-nowrap ${obterCorCategoria(registro.categoria)}`}>
+                          {categoriaNomes[registro.categoria.toLowerCase()] || registro.categoria}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-brand-midnight/60 dark:text-brand-clean/60">-</span>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-1">
@@ -867,7 +1382,10 @@ export default function RegistrosLista({
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
+                      <div 
+                        className="flex items-center gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {registro.tipo === 'divida' && registro.parcelas_pagas < registro.parcelas_totais && (
                           <button
                             onClick={() => handleMarcarPago(registro.id)}
@@ -921,6 +1439,100 @@ export default function RegistrosLista({
           textoConfirmar="Excluir"
           tipo="danger"
         />
+      )}
+
+      {/* Modal de Exportação CSV */}
+      {modalExportarAberto && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white dark:bg-brand-royal rounded-2xl max-w-md w-full shadow-2xl border border-gray-200 dark:border-white/10 animate-slide-up">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-brand-aqua/20 dark:bg-brand-aqua/30 rounded-xl">
+                    <Download size={24} className="text-brand-aqua" strokeWidth={2.5} />
+                  </div>
+                  <h3 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
+                    Exportar Registros
+                  </h3>
+                </div>
+                <button
+                  onClick={() => {
+                    setModalExportarAberto(false)
+                    setPeriodoExportacao(null)
+                  }}
+                  className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-smooth"
+                >
+                  <X size={20} className="text-brand-midnight dark:text-brand-clean" />
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600 dark:text-brand-clean/70 mb-6">
+                Selecione o período que deseja exportar:
+              </p>
+
+              <div className="space-y-3 mb-6">
+                {[
+                  { dias: 7, label: 'Últimos 7 dias' },
+                  { dias: 15, label: 'Últimos 15 dias' },
+                  { dias: 30, label: 'Últimos 30 dias' },
+                  { dias: 60, label: 'Últimos 60 dias' },
+                  { dias: 90, label: 'Últimos 90 dias' },
+                  { dias: 365, label: 'Último ano' },
+                  { dias: 0, label: 'Todos os registros' },
+                ].map((opcao) => (
+                  <button
+                    key={opcao.dias}
+                    type="button"
+                    onClick={() => setPeriodoExportacao(opcao.dias)}
+                    className={`w-full px-4 py-3 rounded-xl border-2 transition-all text-left ${
+                      periodoExportacao === opcao.dias
+                        ? 'border-brand-aqua bg-brand-aqua/10 dark:bg-brand-aqua/20 text-brand-aqua font-semibold'
+                        : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean hover:border-brand-aqua/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>{opcao.label}</span>
+                      {periodoExportacao === opcao.dias && (
+                        <Check size={20} className="text-brand-aqua" />
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalExportarAberto(false)
+                    setPeriodoExportacao(null)
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean rounded-xl font-semibold hover:bg-gray-200 dark:hover:bg-white/10 transition-smooth"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportarCSV}
+                  disabled={!periodoExportacao || exportando}
+                  className="flex-1 px-4 py-2.5 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {exportando ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Exportando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={18} />
+                      <span>Exportar CSV</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

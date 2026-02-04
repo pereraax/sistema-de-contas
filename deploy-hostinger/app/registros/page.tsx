@@ -7,21 +7,21 @@ import Logo from '@/components/Logo'
 import { obterRegistros, obterUsuarios } from '@/lib/actions'
 import { Suspense } from 'react'
 
-// Otimizar: cache de 30 segundos (dados mudam mais frequentemente)
-export const revalidate = 30
+export const dynamic = 'force-dynamic'
 
 // Middleware já verifica autenticação, não precisa verificar novamente aqui
 
 async function RegistrosContent({
   searchParams,
 }: {
-  searchParams: { nome?: string; tipo?: string; user_id?: string; etiqueta?: string; data_inicio?: string; data_fim?: string } | null
+  searchParams: { nome?: string; tipo?: string; user_id?: string; etiqueta?: string; categoria?: string; data_inicio?: string; data_fim?: string } | null
 }) {
   const filtros: any = {}
   if (searchParams?.nome) filtros.nome = searchParams.nome
   if (searchParams?.tipo) filtros.tipo = searchParams.tipo
   if (searchParams?.user_id) filtros.user_id = searchParams.user_id
   if (searchParams?.etiqueta) filtros.etiquetas = [searchParams.etiqueta]
+  if (searchParams?.categoria) filtros.categoria = searchParams.categoria
   if (searchParams?.data_inicio) filtros.data_inicio = searchParams.data_inicio
   if (searchParams?.data_fim) filtros.data_fim = searchParams.data_fim
 
@@ -42,11 +42,11 @@ async function RegistrosContent({
 export default async function RegistrosPage({
   searchParams,
 }: {
-  searchParams: { nome?: string; tipo?: string; user_id?: string; etiqueta?: string; data_inicio?: string; data_fim?: string }
+  searchParams: { nome?: string; tipo?: string; user_id?: string; etiqueta?: string; categoria?: string; data_inicio?: string; data_fim?: string }
 }) {
 
   return (
-    <div className="min-h-screen bg-brand-clean dark:bg-brand-midnight">
+    <div className="min-h-screen bg-brand-clean dark:bg-[#1A1A1A]">
       <Sidebar />
       <main className="lg:ml-64 p-3 sm:p-4 lg:p-8 dark:bg-brand-midnight pt-6 lg:pt-4">
         <div className="max-w-7xl mx-auto">
@@ -61,7 +61,7 @@ export default async function RegistrosPage({
           <div className="flex items-center justify-between gap-4 mb-4 sm:mb-6">
             <div className="flex items-center gap-3">
               <MenuButton />
-              <h1 className="text-2xl sm:text-3xl font-display font-bold text-brand-midnight dark:text-brand-clean leading-none">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-display font-bold text-brand-midnight dark:text-brand-clean leading-none">
                 Todos os Registros
               </h1>
             </div>

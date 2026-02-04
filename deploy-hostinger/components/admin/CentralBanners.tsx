@@ -264,7 +264,7 @@ export default function CentralBanners() {
       <div className="flex justify-end">
         <button
           onClick={() => setShowModal(true)}
-          className="px-6 py-3 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-lg hover:shadow-xl flex items-center gap-2"
+          className="px-6 py-3 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth shadow-lg hover:shadow-xl flex items-center gap-2"
         >
           <Plus size={20} />
           Novo Banner
@@ -479,7 +479,7 @@ export default function CentralBanners() {
                 <button
                   type="submit"
                   disabled={loading || uploading || !formData.imagem_url}
-                  className="flex-1 px-6 py-3 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50"
+                  className="flex-1 px-6 py-3 bg-brand-aqua text-white rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50"
                 >
                   {loading ? 'Criando...' : 'Criar Banner'}
                 </button>

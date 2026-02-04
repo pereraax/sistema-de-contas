@@ -1,0 +1,252 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+
+/**
+ * Página cliente para processar callbacks de autenticação do Supabase
+ * 
+ * Processa dois tipos de fluxos:
+ * 1. ?code=... (PKCE flow) - troca code por sessão
+ * 2. #access_token=... (implicit flow) - usa access_token diretamente
+ * 
+ * Esta página é necessária porque o hash (#access_token) não é enviado ao servidor,
+ * então precisa ser processado no cliente.
+ */
+export default function AuthCallbackPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing')
+  const [message, setMessage] = useState('Processando autenticação...')
+
+  useEffect(() => {
+    const processAuth = async () => {
+      try {
+        const supabase = createClient()
+        const productionUrl = 'https://plenipay.com'
+
+        // Verificar se há code na query string (PKCE flow)
+        const code = searchParams.get('code')
+        if (code) {
+          console.log('🔑 [Callback Client] Code detectado - trocando por sessão...')
+          setMessage('Criando sessão...')
+
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+
+          if (error) {
+            console.error('❌ [Callback Client] Erro ao trocar code:', error)
+            setStatus('error')
+            setMessage('Erro ao confirmar email. O link pode ter expirado.')
+            
+            // Redirecionar para login com erro após 2 segundos
+            setTimeout(() => {
+              router.replace(`${productionUrl}/login?error=${encodeURIComponent('Link de confirmação inválido ou expirado. Solicite um novo link.')}`)
+            }, 2000)
+            return
+          }
+
+          if (data?.session) {
+            console.log('✅ [Callback Client] Sessão criada com sucesso!')
+            setStatus('success')
+            setMessage('Email confirmado! Redirecionando...')
+
+            // Redirecionar para home após 1 segundo
+            const next = searchParams.get('next') || '/home'
+            setTimeout(() => {
+              router.replace(`${productionUrl}${next}`)
+            }, 1000)
+            return
+          }
+        }
+
+        // Verificar se há access_token no hash (implicit flow)
+        const hash = window.location.hash
+        if (hash && hash.includes('access_token')) {
+          console.log('🔑 [Callback Client] Access token detectado no hash...')
+          setMessage('Processando token...')
+
+          // Extrair access_token do hash
+          const hashParams = new URLSearchParams(hash.substring(1))
+          const accessToken = hashParams.get('access_token')
+          const refreshToken = hashParams.get('refresh_token')
+          const expiresIn = hashParams.get('expires_in')
+          const tokenType = hashParams.get('token_type') || 'bearer'
+
+          if (accessToken) {
+            console.log('✅ [Callback Client] Access token encontrado - criando sessão...')
+
+            // Criar sessão manualmente usando o access_token
+            const { data: { session }, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || '',
+            })
+
+            if (error) {
+              console.error('❌ [Callback Client] Erro ao criar sessão:', error)
+              setStatus('error')
+              setMessage('Erro ao confirmar email. O link pode ter expirado.')
+              
+              setTimeout(() => {
+                router.replace(`${productionUrl}/login?error=${encodeURIComponent('Erro ao confirmar email. Solicite um novo link.')}`)
+              }, 2000)
+              return
+            }
+
+            if (session) {
+              console.log('✅ [Callback Client] Sessão criada com sucesso via access_token!')
+              setStatus('success')
+              setMessage('Email confirmado! Redirecionando...')
+
+              // Limpar hash da URL
+              window.history.replaceState(null, '', window.location.pathname + window.location.search)
+
+              // Redirecionar para home após 1 segundo
+              const next = searchParams.get('next') || '/home'
+              setTimeout(() => {
+                router.replace(`${productionUrl}${next}`)
+              }, 1000)
+              return
+            }
+          }
+        }
+
+        // Se chegou aqui, não há code nem access_token
+        // Verificar se há token_hash (fluxo antigo - deve ser processado pelo servidor)
+        const tokenHash = searchParams.get('token_hash')
+        if (tokenHash) {
+          console.log('🔑 [Callback Client] Token_hash detectado - redirecionando para servidor...')
+          // O servidor vai processar isso, apenas redirecionar mantendo os parâmetros
+          const currentUrl = window.location.href
+          // Remover hash se existir e manter apenas query string
+          const urlWithoutHash = currentUrl.split('#')[0]
+          window.location.replace(urlWithoutHash)
+          return
+        }
+
+        // Se não há nenhum parâmetro de autenticação, verificar se já está autenticado
+        console.log('⚠️ [Callback Client] Nenhum parâmetro de autenticação encontrado - verificando sessão...')
+        const { data: { session } } = await supabase.auth.getSession()
+
+        if (session) {
+          console.log('✅ [Callback Client] Já autenticado - redirecionando para home...')
+          const next = searchParams.get('next') || '/home'
+          router.replace(`${productionUrl}${next}`)
+          return
+        }
+
+        // Se não há sessão nem parâmetros, redirecionar para login
+        console.warn('⚠️ [Callback Client] Sem sessão nem parâmetros - redirecionando para login...')
+        setStatus('error')
+        setMessage('Link de confirmação inválido.')
+        
+        setTimeout(() => {
+          router.replace(`${productionUrl}/login?error=${encodeURIComponent('Link de confirmação inválido. Solicite um novo link.')}`)
+        }, 2000)
+
+      } catch (error: any) {
+        console.error('❌ [Callback Client] Erro inesperado:', error)
+        setStatus('error')
+        setMessage('Erro ao processar autenticação.')
+        
+        setTimeout(() => {
+          router.replace(`https://plenipay.com/login?error=${encodeURIComponent('Erro ao processar autenticação. Tente novamente.')}`)
+        }, 2000)
+      }
+    }
+
+    processAuth()
+  }, [router, searchParams])
+
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '100vh',
+      padding: '20px',
+      textAlign: 'center',
+      backgroundColor: '#f5f5f5'
+    }}>
+      <div style={{
+        backgroundColor: 'white',
+        padding: '40px',
+        borderRadius: '12px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+        maxWidth: '500px',
+        width: '100%'
+      }}>
+        <div style={{ marginBottom: '24px' }}>
+          {status === 'processing' && (
+            <div style={{
+              width: '64px',
+              height: '64px',
+              margin: '0 auto',
+              border: '4px solid #f3f3f3',
+              borderTop: '4px solid #00C2FF',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }} />
+          )}
+          {status === 'success' && (
+            <div style={{
+              width: '64px',
+              height: '64px',
+              margin: '0 auto',
+              borderRadius: '50%',
+              backgroundColor: '#10b981',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+          )}
+          {status === 'error' && (
+            <div style={{
+              width: '64px',
+              height: '64px',
+              margin: '0 auto',
+              borderRadius: '50%',
+              backgroundColor: '#ef4444',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </div>
+          )}
+        </div>
+        <h1 style={{
+          fontSize: '24px',
+          fontWeight: '600',
+          marginBottom: '12px',
+          color: status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#333'
+        }}>
+          {status === 'processing' && 'Processando...'}
+          {status === 'success' && 'Sucesso!'}
+          {status === 'error' && 'Erro'}
+        </h1>
+        <p style={{
+          color: '#666',
+          fontSize: '16px',
+          lineHeight: '1.5'
+        }}>
+          {message}
+        </p>
+      </div>
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  )
+}

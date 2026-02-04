@@ -38,7 +38,7 @@ export interface PlanoFeatures {
 const featuresPorPlano: Record<Plano, PlanoFeatures> = {
   teste: {
     podeCriarRegistros: true,
-    limiteRegistrosMensais: 50,
+    limiteRegistrosMensais: 10,
     podeCriarDividas: false,
     podeCriarEmprestimos: false,
     podeRegistrarSalario: false,

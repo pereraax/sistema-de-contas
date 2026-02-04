@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signUp } from '@/lib/auth'
 import { createNotification } from '@/components/NotificationBell'
-import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import ModalConfirmarEmail from '@/components/ModalConfirmarEmail'
@@ -23,6 +23,9 @@ function CadastroContent() {
   const [showModalConfirmacao, setShowModalConfirmacao] = useState(false)
   const [showModalLoginConcluido, setShowModalLoginConcluido] = useState(false)
   const [emailCadastrado, setEmailCadastrado] = useState('')
+  const [signUpResult, setSignUpResult] = useState<any>(null) // Armazenar resultado do signUp
+  const [erroRateLimit, setErroRateLimit] = useState<string | null>(null) // Armazenar erro de rate limiting
+  const [mostrarAvisoCampos, setMostrarAvisoCampos] = useState(false) // Controlar exibição do aviso de campos incompletos
   const [formData, setFormData] = useState({
     nome: '',
     email: '',
@@ -31,21 +34,7 @@ function CadastroContent() {
     whatsapp: '',
   })
 
-  // Debug: monitorar mudanças no estado do modal
-  useEffect(() => {
-    console.log('🔔 showModalConfirmacao mudou para:', showModalConfirmacao)
-    console.log('📧 emailCadastrado:', emailCadastrado)
-    console.log('📧 formData.email:', formData.email)
-    console.log('✅ Condição para mostrar modal:', showModalConfirmacao && (emailCadastrado || formData.email))
-  }, [showModalConfirmacao, emailCadastrado, formData.email])
-  
-  // Forçar renderização do modal se necessário
-  useEffect(() => {
-    if (showModalConfirmacao && !emailCadastrado && formData.email) {
-      console.log('🔧 Corrigindo: definindo emailCadastrado para garantir que modal apareça')
-      setEmailCadastrado(formData.email)
-    }
-  }, [showModalConfirmacao, emailCadastrado, formData.email])
+  // Estrutura de verificação de email removida temporariamente
 
   const formatarTelefone = (value: string) => {
     const telefone = value.replace(/\D/g, '')
@@ -96,17 +85,41 @@ function CadastroContent() {
   const senhasCoincidem = temSenha && temConfirmacao && formData.senha === formData.confirmarSenha
 
   const handleSubmit = async (e: React.FormEvent) => {
+    // Prevenir comportamento padrão IMEDIATAMENTE para evitar interferência do iOS
     e.preventDefault()
     e.stopPropagation()
+    
+    // Bloquear qualquer outra ação do navegador
+    if (e.nativeEvent) {
+      e.nativeEvent.stopImmediatePropagation()
+    }
     
     console.log('🚀 ========== FORMULÁRIO SUBMETIDO ==========')
     console.log('📋 Dados do formulário:', formData)
     console.log('📦 Plano selecionado:', plano)
+    
+    // Verificar se já está carregando (evitar duplo submit)
+    if (loading) {
+      console.log('⚠️ Já está processando, ignorando submit duplicado')
+      return
+    }
+    
+    // Marcar como carregando IMEDIATAMENTE para bloquear cliques adicionais
     setLoading(true)
+    
+    // Usar requestAnimationFrame para garantir que o estado foi atualizado
+    // e processar o submit no próximo frame, evitando interferência do iOS
+    requestAnimationFrame(() => {
+      processarCadastro()
+    })
+  }
+  
+  const processarCadastro = async () => {
 
     // Validações
     if (!formData.nome.trim()) {
       console.log('Validação falhou: nome vazio')
+      setMostrarAvisoCampos(true)
       createNotification('Informe seu nome', 'warning')
       setLoading(false)
       return
@@ -114,6 +127,7 @@ function CadastroContent() {
 
     if (!formData.email.trim() || !formData.email.includes('@')) {
       console.log('Validação falhou: email inválido')
+      setMostrarAvisoCampos(true)
       createNotification('Informe um email válido', 'warning')
       setLoading(false)
       return
@@ -123,6 +137,7 @@ function CadastroContent() {
     const senhaErrors = validarSenha(formData.senha)
     if (senhaErrors.length > 0) {
       console.log('Validação falhou:', senhaErrors.join(', '))
+      setMostrarAvisoCampos(true)
       createNotification('A senha não atende aos requisitos. Verifique as regras abaixo.', 'warning')
       setLoading(false)
       return
@@ -130,6 +145,7 @@ function CadastroContent() {
 
     if (formData.senha !== formData.confirmarSenha) {
       console.log('Validação falhou: senhas não coincidem')
+      setMostrarAvisoCampos(true)
       createNotification('As senhas não coincidem', 'warning')
       setLoading(false)
       return
@@ -139,10 +155,14 @@ function CadastroContent() {
 
     if (!whatsappLimpo || whatsappLimpo.length < 10) {
       console.log('Validação falhou: whatsapp inválido', whatsappLimpo)
+      setMostrarAvisoCampos(true)
       createNotification('Informe um WhatsApp válido (com DDD)', 'warning')
       setLoading(false)
       return
     }
+    
+    // Se passou todas as validações, ocultar aviso
+    setMostrarAvisoCampos(false)
 
     console.log('✅ Todas as validações passaram, criando conta...')
 
@@ -163,60 +183,56 @@ function CadastroContent() {
         plano
       )
 
-      console.log('📥 Resultado do signUp recebido:', result)
-      console.log('📥 Tipo do resultado:', typeof result)
-      console.log('📥 Result.error:', result?.error)
-      console.log('📥 Result.data:', result?.data)
-      console.log('📥 Result.emailConfirmado:', result?.emailConfirmado)
+      console.log('📥 Resultado do signUp recebido:', JSON.stringify(result, null, 2))
+      
+      // Armazenar resultado para usar no modal
+      setSignUpResult(result)
 
-      // Verificar se há erro
-      if (result?.error) {
+      // Verificar se há erro crítico (usuário não foi criado)
+      if (result?.error && !result?.userCreated) {
         console.error('❌ Erro ao criar conta:', result.error)
-        
-        // Mensagens de erro mais específicas
-        let mensagemErro = result.error
-        if (result.error.includes('already registered') || result.error.includes('já está cadastrado')) {
-          mensagemErro = 'Este email já está cadastrado. Deseja fazer login?'
-        } else if (result.error.includes('rate limit') || result.error.includes('rate_limit') || result.error.includes('email rate limit exceeded')) {
-          mensagemErro = 'Limite de envio de emails atingido. Por favor, aguarde 10-15 minutos antes de tentar novamente. O limite é temporário e será resetado automaticamente.'
-        } else if (result.error.includes('email')) {
-          mensagemErro = 'Erro ao enviar email. Tente novamente em alguns instantes.'
-        }
-        
-        createNotification(mensagemErro, 'warning')
+        createNotification(result.error, 'error')
         setLoading(false)
         return
       }
 
-      // Verificar se a conta foi criada com sucesso
-      if (result?.data || result?.emailConfirmado !== undefined) {
+      // Se usuário foi criado (mesmo com erro de envio de email), continuar
+      if (result?.userCreated) {
         console.log('✅ Conta criada com sucesso!')
-        console.log('📧 Email cadastrado:', formData.email)
-        console.log('📧 Email confirmado?', result?.emailConfirmado)
         
-        // Email foi enviado automaticamente pelo Supabase
-        // Mostrar modal pedindo para verificar email
-        console.log('📧 Email de confirmação foi enviado automaticamente')
-        console.log('🔒 Usuário precisa verificar email antes de fazer login')
+        // Rastrear evento de cadastro no Facebook Pixel
+        try {
+          const { trackRegistration } = await import('@/lib/facebook-pixel-events')
+          trackRegistration()
+        } catch (error) {
+          console.warn('⚠️ [Facebook Pixel] Erro ao rastrear cadastro:', error)
+        }
+        
+        // Verificar status do email
+        if (result.emailConfirmado || result.data?.session) {
+          // Email já confirmado - login automático
+          console.log('✅ Email confirmado - redirecionando')
+          createNotification('Conta criada com sucesso! Redirecionando...', 'success')
+          setTimeout(() => {
+            router.push('/home')
+          }, 1000)
+        } else {
+          // Email não confirmado - mostrar modal para confirmar
+          console.log('📧 Email não confirmado - mostrando modal')
+          setEmailCadastrado(formData.email)
+          setShowModalConfirmacao(true)
+          
+          // Mensagem diferente se email não foi enviado
+          if (result.emailEnviado === false) {
+            createNotification('Conta criada! Houve um problema ao enviar o email. Use o botão "Reenviar link" abaixo.', 'warning')
+          } else {
+            createNotification('Conta criada! Verifique seu email para confirmar.', 'success')
+          }
+        }
         
         setLoading(false)
-        
-        // Garantir que email está definido ANTES de mostrar modal
-        console.log('📧 Definindo emailCadastrado:', formData.email)
-        setEmailCadastrado(formData.email)
-        
-        // Aguardar um pouco para garantir que o estado foi atualizado
-        setTimeout(() => {
-          console.log('🔔 Mostrando modal de confirmação de email...')
-          console.log('📧 Email cadastrado definido:', formData.email)
-          setShowModalConfirmacao(true)
-          console.log('✅ Modal deve estar visível agora')
-        }, 100)
-        
-        createNotification('Conta criada! Verifique seu email para confirmar.', 'success')
       } else {
-        console.error('❌ Resultado inesperado do signUp:', result)
-        createNotification('Erro ao criar conta. Tente novamente.', 'warning')
+        createNotification('Erro ao criar conta. Tente novamente.', 'error')
         setLoading(false)
       }
     } catch (error: any) {
@@ -234,46 +250,57 @@ function CadastroContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#00C2FF] via-[#0099CC] to-[#007A99] relative overflow-hidden animate-gradient flex">
-      {/* Fundo dinâmico com animação */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] bg-gradient-to-br from-white/20 via-white/5 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDuration: '4s' }}></div>
-        <div className="absolute top-1/2 -right-1/2 w-[200%] h-[200%] bg-gradient-to-br from-white/15 via-white/5 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s', animationDuration: '5s' }}></div>
-        <div className="absolute -bottom-1/2 left-1/2 w-[200%] h-[200%] bg-gradient-to-br from-white/10 via-white/5 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '3s', animationDuration: '6s' }}></div>
-      </div>
+    <div className="min-h-screen bg-neutral-50">
+      {/* Header - Igual à página principal */}
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 max-w-6xl">
+          <Link href="/" className="flex items-center flex-shrink-0">
+            <Image 
+              src="/logo-header.png" 
+              alt="PLENIPAY" 
+              width={120}
+              height={40}
+              className="h-9 md:h-10 w-auto object-contain"
+              priority
+            />
+          </Link>
+        </div>
+      </header>
 
-      {/* Lado Esquerdo - Popup do Formulário */}
-      <div className="relative z-10 w-full md:w-1/2 flex items-center justify-center p-4 md:p-6 overflow-y-auto">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-white/20 backdrop-blur-sm animate-scale-up">
-          <div className="p-5 sm:p-6">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-gray-600 hover:text-[#00C2FF] transition-colors mb-4"
-            >
-              <ArrowLeft size={18} />
-              <span className="text-xs">Voltar para início</span>
-            </Link>
+      {/* Conteúdo - Centralizado, clean */}
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-md py-8 sm:py-12">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1e4976] transition-colors mb-5"
+          >
+            <ArrowLeft size={18} />
+            Voltar
+          </Link>
 
-            <div className="mb-4 text-center">
-              <div className="flex justify-center mb-3">
-                <Image 
-                  src="/logo azul.png" 
-                  alt="PLENIPAY" 
-                  width={140}
-                  height={32}
-                  className="h-8 w-auto object-contain"
-                  priority
-                />
-              </div>
-              <h1 className="text-2xl md:text-3xl font-display font-bold text-[#0D1B2A] mb-1">
-                Criar Conta
-              </h1>
-              <p className="text-sm text-gray-600">
-                Plano selecionado: <span className="text-[#00C2FF] font-semibold">{planosNomes[plano]}</span>
-              </p>
-            </div>
+          <div className="mb-6">
+            <h1 className="text-2xl font-semibold text-[#0D1B2A] mb-1">
+              Criar Conta
+            </h1>
+            <p className="text-sm text-gray-500">
+              Plano: <Link href="/planos" className="text-[#1e4976] hover:text-[#163a5f] font-medium">{planosNomes[plano]}</Link>
+            </p>
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form 
+            onSubmit={(e) => {
+              console.log('📝 Form onSubmit disparado')
+              handleSubmit(e).catch((error) => {
+                console.error('❌ Erro não capturado no handleSubmit:', error)
+                createNotification('Erro ao processar formulário. Tente novamente.', 'warning')
+                setLoading(false)
+              })
+            }} 
+            className="space-y-3"
+            noValidate
+            autoComplete="off"
+            data-form-type="other"
+          >
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Nome Completo *
@@ -283,7 +310,7 @@ function CadastroContent() {
                 required
                 value={formData.nome}
                 onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#00C2FF] focus:ring-1 focus:ring-[#00C2FF]/20 transition-all"
+                className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all"
                 placeholder="Seu nome completo"
               />
             </div>
@@ -297,7 +324,9 @@ function CadastroContent() {
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#00C2FF] focus:ring-1 focus:ring-[#00C2FF]/20 transition-all"
+                autoComplete="email"
+                data-form-type="other"
+                className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all"
                 placeholder="seu@email.com"
               />
             </div>
@@ -312,26 +341,28 @@ function CadastroContent() {
                   required
                   value={formData.senha}
                   onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
-                  className={`w-full px-3 py-2 bg-white border rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none transition-all pr-10 ${
+                  autoComplete="new-password"
+                  data-form-type="other"
+                  className={`w-full px-3 py-2.5 bg-white border rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none transition-all pr-10 ${
                     formData.senha && !senhaValida
-                      ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/20'
+                      ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/10'
                       : formData.senha && senhaValida
-                      ? 'border-green-500 focus:border-green-500 focus:ring-1 focus:ring-green-500/20'
-                      : 'border-gray-300 focus:border-[#00C2FF] focus:ring-1 focus:ring-[#00C2FF]/20'
+                      ? 'border-green-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/10'
+                      : 'border-gray-200 focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10'
                   }`}
                   placeholder="Digite sua senha"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#00C2FF] transition-colors"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#1e4976] transition-colors"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
               
               {/* Lista de requisitos da senha - Compacta em grid */}
-              <div className="mt-1.5 p-2 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="mt-1.5 p-3 bg-neutral-50 rounded-xl border border-gray-100">
                 <p className="text-xs font-semibold text-gray-700 mb-1.5">Requisitos da senha:</p>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                   <li className={`flex items-center gap-1.5 text-xs list-none ${requisitosSenha.minimo ? 'text-green-600' : 'text-gray-500'}`}>
@@ -367,17 +398,19 @@ function CadastroContent() {
                 required
                 value={formData.confirmarSenha}
                 onChange={(e) => setFormData({ ...formData, confirmarSenha: e.target.value })}
-                className={`w-full px-3 py-2 bg-white border rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none transition-all ${
+                autoComplete="new-password"
+                data-form-type="other"
+                className={`w-full px-3 py-2.5 bg-white border rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none transition-all ${
                   senhasNaoCoincidem
-                    ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/20'
+                    ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/10'
                     : senhasCoincidem
-                    ? 'border-green-500 focus:border-green-500 focus:ring-1 focus:ring-green-500/20'
-                    : 'border-gray-300 focus:border-[#00C2FF] focus:ring-1 focus:ring-[#00C2FF]/20'
+                    ? 'border-green-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/10'
+                    : 'border-gray-200 focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10'
                 }`}
                 placeholder="Confirme sua senha"
               />
               {senhasNaoCoincidem && (
-                <div className="mt-1.5 p-2 bg-red-50 border border-red-500 rounded-lg">
+                <div className="mt-1.5 p-3 bg-red-50 border border-red-200 rounded-xl">
                   <p className="text-xs text-red-700 flex items-start gap-2 font-medium">
                     <span className="text-sm flex-shrink-0">⚠️</span>
                     <span className="flex-1">
@@ -387,7 +420,7 @@ function CadastroContent() {
                 </div>
               )}
               {senhasCoincidem && (
-                <div className="mt-1.5 p-2 bg-green-50 border border-green-500 rounded-lg">
+                <div className="mt-1.5 p-3 bg-green-50 border border-green-200 rounded-xl">
                   <p className="text-xs text-green-700 flex items-center gap-1.5 font-semibold">
                     <span className="text-sm">✓</span>
                     <span>Senhas coincidem</span>
@@ -407,77 +440,128 @@ function CadastroContent() {
                 onChange={(e) => {
                   const valorLimpo = e.target.value.replace(/\D/g, '')
                   setFormData({ ...formData, whatsapp: valorLimpo })
+                  // Ocultar aviso quando começar a preencher
+                  if (valorLimpo.length > 0) {
+                    setMostrarAvisoCampos(false)
+                  }
                 }}
                 maxLength={15}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#00C2FF] focus:ring-1 focus:ring-[#00C2FF]/20 transition-all"
+                className={`w-full px-3 py-2.5 bg-white border rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 transition-all ${
+                  mostrarAvisoCampos && (!formData.whatsapp || formData.whatsapp.replace(/\D/g, '').length < 10)
+                    ? 'border-amber-500 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10'
+                    : 'border-gray-200 focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10'
+                }`}
                 placeholder="(00) 00000-0000"
               />
             </div>
+
+            {/* Mensagem de aviso na parte inferior */}
+            {mostrarAvisoCampos && (
+              <div className="bg-amber-50 rounded-xl px-4 py-3 border border-amber-100">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-amber-800 mb-1">
+                      Complete todos os campos obrigatórios
+                    </p>
+                    <p className="text-xs text-amber-700 leading-relaxed">
+                      Por favor, preencha todos os campos marcados com * antes de continuar. Verifique especialmente o campo de WhatsApp.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <button
               type="submit"
               disabled={loading}
               onClick={(e) => {
-                console.log('Botão clicado!')
-                // Não prevenir default aqui, deixar o form onSubmit fazer isso
+                // Forçar submit imediatamente sem esperar pelo gerenciador de senhas do iOS
+                // Prevenir qualquer comportamento padrão que possa interferir
+                e.preventDefault()
+                e.stopPropagation()
+                
+                // Bloquear propagação imediata
+                if (e.nativeEvent) {
+                  e.nativeEvent.stopImmediatePropagation()
+                }
+                
+                // Se não está carregando, processar imediatamente
+                if (!loading) {
+                  // Chamar handleSubmit diretamente, que já previne default e processa
+                  handleSubmit(e as any).catch((error) => {
+                    console.error('❌ Erro não capturado no handleSubmit:', error)
+                    createNotification('Erro ao processar formulário. Tente novamente.', 'warning')
+                    setLoading(false)
+                  })
+                }
               }}
-              className="w-full px-4 py-2.5 bg-[#00C2FF] text-white rounded-lg text-sm font-semibold hover:bg-[#0099CC] transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              className="w-full px-4 py-3 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-xl text-sm font-semibold transition-all duration-300 shadow-md disabled:opacity-50 disabled:cursor-not-allowed mt-4"
             >
-              {loading ? 'Criando conta...' : 'Criar Conta'}
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="animate-spin" size={18} />
+                  Criando conta...
+                </span>
+              ) : (
+                'Criar Conta'
+              )}
             </button>
 
             <p className="text-center text-xs text-gray-500 leading-tight">
               Ao criar uma conta, você concorda com nossos{' '}
-              <Link href="/termos" className="text-[#00C2FF] hover:underline">Termos</Link>
+              <Link href="/termos" className="text-[#1e4976] hover:text-[#163a5f] font-medium">Termos</Link>
               {' '}e{' '}
-              <Link href="/privacidade" className="text-[#00C2FF] hover:underline">Política</Link>
+              <Link href="/privacidade" className="text-[#1e4976] hover:text-[#163a5f] font-medium">Política</Link>
             </p>
 
             <p className="text-center text-xs text-gray-600">
               Já tem uma conta?{' '}
-              <Link href="/login" className="text-[#00C2FF] hover:underline font-medium">
+              <Link href="/login" className="text-[#1e4976] hover:text-[#163a5f] font-medium">
                 Fazer login
               </Link>
             </p>
           </form>
-          </div>
         </div>
       </div>
 
-      {/* Lado Direito - Imagem */}
-      <div className="hidden md:flex md:w-1/2 relative overflow-hidden">
-        <Image
-          src="/banner cadastro.png"
-          alt="Banner PLENIPAY"
-          fill
-          className="object-cover"
-          priority
-          unoptimized
-        />
-      </div>
-
-      {/* Modal de Confirmação de Email - REMOVIDO: não aparece mais após cadastro */}
-      {/* O modal só aparece quando o usuário clica "Verificar agora" no perfil */}
-      {/* Modal de Confirmação de Email - Aparece após criar conta */}
-      {showModalConfirmacao && (emailCadastrado || formData.email) && (
+      {/* PARTE 3 & 4: Modal de Confirmação de Email */}
+      {showModalConfirmacao && emailCadastrado && (
         <ModalConfirmarEmail
-          email={emailCadastrado || formData.email}
+          email={emailCadastrado}
           obrigatorio={false}
-          emailJaEnviado={true}
-          onConfirmado={() => {
-            console.log('✅ Email confirmado via callback - redirecionando para home...')
+          emailJaEnviado={signUpResult?.emailEnviado || false}
+          onEmailEnviado={() => {
+            // Atualizar signUpResult quando email for reenviado com sucesso
+            console.log('✅ [Cadastro] Email reenviado - atualizando signUpResult')
+            setSignUpResult((prev: any) => ({
+              ...prev,
+              emailEnviado: true
+            }))
+          }}
+          onConfirmado={async () => {
+            console.log('✅ Email confirmado via callback - fazendo login automático...')
             setShowModalConfirmacao(false)
-            // Redirecionar para home quando email for confirmado (após clicar no link)
-            router.push('/home?emailConfirmed=true')
+            
+            // Verificar se já está logado (o callback cria sessão automaticamente)
+            const supabase = createClient()
+            const { data: { session } } = await supabase.auth.getSession()
+            
+            if (session) {
+              createNotification('Email confirmado! Redirecionando...', 'success')
+              router.push('/home?emailConfirmed=true')
+            } else {
+              createNotification('Email confirmado! Faça login para continuar.', 'info')
+              setTimeout(() => {
+                router.push('/login?mensagem=Email confirmado! Faça login para continuar.')
+              }, 1000)
+            }
           }}
           onClose={() => {
-            // Permitir fechar o modal - usuário pode verificar depois
-            console.log('⚠️ Modal fechado - usuário pode verificar email depois')
             setShowModalConfirmacao(false)
-            // Redirecionar para login informando que precisa verificar email
-            createNotification('Conta criada! Verifique seu email para confirmar antes de fazer login.', 'info')
+            createNotification('Verifique seu email e confirme sua conta antes de fazer login.', 'info')
             setTimeout(() => {
-              router.push('/login?mensagem=Verifique seu email para confirmar a conta antes de fazer login.')
+              router.push('/login?mensagem=Verifique seu email para confirmar a conta.')
             }, 1000)
           }}
         />
@@ -501,7 +585,7 @@ export default function CadastroPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-[#00C2FF]" size={48} />
+        <Loader2 className="animate-spin text-[#1e4976]" size={48} />
       </div>
     }>
       <CadastroContent />

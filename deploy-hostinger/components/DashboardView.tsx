@@ -228,16 +228,16 @@ export default function DashboardView({
           </p>
         </div>
         <div className="flex flex-col md:flex-row items-center justify-center gap-8">
-          {/* Gráfico de Donut */}
-          <div className="relative w-[300px] h-[300px]">
+          {/* Gráfico de Donut - Responsivo */}
+          <div className="relative w-[240px] h-[240px] sm:w-[280px] sm:h-[280px] md:w-[300px] md:h-[300px] mx-auto">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={donutData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={80}
-                  outerRadius={120}
+                  innerRadius="60%"
+                  outerRadius="85%"
                   paddingAngle={5}
                   dataKey="value"
                   startAngle={90}
@@ -257,11 +257,11 @@ export default function DashboardView({
                 />
               </PieChart>
             </ResponsiveContainer>
-            {/* Saldo no centro do donut */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Saldo</p>
+            {/* Saldo no centro do donut - Responsivo */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-2">
+              <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mb-0.5 sm:mb-1">Saldo</p>
               <p
-                className={`text-2xl font-bold ${
+                className={`text-base sm:text-lg md:text-xl font-bold leading-tight ${
                   saldoAtual >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                 }`}
               >

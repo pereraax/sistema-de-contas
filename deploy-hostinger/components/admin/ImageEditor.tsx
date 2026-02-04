@@ -378,7 +378,7 @@ export default function ImageEditor({ imageFile, aspectRatio = 8/3, onSave, onCa
               </button>
               <button
                 onClick={handleCropAndSave}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base"
               >
                 <Check size={16} className="sm:w-[18px] sm:h-[18px]" />
                 <span className="hidden sm:inline">Aplicar e Continuar</span>

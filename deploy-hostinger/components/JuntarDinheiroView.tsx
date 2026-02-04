@@ -233,7 +233,7 @@ export default function JuntarDinheiroView({ metasIniciais = [], metaId }: Junta
               <div className="flex items-center gap-3">
                 <div className="text-left sm:text-right w-full sm:w-auto">
                   <p className="text-gray-600 dark:text-brand-clean text-xs sm:text-sm mb-0.5 sm:mb-1">Progresso</p>
-                  <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#00C2FF]">
+                  <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#1e4976]">
                     {metaAtiva.meta_total && metaAtiva.meta_total > 0 
                       ? (((metaAtiva.valor_acumulado || 0) / metaAtiva.meta_total) * 100).toFixed(1)
                       : '0.0'

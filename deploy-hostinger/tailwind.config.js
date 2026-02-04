@@ -9,6 +9,9 @@ module.exports = {
   safelist: [
     // Cores customizadas
     'bg-[#1a1a1a]',
+    'bg-[#1A1A1A]',
+    'bg-[#252525]',
+    'bg-[#1f1f1f]',
     'bg-[#2a2a2a]',
     'bg-[#00C2FF]',
     'bg-[#0099CC]',
@@ -59,24 +62,24 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          midnight: '#0D1B2A',
-          royal: '#1B263B',
-          aqua: '#00C2FF',
+          midnight: '#1A1A1A',
+          royal: '#252525',
+          aqua: '#1e4976',
           white: '#FFFFFF',
           clean: '#E6E6E6',
         },
         primary: {
-          DEFAULT: '#00C2FF',
-          50: '#E6F7FF',
-          100: '#B3E5FF',
-          200: '#80D3FF',
-          300: '#4DC1FF',
-          400: '#1AAFFF',
-          500: '#00C2FF',
-          600: '#0099CC',
-          700: '#007099',
-          800: '#004D66',
-          900: '#002A33',
+          DEFAULT: '#1e4976',
+          50: '#E8EEF5',
+          100: '#C5D4E8',
+          200: '#9FB8DB',
+          300: '#799CCE',
+          400: '#5380C1',
+          500: '#2c5aa0',
+          600: '#1e4976',
+          700: '#163a5f',
+          800: '#0f2847',
+          900: '#08192E',
         },
       },
       fontFamily: {
@@ -93,6 +96,10 @@ module.exports = {
       animation: {
         'fade-in': 'fadeIn 0.3s ease-in-out',
         'slide-up': 'slideUp 0.3s ease-out',
+        'gradient-move': 'gradientMove 15s ease-in-out infinite',
+        'gradient-text': 'gradientText 4s ease-in-out infinite',
+        'slide-left': 'slideLeft 90s linear infinite',
+        'stats-float': 'statsFloat 3s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -103,11 +110,35 @@ module.exports = {
           '0%': { transform: 'translateY(10px)', opacity: '0' },
           '100%': { transform: 'translateY(0)', opacity: '1' },
         },
+        slideLeft: {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
+        statsFloat: {
+          '0%, 100%': { transform: 'translateY(0) scale(1)' },
+          '50%': { transform: 'translateY(-6px) scale(1.02)' },
+        },
+        gradientMove: {
+          '0%, 100%': { transform: 'translate(0, 0) scale(1)' },
+          '25%': { transform: 'translate(10%, -10%) scale(1.1)' },
+          '50%': { transform: 'translate(-5%, 5%) scale(0.95)' },
+          '75%': { transform: 'translate(-10%, 10%) scale(1.05)' },
+        },
+        gradientText: {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+        },
+      },
+      backgroundSize: {
+        'gradient-text': '200% 100%',
       },
     },
   },
   plugins: [],
 }
+
+
+
 
 
 

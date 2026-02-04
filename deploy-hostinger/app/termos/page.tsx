@@ -2,6 +2,9 @@ import Link from 'next/link'
 import { ArrowLeft, FileText } from 'lucide-react'
 import Logo from '@/components/Logo'
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 export const metadata = {
   title: 'Termos de Uso - PLENIPAY',
   description: 'Termos e condições de uso da plataforma PLENIPAY',
@@ -9,7 +12,7 @@ export const metadata = {
 
 export default function TermosPage() {
   return (
-    <div className="min-h-screen bg-brand-clean dark:bg-brand-midnight">
+    <div className="min-h-screen bg-brand-clean dark:bg-[#1A1A1A]">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         {/* Header */}
         <div className="mb-8">
@@ -181,6 +184,7 @@ export default function TermosPage() {
     </div>
   )
 }
+
 
 
 

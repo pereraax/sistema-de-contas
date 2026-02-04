@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Plus,
   UtensilsCrossed,
@@ -25,6 +26,7 @@ import {
   Image as ImageIcon,
   Palette,
   CheckCircle2,
+  ChevronRight,
 } from 'lucide-react'
 import ModalConfirmacao from './ModalConfirmacao'
 
@@ -57,6 +59,7 @@ interface Categoria {
 }
 
 export default function GerenciarCategoriasView() {
+  const router = useRouter()
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [modalCriarAberto, setModalCriarAberto] = useState(false)
   const [modalEditarAberto, setModalEditarAberto] = useState(false)
@@ -66,8 +69,13 @@ export default function GerenciarCategoriasView() {
   const [formData, setFormData] = useState({
     nome: '',
     icone: 'Tag',
-    cor: '#00C2FF',
+    cor: '#1e4976',
   })
+  
+  const handleCategoriaClick = (categoria: Categoria) => {
+    // Redirecionar para registros com filtro de categoria
+    router.push(`/registros?categoria=${categoria.id}`)
+  }
 
   // Categorias padrão
   const categoriasPadrao: Categoria[] = [
@@ -107,7 +115,7 @@ export default function GerenciarCategoriasView() {
     localStorage.setItem('categorias_personalizadas', JSON.stringify(personalizadas))
 
     setCategorias([...categoriasPadrao, ...personalizadas])
-    setFormData({ nome: '', icone: 'Tag', cor: '#00C2FF' })
+    setFormData({ nome: '', icone: 'Tag', cor: '#1e4976' })
     setModalCriarAberto(false)
   }
 
@@ -122,7 +130,7 @@ export default function GerenciarCategoriasView() {
     setCategorias([...categoriasPadrao, ...personalizadas])
     setModalEditarAberto(false)
     setCategoriaEditando(null)
-    setFormData({ nome: '', icone: 'Tag', cor: '#00C2FF' })
+    setFormData({ nome: '', icone: 'Tag', cor: '#1e4976' })
   }
 
   const handleExcluirCategoria = () => {
@@ -156,7 +164,7 @@ export default function GerenciarCategoriasView() {
   }
 
   const coresDisponiveis = [
-    '#00C2FF', '#10b981', '#ef4444', '#f59e0b', '#a855f7', '#ec4899', '#6366f1', '#06b6d4', '#6b7280'
+    '#1e4976', '#10b981', '#ef4444', '#f59e0b', '#a855f7', '#ec4899', '#6366f1', '#06b6d4', '#6b7280'
   ]
 
   return (
@@ -174,17 +182,17 @@ export default function GerenciarCategoriasView() {
         <div className="flex justify-end mb-6">
           <button
             onClick={() => {
-              setFormData({ nome: '', icone: 'Tag', cor: '#00C2FF' })
+              setFormData({ nome: '', icone: 'Tag', cor: '#1e4976' })
               setModalCriarAberto(true)
             }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg"
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg"
           >
             <Plus size={20} />
             <span>Nova Categoria</span>
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
           {categorias.map((categoria) => {
             const IconComponent = getIconComponent(categoria.icone)
             const isPersonalizada = categoria.tipo === 'personalizada'
@@ -192,56 +200,73 @@ export default function GerenciarCategoriasView() {
             return (
               <div
                 key={categoria.id}
-                className="bg-white dark:bg-brand-royal rounded-xl p-5 shadow-md border border-gray-200 dark:border-white/10 hover:shadow-lg transition-all duration-300 relative group"
+                className="bg-white dark:bg-brand-royal rounded-xl p-4 shadow-md border border-gray-200 dark:border-white/10 hover:shadow-lg transition-all duration-300 relative group"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div
-                    className="w-12 h-12 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: `${categoria.cor}60` }}
-                  >
-                    <IconComponent size={24} style={{ color: categoria.cor }} strokeWidth={2.5} />
-                  </div>
-                  {isPersonalizada && (
-                    <div className="relative">
-                      <button
-                        onClick={() => setMenuAberto(menuAberto === categoria.id ? null : categoria.id)}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
-                      >
-                        <MoreVertical size={18} className="text-gray-600 dark:text-gray-400" />
-                      </button>
-                      {menuAberto === categoria.id && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-10"
-                            onClick={() => setMenuAberto(null)}
-                          />
-                          <div className="absolute right-0 top-8 bg-white dark:bg-brand-midnight rounded-lg shadow-xl border border-gray-200 dark:border-white/20 z-20 min-w-[140px] overflow-hidden">
-                            <button
-                              onClick={() => abrirModalEditar(categoria)}
-                              className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-50 dark:hover:bg-white/10 text-left"
-                            >
-                              <Edit size={16} className="text-blue-600" />
-                              <span className="text-sm text-gray-900 dark:text-gray-100">Editar</span>
-                            </button>
-                            <button
-                              onClick={() => abrirModalExcluir(categoria)}
-                              className="w-full flex items-center gap-2 px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-left"
-                            >
-                              <Trash2 size={16} className="text-red-600" />
-                              <span className="text-sm text-red-600">Excluir</span>
-                            </button>
-                          </div>
-                        </>
-                      )}
+                <button
+                  onClick={() => handleCategoriaClick(categoria)}
+                  className="w-full flex items-center justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-4 flex-1">
+                    <div
+                      className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${categoria.cor}60` }}
+                    >
+                      <IconComponent size={24} style={{ color: categoria.cor }} strokeWidth={2.5} />
                     </div>
-                  )}
-                </div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-brand-clean mb-1">
-                  {categoria.nome}
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {categoria.tipo === 'padrao' ? 'Padrão' : 'Personalizada'}
-                </p>
+                    <div className="flex-1 text-left">
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-brand-clean mb-1">
+                        {categoria.nome}
+                      </h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {categoria.tipo === 'padrao' ? 'Padrão' : 'Personalizada'}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight size={20} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                </button>
+                {isPersonalizada && (
+                  <div className="absolute top-4 right-12">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setMenuAberto(menuAberto === categoria.id ? null : categoria.id)
+                      }}
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                    >
+                      <MoreVertical size={18} className="text-gray-600 dark:text-gray-400" />
+                    </button>
+                    {menuAberto === categoria.id && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setMenuAberto(null)}
+                        />
+                        <div className="absolute right-0 top-8 bg-white dark:bg-brand-midnight rounded-lg shadow-xl border border-gray-200 dark:border-white/20 z-20 min-w-[140px] overflow-hidden">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              abrirModalEditar(categoria)
+                            }}
+                            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-50 dark:hover:bg-white/10 text-left"
+                          >
+                            <Edit size={16} className="text-blue-600" />
+                            <span className="text-sm text-gray-900 dark:text-gray-100">Editar</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              abrirModalExcluir(categoria)
+                            }}
+                            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-left"
+                          >
+                            <Trash2 size={16} className="text-red-600" />
+                            <span className="text-sm text-red-600">Excluir</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}
@@ -264,7 +289,7 @@ export default function GerenciarCategoriasView() {
                   type="text"
                   value={formData.nome}
                   onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-brand-midnight text-gray-900 dark:text-brand-clean focus:outline-none focus:ring-2 focus:ring-[#00C2FF]"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-brand-midnight text-gray-900 dark:text-brand-clean focus:outline-none focus:ring-2 focus:ring-[#1e4976]"
                   placeholder="Ex: Pizzaria"
                 />
               </div>
@@ -283,8 +308,8 @@ export default function GerenciarCategoriasView() {
                         onClick={() => setFormData({ ...formData, icone: iconData.name })}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           isSelected
-                            ? 'border-[#00C2FF] bg-[#00C2FF]/10'
-                            : 'border-gray-200 dark:border-white/20 hover:border-[#00C2FF]/50'
+                            ? 'border-[#1e4976] bg-[#1e4976]/10'
+                            : 'border-gray-200 dark:border-white/20 hover:border-[#1e4976]/50'
                         }`}
                       >
                         <Icon size={24} className={iconData.color} />
@@ -321,7 +346,7 @@ export default function GerenciarCategoriasView() {
               </button>
               <button
                 onClick={handleCriarCategoria}
-                className="flex-1 px-4 py-2 bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-lg font-semibold transition-colors"
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-lg font-semibold transition-colors"
               >
                 Criar
               </button>
@@ -346,7 +371,7 @@ export default function GerenciarCategoriasView() {
                   type="text"
                   value={formData.nome}
                   onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-brand-midnight text-gray-900 dark:text-brand-clean focus:outline-none focus:ring-2 focus:ring-[#00C2FF]"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-brand-midnight text-gray-900 dark:text-brand-clean focus:outline-none focus:ring-2 focus:ring-[#1e4976]"
                 />
               </div>
               <div>
@@ -364,8 +389,8 @@ export default function GerenciarCategoriasView() {
                         onClick={() => setFormData({ ...formData, icone: iconData.name })}
                         className={`p-3 rounded-lg border-2 transition-all ${
                           isSelected
-                            ? 'border-[#00C2FF] bg-[#00C2FF]/10'
-                            : 'border-gray-200 dark:border-white/20 hover:border-[#00C2FF]/50'
+                            ? 'border-[#1e4976] bg-[#1e4976]/10'
+                            : 'border-gray-200 dark:border-white/20 hover:border-[#1e4976]/50'
                         }`}
                       >
                         <Icon size={24} className={iconData.color} />
@@ -405,7 +430,7 @@ export default function GerenciarCategoriasView() {
               </button>
               <button
                 onClick={handleEditarCategoria}
-                className="flex-1 px-4 py-2 bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-lg font-semibold transition-colors"
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-lg font-semibold transition-colors"
               >
                 Salvar
               </button>

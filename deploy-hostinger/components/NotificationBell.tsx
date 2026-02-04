@@ -15,9 +15,13 @@ interface Notification {
   read?: boolean
 }
 
+type Toast = { message: string; type: 'success' | 'info' | 'warning' } | null
+
 export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [toast, setToast] = useState<Toast>(null)
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [popupPosition, setPopupPosition] = useState({ top: 0, right: 0, width: 380, maxHeight: 600 })
   const [isMobile, setIsMobile] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -141,10 +145,12 @@ export default function NotificationBell() {
   useEffect(() => {
     // Listener para novas notificações
     const handleNotification = (event: CustomEvent) => {
+      const message = event.detail?.message ?? ''
+      const type = (event.detail?.type || 'info') as 'success' | 'info' | 'warning'
       const newNotification: Notification = {
         id: Date.now().toString(),
-        message: event.detail.message,
-        type: event.detail.type || 'info',
+        message,
+        type,
         timestamp: new Date(),
         read: false
       }
@@ -154,11 +160,20 @@ export default function NotificationBell() {
         localStorage.setItem('notifications', JSON.stringify(updated))
         return updated
       })
+
+      // Toast imediato: aparece no canto da tela assim que der o erro/aviso
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+      setToast({ message, type })
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast(null)
+        toastTimeoutRef.current = null
+      }, 5000)
     }
 
     window.addEventListener('notification' as any, handleNotification as EventListener)
     
     return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
       window.removeEventListener('notification' as any, handleNotification as EventListener)
     }
   }, []) // Array vazio - listener é criado apenas uma vez
@@ -243,6 +258,39 @@ export default function NotificationBell() {
   }
 
   return (
+    <>
+      {/* Toast imediato: aparece no canto da tela assim que der erro/aviso */}
+      {toast && createPortal(
+        (() => {
+          const config = getNotificationConfig(toast.type)
+          const Icon = config.icon
+          return (
+            <div
+              className={`fixed top-20 right-4 z-[10001] w-[calc(100vw-2rem)] max-w-[300px] rounded-xl border-l-4 ${config.borderColor} bg-gradient-to-br ${config.bgGradient} shadow-lg ${config.glow} p-3 flex items-start gap-2.5`}
+              role="alert"
+            >
+              <div className={`flex-shrink-0 ${config.iconBg} rounded-lg p-1.5 ${config.glow}`}>
+                <Icon size={16} className={config.iconColor} strokeWidth={2.5} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-brand-midnight dark:text-brand-clean leading-snug">
+                  {toast.message}
+                </p>
+                <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mt-0.5">Agora</p>
+              </div>
+              <button
+                onClick={() => { setToast(null); if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current); toastTimeoutRef.current = null }}
+                className="flex-shrink-0 p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors"
+                aria-label="Fechar"
+              >
+                <X size={14} className="text-brand-midnight/50 dark:text-brand-clean/50" strokeWidth={2.5} />
+              </button>
+            </div>
+          )
+        })(),
+        document.body
+      )}
+
     <div className="relative flex items-center">
       <button
         ref={buttonRef}
@@ -382,6 +430,7 @@ export default function NotificationBell() {
         </>
       )}
     </div>
+    </>
   )
 }
 

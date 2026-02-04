@@ -14,21 +14,27 @@ import {
   PlayCircle,
   Crown,
   Clock,
-  Tag
+  Tag,
+  ChevronLeft,
+  ChevronRight,
+  Landmark
 } from 'lucide-react'
 import Logo from './Logo'
 
+const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed'
+
 const menuItems = [
-  { href: '/home', label: 'Home', icon: Home, color: 'text-blue-600 dark:text-blue-400' },
-  { href: '/registros', label: 'Todos os Registros', icon: FileText, color: 'text-green-600 dark:text-green-400' },
-  { href: '/dividas', label: 'Dívidas', icon: CreditCard, color: 'text-red-600 dark:text-red-400' },
-  { href: '/lembretes', label: 'Lembretes', icon: Clock, color: 'text-orange-600 dark:text-orange-400' },
-  { href: '/minhas-metas', label: 'Minhas Metas', icon: PiggyBank, color: 'text-yellow-600 dark:text-yellow-400' },
-  { href: '/calendario', label: 'Calendário', icon: Calendar, color: 'text-purple-600 dark:text-purple-400' },
-  { href: '/dashboard', label: 'Dashboard', icon: BarChart3, color: 'text-cyan-600 dark:text-cyan-400' },
-  { href: '/categorias', label: 'Categorias', icon: Tag, color: 'text-teal-600 dark:text-teal-400' },
-  { href: '/tutoriais', label: 'Tutoriais', icon: PlayCircle, color: 'text-pink-600 dark:text-pink-400' },
-  { href: '/configuracoes', label: 'Configurações', icon: Settings, color: 'text-gray-600 dark:text-gray-400' },
+  { href: '/home', label: 'Home', icon: Home },
+  { href: '/registros', label: 'Todos os Registros', icon: FileText },
+  { href: '/gastos-por-banco', label: 'Gastos por banco', icon: Landmark },
+  { href: '/dividas', label: 'Dívidas', icon: CreditCard },
+  { href: '/lembretes', label: 'Lembretes', icon: Clock },
+  { href: '/minhas-metas', label: 'Minhas Metas', icon: PiggyBank },
+  { href: '/calendario', label: 'Calendário', icon: Calendar },
+  { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
+  { href: '/categorias', label: 'Categorias', icon: Tag },
+  { href: '/tutoriais', label: 'Tutoriais', icon: PlayCircle },
+  { href: '/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
 export default function Sidebar() {
@@ -36,102 +42,125 @@ export default function Sidebar() {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [loadingHref, setLoadingHref] = useState<string | null>(null)
+  const [collapsed, setCollapsed] = useState(false)
 
-  // Prefetch agressivo: prefetch todas as rotas ao montar o componente
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem(SIDEBAR_COLLAPSED_KEY) : null
+    setCollapsed(stored === 'true')
+  }, [])
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev
+      if (typeof window !== 'undefined') localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next))
+      return next
+    })
+  }
+
+  // Prefetch agressivo
   useEffect(() => {
     menuItems.forEach((item) => {
       if (item.href !== pathname) {
-        // Prefetch com delay pequeno para não sobrecarregar
-        setTimeout(() => {
-          router.prefetch(item.href)
-        }, 100)
+        setTimeout(() => router.prefetch(item.href), 100)
       }
     })
   }, [router, pathname])
 
   const handleNavigation = (href: string) => {
-    if (pathname === href) return // Já está na página
-    
+    if (pathname === href) return
     setLoadingHref(href)
-    // Navegar imediatamente (prefetch já foi feito)
-    startTransition(() => {
-      router.push(href)
-    })
-    
-    // Limpar loading após navegação
-    setTimeout(() => {
-      setLoadingHref(null)
-    }, 100)
+    startTransition(() => router.push(href))
+    setTimeout(() => setLoadingHref(null), 100)
   }
-  
-  // Prefetch adicional ao passar o mouse (backup caso o useEffect não tenha executado)
+
   const handleMouseEnter = (href: string) => {
-    if (href !== pathname) {
-      router.prefetch(href)
-    }
+    if (href !== pathname) router.prefetch(href)
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-white dark:bg-brand-royal border-r border-gray-200 dark:border-brand-midnight shadow-lg z-50 hidden lg:block overflow-y-auto">
-      <div className="p-6">
-        <div className="mb-6">
-          <Logo />
-        </div>
-        <nav className="space-y-2">
-          {menuItems.map((item) => {
-            const Icon = item.icon
-            const isActive = pathname === item.href || 
-              (item.href !== '/home' && pathname?.startsWith(item.href))
-            const isLoading = loadingHref === item.href && isPending
-            
-            return (
-              <button
-                key={item.href}
-                onClick={() => handleNavigation(item.href)}
-                onMouseEnter={() => handleMouseEnter(item.href)}
-                disabled={isLoading || isActive}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth text-left disabled:opacity-100 ${
-                  isActive
-                    ? 'bg-brand-aqua text-brand-midnight shadow-lg'
-                    : 'text-gray-700 dark:text-brand-clean hover:bg-gray-100 dark:hover:bg-brand-midnight/50 disabled:hover:bg-transparent'
-                }`}
-              >
-                {isLoading ? (
-                  <Loader2 size={20} strokeWidth={2} className={`animate-spin ${isActive ? 'text-brand-midnight' : 'text-gray-700 dark:text-brand-clean'}`} />
-                ) : (
-                  <Icon 
-                    size={20} 
-                    strokeWidth={2} 
-                    className={isActive ? 'text-brand-midnight' : item.color}
-                  />
-                )}
-                <span className={`font-medium ${isActive ? 'text-brand-midnight' : 'text-gray-700 dark:text-brand-clean'}`}>
-                  {item.label}
-                </span>
-              </button>
-            )
-          })}
-          
-          {/* Botão Fazer Upgrade - abaixo de Configurações */}
-          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-brand-midnight/30">
-            <button
-              onClick={() => router.push('/upgrade')}
-              onMouseEnter={() => router.prefetch('/upgrade')}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth bg-gradient-to-r from-brand-aqua to-blue-500 hover:from-brand-aqua/90 hover:to-blue-400 shadow-lg hover:shadow-xl text-left group"
-            >
-              <Crown 
-                size={20} 
-                strokeWidth={2} 
-                className="text-white group-hover:scale-110 transition-transform"
-              />
-              <span className="font-semibold text-white">
-                Fazer Upgrade
-              </span>
-            </button>
+    <>
+      <aside
+        className={`fixed left-0 top-0 h-screen bg-white dark:bg-[#1A1A1A] border-r border-gray-200 dark:border-white/10 shadow-lg z-50 hidden lg:flex flex-col overflow-y-auto transition-all duration-300 ${
+          collapsed ? 'w-20 sidebar-collapsed' : 'w-64'
+        }`}
+      >
+        <div className={`flex flex-col flex-1 ${collapsed ? 'px-3 py-4' : 'p-6'}`}>
+          <div className={`mb-6 flex items-center justify-center ${collapsed ? 'mb-4' : ''}`}>
+            <Logo />
           </div>
-        </nav>
+
+          <nav className="space-y-1.5 flex-1">
+            {menuItems.map((item) => {
+              const Icon = item.icon
+              const isActive = pathname === item.href || (item.href !== '/home' && pathname?.startsWith(item.href))
+              const isLoading = loadingHref === item.href && isPending
+
+              return (
+                <button
+                  key={item.href}
+                  onClick={() => handleNavigation(item.href)}
+                  onMouseEnter={() => handleMouseEnter(item.href)}
+                  disabled={isLoading || isActive}
+                  title={collapsed ? item.label : undefined}
+                  className={`w-full flex items-center gap-3 rounded-xl transition-all duration-200 text-left disabled:opacity-100 ${
+                    collapsed ? 'justify-center px-0 py-3' : 'px-4 py-3'
+                  } ${
+                    isActive
+                      ? 'bg-brand-aqua text-white dark:bg-[#252525] dark:text-white shadow-md'
+                      : collapsed
+                        ? 'text-brand-aqua dark:text-white hover:bg-brand-aqua/10 dark:hover:bg-white/10'
+                        : 'text-brand-aqua dark:text-white hover:bg-brand-aqua/10 dark:hover:bg-white/10'
+                  }`}
+                >
+                  {isLoading ? (
+                    <Loader2 size={20} strokeWidth={2} className={`animate-spin flex-shrink-0 ${isActive ? 'text-white' : 'text-brand-aqua dark:text-white'}`} />
+                  ) : (
+                    <Icon size={20} strokeWidth={2} className={`flex-shrink-0 ${isActive ? 'text-white' : 'dark:text-white'}`} />
+                  )}
+                  {!collapsed && (
+                    <span className={`font-medium truncate ${isActive ? 'text-white' : 'text-gray-700 dark:text-white'}`}>
+                      {item.label}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+
+            <div className={`pt-6 border-t border-gray-200 dark:border-white/10 ${collapsed ? 'px-0' : ''}`}>
+              <button
+                onClick={() => router.push('/upgrade')}
+                onMouseEnter={() => router.prefetch('/upgrade')}
+                title={collapsed ? 'Fazer Upgrade' : undefined}
+                className={`w-full flex items-center rounded-xl transition-all duration-200 shadow-md hover:shadow-lg text-left group ${
+                  collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-4 py-3'
+                } bg-gradient-to-r from-brand-aqua to-primary-500 hover:from-brand-aqua/90 hover:to-primary-400 dark:from-amber-400 dark:to-yellow-500 dark:hover:from-amber-300 dark:hover:to-yellow-400`}
+              >
+                <Crown size={20} strokeWidth={2} className="text-white dark:text-amber-900 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                {!collapsed && <span className="font-semibold text-white dark:text-amber-900 truncate">Fazer Upgrade</span>}
+              </button>
+            </div>
+          </nav>
+        </div>
+      </aside>
+
+      {/* Botão recolher/expandir: na borda direita da sidebar, meio vertical, por cima do main */}
+      <div
+        className={`fixed top-1/2 -translate-y-1/2 -translate-x-1/2 z-[60] hidden lg:flex items-center justify-center transition-[left] duration-300 ${
+          collapsed ? 'left-[5rem]' : 'left-[16rem]'
+        }`}
+      >
+        <button
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          className="w-11 h-11 rounded-full bg-white dark:bg-[#252525] border-2 border-gray-200 dark:border-white/20 shadow-lg hover:shadow-xl hover:border-brand-aqua/50 dark:hover:border-brand-aqua/50 flex items-center justify-center text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/15 transition-all duration-200"
+        >
+          {collapsed ? (
+            <ChevronRight size={20} strokeWidth={2.5} className="text-brand-aqua dark:text-white" />
+          ) : (
+            <ChevronLeft size={20} strokeWidth={2.5} className="text-brand-aqua dark:text-white" />
+          )}
+        </button>
       </div>
-    </aside>
+    </>
   )
 }
-

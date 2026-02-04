@@ -1338,7 +1338,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                                 </button>
                                 <button
                                   onClick={async () => {
-                                    if (!confirm('Tem certeza que deseja remover a chave? Você precisará gerar uma nova para usar o assistente WhatsApp.')) {
+                                    if (!confirm('Desvincular WhatsApp?\n\nSerá removida a chave e a sessão. Para reconectar: gere uma nova chave aqui e envie no WhatsApp seu email + a chave (o assistente pedirá).')) {
                                       return
                                     }
                                     setLoadingWhatsappKey(true)
@@ -1350,21 +1350,22 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                                       if (data.success) {
                                         setWhatsappKey(null)
                                         setShowWhatsappKey(false)
-                                        createNotification('Chave removida com sucesso!', 'success')
+                                        createNotification('WhatsApp desvinculado. Gere uma nova chave e envie (email + chave) no WhatsApp para reconectar.', 'success')
                                         carregarPerfil()
                                       } else {
-                                        createNotification('Erro ao remover chave: ' + (data.error || 'Erro desconhecido'), 'warning')
+                                        createNotification('Erro ao desvincular: ' + (data.error || 'Erro desconhecido'), 'warning')
                                       }
                                     } catch (error: any) {
-                                      createNotification('Erro ao remover chave', 'warning')
+                                      createNotification('Erro ao desvincular', 'warning')
                                     } finally {
                                       setLoadingWhatsappKey(false)
                                     }
                                   }}
                                   disabled={loadingWhatsappKey}
                                   className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-smooth font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Desvincula a chave e a sessão WhatsApp para você reconectar e o sistema reconhecer de novo"
                                 >
-                                  Remover
+                                  Desvincular WhatsApp
                                 </button>
                               </div>
                               <p className="text-xs text-gray-500 dark:text-gray-400">

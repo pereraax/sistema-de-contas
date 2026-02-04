@@ -10,7 +10,9 @@ import {
   Shield,
   MessageCircle,
   PlayCircle,
-  Image as ImageIcon
+  Image as ImageIcon,
+  TrendingUp,
+  Terminal
 } from 'lucide-react'
 import Image from 'next/image'
 
@@ -23,6 +25,8 @@ const menuItems = [
   { href: '/administracaosecr/chat', label: 'Chat de Suporte', icon: MessageCircle },
   { href: '/administracaosecr/tutoriais', label: 'Tutoriais', icon: PlayCircle },
   { href: '/administracaosecr/whatsapp', label: 'WhatsApp PLEN', icon: MessageCircle },
+  { href: '/administracaosecr/pixel', label: 'Pixel do Facebook', icon: TrendingUp },
+  { href: '/administracaosecr/logs', label: 'Logs do Servidor', icon: Terminal },
 ]
 
 export default function AdminSidebar({ onClose }: { onClose?: () => void }) {
@@ -42,18 +46,18 @@ export default function AdminSidebar({ onClose }: { onClose?: () => void }) {
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-brand-royal border-r border-white/10 shadow-lg z-50">
+    <aside className="fixed left-0 top-0 h-screen w-64 bg-[#1A1A1A] border-r border-white/10 shadow-lg z-50">
       <div className="p-6">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-brand-aqua/20 rounded-xl">
-              <Shield size={24} className="text-brand-aqua" />
+            <div className="p-2 bg-white/15 rounded-xl">
+              <Shield size={24} className="text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-display font-bold text-brand-clean">
+              <h2 className="text-lg font-display font-bold text-white">
                 Admin Panel
               </h2>
-              <p className="text-xs font-semibold text-brand-clean/60">
+              <p className="text-xs font-semibold text-white/80">
                 PLENIPAY
               </p>
             </div>
@@ -72,8 +76,8 @@ export default function AdminSidebar({ onClose }: { onClose?: () => void }) {
                 onClick={() => handleNavigation(item.href)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth text-left ${
                   isActive
-                    ? 'bg-brand-aqua text-brand-midnight shadow-lg'
-                    : 'text-brand-clean hover:bg-white/10 hover:text-brand-aqua'
+                    ? 'bg-white/15 text-white shadow-lg'
+                    : 'text-white hover:bg-white/10'
                 }`}
               >
                 <Icon size={20} strokeWidth={2} />
@@ -85,7 +89,7 @@ export default function AdminSidebar({ onClose }: { onClose?: () => void }) {
 
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth text-left text-brand-clean hover:bg-red-900/20 hover:text-red-400"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth text-left text-white hover:bg-red-900/20 hover:text-red-400"
         >
           <LogOut size={20} strokeWidth={2} />
           <span className="font-bold">Sair</span>

@@ -117,7 +117,7 @@ export default function PlanoBloqueado({
               </button>
               <button
                 onClick={() => setShowModal(true)}
-                className="px-6 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth flex items-center gap-2 mx-auto"
+                className="px-6 py-2.5 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth flex items-center gap-2 mx-auto"
               >
                 <span>Fazer Upgrade</span>
                 <ArrowRight size={18} strokeWidth={2.5} />

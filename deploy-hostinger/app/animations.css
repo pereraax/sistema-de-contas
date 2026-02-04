@@ -490,3 +490,33 @@
 .animate-bounce-slow {
   animation: bounceSlow 2s ease-in-out infinite;
 }
+
+@keyframes slide-card-right {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-card-left {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-card-right {
+  animation: slide-card-right 0.5s ease-in-out;
+}
+
+.animate-slide-card-left {
+  animation: slide-card-left 0.5s ease-in-out;
+}

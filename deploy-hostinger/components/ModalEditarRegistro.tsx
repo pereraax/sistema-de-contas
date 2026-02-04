@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Registro, User } from '@/lib/types'
 import { atualizarRegistro, obterUsuarios, obterRegistros } from '@/lib/actions'
-import { X, Plus, User as UserIcon, CreditCard, Wallet, Smartphone, UtensilsCrossed, Car, Home, ShoppingBag, Heart, GraduationCap, Briefcase, Gamepad2, Dumbbell, Plane, Trash2, HelpCircle, Check } from 'lucide-react'
+import { X, Plus, User as UserIcon, CreditCard, Wallet, Smartphone, UtensilsCrossed, Car, Home, ShoppingBag, Heart, GraduationCap, Briefcase, Gamepad2, Dumbbell, Plane, Trash2, HelpCircle, Check, Tag } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createNotification } from './NotificationBell'
 import ModalSelecionarUsuario from './ModalSelecionarUsuario'
@@ -29,6 +29,9 @@ export default function ModalEditarRegistro({
   const [parcelasRelacionadas, setParcelasRelacionadas] = useState<Registro[]>([])
   const [showHelpNome, setShowHelpNome] = useState(false)
   const [showHelpObservacao, setShowHelpObservacao] = useState(false)
+  const [showModalNovaCategoria, setShowModalNovaCategoria] = useState(false)
+  const [novaCategoriaNome, setNovaCategoriaNome] = useState('')
+  const [categoriasPersonalizadas, setCategoriasPersonalizadas] = useState<Array<{ id: string; nome: string; icon: any }>>([])
 
   // Fechar tooltips ao clicar fora
   useEffect(() => {
@@ -69,10 +72,85 @@ export default function ModalEditarRegistro({
     parcelas_totais: '1',
     valor_parcelas: '',
     data_registro: '',
+    banco: '',
   })
   const [temParcelas, setTemParcelas] = useState(false)
+  
+  // Funções para formatar data DD/MM/AAAA (mais simples que calendário)
+  const formatDateToDisplay = (isoString: string) => {
+    if (!isoString) {
+      const now = new Date()
+      const dia = String(now.getDate()).padStart(2, '0')
+      const mes = String(now.getMonth() + 1).padStart(2, '0')
+      const ano = now.getFullYear()
+      return `${dia}/${mes}/${ano}`
+    }
+    const date = new Date(isoString)
+    const dia = String(date.getDate()).padStart(2, '0')
+    const mes = String(date.getMonth() + 1).padStart(2, '0')
+    const ano = date.getFullYear()
+    return `${dia}/${mes}/${ano}`
+  }
 
-  const categorias = [
+  const formatTimeToDisplay = (isoString: string) => {
+    if (!isoString) return new Date().toTimeString().slice(0, 5)
+    const date = new Date(isoString)
+    return date.toTimeString().slice(0, 5)
+  }
+
+  const parseDateFromDisplay = (dateStr: string): string | null => {
+    // Aceitar formato DD/MM/AAAA
+    const match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+    if (match) {
+      const [, dia, mes, ano] = match
+      const date = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia))
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().slice(0, 10)
+      }
+    }
+    return null
+  }
+
+  const combineDateTimeToISO = (dateStr: string, time: string) => {
+    const dateISO = parseDateFromDisplay(dateStr) || new Date().toISOString().slice(0, 10)
+    if (!time) time = new Date().toTimeString().slice(0, 5)
+    return new Date(`${dateISO}T${time}`).toISOString().slice(0, 16)
+  }
+
+  const formatDateInput = (value: string) => {
+    // Remove tudo que não é número
+    const numbers = value.replace(/\D/g, '')
+    
+    // Aplica a máscara DD/MM/AAAA
+    if (numbers.length <= 2) {
+      return numbers
+    } else if (numbers.length <= 4) {
+      return `${numbers.slice(0, 2)}/${numbers.slice(2)}`
+    } else {
+      return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`
+    }
+  }
+
+  const initialDateTime = {
+    date: formatDateToDisplay(new Date().toISOString()),
+    time: formatTimeToDisplay(new Date().toISOString())
+  }
+  const [dataInput, setDataInput] = useState(initialDateTime.date)
+  const [horaInput, setHoraInput] = useState(initialDateTime.time)
+
+  const BANCOS = [
+    { id: 'inter', nome: 'Inter', cor: '#FF7A00', inicial: 'I' },
+    { id: 'c6bank', nome: 'C6 Bank', cor: '#000000', inicial: 'C' },
+    { id: 'nubank', nome: 'Nubank', cor: '#820AD1', inicial: 'N' },
+    { id: 'itau', nome: 'Itaú', cor: '#EC7000', inicial: 'I' },
+    { id: 'santander', nome: 'Santander', cor: '#EC0000', inicial: 'S' },
+    { id: 'picpay', nome: 'PicPay', cor: '#21C25E', inicial: 'P' },
+    { id: 'mercadopago', nome: 'Mercado Pago', cor: '#009EE3', inicial: 'M' },
+    { id: 'bradesco', nome: 'Bradesco', cor: '#CC092F', inicial: 'B' },
+    { id: 'caixa', nome: 'Caixa', cor: '#0066B3', inicial: 'C' },
+  ]
+
+  const categoriasPadrao = [
     { id: 'alimentacao', nome: 'Alimentação', icon: UtensilsCrossed },
     { id: 'transporte', nome: 'Transporte', icon: Car },
     { id: 'moradia', nome: 'Moradia', icon: Home },
@@ -84,6 +162,90 @@ export default function ModalEditarRegistro({
     { id: 'fitness', nome: 'Fitness', icon: Dumbbell },
     { id: 'viagem', nome: 'Viagem', icon: Plane },
   ]
+
+  // Carregar categorias personalizadas do localStorage
+  useEffect(() => {
+    const categoriasSalvas = localStorage.getItem('categorias_personalizadas')
+    if (categoriasSalvas) {
+      try {
+        const personalizadas = JSON.parse(categoriasSalvas)
+        // Converter para o formato esperado (com icon)
+        const categoriasFormatadas = personalizadas.map((cat: any) => ({
+          id: cat.id,
+          nome: cat.nome,
+          icon: Tag, // Usar Tag como ícone padrão para categorias personalizadas
+        }))
+        setCategoriasPersonalizadas(categoriasFormatadas)
+      } catch (error) {
+        console.error('Erro ao carregar categorias personalizadas:', error)
+      }
+    }
+  }, [])
+
+  const categorias = [...categoriasPadrao, ...categoriasPersonalizadas]
+
+  // Função para criar nova categoria
+  const handleCriarNovaCategoria = () => {
+    if (!novaCategoriaNome.trim()) {
+      createNotification('Digite um nome para a categoria', 'warning')
+      return
+    }
+
+    // Verificar se já existe uma categoria com esse nome
+    const nomeNormalizado = novaCategoriaNome.trim().toLowerCase()
+    const categoriaExistente = categorias.find(
+      cat => cat.nome.toLowerCase() === nomeNormalizado
+    )
+
+    if (categoriaExistente) {
+      createNotification('Já existe uma categoria com esse nome', 'warning')
+      return
+    }
+
+    // Criar nova categoria
+    const novaCategoria = {
+      id: `cat-${Date.now()}`,
+      nome: novaCategoriaNome.trim(),
+      icone: 'Tag',
+      cor: '#1e4976',
+      tipo: 'personalizada' as const,
+    }
+
+    // Salvar no localStorage
+    const categoriasSalvas = localStorage.getItem('categorias_personalizadas')
+    const personalizadas = categoriasSalvas ? JSON.parse(categoriasSalvas) : []
+    personalizadas.push(novaCategoria)
+    localStorage.setItem('categorias_personalizadas', JSON.stringify(personalizadas))
+
+    // Atualizar estado local
+    setCategoriasPersonalizadas([
+      ...categoriasPersonalizadas,
+      { id: novaCategoria.id, nome: novaCategoria.nome, icon: Tag }
+    ])
+
+    // Selecionar a nova categoria automaticamente
+    setFormData({ ...formData, categoria: novaCategoria.id })
+
+    // Fechar modal e limpar
+    setShowModalNovaCategoria(false)
+    setNovaCategoriaNome('')
+    createNotification('Categoria criada com sucesso!', 'success')
+  }
+
+  // Cores para categorias (cada categoria tem sua própria cor)
+  const categoriaColors: Record<string, string> = {
+    alimentacao: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800/50',
+    transporte: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800/50',
+    moradia: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800/50',
+    compras: 'bg-pink-100 text-pink-700 border-pink-200 dark:bg-pink-900/30 dark:text-pink-300 dark:border-pink-800/50',
+    saude: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800/50',
+    educacao: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800/50',
+    trabalho: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/30 dark:text-slate-300 dark:border-slate-700/50',
+    entretenimento: 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-900/30 dark:text-fuchsia-300 dark:border-fuchsia-800/50',
+    fitness: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800/50',
+    viagem: 'bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800/50',
+    outros: 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800/50',
+  }
 
   // Função para extrair histórico de pagamentos da observação
   const extrairHistoricoPagamentos = (observacao: string | undefined): string | null => {
@@ -193,6 +355,12 @@ export default function ModalEditarRegistro({
         valor_parcelas: valorParcelas > 0 ? formatarValorEmTempoReal(valorParcelas.toString()) : '',
         data_registro: new Date(registro.data_registro).toISOString().slice(0, 16),
       })
+      const dateTime = {
+        date: formatDateToDisplay(new Date(registro.data_registro).toISOString()),
+        time: formatTimeToDisplay(new Date(registro.data_registro).toISOString())
+      }
+      setDataInput(dateTime.date)
+      setHoraInput(dateTime.time)
       setTemParcelas(parcelasTotais > 1 || parcelasPagas > 0)
       setEtiquetas(registro.etiquetas?.filter((e: string) => !['pix', 'cartao', 'dinheiro'].includes(e)) || [])
       if (registro.user) {
@@ -219,7 +387,15 @@ export default function ModalEditarRegistro({
         parcelas_totais: '1',
         valor_parcelas: '',
         data_registro: new Date().toISOString().slice(0, 16),
+        banco: '',
       })
+      const now = new Date()
+      const newDateTime = {
+        date: formatDateToDisplay(now.toISOString()),
+        time: formatTimeToDisplay(now.toISOString())
+      }
+      setDataInput(newDateTime.date)
+      setHoraInput(newDateTime.time)
       setTemParcelas(false)
       setEtiquetas([])
       setUsuarioSelecionado(null)
@@ -354,6 +530,7 @@ export default function ModalEditarRegistro({
             formOutraParcela.append('parcelas_totais', qtd.toString())
             formOutraParcela.append('parcelas_pagas', '0')
             formOutraParcela.append('data_registro', new Date(parcela.data).toISOString())
+            if (formData.banco) formOutraParcela.append('banco', formData.banco)
             
             return atualizarRegistro(parcela.id!, formOutraParcela).catch(err => {
               console.error('Erro ao atualizar parcela:', err)
@@ -427,6 +604,7 @@ export default function ModalEditarRegistro({
         form.append('parcelas_pagas', Math.min(parcelasPagas, parseInt(formData.parcelas_totais)).toString())
       }
       form.append('data_registro', new Date(formData.data_registro).toISOString())
+      if (formData.banco) form.append('banco', formData.banco)
 
       const result = await criarRegistro(form)
 
@@ -445,15 +623,15 @@ export default function ModalEditarRegistro({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in" style={{ top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh' }}>
       <div className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border-2 border-brand-aqua/30 dark:border-brand-aqua/40">
-        <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-6 py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua/10 via-brand-aqua/5 to-transparent dark:from-brand-aqua/20 dark:via-brand-aqua/10">
-          <h2 className="text-2xl font-display font-bold text-brand-midnight dark:text-brand-clean">
+        <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-6 py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal">
+          <h2 className="text-2xl font-display font-bold text-white dark:text-brand-clean">
             {registro ? 'Editar Registro' : 'Novo Registro'}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-red-500/20 dark:hover:bg-red-500/30 rounded-xl transition-smooth"
+            className="p-2 hover:bg-white/20 dark:hover:bg-red-500/30 rounded-xl transition-smooth"
           >
-            <X size={22} className="text-brand-midnight dark:text-brand-clean" strokeWidth={2.5} />
+            <X size={22} className="text-white dark:text-brand-clean" strokeWidth={2.5} />
           </button>
         </div>
 
@@ -643,21 +821,57 @@ export default function ModalEditarRegistro({
 
           <div>
             <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-2">
+              Banco (opcional)
+            </label>
+            <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-2">
+              Associe este registro a um banco para ver gastos e saldo no painel da home.
+            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              {BANCOS.map((banco) => {
+                const isSelected = formData.banco === banco.id
+                return (
+                  <button
+                    key={banco.id}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, banco: isSelected ? '' : banco.id })}
+                    className={`flex flex-col items-center justify-center gap-1.5 px-2 py-3 rounded-xl font-medium transition-smooth border-2 min-h-[72px] ${
+                      isSelected
+                        ? 'bg-brand-aqua/20 dark:bg-brand-aqua/30 border-brand-aqua text-brand-aqua shadow-md'
+                        : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 text-brand-midnight dark:text-brand-clean hover:border-brand-aqua/50 hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+                    }`}
+                    title={banco.nome}
+                  >
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm"
+                      style={{ backgroundColor: banco.cor }}
+                    >
+                      {banco.inicial}
+                    </div>
+                    <span className="text-[10px] sm:text-xs text-center leading-tight truncate w-full">{banco.nome}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-2">
               Categoria
             </label>
             <div className="grid grid-cols-4 gap-2">
               {categorias.map((cat) => {
                 const Icon = cat.icon
                 const isSelected = formData.categoria === cat.id
+                const categoriaColor = categoriaColors[cat.id] || 'bg-gray-500 text-white border-gray-600 dark:bg-gray-600 dark:border-gray-700'
                 return (
                   <button
                     key={cat.id}
                     type="button"
                     onClick={() => setFormData({ ...formData, categoria: isSelected ? '' : cat.id })}
-                    className={`flex flex-col items-center justify-center gap-2 px-2 py-3 rounded-lg font-medium transition-smooth min-h-[90px] ${
+                    className={`flex flex-col items-center justify-center gap-2 px-2 py-3 rounded-lg font-medium transition-smooth min-h-[90px] border shadow-sm ${
                       isSelected
-                        ? 'bg-brand-aqua text-brand-midnight shadow-md'
-                        : 'bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
+                        ? 'bg-brand-aqua text-white border-brand-aqua shadow-md ring-2 ring-brand-aqua/50'
+                        : categoriaColor + ' hover:opacity-90 hover:scale-105'
                     }`}
                     title={cat.nome}
                   >
@@ -666,6 +880,16 @@ export default function ModalEditarRegistro({
                   </button>
                 )
               })}
+              {/* Botão para criar nova categoria */}
+              <button
+                type="button"
+                onClick={() => setShowModalNovaCategoria(true)}
+                className="flex flex-col items-center justify-center gap-2 px-2 py-3 rounded-lg font-medium transition-smooth min-h-[90px] border-2 border-dashed border-gray-300 dark:border-white/20 bg-gray-50 dark:bg-brand-midnight/30 hover:bg-gray-100 dark:hover:bg-brand-midnight/50 hover:border-brand-aqua dark:hover:border-brand-aqua text-gray-600 dark:text-gray-400 hover:text-brand-aqua dark:hover:text-brand-aqua"
+                title="Criar nova categoria"
+              >
+                <Plus size={24} strokeWidth={2.5} className="flex-shrink-0" />
+                <span className="text-xs font-medium text-center leading-tight">Nova</span>
+              </button>
             </div>
           </div>
 
@@ -679,7 +903,7 @@ export default function ModalEditarRegistro({
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'pix' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'pix'
-                    ? 'bg-brand-aqua text-brand-midnight shadow-md'
+                    ? 'bg-brand-aqua text-white shadow-md'
                     : 'bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
                 }`}
               >
@@ -691,7 +915,7 @@ export default function ModalEditarRegistro({
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'cartao' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'cartao'
-                    ? 'bg-brand-aqua text-brand-midnight shadow-md'
+                    ? 'bg-brand-aqua text-white shadow-md'
                     : 'bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
                 }`}
               >
@@ -703,7 +927,7 @@ export default function ModalEditarRegistro({
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'dinheiro' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'dinheiro'
-                    ? 'bg-brand-aqua text-brand-midnight shadow-md'
+                    ? 'bg-brand-aqua text-white shadow-md'
                     : 'bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
                 }`}
               >
@@ -729,7 +953,7 @@ export default function ModalEditarRegistro({
               <button
                 type="button"
                 onClick={adicionarEtiqueta}
-                className="px-3 py-2 bg-brand-aqua text-brand-midnight rounded-lg hover:bg-brand-aqua/90 transition-smooth text-sm"
+                className="px-3 py-2 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth text-sm"
               >
                 <Plus size={16} />
               </button>
@@ -975,12 +1199,30 @@ export default function ModalEditarRegistro({
             <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
               Data e hora
             </label>
-            <input
-              type="datetime-local"
-              value={formData.data_registro}
-              onChange={(e) => setFormData({ ...formData, data_registro: e.target.value })}
-              className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm"
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={dataInput}
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value)
+                  setDataInput(formatted)
+                  const isoDate = combineDateTimeToISO(formatted, horaInput)
+                  setFormData({ ...formData, data_registro: isoDate })
+                }}
+                placeholder="DD/MM/AAAA"
+                maxLength={10}
+                className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50"
+              />
+              <input
+                type="time"
+                value={horaInput}
+                onChange={(e) => {
+                  setHoraInput(e.target.value)
+                  setFormData({ ...formData, data_registro: combineDateTimeToISO(dataInput, e.target.value) })
+                }}
+                className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm"
+              />
+            </div>
           </div>
 
           </div>
@@ -997,7 +1239,7 @@ export default function ModalEditarRegistro({
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-4 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="flex-1 px-4 py-2.5 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 {loading ? (registro ? 'Salvando...' : 'Registrando...') : (registro ? 'Salvar Alterações' : 'REGISTRAR')}
               </button>
@@ -1015,6 +1257,70 @@ export default function ModalEditarRegistro({
         }}
         selectedUserId={formData.user_id}
       />
+
+      {/* Modal para criar nova categoria */}
+      {showModalNovaCategoria && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10001] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl max-w-md w-full shadow-2xl animate-slide-up overflow-hidden border-2 border-brand-aqua/30 dark:border-brand-aqua/40">
+            <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-6 py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal rounded-t-3xl">
+              <h2 className="text-xl font-display font-bold text-white dark:text-brand-clean">
+                Nova Categoria
+              </h2>
+              <button
+                onClick={() => {
+                  setShowModalNovaCategoria(false)
+                  setNovaCategoriaNome('')
+                }}
+                className="p-2 hover:bg-white/20 dark:hover:bg-white/10 rounded-xl transition-smooth"
+              >
+                <X size={20} className="text-white dark:text-brand-clean" strokeWidth={2.5} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-brand-midnight dark:text-brand-clean mb-2">
+                  Nome da Categoria *
+                </label>
+                <input
+                  type="text"
+                  value={novaCategoriaNome}
+                  onChange={(e) => setNovaCategoriaNome(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleCriarNovaCategoria()
+                    }
+                  }}
+                  placeholder="Ex: Sorvete, Comida, etc."
+                  className="w-full px-4 py-2.5 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModalNovaCategoria(false)
+                    setNovaCategoriaNome('')
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-brand-royal text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-smooth font-medium text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCriarNovaCategoria}
+                  disabled={!novaCategoriaNome.trim()}
+                  className="flex-1 px-4 py-2.5 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Criar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -8,18 +8,24 @@ import PlanoGuard from '@/components/PlanoGuard'
 import NotificationBell from '@/components/NotificationBell'
 import UserProfileMenu from '@/components/UserProfileMenu'
 import Logo from '@/components/Logo'
-import { obterDividas } from '@/lib/actions'
+import { obterDividas, obterUsuarios } from '@/lib/actions'
 import { Loader2 } from 'lucide-react'
 
 export default function DividasPage() {
   const [dividas, setDividas] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
+  const [usuarios, setUsuarios] = useState<any[]>([])
+
   const carregarDividas = async () => {
     try {
       setLoading(true)
-      const result = await obterDividas()
-      setDividas(result?.data || [])
+      const [dividasResult, usuariosResult] = await Promise.all([
+        obterDividas(),
+        obterUsuarios()
+      ])
+      setDividas(dividasResult?.data || [])
+      setUsuarios(usuariosResult?.data || [])
     } catch (error) {
       console.error('Erro ao carregar dívidas:', error)
       setDividas([])
@@ -44,7 +50,7 @@ export default function DividasPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-brand-clean dark:bg-brand-midnight">
+    <div className="min-h-screen bg-brand-clean dark:bg-[#1A1A1A]">
       <Sidebar />
       <main className="lg:ml-64 p-3 sm:p-4 lg:p-8 dark:bg-brand-midnight pt-6 lg:pt-4">
         <div className="max-w-7xl mx-auto">
@@ -76,7 +82,8 @@ export default function DividasPage() {
           ) : (
             <PlanoGuard feature="Gerenciamento de Dívidas" planoNecessario="basico">
               <DividasLista 
-                dividas={dividas} 
+                dividas={dividas}
+                usuarios={usuarios}
                 onDividasChange={(novasDividas) => {
                   setDividas(novasDividas)
                   // Recarregar dados do servidor quando houver mudança

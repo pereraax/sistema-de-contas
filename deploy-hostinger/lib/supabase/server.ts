@@ -6,11 +6,22 @@ import { cache } from 'react'
 // Cachear a criação do client usando React cache
 // Isso garante que o mesmo client seja reutilizado na mesma requisição
 export const createClient = cache(async () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      `@supabase/ssr: Variáveis de ambiente do Supabase não configuradas!\n` +
+      `Verifique se NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY estão definidas no arquivo .env.local\n` +
+      `Acesse: https://supabase.com/dashboard/project/_/settings/api para obter essas credenciais.`
+    )
+  }
+
   const cookieStore = await cookies()
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -34,12 +45,12 @@ export const createClient = cache(async () => {
 
 // Cliente admin que bypassa RLS usando service role key
 // Use apenas para operações administrativas no servidor
+// Retorna null se não configurado (evita 500 em componentes como FacebookPixelScript)
 export function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  if (!supabaseServiceKey) {
-    // Se não tiver service role key, retornar cliente normal (pode falhar por RLS)
+  if (!supabaseUrl || !supabaseServiceKey) {
     return null
   }
 
@@ -54,8 +65,16 @@ export function createAdminClient() {
 // Cliente público sem autenticação (para chamar funções RPC públicas)
 // Use quando precisar chamar funções RPC que não requerem autenticação
 export function createPublicClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      `@supabase/ssr: Variáveis de ambiente do Supabase não configuradas!\n` +
+      `Verifique se NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY estão definidas no arquivo .env.local\n` +
+      `Acesse: https://supabase.com/dashboard/project/_/settings/api para obter essas credenciais.`
+    )
+  }
 
   return createSupabaseClient(supabaseUrl, supabaseAnonKey, {
     auth: {

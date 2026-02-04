@@ -84,7 +84,7 @@ export default function VisitorStats() {
 
   if (loading) {
     return (
-      <div className="bg-brand-royal rounded-2xl p-6 shadow-lg border border-white/10">
+      <div className="bg-[#252525] rounded-2xl p-6 shadow-lg border border-white/10">
         <div className="flex items-center justify-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-aqua"></div>
         </div>
@@ -93,7 +93,7 @@ export default function VisitorStats() {
   }
 
   return (
-    <div className="bg-brand-royal rounded-2xl p-6 shadow-lg border border-white/10">
+    <div className="bg-[#252525] rounded-2xl p-6 shadow-lg border border-white/10">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl lg:text-2xl font-display font-bold text-brand-clean mb-1" style={{ fontWeight: 700 }}>
@@ -115,7 +115,7 @@ export default function VisitorStats() {
           return (
             <div
               key={index}
-              className="bg-brand-midnight/50 rounded-xl p-4 lg:p-5 border border-white/10"
+              className="bg-[#1f1f1f] rounded-xl p-4 lg:p-5 border border-white/10"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className={`p-2 rounded-lg ${card.bgColor}`}>
@@ -146,6 +146,9 @@ export default function VisitorStats() {
     </div>
   )
 }
+
+
+
 
 
 

@@ -8,6 +8,9 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { createNotification } from '@/components/NotificationBell'
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 const planos = [
   {
     id: 'teste' as const,
@@ -195,28 +198,28 @@ export default function PlanosPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="bg-[#00C2FF] border-b border-[#0099CC] sticky top-0 z-50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
+      <header className="bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] border-b border-[#163a5f] sticky top-0 z-50">
+        <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 max-w-7xl flex items-center justify-between">
+          <Link href="/" className="flex items-center flex-shrink-0 ml-2 sm:ml-3 md:ml-4">
             <Image 
               src="/logo branca.png" 
               alt="PLENIPAY" 
-              width={300}
-              height={75}
-              className="h-14 sm:h-16 md:h-18 w-auto object-contain"
+              width={200}
+              height={50}
+              className="h-6 sm:h-7 md:h-9 lg:h-10 w-auto object-contain"
               priority
             />
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5">
             <Link
               href="/login"
-              className="px-6 py-2.5 text-white bg-[#0099CC] hover:bg-[#007A99] rounded-lg font-semibold transition-all duration-300 shadow-md"
+              className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-white border border-white/30 hover:bg-white/10 rounded-md sm:rounded-lg font-medium sm:font-semibold transition-all duration-300 whitespace-nowrap"
             >
               Entrar
             </Link>
             <Link
               href="/cadastro"
-              className="px-6 py-2.5 text-white bg-[#0D1B2A] hover:bg-[#1B263B] rounded-lg font-semibold transition-all duration-300"
+              className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-white bg-[#0D1B2A] hover:bg-[#1B263B] rounded-md sm:rounded-lg font-medium sm:font-semibold transition-all duration-300 whitespace-nowrap"
             >
               Cadastrar
             </Link>
@@ -227,14 +230,14 @@ export default function PlanosPage() {
       {/* Hero Section */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="text-center mb-12 max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#E6F7FF] border border-[#00C2FF] rounded-full mb-4">
-            <DollarSign className="text-[#00C2FF]" size={16} />
-            <span className="text-[#00C2FF] font-semibold text-xs sm:text-sm">Escolha o plano ideal para você</span>
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#E8EEF5] border border-[#1e4976] rounded-full mb-4">
+            <DollarSign className="text-[#1e4976]" size={16} />
+            <span className="text-[#1e4976] font-semibold text-xs sm:text-sm">Escolha o plano ideal para você</span>
           </div>
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-display font-bold text-[#0D1B2A] mb-4 leading-tight">
             Planos que se adaptam
             <br />
-            <span className="text-[#00C2FF]">às suas necessidades</span>
+            <span className="text-[#1e4976]">às suas necessidades</span>
           </h1>
           <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
             Controle financeiro completo, do básico ao avançado. 
@@ -251,7 +254,7 @@ export default function PlanosPage() {
                 key={index}
                 className="flex items-center gap-3 px-4 py-2 bg-white rounded-full border border-gray-200 shadow-sm"
               >
-                <Icon className="text-[#00C2FF]" size={20} />
+                <Icon className="text-[#1e4976]" size={20} />
                 <span className="text-gray-700 text-sm font-medium">{beneficio.texto}</span>
               </div>
             )
@@ -273,30 +276,34 @@ export default function PlanosPage() {
             </div>
             <div className="space-y-3 mb-8">
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Registros (50/mês)</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Dashboard básico</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Até 2 usuários</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Filtros básicos</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Acesso ao PLEN AI</span>
               </div>
             </div>
             <button
-              onClick={() => handleSelecionarPlano('teste')}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                router.push('/cadastro?plano=teste')
+              }}
               disabled={loadingCheckout === 'teste'}
-              className="w-full text-center py-3 bg-gray-100 hover:bg-gray-200 text-[#0D1B2A] rounded-xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-center py-3 text-sm sm:text-base bg-gray-100 hover:bg-gray-200 text-[#0D1B2A] rounded-xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loadingCheckout === 'teste' ? 'Processando...' : 'Começar Grátis'}
             </button>
@@ -304,7 +311,7 @@ export default function PlanosPage() {
 
           {/* Plano Básico */}
           <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-200">
-            <div className="bg-[#00C2FF] text-white rounded-xl py-3 px-4 mb-6 text-center">
+            <div className="bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white rounded-xl py-3 px-4 mb-6 text-center">
               <h3 className="text-xl font-bold">Plano Básico</h3>
             </div>
             <div className="mb-6">
@@ -312,57 +319,57 @@ export default function PlanosPage() {
                 <span className="text-4xl font-bold text-[#0D1B2A]">R$ 29,90</span>
                 <span className="text-gray-600">/mês</span>
               </div>
-              <p className="text-xs text-[#00C2FF] font-semibold mt-2">7 dias grátis</p>
+              <p className="text-xs text-[#1e4976] font-semibold mt-2">7 dias grátis</p>
             </div>
             <div className="space-y-3 mb-8">
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Tudo do Gratuito</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Registros ilimitados</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Gerenciar Dívidas</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Salário recorrente</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Calendário Financeiro</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Metas (até 3)</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Até 10 usuários</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Suporte prioritário</span>
               </div>
             </div>
             <button
               onClick={() => handleSelecionarPlano('basico')}
               disabled={loadingCheckout === 'basico'}
-              className="w-full text-center py-3 bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl font-bold transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-center py-3 text-sm sm:text-base bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-[#1e4976]/40 transform hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               {loadingCheckout === 'basico' ? 'Processando...' : 'Assinar Agora'}
             </button>
           </div>
 
           {/* Plano Premium */}
-          <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-[#00C2FF] relative">
-            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-[#00C2FF] text-white text-xs font-bold px-3 py-1 rounded-full">
+          <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-[#1e4976] relative">
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
               MAIS POPULAR
             </div>
-            <div className="bg-[#00C2FF] text-white rounded-xl py-3 px-4 mb-6 text-center">
+            <div className="bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white rounded-xl py-3 px-4 mb-6 text-center">
               <h3 className="text-xl font-bold">Plano Premium</h3>
             </div>
             <div className="mb-6">
@@ -370,46 +377,46 @@ export default function PlanosPage() {
                 <span className="text-4xl font-bold text-[#0D1B2A]">R$ 49,90</span>
                 <span className="text-gray-600">/mês</span>
               </div>
-              <p className="text-xs text-[#00C2FF] font-semibold mt-2">7 dias grátis</p>
+              <p className="text-xs text-[#1e4976] font-semibold mt-2">7 dias grátis</p>
             </div>
             <div className="space-y-3 mb-8">
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Tudo do Básico</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Empréstimos</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Upload de documentos</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Game Juntar Dinheiro</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Metas ilimitadas</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Usuários ilimitados</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Dashboard avançado</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Suporte 24/7</span>
               </div>
             </div>
             <button
               onClick={() => handleSelecionarPlano('premium')}
               disabled={loadingCheckout === 'premium'}
-              className="w-full text-center py-3 bg-[#00C2FF] hover:bg-[#0099CC] text-white rounded-xl font-bold transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-center py-3 text-sm sm:text-base bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-[#1e4976]/40 transform hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               {loadingCheckout === 'premium' ? 'Processando...' : 'Assinar Agora'}
             </button>
@@ -435,30 +442,30 @@ export default function PlanosPage() {
             </div>
             <div className="space-y-3 mb-8">
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Tudo do Premium</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Pagamento anual</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Melhor custo-benefício</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Suporte prioritário 24/7</span>
               </div>
               <div className="flex items-center gap-3">
-                <CheckCircle2 size={18} className="text-[#00C2FF] flex-shrink-0" />
+                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
                 <span className="text-sm text-gray-700">Acesso antecipado a novas features</span>
               </div>
             </div>
             <button
               onClick={() => handleSelecionarPlano('premium')}
               disabled={loadingCheckout === 'premium'}
-              className="w-full text-center py-3 bg-[#0D1B2A] hover:bg-[#1B263B] text-white rounded-xl font-bold transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-center py-3 text-sm sm:text-base bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-[#1e4976]/40 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loadingCheckout === 'premium' ? 'Processando...' : 'Assinar Anual'}
             </button>
@@ -469,7 +476,7 @@ export default function PlanosPage() {
         <section className="mb-12 sm:mb-16">
           <div className="text-center mb-8 sm:mb-10">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-display font-bold text-[#0D1B2A] mb-3 sm:mb-4">
-              Veja o que nossos <span className="text-[#00C2FF]">usuários</span> estão dizendo
+              Veja o que nossos <span className="text-[#1e4976]">usuários</span> estão dizendo
             </h2>
             <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
               Mais de 10.000 pessoas já transformaram suas finanças com o PLENIPAY
@@ -480,7 +487,7 @@ export default function PlanosPage() {
             {depoimentos.map((depoimento, index) => (
               <div
                 key={index}
-                className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:border-[#00C2FF]/50 transition-all hover:scale-105 hover:shadow-xl"
+                className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:border-[#1e4976]/50 transition-all hover:scale-105 hover:shadow-xl"
               >
               <div className="flex items-center gap-1 mb-4">
                 {[...Array(5)].map((_, i) => (
@@ -491,7 +498,7 @@ export default function PlanosPage() {
                   "{depoimento.texto}"
               </p>
               <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#E6F7FF] flex items-center justify-center text-[#00C2FF] font-bold text-sm">
+                  <div className="w-10 h-10 rounded-full bg-[#E8EEF5] flex items-center justify-center text-[#1e4976] font-bold text-sm">
                     {depoimento.inicial}
                 </div>
                 <div>
@@ -506,7 +513,7 @@ export default function PlanosPage() {
 
         {/* Garantia */}
         <div className="max-w-4xl mx-auto bg-white rounded-2xl p-6 sm:p-8 border border-gray-200 shadow-lg text-center mb-12 sm:mb-16">
-          <Shield className="text-[#00C2FF] mx-auto mb-3 sm:mb-4" size={40} />
+          <Shield className="text-[#1e4976] mx-auto mb-3 sm:mb-4" size={40} />
           <h3 className="text-xl sm:text-2xl font-display font-bold text-[#0D1B2A] mb-2 sm:mb-3">
             Garantia de Satisfação
           </h3>
@@ -522,9 +529,9 @@ export default function PlanosPage() {
             <div className="flex flex-col items-center text-center space-y-4">
               <p>© 2025 PLENIPAY. Todos os direitos reservados.</p>
               <div className="flex flex-wrap gap-6 justify-center">
-                <Link href="/termos" className="hover:text-[#00C2FF] transition-colors">Termos</Link>
-                <Link href="/privacidade" className="hover:text-[#00C2FF] transition-colors">Privacidade</Link>
-                <Link href="/suporte" className="hover:text-[#00C2FF] transition-colors">Suporte</Link>
+                <Link href="/termos" className="hover:text-[#1e4976] transition-colors">Termos</Link>
+                <Link href="/privacidade" className="hover:text-[#1e4976] transition-colors">Privacidade</Link>
+                <Link href="/suporte" className="hover:text-[#1e4976] transition-colors">Suporte</Link>
               </div>
             </div>
           </div>
@@ -552,7 +559,7 @@ export default function PlanosPage() {
 
             <div className="mb-6">
               <p className="text-sm text-gray-600 mb-4">
-                Plano selecionado: <strong className="text-[#00C2FF]">{planos.find(p => p.id === planoSelecionado)?.nome}</strong>
+                Plano selecionado: <strong className="text-[#1e4976]">{planos.find(p => p.id === planoSelecionado)?.nome}</strong>
               </p>
               
               <div className="space-y-3">
@@ -560,11 +567,11 @@ export default function PlanosPage() {
                   onClick={() => setMetodoPagamento('PIX')}
                   className={`w-full p-4 rounded-xl border-2 transition-smooth flex items-center gap-3 ${
                     metodoPagamento === 'PIX'
-                      ? 'border-[#00C2FF] bg-[#E6F7FF]'
-                      : 'border-gray-200 hover:border-[#00C2FF]/50'
+                      ? 'border-[#1e4976] bg-[#E8EEF5]'
+                      : 'border-gray-200 hover:border-[#1e4976]/50'
                   }`}
                 >
-                  <div className={`p-2 rounded-lg ${metodoPagamento === 'PIX' ? 'bg-[#00C2FF]' : 'bg-gray-100'}`}>
+                  <div className={`p-2 rounded-lg ${metodoPagamento === 'PIX' ? 'bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f]' : 'bg-gray-100'}`}>
                     <Smartphone size={24} className={metodoPagamento === 'PIX' ? 'text-white' : 'text-gray-600'} />
                   </div>
                   <div className="flex-1 text-left">
@@ -572,7 +579,7 @@ export default function PlanosPage() {
                     <p className="text-xs text-gray-600">Aprovação imediata</p>
                   </div>
                   {metodoPagamento === 'PIX' && (
-                    <Check size={20} className="text-[#00C2FF]" />
+                    <Check size={20} className="text-[#1e4976]" />
                   )}
                 </button>
 
@@ -580,11 +587,11 @@ export default function PlanosPage() {
                   onClick={() => setMetodoPagamento('BOLETO')}
                   className={`w-full p-4 rounded-xl border-2 transition-smooth flex items-center gap-3 ${
                     metodoPagamento === 'BOLETO'
-                      ? 'border-[#00C2FF] bg-[#E6F7FF]'
-                      : 'border-gray-200 hover:border-[#00C2FF]/50'
+                      ? 'border-[#1e4976] bg-[#E8EEF5]'
+                      : 'border-gray-200 hover:border-[#1e4976]/50'
                   }`}
                 >
-                  <div className={`p-2 rounded-lg ${metodoPagamento === 'BOLETO' ? 'bg-[#00C2FF]' : 'bg-gray-100'}`}>
+                  <div className={`p-2 rounded-lg ${metodoPagamento === 'BOLETO' ? 'bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f]' : 'bg-gray-100'}`}>
                     <Receipt size={24} className={metodoPagamento === 'BOLETO' ? 'text-white' : 'text-gray-600'} />
                   </div>
                   <div className="flex-1 text-left">
@@ -592,7 +599,7 @@ export default function PlanosPage() {
                     <p className="text-xs text-gray-600">Vencimento em 3 dias úteis</p>
                   </div>
                   {metodoPagamento === 'BOLETO' && (
-                    <Check size={20} className="text-[#00C2FF]" />
+                    <Check size={20} className="text-[#1e4976]" />
                   )}
                 </button>
 
@@ -600,11 +607,11 @@ export default function PlanosPage() {
                   onClick={() => setMetodoPagamento('CREDIT_CARD')}
                   className={`w-full p-4 rounded-xl border-2 transition-smooth flex items-center gap-3 ${
                     metodoPagamento === 'CREDIT_CARD'
-                      ? 'border-[#00C2FF] bg-[#E6F7FF]'
-                      : 'border-gray-200 hover:border-[#00C2FF]/50'
+                      ? 'border-[#1e4976] bg-[#E8EEF5]'
+                      : 'border-gray-200 hover:border-[#1e4976]/50'
                   }`}
                 >
-                  <div className={`p-2 rounded-lg ${metodoPagamento === 'CREDIT_CARD' ? 'bg-[#00C2FF]' : 'bg-gray-100'}`}>
+                  <div className={`p-2 rounded-lg ${metodoPagamento === 'CREDIT_CARD' ? 'bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f]' : 'bg-gray-100'}`}>
                     <CreditCard size={24} className={metodoPagamento === 'CREDIT_CARD' ? 'text-white' : 'text-gray-600'} />
                   </div>
                   <div className="flex-1 text-left">
@@ -612,7 +619,7 @@ export default function PlanosPage() {
                     <p className="text-xs text-gray-600">Aprovação imediata</p>
                   </div>
                   {metodoPagamento === 'CREDIT_CARD' && (
-                    <Check size={20} className="text-[#00C2FF]" />
+                    <Check size={20} className="text-[#1e4976]" />
                   )}
                 </button>
               </div>
@@ -631,7 +638,7 @@ export default function PlanosPage() {
               <button
                 onClick={() => handleProcessarPagamento()}
                 disabled={loadingCheckout !== null}
-                className="flex-1 px-4 py-3 bg-[#00C2FF] text-white rounded-xl font-semibold hover:bg-[#0099CC] transition-smooth disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white rounded-xl font-semibold hover:opacity-90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loadingCheckout ? (
                   <>
@@ -690,7 +697,7 @@ export default function PlanosPage() {
                   }}
                   placeholder="000.000.000-00"
                   maxLength={14}
-                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-[#0D1B2A] placeholder-gray-400 focus:outline-none focus:border-[#00C2FF] transition-smooth"
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-[#0D1B2A] placeholder-gray-400 focus:outline-none focus:border-[#1e4976] transition-smooth"
                 />
               </div>
             </div>
@@ -754,7 +761,7 @@ export default function PlanosPage() {
                   }
                 }}
                 disabled={loadingCpf || !cpf.replace(/\D/g, '').match(/^\d{11}$/)}
-                className="flex-1 px-4 py-3 bg-[#00C2FF] text-white rounded-xl font-semibold hover:bg-[#0099CC] transition-smooth disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white rounded-xl font-semibold hover:opacity-90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loadingCpf ? (
                   <>

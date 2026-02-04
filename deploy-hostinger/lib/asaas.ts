@@ -3,15 +3,15 @@
 
 const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3'
 
-// IMPORTANTE: Em produção, as variáveis vêm de process.env (não de .env.local)
-// Vamos ler apenas de process.env para evitar erros durante o build
+// IMPORTANTE: Em produção (Railway), as variáveis vêm de process.env (não de .env.local)
+// Ler apenas de process.env para evitar erros durante o build
 function getAsaasApiKey(): string {
   let apiKey = process.env.ASAAS_API_KEY
 
-  // No ambiente de produção, não tentar ler .env.local
+  // No ambiente de produção (Railway, etc.), não tentar ler .env.local
   // pois ele não existe lá - as variáveis estão em process.env
-  const nodeEnv = process.env.NODE_ENV || ''
-  if (!apiKey && nodeEnv !== 'production') {
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY || process.env.RENDER
+  if (!apiKey && !isProduction) {
     try {
       const fs = require('fs')
       const path = require('path')
@@ -23,10 +23,9 @@ function getAsaasApiKey(): string {
         console.log('✅ [lib/asaas] API Key carregada diretamente do arquivo .env.local')
       }
     } catch (fileError: any) {
-      // Ignorar erro no build - em produção as variáveis vêm de process.env
-      // Verificar NODE_ENV de forma segura para evitar erro de tipo
-      const nodeEnv = process.env.NODE_ENV || ''
-      if (nodeEnv !== 'production') {
+      // Ignorar erro em produção - arquivo não existe
+      // Em desenvolvimento, apenas logar se não for erro de arquivo não encontrado
+      if (!isProduction && fileError.code !== 'ENOENT') {
         console.error('❌ [lib/asaas] Erro ao ler .env.local:', fileError.message)
       }
     }
@@ -45,7 +44,7 @@ function getAsaasApiKeyLazy(): string {
   if (cachedApiKey === null) {
     cachedApiKey = getAsaasApiKey()
     if (!cachedApiKey) {
-      throw new Error('ASAAS_API_KEY não está configurada. Configure a variável de ambiente ASAAS_API_KEY no painel do servidor.')
+      throw new Error('ASAAS_API_KEY não está configurada. Configure a variável de ambiente ASAAS_API_KEY no Railway.')
     }
   }
   return cachedApiKey

@@ -635,21 +635,21 @@ Estou por aqui pra começarmos 🚀`,
     console.log('📤 [WhatsApp PLEN] Result completo:', plenResult ? JSON.stringify(plenResult, null, 2).substring(0, 500) : 'null')
     console.log('📤 [WhatsApp PLEN] ==========================================')
     
-    // CRÍTICO: Se não retornou resultado válido, retornar mensagem padrão
+    // Se não retornou resultado válido, devolver mensagem útil (nunca genérica)
     if (!plenResult || !plenResult.success || !plenResult.message) {
-      console.error('❌ [WhatsApp PLEN] ==========================================')
-      console.error('❌ [WhatsApp PLEN] RESULTADO INVÁLIDO DO PLEN')
-      console.error('❌ [WhatsApp PLEN] Result é null?', plenResult === null)
-      console.error('❌ [WhatsApp PLEN] Result tem success?', plenResult?.success)
-      console.error('❌ [WhatsApp PLEN] Result tem message?', !!plenResult?.message)
-      console.error('❌ [WhatsApp PLEN] Result completo:', plenResult ? JSON.stringify(plenResult, null, 2).substring(0, 500) : 'null')
-      console.error('❌ [WhatsApp PLEN] Retornando mensagem padrão')
-      console.error('❌ [WhatsApp PLEN] ==========================================')
-      
-      return {
-        success: true,
-        message: 'Desculpe, não consegui processar sua mensagem. Por favor, tente novamente.',
-      }
+      console.error('❌ [WhatsApp PLEN] RESULTADO INVÁLIDO DO PLEN:', plenResult === null ? 'null' : JSON.stringify(plenResult).slice(0, 300))
+      try {
+        const { plenWhatsAppLog } = await import('@/lib/plen-whatsapp-logs')
+        plenWhatsAppLog({
+          step: 'invalid_result',
+          userId: userContext.userId ?? undefined,
+          message: text.substring(0, 200),
+          plenResult: plenResult ?? undefined,
+          error: 'Resultado null ou sem success/message',
+        })
+      } catch (_) {}
+      const fallback = (plenResult?.message && String(plenResult.message).trim()) || 'Erro: resultado inválido do assistente (sem mensagem).'
+      return { success: true, message: fallback }
     }
     
     console.log('✅ [WhatsApp PLEN] Resultado válido, retornando resposta')
@@ -664,16 +664,12 @@ Estou por aqui pra começarmos 🚀`,
     
     return plenResult
   } catch (error: any) {
-    console.error('❌ [WhatsApp PLEN] ==========================================')
-    console.error('❌ [WhatsApp PLEN] ERRO AO PROCESSAR MENSAGEM')
-    console.error('❌ [WhatsApp PLEN] Error:', error.message)
-    console.error('❌ [WhatsApp PLEN] Stack:', error.stack?.substring(0, 500))
-    console.error('❌ [WhatsApp PLEN] ==========================================')
-    
-    // CRÍTICO: Sempre retornar uma resposta, mesmo em caso de erro
+    const errMsg = error?.message ?? String(error)
+    console.error('❌ [WhatsApp PLEN] ERRO AO PROCESSAR MENSAGEM:', errMsg)
+    console.error('❌ [WhatsApp PLEN] Stack:', error?.stack?.substring(0, 400))
     return {
       success: true,
-      message: 'Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente.',
+      message: `Erro: ${errMsg}`,
     }
   }
 }
@@ -1041,17 +1037,13 @@ async function authenticateWhatsAppUser(
 
 /**
  * Processar mensagem com assistente PLEN
- * 
- * IMPORTANTE: Para integrar com PLEN, precisamos chamar a API interna
- * Como estamos em um webhook, vamos fazer uma chamada HTTP interna
+ * Chamada direta à lógica (sem fetch), para não depender de URL ou rede.
  */
 async function processWithPLEN(userId: string, text: string, imageBase64?: string) {
   try {
-    // Importar addLog dinamicamente para evitar problemas de circular dependency
     const { addLog } = await import('@/lib/server-logs')
     
-    // CRÍTICO: Verificar desativação ANTES de chamar a API
-    // Isso garante que mesmo se a mensagem chegar aqui, será detectada
+    // Verificar desativação antes de processar
     if (text && typeof text === 'string') {
       const msgLower = text.toLowerCase().trim()
       const isDeactivation = 
@@ -1065,13 +1057,8 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
         (msgLower.includes('para') && msgLower.includes('assistente') && msgLower.includes('plen'))
       
       if (isDeactivation) {
-        console.log('🛑 [WhatsApp PLEN] ==========================================')
-        console.log('🛑 [WhatsApp PLEN] DESATIVAÇÃO DETECTADA NO processWithPLEN!')
-        console.log('🛑 [WhatsApp PLEN] Text:', text)
-        console.log('🛑 [WhatsApp PLEN] ==========================================')
-        addLog('info', `🛑 [PLEN WhatsApp] DESATIVAÇÃO DETECTADA NO processWithPLEN: ${text}`)
-        process.stdout.write(`\n🛑 DESATIVAÇÃO DETECTADA NO processWithPLEN: ${text}\n`)
-        
+        console.log('🛑 [WhatsApp PLEN] DESATIVAÇÃO DETECTADA')
+        addLog('info', `🛑 [PLEN WhatsApp] DESATIVAÇÃO: ${text}`)
         return {
           success: true,
           message: `☕ Ok, vou beber um cafezinho enquanto isso! 😊\n\nQuando precisar, é só mandar "chamar assistente plen" que eu já volto! 👋\n\n💤 Estou descansando... zzz`,
@@ -1079,186 +1066,36 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
       }
     }
     
-    // Chamar API especial do PLEN para WhatsApp (não precisa autenticação)
-    // CRÍTICO: Em ambiente server-side, usar URL absoluta baseada no host da requisição
-    // Se não tiver, usar localhost como fallback
-    let apiUrl = process.env.NEXT_PUBLIC_SITE_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : undefined) || 'http://localhost:3000'
+    // Chamada direta (sem HTTP): não depende de NEXT_PUBLIC_SITE_URL nem da rota estar acessível
+    const { processPlenWhatsAppMessage } = await import('@/lib/plen-whatsapp-chat')
+    const result = await processPlenWhatsAppMessage(userId, text)
     
-    // Garantir que tem protocolo
-    if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
-      apiUrl = `http://${apiUrl}`
-    }
+    console.log('✅ [WhatsApp PLEN] Resposta direta:', result.response?.substring(0, 80))
+    addLog('info', `✅ [PLEN WhatsApp] Resposta: ${result.response?.substring(0, 100)}`)
     
-    const url = `${apiUrl}/api/plen/whatsapp-chat`
-    
-    // Logar ANTES de fazer fetch
-    console.log('='.repeat(80))
-    console.log('📞📞📞 [WhatsApp PLEN] CHAMANDO API PLEN WHATSAPP 📞📞📞')
-    console.log('📞 [WhatsApp PLEN] URL:', url)
-    console.log('📞 [WhatsApp PLEN] User ID:', userId)
-    console.log('📞 [WhatsApp PLEN] Text:', text.substring(0, 100))
-    console.log('='.repeat(80))
-    console.error('📞 [WhatsApp PLEN] CHAMANDO API (stderr)!', url)
-    
-    // CRÍTICO: Logar no stdout para garantir que aparece no Render
-    process.stdout.write('\n')
-    process.stdout.write('='.repeat(80) + '\n')
-    process.stdout.write('[WhatsApp PLEN] CHAMANDO API PLEN WHATSAPP\n')
-    process.stdout.write('[WhatsApp PLEN] URL: ' + url + '\n')
-    process.stdout.write('[WhatsApp PLEN] User ID: ' + userId + '\n')
-    process.stdout.write('[WhatsApp PLEN] Text: ' + text.substring(0, 100) + '\n')
-    process.stdout.write('='.repeat(80) + '\n')
-    
-    try {
-      addLog('info', `📞 [WhatsApp PLEN] CHAMANDO API: ${url}`)
-    } catch (e) {
-      console.error('Erro ao adicionar log:', e)
-    }
-    
-    // CRÍTICO: Adicionar timeout e melhor tratamento de erros
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 segundos timeout
-    
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId,
-          message: text,
-          imageBase64: imageBase64, // Enviar imagem se disponível
-        }),
-        signal: controller.signal,
-      })
-      
-      clearTimeout(timeoutId)
-
-      const statusMsg = `📡 [WhatsApp PLEN] Status da resposta: ${response.status} ${response.statusText}`
-      console.log('📡 [WhatsApp PLEN] Status da resposta:', response.status, response.statusText)
-      addLog('info', statusMsg)
-
-      // Ler resposta como texto primeiro para debug
-      const responseText = await response.text()
-      const responsePreview = responseText.substring(0, 500)
-      console.log('📡 [WhatsApp PLEN] Resposta bruta (primeiros 500 chars):', responsePreview)
-      addLog('info', `📡 [WhatsApp PLEN] Resposta: ${responsePreview}`)
-      
-      let data: any = {}
-      try {
-        data = JSON.parse(responseText)
-        console.log('✅ [WhatsApp PLEN] JSON parseado com sucesso')
-      } catch (parseError) {
-        console.error('❌ [WhatsApp PLEN] Erro ao fazer parse do JSON:', parseError)
-        console.error('❌ [WhatsApp PLEN] Resposta completa:', responseText)
-        
-        // Se não conseguiu fazer parse mas status é OK, tentar usar texto como resposta
-        if (response.ok && responseText.trim()) {
-          return {
-            success: true,
-            message: responseText.substring(0, 1000), // Limitar tamanho
-          }
-        }
-        
-        throw new Error(`Resposta inválida da API: ${responseText.substring(0, 200)}`)
-      }
-
-      if (!response.ok) {
-        console.error('❌ [WhatsApp PLEN] Erro na resposta da API:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData: data,
-        })
-        
-        // CRÍTICO: Mesmo com erro, se tem campo "response", usar ele
-        // A API pode retornar status 500 mas ainda ter uma mensagem útil
-        if (data.response) {
-          console.log('✅ [WhatsApp PLEN] Usando campo response mesmo com erro HTTP')
-          return {
-            success: true,
-            message: data.response,
-          }
-        }
-        
-        throw new Error(`API retornou ${response.status}: ${data.error || data.details || 'Erro desconhecido'}`)
-      }
-
-      console.log('✅ [WhatsApp PLEN] Resposta recebida:', { 
-        hasResponse: !!data.response,
-        responseLength: data.response?.length || 0,
-        error: data.error || null,
-        dataKeys: Object.keys(data),
-      })
-
-      // CRÍTICO: Sempre verificar campo "response" primeiro
-      if (data.response) {
-        console.log('✅ [WhatsApp PLEN] Retornando resposta do campo response')
-        return {
-          success: true,
-          message: data.response,
-        }
-      }
-
-      // Se veio erro na resposta mas não tem response
-      if (data.error) {
-        console.error('❌ [WhatsApp PLEN] Erro na resposta:', data.error)
-        return {
-          success: true,
-          message: `❌ Erro: ${data.error}. ${data.details || ''}`,
-        }
-      }
-
-      // Se não tem response nem error, retornar mensagem padrão
-      console.warn('⚠️ [WhatsApp PLEN] Resposta sem campo response nem error')
-      return {
-        success: true,
-        message: 'Desculpe, não consegui processar sua mensagem. Tente novamente.',
-      }
-    } catch (fetchError: any) {
-      clearTimeout(timeoutId)
-      
-      if (fetchError.name === 'AbortError') {
-        console.error('❌ [WhatsApp PLEN] Timeout ao chamar API PLEN (30 segundos)')
-        return {
-          success: true,
-          message: '⏱️ A requisição demorou muito. Tente novamente em alguns instantes.',
-        }
-      }
-      
-      throw fetchError
+    return {
+      success: true,
+      message: result.response,
     }
   } catch (error: any) {
-    console.error('❌ [WhatsApp PLEN] ==========================================')
-    console.error('❌ [WhatsApp PLEN] ERRO AO CHAMAR PLEN')
-    console.error('❌ [WhatsApp PLEN] Error:', error.message)
-    console.error('❌ [WhatsApp PLEN] Stack:', error.stack?.substring(0, 500))
-    console.error('❌ [WhatsApp PLEN] Name:', error.name)
-    console.error('❌ [WhatsApp PLEN] Code:', error.code)
-    console.error('❌ [WhatsApp PLEN] ==========================================')
+    const errMsg = error?.message ?? String(error)
+    console.error('❌ [WhatsApp PLEN] ERRO:', errMsg)
+    console.error('❌ [WhatsApp PLEN] Stack:', error?.stack?.substring(0, 400))
     
-    // CRÍTICO: Sempre retornar uma resposta, mesmo em caso de erro
+    try {
+      const { plenWhatsAppLog } = await import('@/lib/plen-whatsapp-logs')
+      plenWhatsAppLog({
+        step: 'error',
+        userId,
+        message: text?.substring(0, 200),
+        error: errMsg,
+      })
+    } catch (_) {}
+    
+    // Sempre devolver o erro REAL para o usuário ver no WhatsApp e descobrirmos a causa
     return {
       success: true,
-      message: 'Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente.',
-    }
-    
-    // Mensagem de erro mais específica
-    let errorMessage = 'Desculpe, ocorreu um erro. Tente novamente em alguns instantes.'
-    
-    if (error.message?.includes('usuário') || error.message?.includes('user')) {
-      errorMessage = '❌ Para registrar transações, você precisa criar pelo menos um usuário/pessoa primeiro.\n\n📱 Acesse: https://plenipay.com/configuracoes\n\nVá em "Usuários/Pessoas" e clique em "+ Novo Usuário".'
-    } else if (error.message?.includes('plano') || error.message?.includes('limite')) {
-      errorMessage = `❌ ${error.message}`
-    } else if (error.message?.includes('permission') || error.message?.includes('permissão')) {
-      errorMessage = '❌ Erro de permissão. Verifique se sua conta está ativa.'
-    } else if (error.message) {
-      errorMessage = `❌ Erro: ${error.message}`
-    }
-    
-    return {
-      success: true,
-      message: errorMessage,
+      message: `Erro: ${errMsg}`,
     }
   }
 }

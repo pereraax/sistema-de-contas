@@ -295,24 +295,44 @@ export default function PlenAssistant() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/plen/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: messageText,
-          conversationHistory: messages.slice(-10).map(m => ({
-            role: m.role,
-            content: m.content
-          }))
-        }),
-      })
+      let response: Response
+      try {
+        response = await fetch('/api/plen/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            message: messageText,
+            conversationHistory: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
+          }),
+        })
+      } catch (fetchErr: any) {
+        const networkMsg = fetchErr?.message || String(fetchErr)
+        throw new Error(networkMsg === 'Failed to fetch' ? 'Não foi possível conectar ao servidor. Verifique a internet ou tente de novo.' : networkMsg)
+      }
 
-      const data = await response.json()
+      let data: { response?: string; error?: string; actionData?: any; pendingAction?: any } = {}
+      try {
+        data = await response.json()
+      } catch (_) {
+        const text = (await response.text().catch(() => '')) || ''
+        const is404 = response.status === 404
+        const is500 = response.status === 500
+        throw new Error(
+          is404
+            ? 'Rota do assistente não encontrada (404). Faça deploy da aplicação ou rode em desenvolvimento.'
+            : is500
+              ? `Servidor retornou erro 500. ${text.slice(0, 100)}`
+              : text || `Erro HTTP ${response.status}`
+        )
+      }
 
       if (data.error) {
         throw new Error(data.error)
+      }
+
+      if (!response.ok && !data.response) {
+        throw new Error(data.error || `Erro ${response.status}`)
       }
 
       // Verificar se há confirmação pendente
@@ -335,18 +355,23 @@ export default function PlenAssistant() {
       // Se houve ação executada, mostrar notificação
       if (data.actionData?.action === 'created') {
         createNotification(data.actionData.message || 'Ação executada com sucesso!', 'success')
-        setPendingConfirmation(null) // Limpar confirmação pendente após registro
+        setPendingConfirmation(null)
       }
     } catch (error: any) {
-      console.error('Erro ao enviar mensagem:', error)
+      const errMsg =
+        (error && typeof error === 'object' && error.message) ||
+        (typeof error === 'string' && error) ||
+        (error && String(error)) ||
+        'Erro desconhecido'
+      console.error('[PLEN] Erro ao enviar mensagem:', error, '-> exibindo:', errMsg)
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente.',
+        content: `Erro: ${errMsg}. Verifique sua conexão e se está logado.`,
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errorMessage])
-      createNotification('Erro ao processar mensagem', 'warning')
+      createNotification(errMsg, 'warning')
     } finally {
       setIsLoading(false)
     }

@@ -68,6 +68,13 @@ const nextConfig = {
   //     },
   //   ]
   // },
+
+  // Corrige 404 em assets: se algo pedir /next/static em vez de /_next/static, reescrever
+  async rewrites() {
+    return [
+      { source: '/next/static/:path*', destination: '/_next/static/:path*' },
+    ]
+  },
   
   // Headers de segurança (apenas em produção)
   async headers() {

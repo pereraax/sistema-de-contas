@@ -107,7 +107,7 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
     const diasVaziosInicio = Array.from({ length: primeiroDiaSemana }, (_, i) => i)
 
     return (
-      <div className="grid grid-cols-7 gap-2">
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
         {diasVaziosInicio.map((_, index) => (
           <div key={`empty-${index}`} className="aspect-square" />
         ))}
@@ -129,10 +129,10 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
               }}
               className={`aspect-square p-1.5 rounded-xl border-2 transition-all hover:scale-105 overflow-hidden ${
                 isSelected
-                  ? 'border-brand-aqua bg-gradient-to-br from-brand-aqua/20 to-brand-blue/20 dark:from-brand-aqua/30 dark:to-brand-blue/30 shadow-lg shadow-brand-aqua/20'
+                  ? 'border-brand-aqua bg-white dark:bg-brand-royal shadow-lg shadow-brand-aqua/20'
                   : isToday
-                  ? 'border-brand-aqua/50 bg-gradient-to-br from-brand-aqua/10 to-brand-blue/10 dark:from-brand-aqua/20 dark:to-brand-blue/20'
-                  : 'border-gray-200 dark:border-white/20 hover:border-brand-aqua/50 dark:hover:border-brand-aqua/50 hover:bg-gray-50 dark:hover:bg-white/5'
+                  ? 'border-brand-aqua/50 bg-white dark:bg-brand-royal'
+                  : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-royal hover:border-brand-aqua/50 dark:hover:border-brand-aqua/50'
               }`}
             >
               <div className="flex flex-col h-full min-h-0">
@@ -180,68 +180,70 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
     const diasSemana = eachDayOfInterval({ start: inicioSemana, end: fimSemana })
 
     return (
-      <div className="grid grid-cols-7 gap-3">
-        {diasSemana.map((dia) => {
-          const registrosDia = registrosPorData(dia)
-          const isSelected = dataSelecionada && isSameDay(dia, dataSelecionada)
-          const isToday = isSameDay(dia, new Date())
-          const isOutroMes = !isSameMonth(dia, dataAtual)
+      <div className="overflow-x-auto -mx-6 px-6">
+        <div className="grid grid-cols-7 gap-2 sm:gap-3 min-w-[700px]">
+          {diasSemana.map((dia) => {
+            const registrosDia = registrosPorData(dia)
+            const isSelected = dataSelecionada && isSameDay(dia, dataSelecionada)
+            const isToday = isSameDay(dia, new Date())
+            const isOutroMes = !isSameMonth(dia, dataAtual)
 
-          const totalEntrada = registrosDia.filter(r => r.tipo === 'entrada').reduce((sum, r) => sum + r.valor, 0)
-          const totalSaida = registrosDia.filter(r => r.tipo === 'saida').reduce((sum, r) => sum + r.valor, 0)
-          const saldo = totalEntrada - totalSaida
+            const totalEntrada = registrosDia.filter(r => r.tipo === 'entrada').reduce((sum, r) => sum + r.valor, 0)
+            const totalSaida = registrosDia.filter(r => r.tipo === 'saida').reduce((sum, r) => sum + r.valor, 0)
+            const saldo = totalEntrada - totalSaida
 
-          return (
-            <div
-              key={dia.toISOString()}
-              className={`rounded-xl border-2 p-4 min-h-[200px] transition-all ${
-                isSelected
-                  ? 'border-brand-aqua bg-gradient-to-br from-brand-aqua/20 to-brand-blue/20 dark:from-brand-aqua/30 dark:to-brand-blue/30 shadow-lg'
-                  : isToday
-                  ? 'border-brand-aqua/50 bg-gradient-to-br from-brand-aqua/10 to-brand-blue/10 dark:from-brand-aqua/20 dark:to-brand-blue/20'
-                  : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight/50'
-              }`}
-            >
-              <button
-                onClick={() => {
-                  setDataSelecionada(dia)
-                  setDataModal(dia)
-                }}
-                className="w-full text-left mb-3"
+            return (
+              <div
+                key={dia.toISOString()}
+                className={`rounded-xl border-2 p-2 sm:p-3 md:p-4 min-h-[180px] sm:min-h-[200px] transition-all ${
+                  isSelected
+                    ? 'border-brand-aqua bg-white dark:bg-brand-royal shadow-lg'
+                    : isToday
+                    ? 'border-brand-aqua/50 bg-white dark:bg-brand-royal'
+                    : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-royal'
+                }`}
               >
-                <div className={`text-sm font-bold mb-1 ${isOutroMes ? 'text-gray-400' : isToday ? 'text-brand-aqua' : 'text-brand-midnight dark:text-brand-clean'}`}>
-                  {format(dia, 'EEE', { locale: ptBR })}
+                <button
+                  onClick={() => {
+                    setDataSelecionada(dia)
+                    setDataModal(dia)
+                  }}
+                  className="w-full text-left mb-2 sm:mb-3"
+                >
+                  <div className={`text-[10px] sm:text-xs font-bold mb-0.5 sm:mb-1 ${isOutroMes ? 'text-gray-400' : isToday ? 'text-brand-aqua' : 'text-brand-midnight dark:text-brand-clean'}`}>
+                    {format(dia, 'EEE', { locale: ptBR })}
+                  </div>
+                  <div className={`text-lg sm:text-xl md:text-2xl font-bold ${isOutroMes ? 'text-gray-400' : isToday ? 'text-brand-aqua' : 'text-brand-midnight dark:text-brand-clean'}`}>
+                    {format(dia, 'd')}
+                  </div>
+                </button>
+                
+                <div className="space-y-1.5 sm:space-y-2">
+                  {totalEntrada > 0 && (
+                    <div className="text-[10px] sm:text-xs font-semibold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded leading-tight">
+                      +{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalEntrada)}
+                    </div>
+                  )}
+                  {totalSaida > 0 && (
+                    <div className="text-[10px] sm:text-xs font-semibold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded leading-tight">
+                      -{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalSaida)}
+                    </div>
+                  )}
+                  {saldo !== 0 && (
+                    <div className={`text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded leading-tight ${saldo > 0 ? 'text-green-700 dark:text-green-300 bg-green-200 dark:bg-green-900/40' : 'text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/40'}`}>
+                      Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(saldo)}
+                    </div>
+                  )}
+                  {registrosDia.length > 0 && (
+                    <div className="text-[9px] sm:text-xs text-brand-midnight/60 dark:text-brand-clean/60 mt-1.5 sm:mt-2">
+                      {registrosDia.length} {registrosDia.length === 1 ? 'registro' : 'registros'}
+                    </div>
+                  )}
                 </div>
-                <div className={`text-2xl font-bold ${isOutroMes ? 'text-gray-400' : isToday ? 'text-brand-aqua' : 'text-brand-midnight dark:text-brand-clean'}`}>
-                  {format(dia, 'd')}
-                </div>
-              </button>
-              
-              <div className="space-y-2">
-                {totalEntrada > 0 && (
-                  <div className="text-xs font-semibold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded">
-                    +{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(totalEntrada)}
-                  </div>
-                )}
-                {totalSaida > 0 && (
-                  <div className="text-xs font-semibold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
-                    -{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(totalSaida)}
-                  </div>
-                )}
-                {saldo !== 0 && (
-                  <div className={`text-xs font-bold px-2 py-1 rounded ${saldo > 0 ? 'text-green-700 dark:text-green-300 bg-green-200 dark:bg-green-900/40' : 'text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/40'}`}>
-                    Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(saldo)}
-                  </div>
-                )}
-                {registrosDia.length > 0 && (
-                  <div className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mt-2">
-                    {registrosDia.length} {registrosDia.length === 1 ? 'registro' : 'registros'}
-                  </div>
-                )}
               </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
     )
   }
@@ -271,8 +273,8 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
               }}
               className={`p-4 rounded-xl border-2 transition-all hover:scale-105 ${
                 isMesAtual
-                  ? 'border-brand-aqua bg-gradient-to-br from-brand-aqua/20 to-brand-blue/20 dark:from-brand-aqua/30 dark:to-brand-blue/30 shadow-lg'
-                  : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight/50 hover:border-brand-aqua/50'
+                  ? 'border-brand-aqua bg-white dark:bg-brand-royal shadow-lg'
+                  : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-royal hover:border-brand-aqua/50'
               }`}
             >
               <div className="text-lg font-bold text-brand-midnight dark:text-brand-clean mb-2">
@@ -313,55 +315,55 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
 
   return (
     <div className="space-y-6">
-      {/* Cabeçalho com controles */}
-      <div className="bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl p-6 shadow-2xl border-2 border-brand-aqua/20 dark:border-brand-aqua/30">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+      {/* Cabeçalho com controles - Responsivo */}
+      <div className="bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl border-2 border-brand-aqua/20 dark:border-brand-aqua/30">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
           {/* Título e navegação */}
-          <div className="flex items-center gap-4">
-            <div className="p-2 bg-brand-aqua/20 dark:bg-brand-aqua/30 rounded-xl">
-              <Calendar size={24} className="text-brand-aqua" strokeWidth={2.5} />
+          <div className="flex items-center gap-2 sm:gap-4 w-full md:w-auto">
+            <div className="p-1.5 sm:p-2 bg-brand-aqua/20 dark:bg-brand-aqua/30 rounded-xl flex-shrink-0">
+              <Calendar size={20} className="sm:w-6 sm:h-6 text-brand-aqua" strokeWidth={2.5} />
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-brand-midnight dark:text-brand-clean">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-brand-midnight dark:text-brand-clean truncate">
                 {getTituloPeriodo()}
               </h2>
             </div>
           </div>
 
           {/* Botões de navegação */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 w-full md:w-auto justify-end">
             <button
               onClick={periodoAnterior}
-              className="p-2 hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-xl transition-smooth text-brand-midnight dark:text-brand-clean"
+              className="p-1.5 sm:p-2 hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-xl transition-smooth text-brand-midnight dark:text-brand-clean flex-shrink-0"
             >
-              <ChevronLeft size={24} strokeWidth={2.5} />
+              <ChevronLeft size={20} className="sm:w-6 sm:h-6" strokeWidth={2.5} />
             </button>
             <button
               onClick={irParaHoje}
-              className="px-4 py-2 bg-brand-aqua text-brand-midnight rounded-xl hover:bg-brand-aqua/90 transition-smooth font-semibold text-sm shadow-md hover:shadow-lg"
+              className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-aqua text-white rounded-xl hover:bg-brand-aqua/90 transition-smooth font-semibold text-xs sm:text-sm shadow-md hover:shadow-lg flex-shrink-0"
             >
               Hoje
             </button>
             <button
               onClick={proximoPeriodo}
-              className="p-2 hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-xl transition-smooth text-brand-midnight dark:text-brand-clean"
+              className="p-1.5 sm:p-2 hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-xl transition-smooth text-brand-midnight dark:text-brand-clean flex-shrink-0"
             >
-              <ChevronRight size={24} strokeWidth={2.5} />
+              <ChevronRight size={20} className="sm:w-6 sm:h-6" strokeWidth={2.5} />
             </button>
           </div>
         </div>
 
-        {/* Opções de visualização e filtros */}
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Opções de visualização e filtros - Responsivo */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Botões de vista */}
-          <div className="flex gap-2 bg-gray-100 dark:bg-brand-midnight/80 p-1 rounded-xl">
+          <div className="flex gap-1 sm:gap-2 bg-gray-100 dark:bg-brand-midnight/80 p-0.5 sm:p-1 rounded-xl">
             {(['mes', 'semana', 'ano'] as VistaCalendario[]).map((v) => (
               <button
                 key={v}
                 onClick={() => setVista(v)}
-                className={`px-4 py-2 rounded-lg font-semibold text-sm transition-smooth ${
+                className={`px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-semibold text-xs sm:text-sm transition-smooth ${
                   vista === v
-                    ? 'bg-brand-aqua text-brand-midnight shadow-md'
+                    ? 'bg-brand-aqua text-white shadow-md'
                     : 'text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-white/10'
                 }`}
               >
@@ -373,16 +375,17 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
           {/* Botão de filtros */}
           <button
             onClick={() => setMostrarFiltros(!mostrarFiltros)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm transition-smooth ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-semibold text-xs sm:text-sm transition-smooth ${
               mostrarFiltros || temFiltrosAtivos
-                ? 'bg-brand-aqua text-brand-midnight shadow-md'
+                ? 'bg-brand-aqua text-white shadow-md'
                 : 'bg-gray-100 dark:bg-brand-midnight/80 text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-white/10'
             }`}
           >
-            <Filter size={18} strokeWidth={2.5} />
-            Filtros
+            <Filter size={16} className="sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
+            <span className="hidden sm:inline">Filtros</span>
+            <span className="sm:hidden">Filt.</span>
             {temFiltrosAtivos && (
-              <span className="bg-brand-midnight text-brand-aqua rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+              <span className="bg-brand-midnight text-brand-aqua rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-[10px] sm:text-xs font-bold">
                 {[filtroTipo, filtroUsuario, filtroEtiqueta].filter(Boolean).length}
               </span>
             )}
@@ -391,9 +394,9 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
           {temFiltrosAtivos && (
             <button
               onClick={limparFiltros}
-              className="flex items-center gap-2 px-4 py-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl font-semibold text-sm hover:bg-red-200 dark:hover:bg-red-900/30 transition-smooth"
+              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl font-semibold text-xs sm:text-sm hover:bg-red-200 dark:hover:bg-red-900/30 transition-smooth"
             >
-              <X size={18} strokeWidth={2.5} />
+              <X size={16} className="sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
               Limpar
             </button>
           )}
@@ -414,7 +417,9 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
                     onClick={() => setDropdownTipoAberto(!dropdownTipoAberto)}
                     className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight hover:border-brand-aqua/50 flex items-center justify-between shadow-sm"
                   >
-                    <span className={filtroTipo ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}>
+                    <span className={`flex items-center gap-2 ${filtroTipo ? 'font-medium' : 'text-gray-500 dark:text-brand-clean/60'}`}>
+                      {filtroTipo === 'entrada' && <div className="w-2.5 h-2.5 rounded-full bg-green-500" />}
+                      {filtroTipo === 'saida' && <div className="w-2.5 h-2.5 rounded-full bg-red-500" />}
                       {filtroTipo === 'entrada' ? 'Entrada' : filtroTipo === 'saida' ? 'Saída' : 'Todos'}
                     </span>
                     <ChevronDown 
@@ -452,13 +457,16 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
                             setFiltroTipo('entrada')
                             setDropdownTipoAberto(false)
                           }}
-                          className={`w-full px-4 py-3 text-left flex items-center justify-between transition-smooth border-t border-gray-100 dark:border-white/10 ${
+                          className={`w-full px-4 py-3 text-left flex items-center justify-between transition-all border-t border-gray-100 dark:border-white/10 ${
                             filtroTipo === 'entrada'
-                              ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
-                              : 'text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+                              ? 'bg-gradient-to-r from-green-500 to-green-600 text-white font-bold shadow-md'
+                              : 'text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
                           }`}
                         >
-                          <span>Entrada</span>
+                          <span className="flex items-center gap-2">
+                            <div className={`w-2.5 h-2.5 rounded-full ${filtroTipo === 'entrada' ? 'bg-white' : 'bg-green-500'}`} />
+                            Entrada
+                          </span>
                           {filtroTipo === 'entrada' && <Check size={18} strokeWidth={3} />}
                         </button>
                         <button
@@ -467,13 +475,16 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
                             setFiltroTipo('saida')
                             setDropdownTipoAberto(false)
                           }}
-                          className={`w-full px-4 py-3 text-left flex items-center justify-between transition-smooth border-t border-gray-100 dark:border-white/10 ${
+                          className={`w-full px-4 py-3 text-left flex items-center justify-between transition-all border-t border-gray-100 dark:border-white/10 ${
                             filtroTipo === 'saida'
-                              ? 'bg-gradient-to-r from-brand-aqua to-brand-blue text-white font-bold'
-                              : 'text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20'
+                              ? 'bg-gradient-to-r from-red-500 to-red-600 text-white font-bold shadow-md'
+                              : 'text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
                           }`}
                         >
-                          <span>Saída</span>
+                          <span className="flex items-center gap-2">
+                            <div className={`w-2.5 h-2.5 rounded-full ${filtroTipo === 'saida' ? 'bg-white' : 'bg-red-500'}`} />
+                            Saída
+                          </span>
                           {filtroTipo === 'saida' && <Check size={18} strokeWidth={3} />}
                         </button>
                       </div>
@@ -624,16 +635,16 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
         )}
       </div>
 
-      {/* Calendário */}
-      <div className="bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl p-6 shadow-2xl border-2 border-brand-aqua/20 dark:border-brand-aqua/30">
+      {/* Calendário - Responsivo */}
+      <div className="bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl border-2 border-brand-aqua/20 dark:border-brand-aqua/30">
         {vista === 'mes' && (
           <>
-            {/* Dias da semana */}
-            <div className="grid grid-cols-7 gap-2 mb-4">
+            {/* Dias da semana - Responsivo */}
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-4">
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia) => (
                 <div
                   key={dia}
-                  className="text-center text-sm font-bold text-brand-midnight dark:text-brand-clean py-2 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg"
+                  className="text-center text-xs sm:text-sm font-bold text-brand-midnight dark:text-brand-clean py-1.5 sm:py-2 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg"
                 >
                   {dia}
                 </div>
@@ -645,16 +656,18 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
 
         {vista === 'semana' && (
           <>
-            {/* Dias da semana */}
-            <div className="grid grid-cols-7 gap-3 mb-4">
-              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia) => (
-                <div
-                  key={dia}
-                  className="text-center text-sm font-bold text-brand-midnight dark:text-brand-clean py-2 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg"
-                >
-                  {dia}
-                </div>
-              ))}
+            {/* Dias da semana - Responsivo */}
+            <div className="overflow-x-auto -mx-6 px-6 mb-4">
+              <div className="grid grid-cols-7 gap-2 sm:gap-3 min-w-[700px]">
+                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia) => (
+                  <div
+                    key={dia}
+                    className="text-center text-xs sm:text-sm font-bold text-brand-midnight dark:text-brand-clean py-1.5 sm:py-2 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg"
+                  >
+                    {dia}
+                  </div>
+                ))}
+              </div>
             </div>
             {renderVistaSemana()}
           </>

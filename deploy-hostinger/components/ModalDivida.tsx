@@ -70,6 +70,21 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
     { id: 'viagem', nome: 'Viagem', icon: Plane },
   ]
 
+  // Cores para categorias (cada categoria tem sua própria cor)
+  const categoriaColors: Record<string, string> = {
+    alimentacao: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800/50',
+    transporte: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800/50',
+    moradia: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800/50',
+    compras: 'bg-pink-100 text-pink-700 border-pink-200 dark:bg-pink-900/30 dark:text-pink-300 dark:border-pink-800/50',
+    saude: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800/50',
+    educacao: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800/50',
+    trabalho: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/30 dark:text-slate-300 dark:border-slate-700/50',
+    entretenimento: 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-900/30 dark:text-fuchsia-300 dark:border-fuchsia-800/50',
+    fitness: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800/50',
+    viagem: 'bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800/50',
+    outros: 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800/50',
+  }
+
   useEffect(() => {
     carregarUsuarios()
   }, [])
@@ -441,15 +456,15 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4 animate-fade-in overflow-y-auto">
       <div className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[90vh] sm:max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border-2 border-brand-aqua/30 dark:border-brand-aqua/40 my-4 sm:my-0">
-        <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua/10 via-brand-aqua/5 to-transparent dark:from-brand-aqua/20 dark:via-brand-aqua/10">
-          <h2 className="text-xl sm:text-2xl font-display font-bold text-brand-midnight dark:text-brand-clean">
+        <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal">
+          <h2 className="text-xl sm:text-2xl font-display font-bold text-white dark:text-brand-clean">
             Registrar Dívida
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-red-500/20 dark:hover:bg-red-500/30 rounded-xl transition-smooth"
+            className="p-2 hover:bg-white/20 dark:hover:bg-red-500/30 rounded-xl transition-smooth"
           >
-            <X size={22} className="text-brand-midnight dark:text-brand-clean" strokeWidth={2.5} />
+            <X size={22} className="text-white dark:text-brand-clean" strokeWidth={2.5} />
           </button>
         </div>
 
@@ -676,15 +691,16 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
               {categorias.map((cat) => {
                 const Icon = cat.icon
                 const isSelected = formData.categoria === cat.id
+                const categoriaColor = categoriaColors[cat.id] || 'bg-gray-500 text-white border-gray-600 dark:bg-gray-600 dark:border-gray-700'
                 return (
                   <button
                     key={cat.id}
                     type="button"
                     onClick={() => setFormData({ ...formData, categoria: isSelected ? '' : cat.id })}
-                    className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg font-medium transition-smooth text-xs overflow-hidden ${
+                    className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg font-medium transition-smooth text-xs overflow-hidden border shadow-sm ${
                       isSelected
-                        ? 'bg-brand-aqua text-brand-midnight shadow-md'
-                        : 'bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
+                        ? 'bg-brand-aqua text-white border-brand-aqua shadow-md ring-2 ring-brand-aqua/50'
+                        : categoriaColor + ' hover:opacity-90 hover:scale-105'
                     }`}
                     title={cat.nome}
                   >
@@ -706,7 +722,7 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'pix' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'pix'
-                    ? 'bg-brand-aqua text-brand-midnight shadow-md'
+                    ? 'bg-brand-aqua text-white shadow-md'
                     : 'bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
                 }`}
               >
@@ -718,7 +734,7 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'cartao' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'cartao'
-                    ? 'bg-brand-aqua text-brand-midnight shadow-md'
+                    ? 'bg-brand-aqua text-white shadow-md'
                     : 'bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
                 }`}
               >
@@ -730,7 +746,7 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
                 onClick={() => setFormData({ ...formData, metodo_pagamento: 'dinheiro' })}
                 className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg font-medium transition-smooth text-xs ${
                   formData.metodo_pagamento === 'dinheiro'
-                    ? 'bg-brand-aqua text-brand-midnight shadow-md'
+                    ? 'bg-brand-aqua text-white shadow-md'
                     : 'bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10'
                 }`}
               >
@@ -843,7 +859,7 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-4 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="flex-1 px-4 py-2.5 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 {loading ? 'Registrando...' : 'REGISTRAR DÍVIDA'}
               </button>

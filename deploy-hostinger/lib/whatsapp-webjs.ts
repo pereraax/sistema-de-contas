@@ -808,6 +808,25 @@ export async function connectWhatsAppWebJS(forceNew = false) {
             pushName: msg.notifyName || msg.pushName,
           }
 
+          // CRÍTICO: Logar ANTES de chamar webhook
+          console.log('='.repeat(80))
+          console.log('📤 [WhatsApp-WebJS] ==========================================')
+          console.log('📤 [WhatsApp-WebJS] CHAMANDO WEBHOOK')
+          console.log('📤 [WhatsApp-WebJS] RemoteJid:', msg.from)
+          console.log('📤 [WhatsApp-WebJS] Text:', texto)
+          console.log('📤 [WhatsApp-WebJS] Webhook URL:', `${webhookUrl}/api/whatsapp/webhook`)
+          console.log('📤 [WhatsApp-WebJS] ==========================================')
+          console.log('='.repeat(80))
+          
+          // CRÍTICO: Logar no stdout também
+          process.stdout.write('\n')
+          process.stdout.write('='.repeat(80) + '\n')
+          process.stdout.write('[WhatsApp-WebJS] CHAMANDO WEBHOOK\n')
+          process.stdout.write('[WhatsApp-WebJS] RemoteJid: ' + msg.from + '\n')
+          process.stdout.write('[WhatsApp-WebJS] Text: ' + texto + '\n')
+          process.stdout.write('[WhatsApp-WebJS] URL: ' + `${webhookUrl}/api/whatsapp/webhook` + '\n')
+          process.stdout.write('='.repeat(80) + '\n')
+          
           console.log('📤 [WhatsApp-WebJS] Enviando para webhook:', {
             remoteJid: msg.from,
             textLength: texto.length,
@@ -840,6 +859,14 @@ export async function connectWhatsAppWebJS(forceNew = false) {
             },
             body: JSON.stringify(messageData),
           })
+          
+          // CRÍTICO: Logar resposta do webhook
+          console.log('📥 [WhatsApp-WebJS] Resposta do webhook:', {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+          })
+          process.stdout.write('[WhatsApp-WebJS] Resposta do webhook: ' + response.status + ' ' + response.statusText + '\n')
 
           if (!response.ok) {
             const errorText = await response.text()

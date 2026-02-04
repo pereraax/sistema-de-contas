@@ -439,7 +439,7 @@ export default function BauTesouro({ meta }: BauTesouroProps) {
         particleCount: 150,
         spread: 80,
         origin: { y: 0.5, x: 0.5 },
-        colors: ['#FFD700', '#FFA500', '#FF6347', '#00C2FF', '#FF69B4']
+        colors: ['#FFD700', '#FFA500', '#FF6347', '#1e4976', '#FF69B4']
       })
       
       // Confete lateral esquerda
@@ -449,7 +449,7 @@ export default function BauTesouro({ meta }: BauTesouroProps) {
           angle: 60,
           spread: 55,
           origin: { x: 0, y: 0.6 },
-          colors: ['#FFD700', '#FFA500', '#00C2FF']
+          colors: ['#FFD700', '#FFA500', '#1e4976']
         })
       }, 200)
       
@@ -460,7 +460,7 @@ export default function BauTesouro({ meta }: BauTesouroProps) {
           angle: 120,
           spread: 55,
           origin: { x: 1, y: 0.6 },
-          colors: ['#FFD700', '#FFA500', '#00C2FF']
+          colors: ['#FFD700', '#FFA500', '#1e4976']
         })
       }, 400)
     }, 800)
@@ -598,7 +598,7 @@ export default function BauTesouro({ meta }: BauTesouroProps) {
         particleCount: 300,
         spread: 120,
         origin: { y: 0.5, x: 0.5 },
-        colors: ['#00C2FF', '#FFD700', '#FF69B4', '#FFA500', '#32CD32', '#FF1493'],
+        colors: ['#1e4976', '#FFD700', '#FF69B4', '#FFA500', '#32CD32', '#FF1493'],
         zIndex: 9999
       })
       
@@ -610,7 +610,7 @@ export default function BauTesouro({ meta }: BauTesouroProps) {
           angle: 60,
           spread: 70,
           origin: { x: 0.1, y: 0.6 },
-          colors: ['#FFD700', '#FFA500', '#00C2FF'],
+          colors: ['#FFD700', '#FFA500', '#1e4976'],
           zIndex: 9999
         })
         
@@ -620,7 +620,7 @@ export default function BauTesouro({ meta }: BauTesouroProps) {
           angle: 120,
           spread: 70,
           origin: { x: 0.9, y: 0.6 },
-          colors: ['#FFD700', '#FFA500', '#00C2FF'],
+          colors: ['#FFD700', '#FFA500', '#1e4976'],
           zIndex: 9999
         })
       }, 200)
@@ -631,7 +631,7 @@ export default function BauTesouro({ meta }: BauTesouroProps) {
           particleCount: 200,
           spread: 90,
           origin: { y: 0.2, x: 0.5 },
-          colors: ['#FFD700', '#FF69B4', '#32CD32', '#00C2FF'],
+          colors: ['#FFD700', '#FF69B4', '#32CD32', '#1e4976'],
           zIndex: 9999
         })
       }, 400)
@@ -642,7 +642,7 @@ export default function BauTesouro({ meta }: BauTesouroProps) {
           particleCount: 180,
           spread: 80,
           origin: { y: 0.8, x: 0.5 },
-          colors: ['#FFD700', '#00C2FF', '#FF69B4', '#FFA500'],
+          colors: ['#FFD700', '#1e4976', '#FF69B4', '#FFA500'],
           zIndex: 9999
         })
       }, 600)
@@ -653,7 +653,7 @@ export default function BauTesouro({ meta }: BauTesouroProps) {
           particleCount: 250,
           spread: 110,
           origin: { y: 0.5, x: 0.5 },
-          colors: ['#FFD700', '#00C2FF', '#FF69B4', '#32CD32', '#FFA500'],
+          colors: ['#FFD700', '#1e4976', '#FF69B4', '#32CD32', '#FFA500'],
           zIndex: 9999
         })
       }, 800)
@@ -817,7 +817,7 @@ export default function BauTesouro({ meta }: BauTesouroProps) {
                         Coletado
                       </div>
                     ) : eProximo ? (
-                      <div className="px-2 sm:px-3 py-1 bg-gradient-to-r from-[#00C2FF] to-[#0099CC] text-white rounded-full text-xs sm:text-sm font-semibold shadow-md whitespace-nowrap animate-pulse">
+                      <div className="px-2 sm:px-3 py-1 bg-gradient-to-r from-[#2c5aa0] to-[#163a5f] text-white rounded-full text-xs sm:text-sm font-semibold shadow-md whitespace-nowrap animate-pulse">
                         Abrir!
                       </div>
                     ) : (

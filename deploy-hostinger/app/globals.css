@@ -35,9 +35,9 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Aplicar tema escuro apenas quando a classe dark estiver presente */
+/* Aplicar tema escuro: preto meio cinza (#1A1A1A) e texto branco */
 html.dark body {
-  background-color: #0D1B2A;
+  background-color: #1A1A1A;
   color: #ffffff;
 }
 
@@ -61,14 +61,44 @@ body {
   padding: 0;
 }
 
-/* Dark mode styles */
+/* Dark mode: preto meio cinza (#1A1A1A) em toda a plataforma */
 .dark body {
-  background-color: #0D1B2A !important;
-  color: #E6E6E6;
+  background-color: #1A1A1A !important;
+  color: #ffffff !important;
 }
 
 .dark .min-h-screen {
-  background-color: #0D1B2A !important;
+  background-color: #1A1A1A !important;
+}
+
+.dark main {
+  background-color: #1A1A1A !important;
+}
+
+/* Garantir que qualquer wrapper de conteúdo em dark use preto meio cinza */
+.dark [class*="lg:ml-64"] {
+  background-color: #1A1A1A !important;
+}
+
+.admin-panel-layout.min-h-screen {
+  background-color: #1A1A1A !important;
+}
+
+/* Garantir textos e ícones visíveis no modo dark */
+.dark .text-brand-clean,
+.dark .text-brand-midnight.dark\:text-brand-clean,
+.dark .text-gray-700.dark\:text-brand-clean {
+  color: #ffffff !important;
+}
+.dark .text-brand-clean\/60,
+.dark .text-brand-clean\/70,
+.dark .text-brand-clean\/50,
+.dark .text-brand-clean\/90 {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+.dark .placeholder-brand-clean\/50,
+.dark .placeholder-brand-clean\/60 {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* CORES CUSTOMIZADAS - Classes diretas (compatíveis com PostCSS/Tailwind) */
@@ -115,6 +145,17 @@ select:focus-visible {
   outline: none !important;
   outline-offset: 0 !important;
   box-shadow: none !important;
+}
+
+/* Estilizar ícone do calendário em inputs datetime-local para modo escuro */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 1;
 }
 
 /* Fonte moderna para títulos com font-display - permite bold quando necessário */
@@ -243,3 +284,31 @@ body::-webkit-scrollbar {
 }
 
 /* Animações foram movidas para app/animations.css */
+
+/* Garantir que SupportPanel apareça apenas uma vez no desktop */
+#support-panel-unique {
+  display: block;
+}
+
+@media (min-width: 1024px) {
+  /* No desktop, garantir que apenas uma instância seja visível */
+  #support-panel-unique:not(:first-of-type) {
+    display: none !important;
+  }
+}
+
+/* Evitar zoom no iOS ao focar em inputs (font-size < 16px dispara zoom automático) */
+@media screen and (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Sidebar recolhida no desktop: margem para caber sidebar + botão redondo que se projeta */
+@media (min-width: 1024px) {
+  aside.sidebar-collapsed + main {
+    margin-left: 6.25rem !important;
+  }
+}

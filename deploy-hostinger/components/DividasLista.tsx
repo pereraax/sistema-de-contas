@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { Registro, User } from '@/lib/types'
-import { Edit, Trash2, Plus, Search, Repeat, Download, FileText, AlertCircle, TrendingUp, Trophy } from 'lucide-react'
+import { Edit, Trash2, Plus, Search, Repeat, Download, FileText, AlertCircle, TrendingUp, Trophy, CheckCircle, XCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import { excluirRegistro, obterDividas } from '@/lib/actions'
@@ -15,12 +15,24 @@ import { createNotification } from './NotificationBell'
 
 interface DividasListaProps {
   dividas: Registro[]
+  usuarios?: User[]
   onDividasChange?: (dividas: Registro[]) => void
 }
 
-export default function DividasLista({ dividas: dividasIniciais, onDividasChange }: DividasListaProps) {
+export default function DividasLista({ dividas: dividasIniciais, usuarios = [], onDividasChange }: DividasListaProps) {
   const router = useRouter()
   const [dividas, setDividas] = useState<Registro[]>(dividasIniciais)
+  
+  // Associar dados do usuário às dívidas
+  const dividasComUsuarios = useMemo(() => {
+    return dividas.map((divida) => {
+      const user = usuarios.find((u) => u.id === divida.user_id)
+      return {
+        ...divida,
+        user: user || undefined,
+      }
+    })
+  }, [dividas, usuarios])
   const [registroEditando, setRegistroEditando] = useState<Registro | null>(null)
   const [dividaPagando, setDividaPagando] = useState<Registro | null>(null)
   const [showModalExcluir, setShowModalExcluir] = useState(false)
@@ -187,11 +199,11 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
   // Filtrar dívidas por termo de busca
   const dividasFiltradas = useMemo(() => {
     if (!searchTerm.trim()) {
-      return dividas
+      return dividasComUsuarios
     }
     
     const termo = searchTerm.toLowerCase().trim()
-    return dividas.filter((d) => {
+    return dividasComUsuarios.filter((d) => {
       const nome = d.nome?.toLowerCase() || ''
       const observacao = limparObservacao(d.observacao)?.toLowerCase() || ''
       const valor = d.valor?.toString() || ''
@@ -377,6 +389,101 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
     divida: 'Dívida',
   }
 
+  // Cores para categorias (cada categoria tem sua própria cor)
+  // Mapeamento completo de cores únicas para cada categoria (com fundo transparente)
+  // Mesmo sistema usado em RegistrosLista.tsx
+  const coresCategorias: Record<string, { bg: string; text: string; border: string }> = {
+    // Categorias padrão
+    alimentacao: { bg: 'bg-amber-100/80 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-300 dark:border-amber-700' },
+    transporte: { bg: 'bg-blue-100/80 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-300 dark:border-blue-700' },
+    moradia: { bg: 'bg-purple-100/80 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-300 dark:border-purple-700' },
+    compras: { bg: 'bg-pink-100/80 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-300 dark:border-pink-700' },
+    saude: { bg: 'bg-red-100/80 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', border: 'border-red-300 dark:border-red-700' },
+    educacao: { bg: 'bg-indigo-100/80 dark:bg-indigo-900/40', text: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-300 dark:border-indigo-700' },
+    trabalho: { bg: 'bg-slate-100/80 dark:bg-slate-900/40', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-300 dark:border-slate-700' },
+    entretenimento: { bg: 'bg-fuchsia-100/80 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300', border: 'border-fuchsia-300 dark:border-fuchsia-700' },
+    fitness: { bg: 'bg-emerald-100/80 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-300 dark:border-emerald-700' },
+    viagem: { bg: 'bg-cyan-100/80 dark:bg-cyan-900/40', text: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-300 dark:border-cyan-700' },
+    outros: { bg: 'bg-yellow-100/80 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-300 dark:border-yellow-700' },
+    
+    // Categorias personalizadas comuns
+    sorvete: { bg: 'bg-violet-100/80 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', border: 'border-violet-300 dark:border-violet-700' },
+    comida: { bg: 'bg-sky-100/80 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-300 dark:border-sky-700' },
+    por: { bg: 'bg-green-100/80 dark:bg-green-900/40', text: 'text-green-700 dark:text-green-300', border: 'border-green-300 dark:border-green-700' },
+    lojas: { bg: 'bg-teal-100/80 dark:bg-teal-900/40', text: 'text-teal-700 dark:text-teal-300', border: 'border-teal-300 dark:border-teal-700' },
+    carro: { bg: 'bg-rose-100/80 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', border: 'border-rose-300 dark:border-rose-700' },
+    casa: { bg: 'bg-orange-100/80 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-300 dark:border-orange-700' },
+    pessoa: { bg: 'bg-lime-100/80 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', border: 'border-lime-300 dark:border-lime-700' },
+    'dívida - dinheiro': { bg: 'bg-amber-100/80 dark:bg-amber-900/40', text: 'text-amber-800 dark:text-amber-200', border: 'border-amber-400 dark:border-amber-600' },
+    'dívida - pix': { bg: 'bg-emerald-100/80 dark:bg-emerald-900/40', text: 'text-emerald-800 dark:text-emerald-200', border: 'border-emerald-400 dark:border-emerald-600' },
+    'dívida - cartao': { bg: 'bg-blue-100/80 dark:bg-blue-900/40', text: 'text-blue-800 dark:text-blue-200', border: 'border-blue-400 dark:border-blue-600' },
+    dinheiro: { bg: 'bg-sky-100/80 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-300 dark:border-sky-700' },
+    comprovante: { bg: 'bg-violet-100/80 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', border: 'border-violet-300 dark:border-violet-700' },
+    roupas: { bg: 'bg-fuchsia-100/80 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300', border: 'border-fuchsia-300 dark:border-fuchsia-700' },
+  }
+
+  // Função para obter cor de categoria (com fallback para categorias personalizadas não mapeadas)
+  const obterCorCategoria = (categoria: string): string => {
+    if (!categoria) return 'bg-gray-100/80 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700'
+    
+    const catLower = categoria.toLowerCase().trim()
+    
+    // Verificar se já tem cor definida
+    if (coresCategorias[catLower]) {
+      const cor = coresCategorias[catLower]
+      return `${cor.bg} ${cor.text} ${cor.border}`
+    }
+
+    // Para categorias personalizadas não mapeadas, gerar cor baseada no hash da string
+    const coresPersonalizadas = [
+      { bg: 'bg-violet-100/80 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', border: 'border-violet-300 dark:border-violet-700' },
+      { bg: 'bg-teal-100/80 dark:bg-teal-900/40', text: 'text-teal-700 dark:text-teal-300', border: 'border-teal-300 dark:border-teal-700' },
+      { bg: 'bg-rose-100/80 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', border: 'border-rose-300 dark:border-rose-700' },
+      { bg: 'bg-orange-100/80 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-300 dark:border-orange-700' },
+      { bg: 'bg-lime-100/80 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', border: 'border-lime-300 dark:border-lime-700' },
+      { bg: 'bg-sky-100/80 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', border: 'border-sky-300 dark:border-sky-700' },
+      { bg: 'bg-amber-100/80 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-300 dark:border-amber-700' },
+      { bg: 'bg-emerald-100/80 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-300 dark:border-emerald-700' },
+      { bg: 'bg-pink-100/80 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-300 dark:border-pink-700' },
+      { bg: 'bg-indigo-100/80 dark:bg-indigo-900/40', text: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-300 dark:border-indigo-700' },
+      { bg: 'bg-red-100/80 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', border: 'border-red-300 dark:border-red-700' },
+      { bg: 'bg-blue-100/80 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-300 dark:border-blue-700' },
+      { bg: 'bg-purple-100/80 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-300 dark:border-purple-700' },
+      { bg: 'bg-cyan-100/80 dark:bg-cyan-900/40', text: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-300 dark:border-cyan-700' },
+      { bg: 'bg-fuchsia-100/80 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300', border: 'border-fuchsia-300 dark:border-fuchsia-700' },
+      { bg: 'bg-green-100/80 dark:bg-green-900/40', text: 'text-green-700 dark:text-green-300', border: 'border-green-300 dark:border-green-700' },
+      { bg: 'bg-yellow-100/80 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-300 dark:border-yellow-700' },
+      { bg: 'bg-slate-100/80 dark:bg-slate-900/40', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-300 dark:border-slate-700' },
+    ]
+
+    // Gerar índice baseado no hash da string para garantir consistência
+    // Usar catLower para garantir que a mesma categoria sempre tenha a mesma cor
+    let hash = 0
+    for (let i = 0; i < catLower.length; i++) {
+      hash = catLower.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    const index = Math.abs(hash) % coresPersonalizadas.length
+    const cor = coresPersonalizadas[index]
+    return `${cor.bg} ${cor.text} ${cor.border}`
+  }
+
+  const categoriaColors: Record<string, string> = {}
+  
+  // Mapeamento de nomes de categorias
+  const categoriaNomes: Record<string, string> = {
+    alimentacao: 'Alimentação',
+    transporte: 'Transporte',
+    moradia: 'Moradia',
+    compras: 'Compras',
+    saude: 'Saúde',
+    educacao: 'Educação',
+    trabalho: 'Trabalho',
+    entretenimento: 'Entretenimento',
+    fitness: 'Fitness',
+    viagem: 'Viagem',
+    outros: 'Outros',
+  }
+
   return (
     <div className="space-y-6">
       {/* Header com botão de registrar e filtro */}
@@ -405,7 +512,7 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
           )}
           <button
             onClick={() => setShowModalNovaDivida(true)}
-            className="w-full sm:w-auto px-5 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth flex items-center justify-center gap-2 shadow-md hover:shadow-lg text-sm whitespace-nowrap"
+            className="w-full sm:w-auto px-5 py-2.5 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth flex items-center justify-center gap-2 shadow-md hover:shadow-lg text-sm whitespace-nowrap"
           >
             <Plus size={20} strokeWidth={2.5} />
             Registrar Dívida
@@ -483,10 +590,17 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
             {/* Mobile: Cards */}
             <div className="md:hidden space-y-4 p-4">
               {dividasPendentes.map((divida) => (
-                <div key={divida.id} className="bg-brand-royal dark:bg-brand-midnight rounded-xl p-4 border border-brand-clean/20 dark:border-white/10 relative">
+                <div 
+                  key={divida.id} 
+                  className="bg-white dark:bg-brand-royal rounded-xl p-4 border border-gray-200 dark:border-white/10 relative hover:shadow-md transition-shadow duration-200 cursor-pointer"
+                  onClick={() => setRegistroEditando(divida)}
+                >
                   {/* Botão de excluir no canto superior direito */}
                   <button
-                    onClick={() => handleExcluir(divida.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleExcluir(divida.id)
+                    }}
                     className="absolute top-3 right-3 p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth z-10"
                     title="Excluir"
                   >
@@ -529,11 +643,62 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
                       </div>
                       <div>
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Usuário</p>
-                        <p className="text-brand-midnight/80 dark:text-brand-clean/80">👤 {divida.user?.nome || 'N/A'}</p>
+                        {divida.user ? (
+                          <div className="flex items-center gap-2">
+                            {divida.user.imagem_url ? (
+                              <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                <img 
+                                  src={divida.user.imagem_url} 
+                                  alt={divida.user.nome}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement
+                                    target.style.display = 'none'
+                                    const parent = target.parentElement
+                                    if (parent) {
+                                      parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${divida.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                                    }
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                <span className="text-brand-aqua font-bold text-xs">
+                                  {divida.user.nome?.charAt(0).toUpperCase() || '?'}
+                                </span>
+                              </div>
+                            )}
+                            <span className="text-brand-midnight/80 dark:text-brand-clean/80">{divida.user.nome}</span>
+                          </div>
+                        ) : (
+                          <span className="text-brand-midnight/60 dark:text-brand-clean/60">N/A</span>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Categoria</p>
-                        <p className="text-brand-midnight/80 dark:text-brand-clean/80">{divida.categoria || '-'}</p>
+                        {divida.categoria && divida.categoria.toLowerCase() !== 'entrada' && divida.categoria.toLowerCase() !== 'saida' ? (
+                          <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium border whitespace-nowrap ${obterCorCategoria(divida.categoria)}`}>
+                            {categoriaNomes[divida.categoria.toLowerCase()] || divida.categoria}
+                          </span>
+                        ) : (
+                          <p className="text-brand-midnight/40 dark:text-brand-clean/40">-</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Status</p>
+                        {divida.parcelas_pagas >= divida.parcelas_totais ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs font-medium border border-green-200 dark:border-green-800/50">
+                            <CheckCircle size={12} />
+                            Pago
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => setDividaPagando(divida)}
+                            className="w-full px-3 py-1.5 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-xs shadow-sm"
+                          >
+                            Pagar Dívida
+                          </button>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Data</p>
@@ -571,20 +736,21 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
                     )}
 
                     {/* Ações */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-brand-clean/20 dark:border-white/10">
-                      <button
-                        onClick={() => setDividaPagando(divida)}
-                        className="flex-1 px-4 py-2 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-sm shadow-sm"
-                      >
-                        Pagar Dívida
-                      </button>
-                      <div className="flex items-center gap-2">
+                    <div className="pt-2 border-t border-brand-clean/20 dark:border-white/10">
+                      <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => setRegistroEditando(divida)}
                           className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
                           title="Editar"
                         >
                           <Edit size={18} strokeWidth={2} />
+                        </button>
+                        <button
+                          onClick={() => handleExcluir(divida.id)}
+                          className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
+                          title="Excluir"
+                        >
+                          <Trash2 size={18} strokeWidth={2} />
                         </button>
                       </div>
                     </div>
@@ -596,37 +762,44 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
             {/* Desktop: Tabela */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-brand-royal dark:bg-brand-midnight border-b border-brand-midnight dark:border-white/10">
+                <thead className="bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal border-b border-brand-aqua/20 dark:border-white/10">
                   <tr>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Nome
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Valor
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Usuário
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Categoria
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Etiquetas
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Parcelas
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Data
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Ações
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-brand-white dark:bg-brand-royal divide-y divide-brand-clean dark:divide-white/10">
                   {dividasPendentes.map((divida) => (
-                    <tr key={divida.id} className="hover:bg-brand-clean/50 dark:hover:bg-white/5 transition-smooth">
+                    <tr 
+                      key={divida.id} 
+                      className="hover:bg-brand-clean/50 dark:hover:bg-white/5 transition-smooth cursor-pointer"
+                      onClick={() => setRegistroEditando(divida)}
+                    >
                       <td className="px-4 py-4">
                         <div>
                           <div className="flex items-center gap-2 text-sm font-medium text-brand-midnight dark:text-brand-clean">
@@ -662,14 +835,63 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
                         </span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">
-                          👤 {divida.user?.nome || 'N/A'}
-                        </span>
+                        {divida.user ? (
+                          <div className="flex items-center gap-2">
+                            {divida.user.imagem_url ? (
+                              <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                <img 
+                                  src={divida.user.imagem_url} 
+                                  alt={divida.user.nome}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement
+                                    target.style.display = 'none'
+                                    const parent = target.parentElement
+                                    if (parent) {
+                                      parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${divida.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                                    }
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                <span className="text-brand-aqua font-bold text-xs">
+                                  {divida.user.nome?.charAt(0).toUpperCase() || '?'}
+                                </span>
+                              </div>
+                            )}
+                            <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">{divida.user.nome}</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-brand-midnight/60 dark:text-brand-clean/60">N/A</span>
+                        )}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">
-                          {divida.categoria || '-'}
-                        </span>
+                        {divida.categoria && divida.categoria.toLowerCase() !== 'entrada' && divida.categoria.toLowerCase() !== 'saida' ? (
+                          <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium border whitespace-nowrap ${obterCorCategoria(divida.categoria)}`}>
+                            {categoriaNomes[divida.categoria.toLowerCase()] || divida.categoria}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-brand-midnight/40 dark:text-brand-clean/40">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        {divida.parcelas_pagas >= divida.parcelas_totais ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm font-medium border border-green-200 dark:border-green-800/50">
+                            <CheckCircle size={16} />
+                            Pago
+                          </span>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDividaPagando(divida)
+                            }}
+                            className="w-full px-4 py-2 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-sm shadow-sm"
+                          >
+                            Pagar Dívida
+                          </button>
+                        )}
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap gap-1">
@@ -714,29 +936,27 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
                         </div>
                       </td>
                         <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-center gap-2">
                             <button
-                              onClick={() => setDividaPagando(divida)}
-                              className="px-4 py-2 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-sm shadow-sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setRegistroEditando(divida)
+                              }}
+                              className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
+                              title="Editar"
                             >
-                              Pagar Dívida
+                              <Edit size={18} strokeWidth={2} />
                             </button>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => setRegistroEditando(divida)}
-                                className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
-                                title="Editar"
-                              >
-                                <Edit size={18} strokeWidth={2} />
-                              </button>
-                              <button
-                                onClick={() => handleExcluir(divida.id)}
-                                className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
-                                title="Excluir"
-                              >
-                                <Trash2 size={18} strokeWidth={2} />
-                              </button>
-                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleExcluir(divida.id)
+                              }}
+                              className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
+                              title="Excluir"
+                            >
+                              <Trash2 size={18} strokeWidth={2} />
+                            </button>
                           </div>
                         </td>
                     </tr>
@@ -758,7 +978,11 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
             {/* Mobile: Cards */}
             <div className="md:hidden space-y-4 p-4">
               {dividasQuitadas.map((divida) => (
-                <div key={divida.id} className="bg-brand-royal dark:bg-brand-midnight rounded-xl p-4 border border-brand-clean/20 dark:border-white/10">
+                <div 
+                  key={divida.id} 
+                  className="bg-white dark:bg-brand-royal rounded-xl p-4 border border-gray-200 dark:border-white/10 hover:shadow-md transition-shadow duration-200 cursor-pointer"
+                  onClick={() => setRegistroEditando(divida)}
+                >
                   <div className="space-y-3">
                     <div>
                       <h3 className="text-base font-semibold text-brand-midnight dark:text-brand-clean">
@@ -779,7 +1003,36 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
                       </div>
                       <div>
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Usuário</p>
-                        <p className="text-brand-midnight/80 dark:text-brand-clean/80">👤 {divida.user?.nome || 'N/A'}</p>
+                        {divida.user ? (
+                          <div className="flex items-center gap-2">
+                            {divida.user.imagem_url ? (
+                              <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                <img 
+                                  src={divida.user.imagem_url} 
+                                  alt={divida.user.nome}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement
+                                    target.style.display = 'none'
+                                    const parent = target.parentElement
+                                    if (parent) {
+                                      parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${divida.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                                    }
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                <span className="text-brand-aqua font-bold text-xs">
+                                  {divida.user.nome?.charAt(0).toUpperCase() || '?'}
+                                </span>
+                              </div>
+                            )}
+                            <span className="text-brand-midnight/80 dark:text-brand-clean/80">{divida.user.nome}</span>
+                          </div>
+                        ) : (
+                          <span className="text-brand-midnight/60 dark:text-brand-clean/60">N/A</span>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Categoria</p>
@@ -790,6 +1043,13 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
                         <p className="text-brand-midnight/80 dark:text-brand-clean/80">
                           {format(new Date(divida.data_registro), "dd/MM/yyyy", { locale: ptBR })}
                         </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Status</p>
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs font-medium border border-green-200 dark:border-green-800/50">
+                          <CheckCircle size={12} />
+                          Pago
+                        </span>
                       </div>
                     </div>
                     {divida.etiquetas && divida.etiquetas.length > 0 && (
@@ -807,14 +1067,23 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
                         </div>
                       </div>
                     )}
-                    <div className="flex items-center gap-2 pt-2 border-t border-brand-clean/20 dark:border-white/10">
-                      <button
-                        onClick={() => setRegistroEditando(divida)}
-                        className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
-                        title="Editar"
-                      >
-                        <Edit size={18} strokeWidth={2} />
-                      </button>
+                    <div className="pt-2 border-t border-brand-clean/20 dark:border-white/10">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => setRegistroEditando(divida)}
+                          className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
+                          title="Editar"
+                        >
+                          <Edit size={18} strokeWidth={2} />
+                        </button>
+                        <button
+                          onClick={() => handleExcluir(divida.id)}
+                          className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
+                          title="Excluir"
+                        >
+                          <Trash2 size={18} strokeWidth={2} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -824,35 +1093,38 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
             {/* Desktop: Tabela */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-brand-royal dark:bg-brand-midnight border-b border-brand-midnight dark:border-white/10">
+                <thead className="bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal border-b border-brand-aqua/20 dark:border-white/10">
                   <tr>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Nome
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Valor
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Usuário
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Categoria
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Etiquetas
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Parcelas
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Data
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
                       Ações
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-brand-white divide-y divide-brand-clean">
+                <tbody className="bg-brand-white dark:bg-brand-royal divide-y divide-brand-clean dark:divide-white/10">
                   {dividasQuitadas.map((divida) => (
                     <tr key={divida.id} className="hover:bg-brand-clean/50 transition-smooth">
                       <td className="px-4 py-4">
@@ -877,7 +1149,36 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
                         <span className="text-sm text-brand-midnight/80">
-                          👤 {divida.user?.nome || 'N/A'}
+                          {divida.user ? (
+                            <div className="flex items-center gap-2">
+                              {divida.user.imagem_url ? (
+                                <div className="w-6 h-6 rounded-full overflow-hidden bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                  <img 
+                                    src={divida.user.imagem_url} 
+                                    alt={divida.user.nome}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement
+                                      target.style.display = 'none'
+                                      const parent = target.parentElement
+                                      if (parent) {
+                                        parent.innerHTML = `<span class="text-brand-aqua font-bold text-xs">${divida.user?.nome?.charAt(0).toUpperCase() || '?'}</span>`
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-6 h-6 rounded-full bg-brand-aqua/20 flex items-center justify-center border border-brand-aqua/30">
+                                  <span className="text-brand-aqua font-bold text-xs">
+                                    {divida.user.nome?.charAt(0).toUpperCase() || '?'}
+                                  </span>
+                                </div>
+                              )}
+                              <span className="text-sm text-brand-midnight/80 dark:text-brand-clean/80">{divida.user.nome}</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-brand-midnight/60 dark:text-brand-clean/60">N/A</span>
+                          )}
                         </span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
@@ -924,17 +1225,29 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm font-medium border border-green-200 dark:border-green-800/50">
+                          <CheckCircle size={16} />
+                          Pago
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-2">
                           <button
-                            onClick={() => setRegistroEditando(divida)}
-                            className="p-2 text-brand-aqua hover:bg-brand-aqua/10 rounded-lg transition-smooth"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setRegistroEditando(divida)
+                            }}
+                            className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
                             title="Editar"
                           >
                             <Edit size={18} strokeWidth={2} />
                           </button>
                           <button
-                            onClick={() => handleExcluir(divida.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-smooth"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleExcluir(divida.id)
+                            }}
+                            className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
                             title="Excluir"
                           >
                             <Trash2 size={18} strokeWidth={2} />
@@ -958,7 +1271,7 @@ export default function DividasLista({ dividas: dividasIniciais, onDividasChange
           {!searchTerm.trim() && (
             <button
               onClick={() => setShowModalNovaDivida(true)}
-              className="mt-4 px-5 py-2.5 bg-brand-aqua text-brand-midnight rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth inline-flex items-center gap-2"
+              className="mt-4 px-5 py-2.5 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth inline-flex items-center gap-2"
             >
               <Plus size={20} strokeWidth={2.5} />
               Registrar Primeira Dívida

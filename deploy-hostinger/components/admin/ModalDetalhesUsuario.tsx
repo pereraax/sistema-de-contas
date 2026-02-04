@@ -1,6 +1,6 @@
 'use client'
 
-import { X, Mail, Phone, Calendar, CreditCard, Key, User, Send, Loader2, Crown, Settings, AlertTriangle } from 'lucide-react'
+import { X, Mail, Phone, Calendar, CreditCard, Key, User, Send, Loader2, Crown, Settings, AlertTriangle, FileText, Trash2, RefreshCw, MessageCircle, Power } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import { useState, useEffect } from 'react'
@@ -21,6 +21,7 @@ interface ModalDetalhesUsuarioProps {
   usuario: Usuario | null
   onClose: () => void
   onPlanoAlterado?: (usuarioId: string, novoPlano: 'teste' | 'basico' | 'premium') => void
+  onUsuarioDeletado?: (usuarioId: string) => void
 }
 
 const planoColors = {
@@ -35,7 +36,15 @@ const planoLabels = {
   premium: 'Premium',
 }
 
-export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado }: ModalDetalhesUsuarioProps) {
+interface RegistrosCount {
+  totalRegistros: number
+  registrosMes: number
+  registrosEntrada: number
+  registrosSaida: number
+  registrosDivida: number
+}
+
+export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado, onUsuarioDeletado }: ModalDetalhesUsuarioProps) {
   const [enviando, setEnviando] = useState(false)
   const [alterandoPlano, setAlterandoPlano] = useState(false)
   const [mostrarAlterarPlano, setMostrarAlterarPlano] = useState(false)
@@ -43,11 +52,105 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
   const [novoStatus, setNovoStatus] = useState<'trial' | 'ativo' | 'cancelado' | 'expirado'>('ativo')
   const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error'; texto: string } | null>(null)
   const [usuarioLocal, setUsuarioLocal] = useState<Usuario | null>(usuario)
+  const [registrosCount, setRegistrosCount] = useState<RegistrosCount | null>(null)
+  const [carregandoRegistros, setCarregandoRegistros] = useState(false)
+  const [excluindo, setExcluindo] = useState(false)
+  const [mostrarConfirmacaoExclusao, setMostrarConfirmacaoExclusao] = useState(false)
+  const [plenActivated, setPlenActivated] = useState<boolean | null>(null)
+  const [carregandoPlenStatus, setCarregandoPlenStatus] = useState(false)
+  const [alterandoPlenStatus, setAlterandoPlenStatus] = useState(false)
 
   // Atualizar usuário local quando prop usuario mudar
   useEffect(() => {
     setUsuarioLocal(usuario)
   }, [usuario])
+
+  // Buscar contagem de registros quando o usuário mudar
+  useEffect(() => {
+    const buscarContagemRegistros = async () => {
+      if (!usuarioLocal?.id) {
+        console.log('⚠️ [Modal] Nenhum usuário local definido')
+        return
+      }
+
+      setCarregandoRegistros(true)
+      const url = `/api/admin/usuario/registros-count?userId=${usuarioLocal.id}`
+      console.log('🔍 [Modal] ==========================================')
+      console.log('🔍 [Modal] Buscando registros para usuário:', usuarioLocal.email)
+      console.log('🔍 [Modal] User ID (account_owner_id):', usuarioLocal.id)
+      console.log('🔍 [Modal] URL da API:', url)
+      console.log('🔍 [Modal] ==========================================')
+      
+      try {
+        const inicioRequest = Date.now()
+        const response = await fetch(url)
+        const tempoResposta = Date.now() - inicioRequest
+        
+        console.log('📥 [Modal] Resposta recebida em', tempoResposta, 'ms')
+        console.log('📥 [Modal] Status:', response.status, 'OK:', response.ok)
+        console.log('📥 [Modal] Headers:', Object.fromEntries(response.headers.entries()))
+        
+        const data = await response.json()
+        console.log('📥 [Modal] Dados recebidos:', JSON.stringify(data, null, 2))
+
+        if (response.ok && data) {
+          console.log('✅ [Modal] Registros carregados com sucesso!')
+          console.log('✅ [Modal] Total:', data.totalRegistros)
+          console.log('✅ [Modal] Este mês:', data.registrosMes)
+          console.log('✅ [Modal] Entradas:', data.registrosEntrada)
+          console.log('✅ [Modal] Saídas:', data.registrosSaida)
+          console.log('✅ [Modal] Dívidas:', data.registrosDivida)
+          if (data.debug) {
+            console.log('🔍 [Modal] Debug info:', data.debug)
+          }
+          setRegistrosCount(data)
+        } else {
+          console.error('❌ [Modal] Erro na resposta:', data.error || 'Erro desconhecido')
+          console.error('❌ [Modal] Dados completos:', data)
+          setRegistrosCount(null)
+        }
+      } catch (error: any) {
+        console.error('❌ [Modal] Erro ao buscar contagem de registros:', error)
+        console.error('❌ [Modal] Tipo do erro:', error.name)
+        console.error('❌ [Modal] Mensagem:', error.message)
+        console.error('❌ [Modal] Stack:', error.stack)
+        setRegistrosCount(null)
+      } finally {
+        setCarregandoRegistros(false)
+        console.log('🏁 [Modal] Busca finalizada')
+      }
+    }
+
+    buscarContagemRegistros()
+  }, [usuarioLocal?.id])
+
+  // Buscar status do assistente PLEN quando o usuário mudar
+  useEffect(() => {
+    const buscarStatusPlen = async () => {
+      if (!usuarioLocal?.id) {
+        return
+      }
+
+      setCarregandoPlenStatus(true)
+      try {
+        const response = await fetch(`/api/admin/usuario/plen-assistant?userId=${usuarioLocal.id}`)
+        const data = await response.json()
+        
+        if (response.ok && data.success) {
+          setPlenActivated(data.plenActivated)
+        } else {
+          setPlenActivated(null)
+        }
+      } catch (error) {
+        console.error('Erro ao buscar status do assistente PLEN:', error)
+        setPlenActivated(null)
+      } finally {
+        setCarregandoPlenStatus(false)
+      }
+    }
+
+    buscarStatusPlen()
+  }, [usuarioLocal?.id])
 
   // Resetar novoPlano quando usuario mudar ou quando abrir modal de alteração
   useEffect(() => {
@@ -161,6 +264,147 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
     }
   }
 
+  const handleExcluirUsuario = async () => {
+    if (!usuarioLocal) {
+      console.error('❌ [EXCLUIR] Usuário não encontrado')
+      return
+    }
+
+    console.log('🗑️ [EXCLUIR] Iniciando exclusão de usuário...')
+    console.log('📋 [EXCLUIR] Dados:', {
+      userId: usuarioLocal.id,
+      email: usuarioLocal.email,
+    })
+
+    setExcluindo(true)
+    setMensagem(null)
+
+    try {
+      console.log('📤 [EXCLUIR] Enviando requisição DELETE para:', `/api/admin/usuario/delete?userId=${usuarioLocal.id}`)
+      
+      const response = await fetch(`/api/admin/usuario/delete?userId=${usuarioLocal.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      console.log('📥 [EXCLUIR] Resposta recebida:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      })
+
+      let data: any = {}
+      try {
+        const text = await response.text()
+        console.log('📥 [EXCLUIR] Resposta bruta:', text)
+        if (text) {
+          data = JSON.parse(text)
+        }
+      } catch (parseError) {
+        console.error('❌ [EXCLUIR] Erro ao fazer parse da resposta:', parseError)
+        data = { error: 'Erro ao processar resposta do servidor' }
+      }
+
+      console.log('📥 [EXCLUIR] Dados da resposta:', data)
+
+      if (!response.ok) {
+        console.error('❌ [EXCLUIR] Erro na resposta:', data)
+        const errorMessage = data.error || `Erro ao excluir usuário (Status: ${response.status})`
+        setMensagem({ tipo: 'error', texto: errorMessage })
+        setExcluindo(false)
+        setMostrarConfirmacaoExclusao(false)
+      } else {
+        console.log('✅ [EXCLUIR] Usuário excluído com sucesso!')
+        console.log('✅ [EXCLUIR] Dados retornados:', data)
+        
+        setMensagem({ 
+          tipo: 'success', 
+          texto: `✅ Usuário ${usuarioLocal.email} excluído com sucesso! Recarregando página...` 
+        })
+
+        // Chamar callback para atualizar lista no componente pai (feedback visual imediato)
+        if (onUsuarioDeletado && usuarioLocal) {
+          console.log('📞 [EXCLUIR] Chamando callback onUsuarioDeletado')
+          onUsuarioDeletado(usuarioLocal.id)
+        }
+
+        // Fechar modal imediatamente
+        setTimeout(() => {
+          onClose()
+        }, 500)
+
+        // Recarregar página após 1 segundo para garantir que a lista seja atualizada
+        setTimeout(() => {
+          console.log('🔄 [EXCLUIR] Recarregando página...')
+          window.location.href = window.location.href // Forçar reload completo
+        }, 1000)
+      }
+    } catch (error: any) {
+      console.error('❌ [EXCLUIR] Erro inesperado:', error)
+      console.error('❌ [EXCLUIR] Stack:', error.stack)
+      setMensagem({ 
+        tipo: 'error', 
+        texto: `Erro ao conectar com o servidor: ${error.message || 'Erro desconhecido'}` 
+      })
+    } finally {
+      setExcluindo(false)
+      setMostrarConfirmacaoExclusao(false)
+    }
+  }
+
+  const handleTogglePlenAssistant = async () => {
+    if (!usuarioLocal?.id) {
+      return
+    }
+
+    const novoStatus = !plenActivated
+    setAlterandoPlenStatus(true)
+    setMensagem(null)
+
+    try {
+      const response = await fetch('/api/admin/usuario/plen-assistant', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: usuarioLocal.id,
+          activated: novoStatus,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setMensagem({
+          tipo: 'error',
+          texto: data.error || 'Erro ao alterar status do assistente PLEN',
+        })
+      } else {
+        setPlenActivated(novoStatus)
+        setMensagem({
+          tipo: 'success',
+          texto: data.message || `Assistente PLEN ${novoStatus ? 'ativado' : 'desativado'} com sucesso!`,
+        })
+        
+        setTimeout(() => {
+          setMensagem(null)
+        }, 3000)
+      }
+    } catch (error: any) {
+      console.error('Erro ao alterar status do assistente PLEN:', error)
+      setMensagem({
+        tipo: 'error',
+        texto: `Erro ao conectar com o servidor: ${error.message || 'Erro desconhecido'}`,
+      })
+    } finally {
+      setAlterandoPlenStatus(false)
+    }
+  }
+
   const handleAlterarPlano = async () => {
     if (!usuarioLocal) {
       console.error('❌ [ALTERAR PLANO] Usuário não encontrado')
@@ -271,30 +515,33 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
       />
 
       {/* Modal */}
-      <div className="relative bg-white dark:bg-brand-royal rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 w-full max-w-lg max-h-[85vh] overflow-hidden animate-slide-up">
+      <div 
+        className="relative bg-white dark:bg-brand-royal rounded-3xl shadow-2xl border border-gray-200 dark:border-white/10 w-full max-w-lg max-h-[90vh] flex flex-col animate-slide-up overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-white/10 bg-white dark:bg-brand-midnight">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-brand-aqua/20 rounded-xl">
+            <div className="p-2 bg-brand-aqua/20 dark:bg-brand-aqua/30 rounded-xl">
               <User size={24} className="text-brand-aqua" />
             </div>
             <div>
-              <h2 className="text-xl font-display font-bold text-brand-clean">
+              <h2 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
                 Detalhes do Usuário
               </h2>
-              <p className="text-sm text-brand-clean/60">Informações completas</p>
+              <p className="text-sm text-brand-midnight/60 dark:text-brand-clean/60">Informações completas</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-xl transition-smooth"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-smooth"
           >
-            <X size={20} className="text-brand-clean/60" />
+            <X size={20} className="text-brand-midnight/60 dark:text-brand-clean/60" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="px-5 py-4 overflow-y-auto max-h-[calc(85vh-200px)] bg-white dark:bg-brand-royal">
+        <div className="px-5 py-4 overflow-y-auto flex-1 bg-white dark:bg-brand-royal min-h-0" style={{ overscrollBehavior: 'contain' }}>
           {/* Mensagem de feedback */}
           {mensagem && (
             <div className={`mb-3 p-3 rounded-lg border text-xs ${
@@ -330,10 +577,10 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
 
           <div className="space-y-4">
             {/* ID Admin */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center gap-2 mb-1.5">
                 <Key size={16} className="text-brand-aqua" />
-                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">ID Admin</label>
+                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">ID Admin</label>
               </div>
               <p className="text-sm font-mono text-brand-midnight dark:text-brand-clean font-semibold">
                 #{usuarioLocal?.id_curto || usuarioLocal?.id.substring(0, 5)}
@@ -344,25 +591,25 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
             </div>
 
             {/* Nome */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center gap-2 mb-1.5">
                 <User size={16} className="text-brand-aqua" />
-                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">Nome Completo</label>
+                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Nome Completo</label>
               </div>
               <p className="text-sm font-medium text-brand-midnight dark:text-brand-clean">{usuarioLocal?.nome}</p>
             </div>
 
             {/* Email */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center gap-2 mb-1.5">
                 <Mail size={16} className="text-brand-aqua" />
-                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">Email</label>
+                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Email</label>
               </div>
               <p className="text-sm text-brand-midnight dark:text-brand-clean">{usuarioLocal?.email}</p>
             </div>
 
             {/* Contatos */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center gap-2 mb-2">
                 <Phone size={16} className="text-brand-aqua" />
                 <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">Contatos</label>
@@ -375,9 +622,20 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
                   </div>
                 )}
                 {usuarioLocal?.whatsapp && (
-                  <div className="flex items-center gap-2 text-xs text-brand-midnight dark:text-brand-clean/80">
-                    <Phone size={12} className="text-brand-midnight/60 dark:text-brand-clean/60" />
-                    <span>WhatsApp: {usuarioLocal.whatsapp}</span>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-xs text-brand-midnight dark:text-brand-clean/80">
+                      <Phone size={12} className="text-brand-midnight/60 dark:text-brand-clean/60" />
+                      <span>WhatsApp: {usuarioLocal.whatsapp}</span>
+                    </div>
+                    <a
+                      href={`https://wa.me/${usuarioLocal.whatsapp.replace(/\D/g, '').startsWith('55') ? usuarioLocal.whatsapp.replace(/\D/g, '') : '55' + usuarioLocal.whatsapp.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-xs font-medium transition-smooth shadow-sm hover:shadow-md"
+                    >
+                      <MessageCircle size={14} />
+                      Abrir no WhatsApp
+                    </a>
                   </div>
                 )}
                 {!usuarioLocal?.telefone && !usuarioLocal?.whatsapp && (
@@ -386,12 +644,56 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
               </div>
             </div>
 
+            {/* Assistente PLEN */}
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <MessageCircle size={16} className="text-brand-aqua" />
+                  <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Assistente PLEN</label>
+                </div>
+                {carregandoPlenStatus ? (
+                  <Loader2 size={14} className="text-brand-aqua animate-spin" />
+                ) : plenActivated !== null ? (
+                  <button
+                    onClick={handleTogglePlenAssistant}
+                    disabled={alterandoPlenStatus}
+                    className={`px-3 py-1.5 rounded-lg transition-smooth text-xs font-medium flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      plenActivated
+                        ? 'bg-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/30'
+                        : 'bg-gray-200 dark:bg-brand-midnight/50 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-white/20'
+                    }`}
+                  >
+                    {alterandoPlenStatus ? (
+                      <>
+                        <Loader2 size={12} className="animate-spin" />
+                        {plenActivated ? 'Desativando...' : 'Ativando...'}
+                      </>
+                    ) : (
+                      <>
+                        <Power size={12} />
+                        {plenActivated ? 'Ativado' : 'Desativado'}
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <span className="text-xs text-brand-midnight/40 dark:text-brand-clean/40">Sem sessão WhatsApp</span>
+                )}
+              </div>
+              <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">
+                {plenActivated === null
+                  ? 'Usuário precisa autenticar via WhatsApp primeiro'
+                  : plenActivated
+                  ? 'O assistente PLEN está ativo e responderá mensagens do usuário no WhatsApp'
+                  : 'O assistente PLEN está desativado e não responderá mensagens do usuário'}
+              </p>
+            </div>
+
             {/* Plano */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <CreditCard size={16} className="text-brand-aqua" />
-                  <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">Plano Atual</label>
+                  <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Plano Atual</label>
                 </div>
                 <button
                   onClick={() => {
@@ -421,15 +723,15 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
 
               {/* Formulário de Alteração de Plano */}
               {mostrarAlterarPlano && (
-                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10 space-y-3">
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/20 space-y-3">
                   <div>
-                    <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean/70 mb-2">
+                    <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean/80 mb-2">
                       Novo Plano
                     </label>
                     <select
                       value={novoPlano}
                       onChange={(e) => setNovoPlano(e.target.value as 'teste' | 'basico' | 'premium')}
-                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg text-sm text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua"
+                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/30 rounded-lg text-sm text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua"
                     >
                       <option value="teste">Teste (Gratuito)</option>
                       <option value="basico">Básico (R$ 29,90/mês)</option>
@@ -439,13 +741,13 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
 
                   {(novoPlano === 'basico' || novoPlano === 'premium') && (
                     <div>
-                      <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean/70 mb-2">
+                      <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean/80 mb-2">
                         Status do Plano
                       </label>
                       <select
                         value={novoStatus}
                         onChange={(e) => setNovoStatus(e.target.value as 'trial' | 'ativo' | 'cancelado' | 'expirado')}
-                        className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg text-sm text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua"
+                        className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/30 rounded-lg text-sm text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua"
                       >
                         <option value="trial">Trial (Teste)</option>
                         <option value="ativo">Ativo</option>
@@ -490,7 +792,7 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
                         setMostrarAlterarPlano(false)
                         setNovoPlano(usuarioLocal?.plano || 'teste')
                       }}
-                      className="px-3 py-2 bg-gray-100 dark:bg-brand-royal text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-smooth text-sm font-medium"
+                      className="px-3 py-2 bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-gray-200 dark:hover:bg-white/20 transition-smooth text-sm font-medium border border-gray-200 dark:border-white/20"
                     >
                       Cancelar
                     </button>
@@ -500,10 +802,10 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
             </div>
 
             {/* Data de Cadastro */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center gap-2 mb-1.5">
                 <Calendar size={16} className="text-brand-aqua" />
-                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">Cadastrado em</label>
+                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Cadastrado em</label>
               </div>
               <p className="text-sm text-brand-midnight dark:text-brand-clean">
                 {usuarioLocal?.created_at && format(new Date(usuarioLocal.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
@@ -511,10 +813,10 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
             </div>
 
             {/* Último Login */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center gap-2 mb-1.5">
                 <Calendar size={16} className="text-brand-aqua" />
-                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/70">Último Login</label>
+                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Último Login</label>
               </div>
               <p className="text-sm text-brand-midnight dark:text-brand-clean">
                 {usuarioLocal?.last_sign_in_at 
@@ -523,34 +825,269 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
                 }
               </p>
             </div>
+
+            {/* Contagem de Registros */}
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <FileText size={16} className="text-brand-aqua" />
+                  <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Registros</label>
+                </div>
+                <button
+                  onClick={async () => {
+                    // Forçar recarregamento dos registros
+                    if (usuarioLocal?.id) {
+                      setCarregandoRegistros(true)
+                      const url = `/api/admin/usuario/registros-count?userId=${usuarioLocal.id}`
+                      console.log('🔄 [Modal] ==========================================')
+                      console.log('🔄 [Modal] ATUALIZANDO registros (botão refresh)')
+                      console.log('🔄 [Modal] Email:', usuarioLocal.email)
+                      console.log('🔄 [Modal] User ID:', usuarioLocal.id)
+                      console.log('🔄 [Modal] URL:', url)
+                      console.log('🔄 [Modal] ==========================================')
+                      
+                      try {
+                        const inicioRequest = Date.now()
+                        console.log('📤 [Modal] Enviando requisição...')
+                        const response = await fetch(url)
+                        const tempoResposta = Date.now() - inicioRequest
+                        
+                        console.log('📥 [Modal] Resposta recebida em', tempoResposta, 'ms')
+                        console.log('📥 [Modal] Status HTTP:', response.status)
+                        console.log('📥 [Modal] OK?', response.ok)
+                        
+                        if (!response.ok) {
+                          console.error('❌ [Modal] Resposta não OK! Status:', response.status)
+                          const errorText = await response.text()
+                          console.error('❌ [Modal] Corpo da resposta (erro):', errorText)
+                        }
+                        
+                        const data = await response.json()
+                        console.log('📥 [Modal] Dados JSON recebidos:', JSON.stringify(data, null, 2))
+
+                        if (response.ok && data) {
+                          setRegistrosCount(data)
+                          console.log('✅ [Modal] ==========================================')
+                          console.log('✅ [Modal] Registros atualizados com sucesso!')
+                          console.log('✅ [Modal] Total:', data.totalRegistros)
+                          console.log('✅ [Modal] Este mês:', data.registrosMes)
+                          console.log('✅ [Modal] Entradas:', data.registrosEntrada)
+                          console.log('✅ [Modal] Saídas:', data.registrosSaida)
+                          console.log('✅ [Modal] Dívidas:', data.registrosDivida)
+                          // SEMPRE mostrar debug info para diagnóstico
+                          if (data.debug) {
+                            console.log('🔍 [Modal] ========== DEBUG INFO ==========')
+                            console.log('🔍 [Modal] Account Owner ID:', data.debug.accountOwnerId)
+                            console.log('🔍 [Modal] Usuários encontrados na tabela users:', data.debug.totalUsuariosEncontrados)
+                            console.log('🔍 [Modal] User IDs:', data.debug.userIds)
+                            console.log('🔍 [Modal] Registros encontrados:', data.debug.registrosEncontrados)
+                            console.log('🔍 [Modal] Período:', data.debug.periodo)
+                            if (data.debug.warning) {
+                              console.warn('⚠️ [Modal] AVISO:', data.debug.warning)
+                              if (data.debug.sugestao) {
+                                console.warn('💡 [Modal] Sugestão:', data.debug.sugestao)
+                              }
+                            }
+                            if (data.debug.exemploRegistro) {
+                              console.log('📋 [Modal] Exemplo de registro:', data.debug.exemploRegistro)
+                            }
+                            console.log('🔍 [Modal] =================================')
+                          }
+                          console.log('✅ [Modal] ==========================================')
+                          
+                          // Também testar o endpoint de debug para comparação
+                          try {
+                            console.log('🔍 [Modal] Testando endpoint de debug para comparação...')
+                            const debugUrl = `/api/admin/debug-registros?email=${encodeURIComponent(usuarioLocal.email)}`
+                            const debugResponse = await fetch(debugUrl)
+                            const debugData = await debugResponse.json()
+                            console.log('🔍 [Modal] Debug endpoint retornou:')
+                            console.log('  - Contagens:', debugData.contagens)
+                            console.log('  - Total usuários:', debugData.debug?.totalUsuarios)
+                            console.log('  - Registros encontrados:', debugData.debug?.totalRegistrosEncontrados)
+                            console.log('  - Registros do mês (debug):', debugData.contagens?.registrosMes)
+                          } catch (debugErr: any) {
+                            console.warn('⚠️ [Modal] Erro ao buscar debug info:', debugErr.message)
+                          }
+                        } else {
+                          console.error('❌ [Modal] Erro na resposta:', data.error || 'Erro desconhecido')
+                          console.error('❌ [Modal] Dados completos:', data)
+                          setRegistrosCount(null)
+                        }
+                      } catch (error: any) {
+                        console.error('❌ [Modal] ==========================================')
+                        console.error('❌ [Modal] ERRO ao buscar contagem!')
+                        console.error('❌ [Modal] Tipo:', error.name)
+                        console.error('❌ [Modal] Mensagem:', error.message)
+                        console.error('❌ [Modal] Stack:', error.stack)
+                        console.error('❌ [Modal] ==========================================')
+                        setRegistrosCount(null)
+                      } finally {
+                        setCarregandoRegistros(false)
+                        console.log('🏁 [Modal] Atualização finalizada')
+                      }
+                    } else {
+                      console.warn('⚠️ [Modal] Nenhum usuário local definido para atualizar')
+                    }
+                  }}
+                  className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/20 rounded transition-smooth"
+                  title="Atualizar contagem de registros"
+                  disabled={carregandoRegistros}
+                >
+                  {carregandoRegistros ? (
+                    <Loader2 size={14} className="text-brand-aqua animate-spin" />
+                  ) : (
+                    <RefreshCw size={14} className="text-brand-aqua" />
+                  )}
+                </button>
+              </div>
+              {carregandoRegistros ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin text-brand-aqua" />
+                  <span className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">Carregando...</span>
+                </div>
+              ) : registrosCount ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">Total:</span>
+                    <span className="text-sm font-semibold text-brand-midnight dark:text-brand-clean">
+                      {registrosCount.totalRegistros.toLocaleString('pt-BR')}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">Este mês:</span>
+                    <span className="text-sm font-semibold text-brand-midnight dark:text-brand-clean">
+                      {registrosCount.registrosMes.toLocaleString('pt-BR')}
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t border-gray-200 dark:border-white/10 grid grid-cols-3 gap-2">
+                    <div className="text-center">
+                      <div className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-1">Entradas</div>
+                      <div className="text-sm font-semibold text-green-600 dark:text-green-400">
+                        {registrosCount.registrosEntrada.toLocaleString('pt-BR')}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-1">Saídas</div>
+                      <div className="text-sm font-semibold text-red-600 dark:text-red-400">
+                        {registrosCount.registrosSaida.toLocaleString('pt-BR')}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-1">Dívidas</div>
+                      <div className="text-sm font-semibold text-orange-600 dark:text-orange-400">
+                        {registrosCount.registrosDivida.toLocaleString('pt-BR')}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <span className="text-xs text-brand-midnight/40 dark:text-brand-clean/40">Não foi possível carregar</span>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-gray-200 dark:border-white/10 flex items-center justify-between gap-3 bg-white dark:bg-brand-midnight">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-100 dark:bg-brand-royal text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-smooth font-medium text-sm border border-gray-200 dark:border-white/10"
-          >
-            Fechar
-          </button>
-          <button
-            onClick={handleEnviarLinkRecuperacao}
-            disabled={enviando}
-            className="px-4 py-2 bg-brand-aqua text-brand-midnight rounded-lg hover:bg-brand-aqua/90 transition-smooth font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-          >
-            {enviando ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Enviando...
-              </>
-            ) : (
-              <>
-                <Send size={16} />
-                Enviar Link de Recuperação
-              </>
-            )}
-          </button>
+        <div className="px-5 py-4 border-t border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight flex-shrink-0">
+          {/* Confirmação de exclusão */}
+          {mostrarConfirmacaoExclusao && (
+            <div 
+              className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-xl relative z-10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3 mb-3">
+                <AlertTriangle size={20} className="text-red-600 dark:text-red-400 strokeWidth={2.5} flex-shrink-0" />
+                <div className="flex-1">
+                  <h4 className="font-bold text-red-800 dark:text-red-300 mb-1">
+                    Confirmar Exclusão
+                  </h4>
+                  <p className="text-sm text-red-700 dark:text-red-400 mb-3">
+                    Tem certeza que deseja excluir o usuário <strong>{usuarioLocal?.email}</strong>? Esta ação não pode ser desfeita e todos os dados do usuário serão permanentemente removidos.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleExcluirUsuario()
+                      }}
+                      disabled={excluindo}
+                      className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-smooth font-medium text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {excluindo ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin" />
+                          Excluindo...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 size={14} />
+                          Sim, Excluir
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setMostrarConfirmacaoExclusao(false)
+                      }}
+                      disabled={excluindo}
+                      className="px-3 py-1.5 bg-gray-200 dark:bg-brand-royal text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-gray-300 dark:hover:bg-white/10 transition-smooth font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                console.log('🗑️ [MODAL] Botão Excluir clicado')
+                setMostrarConfirmacaoExclusao(true)
+              }}
+              disabled={excluindo || mostrarConfirmacaoExclusao}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 active:bg-red-800 transition-smooth font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm cursor-pointer touch-manipulation"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              <Trash2 size={16} />
+              Excluir Usuário
+            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-gray-100 dark:bg-brand-royal text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-smooth font-medium text-sm border border-gray-200 dark:border-white/10"
+              >
+                Fechar
+              </button>
+              <button
+                onClick={handleEnviarLinkRecuperacao}
+                disabled={enviando}
+                className="px-4 py-2 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                {enviando ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} />
+                    Enviar Link de Recuperação
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
