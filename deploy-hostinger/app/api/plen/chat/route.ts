@@ -96,29 +96,37 @@ export async function POST(request: NextRequest) {
       const valorFinal = Math.round(valor * 100) / 100
 
       let registroUserId: string | null = null
+      let nomeUsuarioResposta: string = ''
+
+      const { data: profile } = await supabase.from('profiles').select('nome, email').eq('id', user.id).single()
+      const profileNome = (profile?.nome ?? profile?.email?.split('@')[0] ?? '').trim().toLowerCase()
 
       const { data: usuarios, error: errUsuarios } = await supabase
         .from('users')
-        .select('id')
+        .select('id, nome')
         .eq('account_owner_id', user.id)
         .order('nome', { ascending: true })
-        .limit(1)
 
-      if (!errUsuarios && usuarios?.[0]?.id) {
-        registroUserId = usuarios[0].id
-        plenLog(requestId, 'users', 'Pessoa encontrada', { userId: registroUserId }, 'info')
+      if (!errUsuarios && usuarios?.length) {
+        const dono = usuarios.find((u) => (u.nome ?? '').trim().toLowerCase() === profileNome)
+        const escolhido = dono ?? usuarios[0]
+        registroUserId = escolhido.id
+        nomeUsuarioResposta = (escolhido.nome ?? '').trim()
+        plenLog(requestId, 'users', 'Pessoa encontrada (dono da conta preferido)', { userId: registroUserId, nome: nomeUsuarioResposta }, 'info')
       }
 
       if (!registroUserId) {
-        plenLog(requestId, 'users', 'Nenhuma pessoa; tentando criar "Meus registros"', undefined, 'info')
+        plenLog(requestId, 'users', 'Nenhuma pessoa; tentando criar', undefined, 'info')
+        const nomeCriar = profile?.nome?.trim() || profile?.email?.split('@')[0] || 'Meus registros'
         const { data: novoUsuario, error: errCriar } = await supabase
           .from('users')
-          .insert({ nome: 'Meus registros', account_owner_id: user.id })
-          .select('id')
+          .insert({ nome: nomeCriar, account_owner_id: user.id })
+          .select('id, nome')
           .single()
         if (!errCriar && novoUsuario?.id) {
           registroUserId = novoUsuario.id
-          plenLog(requestId, 'users', 'Pessoa "Meus registros" criada', { userId: registroUserId }, 'info')
+          nomeUsuarioResposta = (novoUsuario.nome ?? nomeCriar).trim()
+          plenLog(requestId, 'users', 'Pessoa criada', { userId: registroUserId, nome: nomeUsuarioResposta }, 'info')
         }
       }
 
@@ -160,6 +168,7 @@ export async function POST(request: NextRequest) {
         valor: valorFinal,
         dataRegistro: data_registro,
         categoria,
+        nomeUsuario: nomeUsuarioResposta,
       })
       return jsonResponse({
         response: responseText,

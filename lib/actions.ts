@@ -362,34 +362,50 @@ export async function obterRegistros(filtros: any = {}) {
     return { data: [], error: 'Não autenticado' }
   }
 
-  // CRÍTICO: Buscar todos os usuários da tabela users que pertencem a este account_owner
-  // e então buscar registros desses usuários
-  const { data: usuarios, error: usuariosError } = await supabase
+  // Usar admin client para ler usuários e registros e evitar RLS esconder registros
+  // criados via WhatsApp (mesma conta: account_owner_id = user.id)
+  const supabaseAdmin = createAdminClient()
+  if (!supabaseAdmin) {
+    const { data: usuarios, error: usuariosError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('account_owner_id', user.id)
+    if (usuariosError || !usuarios?.length) return { data: [] }
+    const userIds = usuarios.map(u => u.id)
+    let query = supabase.from('registros').select('*').in('user_id', userIds).order('data_registro', { ascending: false })
+    if (filtros.nome) query = query.ilike('nome', `%${filtros.nome}%`)
+    if (filtros.tipo) query = query.eq('tipo', filtros.tipo)
+    if (filtros.categoria) query = query.eq('categoria', filtros.categoria)
+    if (filtros.etiquetas?.length) query = query.contains('etiquetas', filtros.etiquetas)
+    if (filtros.data_inicio) query = query.gte('data_registro', filtros.data_inicio)
+    if (filtros.data_fim) query = query.lte('data_registro', filtros.data_fim)
+    if (filtros.banco?.trim()) query = query.eq('banco', String(filtros.banco).trim().toLowerCase())
+    const { data, error } = await query
+    if (error) return { data: [], error: error.message }
+    return { data: data || [] }
+  }
+
+  const { data: usuarios, error: usuariosError } = await supabaseAdmin
     .from('users')
     .select('id')
     .eq('account_owner_id', user.id)
-  
+
   if (usuariosError) {
     console.error('Erro ao buscar usuários:', usuariosError)
     return { data: [], error: usuariosError.message }
   }
-  
-  // Se não há usuários, retornar vazio
   if (!usuarios || usuarios.length === 0) {
     return { data: [] }
   }
-  
-  // Extrair IDs dos usuários
+
   const userIds = usuarios.map(u => u.id)
-  
-  // Buscar registros onde user_id está na lista de usuários do account_owner
-  let query = supabase
+
+  let query = supabaseAdmin
     .from('registros')
     .select('*')
-    .in('user_id', userIds) // Filtrar por todos os usuários do account_owner
+    .in('user_id', userIds)
     .order('data_registro', { ascending: false })
 
-  // Aplicar filtros adicionais
   if (filtros.nome) {
     query = query.ilike('nome', `%${filtros.nome}%`)
   }
@@ -399,8 +415,6 @@ export async function obterRegistros(filtros: any = {}) {
   if (filtros.categoria) {
     query = query.eq('categoria', filtros.categoria)
   }
-  // Removido: filtros.user_id não deve sobrescrever o filtro do usuário autenticado
-  // Apenas o próprio usuário pode ver seus registros
   if (filtros.etiquetas && Array.isArray(filtros.etiquetas) && filtros.etiquetas.length > 0) {
     query = query.contains('etiquetas', filtros.etiquetas)
   }

@@ -158,6 +158,7 @@ function getSiteUrlSemPreview(): string {
  * 🔴 R$ valor (gasto) ou 🟢 R$ valor (ganho)
  * 📅 data
  * 🗂️ Categoria: ...
+ * usuario: (nome do usuário/pessoa) — opcional
  * ✨ Mensagem de sucesso
  * Confira todos os seus registros acessando sua conta
  * https://plenipay.com
@@ -168,8 +169,10 @@ export function formatarRespostaRegistro(params: {
   valor: number
   dataRegistro: string
   categoria: string
+  /** Nome do usuário/pessoa em que o registro foi lançado (ex.: dono da conta ou outro). */
+  nomeUsuario?: string
 }): string {
-  const { nome, tipo, valor, dataRegistro, categoria } = params
+  const { nome, tipo, valor, dataRegistro, categoria, nomeUsuario } = params
   const valorFormatado = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   const dataBR = formatarDataBR(dataRegistro)
   const emojiValor = tipo === 'entrada' ? '🟢' : '🔴' // entrada = ganho (verde), saida/divida = vermelho
@@ -180,15 +183,21 @@ export function formatarRespostaRegistro(params: {
         ? '✨ Sua dívida foi registrada com sucesso!'
         : '✨ Sua entrada foi registrada com sucesso!'
 
-  return [
+  const linhas = [
     `📌 ${nome}`,
     `${emojiValor} ${valorFormatado}`,
     `📅 ${dataBR}`,
     `🗂️ Categoria: ${categoria}`,
+  ]
+  if (nomeUsuario != null && nomeUsuario.trim() !== '') {
+    linhas.push(`usuario: ${nomeUsuario.trim()}`)
+  }
+  linhas.push(
     '',
     mensagemSucesso,
     '',
     'Confira todos os seus registros acessando sua conta',
     getSiteUrlSemPreview(),
-  ].join('\n')
+  )
+  return linhas.join('\n')
 }
