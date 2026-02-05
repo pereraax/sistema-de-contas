@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
 import { Bell, CheckCircle2, AlertCircle, Info, X, Sparkles } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { format, formatDistanceToNow } from 'date-fns'
@@ -23,10 +22,14 @@ export default function NotificationBell() {
   const [toast, setToast] = useState<Toast>(null)
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [popupPosition, setPopupPosition] = useState({ top: 0, right: 0, width: 380, maxHeight: 600 })
-  const [toastPosition, setToastPosition] = useState({ top: 0, right: 0 })
   const [isMobile, setIsMobile] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     const checkMobile = () => {
@@ -37,30 +40,6 @@ export default function NotificationBell() {
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  // Posicionar o toast logo abaixo do sino
-  useEffect(() => {
-    if (!toast) return
-    const place = () => {
-      if (buttonRef.current) {
-        const rect = buttonRef.current.getBoundingClientRect()
-        setToastPosition({
-          top: rect.bottom + 8,
-          right: window.innerWidth - rect.right,
-        })
-      } else {
-        setToastPosition({ top: 80, right: 16 })
-      }
-    }
-    place()
-    const t = setTimeout(place, 50)
-    window.addEventListener('scroll', place, true)
-    window.addEventListener('resize', place)
-    return () => {
-      clearTimeout(t)
-      window.removeEventListener('scroll', place, true)
-      window.removeEventListener('resize', place)
-    }
-  }, [toast])
 
   useEffect(() => {
     if (isOpen && buttonRef.current) {
@@ -285,39 +264,6 @@ export default function NotificationBell() {
 
   return (
     <>
-      {/* Toast imediato: aparece no canto da tela assim que der erro/aviso */}
-      {toast && createPortal(
-        (() => {
-          const config = getNotificationConfig(toast.type)
-          const Icon = config.icon
-          return (
-            <div
-              className={`fixed z-[10001] w-[calc(100vw-2rem)] max-w-[300px] rounded-xl border-l-4 ${config.borderColor} bg-gradient-to-br ${config.bgGradient} shadow-lg ${config.glow} p-3 flex items-start gap-2.5`}
-              style={{ top: toastPosition.top, right: toastPosition.right }}
-              role="alert"
-            >
-              <div className={`flex-shrink-0 ${config.iconBg} rounded-lg p-1.5 ${config.glow}`}>
-                <Icon size={16} className={config.iconColor} strokeWidth={2.5} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-brand-midnight dark:text-brand-clean leading-snug">
-                  {toast.message}
-                </p>
-                <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mt-0.5">Agora</p>
-              </div>
-              <button
-                onClick={() => { setToast(null); if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current); toastTimeoutRef.current = null }}
-                className="flex-shrink-0 p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors"
-                aria-label="Fechar"
-              >
-                <X size={14} className="text-brand-midnight/50 dark:text-brand-clean/50" strokeWidth={2.5} />
-              </button>
-            </div>
-          )
-        })(),
-        document.body
-      )}
-
     <div className="relative flex items-center">
       <button
         ref={buttonRef}
@@ -333,6 +279,35 @@ export default function NotificationBell() {
           )}
         </div>
       </button>
+
+      {/* Toast: mesmo container do sino, logo abaixo (absolute top-full right-0) */}
+      {mounted && toast && (() => {
+        const config = getNotificationConfig(toast.type)
+        const Icon = config.icon
+        return (
+          <div
+            className={`absolute top-full right-0 mt-2 z-[10001] w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border-l-4 ${config.borderColor} bg-gradient-to-br ${config.bgGradient} shadow-lg ${config.glow} p-3 flex items-start gap-2.5`}
+            role="alert"
+          >
+            <div className={`flex-shrink-0 ${config.iconBg} rounded-lg p-1.5 ${config.glow}`}>
+              <Icon size={16} className={config.iconColor} strokeWidth={2.5} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-brand-midnight dark:text-brand-clean leading-snug">
+                {toast.message}
+              </p>
+              <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mt-0.5">Agora</p>
+            </div>
+            <button
+              onClick={() => { setToast(null); if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current); toastTimeoutRef.current = null }}
+              className="flex-shrink-0 p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors"
+              aria-label="Fechar"
+            >
+              <X size={14} className="text-brand-midnight/50 dark:text-brand-clean/50" strokeWidth={2.5} />
+            </button>
+          </div>
+        )
+      })()}
 
       {isOpen && (
         <>
