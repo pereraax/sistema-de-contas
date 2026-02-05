@@ -135,7 +135,13 @@ function formatarDataBR(iso: string): string {
   }
 }
 
-const SITE = 'plenipay.com'
+/** URL do site (sempre com https para ficar clicável no WhatsApp). */
+function getSiteUrl(): string {
+  const raw =
+    (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL?.trim()) || 'https://plenipay.com'
+  return raw.startsWith('http') ? raw : `https://${raw.replace(/^\/+|\/+$/g, '')}`
+}
+const SITE_URL = getSiteUrl()
 
 /**
  * Monta a resposta no formato pedido:
@@ -144,9 +150,8 @@ const SITE = 'plenipay.com'
  * 📅 data
  * 🗂️ Categoria: ...
  * ✨ Mensagem de sucesso
- * confira todos os seus registros acessando sua conta
- * plenipay.com
- * __
+ * Confira todos os seus registros acessando sua conta
+ * https://plenipay.com
  */
 export function formatarRespostaRegistro(params: {
   nome: string
@@ -175,8 +180,6 @@ export function formatarRespostaRegistro(params: {
     mensagemSucesso,
     '',
     'Confira todos os seus registros acessando sua conta',
-    SITE,
-    '',
-    '__',
+    SITE_URL,
   ].join('\n')
 }
