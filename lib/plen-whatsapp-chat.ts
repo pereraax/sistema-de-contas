@@ -116,15 +116,27 @@ export async function processPlenWhatsAppMessage(
         registroUserId = encontrado.id
         nomeParaResposta = (encontrado.nome ?? '').trim()
       } else {
-        // Padrão: dono da conta = pessoa cujo nome coincide com o perfil (ou primeira da lista)
+        // Padrão: dono da conta = pessoa cujo nome coincide com o perfil; se não existir, criar uma para o dono
         const profileNomeLower = (profileNome ?? '').toLowerCase()
         const dono = usuarios.find((u) => (u.nome ?? '').trim().toLowerCase() === profileNomeLower)
         if (dono) {
           registroUserId = dono.id
           nomeParaResposta = (dono.nome ?? '').trim()
         } else {
-          registroUserId = usuarios[0].id
-          nomeParaResposta = (usuarios[0].nome ?? '').trim()
+          // Não existe pessoa com nome do dono → criar "Dono da conta" para que o registro seja sempre do titular
+          const nomeDono = profileNome || 'Dono da conta'
+          const { data: novoDono, error: errDono } = await supabase
+            .from('users')
+            .insert({ nome: nomeDono, account_owner_id: userId })
+            .select('id, nome')
+            .single()
+          if (!errDono && novoDono?.id) {
+            registroUserId = novoDono.id
+            nomeParaResposta = (novoDono.nome ?? nomeDono).trim()
+          } else {
+            registroUserId = usuarios[0].id
+            nomeParaResposta = (usuarios[0].nome ?? '').trim()
+          }
         }
       }
 

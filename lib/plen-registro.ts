@@ -14,36 +14,49 @@ function extrairValor(texto: string): number | null {
   return isNaN(valor) ? null : valor
 }
 
-/** Interpreta referências de data no texto: hoje, ontem, dia DD, DD/MM, DD/MM/AAAA. Retorna ISO string. */
+/**
+ * Data (só dia) para ISO às 12:00 UTC — usado quando o usuário informa só a data (ontem, dia 15, 05/02).
+ * Assim o dia exibe correto em qualquer fuso.
+ */
+function toISONoonUTC(year: number, month: number, day: number): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${year}-${pad(month + 1)}-${pad(day)}T12:00:00.000Z`
+}
+
+/**
+ * Interpreta data no texto e retorna ISO.
+ * - Sem data ou "hoje" → momento exato da solicitação (data e hora reais).
+ * - "ontem", "dia 15", "05/02" → esse dia às 12:00 UTC (só a data importa).
+ */
 function parseDataDoTexto(texto: string): string {
   const t = texto.trim().toLowerCase()
-  const hoje = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
+  const agora = new Date()
+  const y = agora.getFullYear()
+  const m = agora.getMonth()
+  const d = agora.getDate()
 
-  if (/\bhoje\b/.test(t)) return new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).toISOString()
+  // "hoje" ou nenhuma data explícita → usa data e hora do momento da solicitação
+  if (/\bhoje\b/.test(t)) return agora.toISOString()
   if (/\bontem\b/.test(t)) {
-    const ontem = new Date(hoje)
-    ontem.setDate(ontem.getDate() - 1)
-    return ontem.toISOString()
+    const ontem = new Date(y, m, d - 1)
+    return toISONoonUTC(ontem.getFullYear(), ontem.getMonth(), ontem.getDate())
   }
   const diaMatch = t.match(/\bdia\s+(\d{1,2})\b/)
   if (diaMatch) {
     const dia = parseInt(diaMatch[1], 10)
-    if (dia >= 1 && dia <= 31) {
-      const d = new Date(hoje.getFullYear(), hoje.getMonth(), dia)
-      return d.toISOString()
-    }
+    if (dia >= 1 && dia <= 31) return toISONoonUTC(y, m, dia)
   }
   const dataMatch = t.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/)
   if (dataMatch) {
     const dia = parseInt(dataMatch[1], 10)
     const mes = parseInt(dataMatch[2], 10) - 1
-    const ano = dataMatch[3] ? parseInt(dataMatch[3], 10) : hoje.getFullYear()
+    const ano = dataMatch[3] ? parseInt(dataMatch[3], 10) : y
     const anoFull = ano < 100 ? 2000 + ano : ano
-    const d = new Date(anoFull, mes, dia)
-    if (!isNaN(d.getTime())) return d.toISOString()
+    const data = new Date(anoFull, mes, dia)
+    if (!isNaN(data.getTime())) return toISONoonUTC(data.getFullYear(), data.getMonth(), data.getDate())
   }
-  return new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).toISOString()
+  // Padrão: momento exato da solicitação (data e hora corretas na plataforma)
+  return agora.toISOString()
 }
 
 export type InterpretadoPlen = {

@@ -108,11 +108,31 @@ export async function POST(request: NextRequest) {
         .order('nome', { ascending: true })
 
       if (!errUsuarios && usuarios?.length) {
-        const dono = usuarios.find((u) => (u.nome ?? '').trim().toLowerCase() === profileNome)
-        const escolhido = dono ?? usuarios[0]
-        registroUserId = escolhido.id
-        nomeUsuarioResposta = (escolhido.nome ?? '').trim()
-        plenLog(requestId, 'users', 'Pessoa encontrada (dono da conta preferido)', { userId: registroUserId, nome: nomeUsuarioResposta }, 'info')
+        const profileNomeLower = (profile?.nome ?? profile?.email?.split('@')[0] ?? '').trim().toLowerCase()
+        const dono = usuarios.find((u) => (u.nome ?? '').trim().toLowerCase() === profileNomeLower)
+        if (dono) {
+          registroUserId = dono.id
+          nomeUsuarioResposta = (dono.nome ?? '').trim()
+          plenLog(requestId, 'users', 'Pessoa encontrada (dono da conta)', { userId: registroUserId, nome: nomeUsuarioResposta }, 'info')
+        } else {
+          // Dono da conta não tem pessoa com seu nome → criar uma para que o registro seja sempre do titular
+          plenLog(requestId, 'users', 'Criando pessoa para dono da conta', undefined, 'info')
+          const nomeCriar = profile?.nome?.trim() || profile?.email?.split('@')[0] || 'Dono da conta'
+          const { data: novoUsuario, error: errCriar } = await supabase
+            .from('users')
+            .insert({ nome: nomeCriar, account_owner_id: user.id })
+            .select('id, nome')
+            .single()
+          if (!errCriar && novoUsuario?.id) {
+            registroUserId = novoUsuario.id
+            nomeUsuarioResposta = (novoUsuario.nome ?? nomeCriar).trim()
+            plenLog(requestId, 'users', 'Pessoa do dono criada', { userId: registroUserId, nome: nomeUsuarioResposta }, 'info')
+          } else {
+            registroUserId = usuarios[0].id
+            nomeUsuarioResposta = (usuarios[0].nome ?? '').trim()
+            plenLog(requestId, 'users', 'Fallback primeira pessoa da lista', { userId: registroUserId, nome: nomeUsuarioResposta }, 'warn')
+          }
+        }
       }
 
       if (!registroUserId) {

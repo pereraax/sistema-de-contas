@@ -113,14 +113,16 @@ export default function RegistrosLista({
     }
   }, [filtrosAtuais.data_inicio, filtrosAtuais.data_fim])
 
-  // Associar dados do usuário aos registros
-  const registrosComUsuarios = registros.map((registro) => {
-    const user = usuarios.find((u) => u.id === registro.user_id)
-    return {
-      ...registro,
-      user: user || undefined,
-    }
-  })
+  // Associar dados do usuário aos registros e ordenar: último criado primeiro (created_at DESC)
+  const registrosComUsuarios = registros
+    .map((registro) => {
+      const user = usuarios.find((u) => u.id === registro.user_id)
+      return {
+        ...registro,
+        user: user || undefined,
+      }
+    })
+    .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
 
   const todasEtiquetas = Array.from(
     new Set(registrosComUsuarios.flatMap((r) => r.etiquetas || []))
@@ -1179,6 +1181,9 @@ export default function RegistrosLista({
                       <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Data</p>
                       <p className="text-xs text-brand-midnight/80 dark:text-brand-clean/80">
                         {format(new Date(registro.data_registro), "dd/MM/yyyy", { locale: ptBR })}
+                        <span className="block text-[10px] text-brand-midnight/60 dark:text-brand-clean/60">
+                          {format(new Date(registro.data_registro ?? registro.created_at ?? 0), "HH:mm", { locale: ptBR })}
+                        </span>
                       </p>
                     </div>
                   </div>
@@ -1375,7 +1380,7 @@ export default function RegistrosLista({
                           locale: ptBR,
                         })}</div>
                         <div className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">
-                          {format(new Date(registro.data_registro), "HH:mm", {
+                          {format(new Date(registro.data_registro ?? registro.created_at ?? 0), "HH:mm", {
                             locale: ptBR,
                           })}
                         </div>

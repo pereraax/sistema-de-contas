@@ -372,7 +372,7 @@ export async function obterRegistros(filtros: any = {}) {
       .eq('account_owner_id', user.id)
     if (usuariosError || !usuarios?.length) return { data: [] }
     const userIds = usuarios.map(u => u.id)
-    let query = supabase.from('registros').select('*').in('user_id', userIds).order('data_registro', { ascending: false })
+    let query = supabase.from('registros').select('*').in('user_id', userIds).order('created_at', { ascending: false })
     if (filtros.nome) query = query.ilike('nome', `%${filtros.nome}%`)
     if (filtros.tipo) query = query.eq('tipo', filtros.tipo)
     if (filtros.categoria) query = query.eq('categoria', filtros.categoria)
@@ -404,7 +404,7 @@ export async function obterRegistros(filtros: any = {}) {
     .from('registros')
     .select('*')
     .in('user_id', userIds)
-    .order('data_registro', { ascending: false })
+    .order('created_at', { ascending: false })
 
   if (filtros.nome) {
     query = query.ilike('nome', `%${filtros.nome}%`)
