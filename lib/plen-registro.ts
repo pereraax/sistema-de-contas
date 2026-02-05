@@ -141,7 +141,16 @@ function getSiteUrl(): string {
     (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL?.trim()) || 'https://plenipay.com'
   return raw.startsWith('http') ? raw : `https://${raw.replace(/^\/+|\/+$/g, '')}`
 }
-const SITE_URL = getSiteUrl()
+
+/** Zero-width space (U+200B): evita que o WhatsApp gere miniatura do link, mas o link continua clicável. */
+const ZWSP = '\u200B'
+
+/** Retorna a URL para exibir na mensagem, sem gerar preview/miniatura no WhatsApp. */
+function getSiteUrlSemPreview(): string {
+  const url = getSiteUrl()
+  if (!url.startsWith('https://')) return url
+  return `https://${ZWSP}${url.slice(8)}`
+}
 
 /**
  * Monta a resposta no formato pedido:
@@ -180,6 +189,6 @@ export function formatarRespostaRegistro(params: {
     mensagemSucesso,
     '',
     'Confira todos os seus registros acessando sua conta',
-    SITE_URL,
+    getSiteUrlSemPreview(),
   ].join('\n')
 }
