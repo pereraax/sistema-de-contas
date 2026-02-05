@@ -117,17 +117,16 @@ const nextConfig = {
               value: [
                 "default-src 'self'",
                 "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.googletagmanager.com https://cdn.jsdelivr.net blob:",
-                "style-src 'self' 'unsafe-inline'",
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
                 "img-src 'self' data: https: blob:",
-                "font-src 'self' data:",
+                "font-src 'self' data: https://fonts.gstatic.com",
                 "connect-src 'self' https://*.supabase.co https://api.asaas.com",
                 "frame-src 'self' https://www.google.com",
                 "worker-src 'self' blob:",
                 "object-src 'none'",
                 "base-uri 'self'",
                 "form-action 'self'",
-                "frame-ancestors 'self'",
-                "upgrade-insecure-requests"
+                "frame-ancestors 'self'"
               ].join('; ')
             }
           ],
@@ -283,16 +282,9 @@ const nextConfig = {
       })
     }
     
-    // Ignorar avisos relacionados ao whatsapp-web.js e CSS
+    // Ignorar apenas avisos conhecidos do whatsapp-web (não esconder erros de CSS/scripts)
     config.ignoreWarnings = [
       { module: /whatsapp-web/ },
-      // Ignorar avisos de módulos não encontrados que são opcionais
-      { message: /Module not found/ },
-      { message: /Can't resolve/ },
-      // Ignorar avisos de CSS em build
-      { message: /css-loader/ },
-      { message: /postcss/ },
-      { message: /globals\.css/ },
     ]
     
     // Configurações de resolução
