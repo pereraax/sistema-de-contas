@@ -4,43 +4,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/server'
-import type { TipoRegistro } from '@/lib/types'
-
-function extrairValor(texto: string): number | null {
-  const match = texto.match(/(\d+)(?:[.,](\d+))?/)
-  if (!match) return null
-  const inteiro = match[1]
-  const decimal = match[2] || '00'
-  const valor = parseFloat(`${inteiro}.${decimal}`)
-  return isNaN(valor) ? null : valor
-}
-
-function interpretarMensagem(texto: string): { tipo: TipoRegistro; valor: number; nome: string } | null {
-  const t = texto.trim().toLowerCase()
-  const valorMatch = t.match(/(\d+)(?:[.,](\d+))?\s*(?:reais?|r\$|r\b)?/i)
-  const valorNum = valorMatch ? extrairValor(valorMatch[0]) : null
-  if (valorNum == null || valorNum <= 0) return null
-
-  const despesaMatch = t.match(/(?:gastei|gasteu|paguei)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|em|com|para)?\s*(.*)/i)
-  if (despesaMatch) {
-    const nome = (despesaMatch[1] || '').trim() || 'Gasto'
-    return { tipo: 'saida', valor: valorNum, nome: nome.substring(0, 200) }
-  }
-  if (/\b(?:gastei|gasteu|paguei)\s+[\d.,]+/i.test(t)) {
-    return { tipo: 'saida', valor: valorNum, nome: 'Gasto' }
-  }
-
-  const entradaMatch = t.match(/(?:recebi|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|do|da)?\s*(.*)/i)
-  if (entradaMatch) {
-    const nome = (entradaMatch[1] || '').trim() || 'Entrada'
-    return { tipo: 'entrada', valor: valorNum, nome: nome.substring(0, 200) }
-  }
-  if (/\brecebi\s+[\d.,]+/i.test(t)) {
-    return { tipo: 'entrada', valor: valorNum, nome: 'Entrada' }
-  }
-
-  return null
-}
+import { interpretarMensagem, formatarRespostaRegistro } from '@/lib/plen-registro'
 
 export type ProcessPlenWhatsAppResult = { response: string }
 
@@ -69,7 +33,7 @@ export async function processPlenWhatsAppMessage(
     const interpretado = interpretarMensagem(msg)
 
     if (interpretado) {
-      const { tipo, valor, nome } = interpretado
+      const { tipo, valor, nome, data_registro, categoria } = interpretado
       const valorFinal = Math.round(valor * 100) / 100
 
       let registroUserId: string | null = null
@@ -109,7 +73,8 @@ export async function processPlenWhatsAppMessage(
           nome,
           tipo,
           valor: valorFinal,
-          data_registro: new Date().toISOString(),
+          data_registro,
+          categoria: categoria || null,
           parcelas_totais: 1,
           parcelas_pagas: 0,
           etiquetas: [],
@@ -124,10 +89,14 @@ export async function processPlenWhatsAppMessage(
         }
       }
 
-      const tipoLabel = tipo === 'saida' ? 'Despesa' : 'Entrada'
-      const valorFormatado = valorFinal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
       return {
-        response: `✅ Registrado: ${tipoLabel} de ${valorFormatado} – ${nome}.`,
+        response: formatarRespostaRegistro({
+          nome,
+          tipo,
+          valor: valorFinal,
+          dataRegistro: data_registro,
+          categoria,
+        }),
       }
     }
 
@@ -139,7 +108,7 @@ export async function processPlenWhatsAppMessage(
     }
     if (t.includes('ajuda') || t.includes('como usar')) {
       return {
-        response: 'Para registrar: "Gastei 50 reais no mercado", "Gasteu 400 roupa", "Recebi 1000 reais", "Paguei 30 de Uber".',
+        response: 'Para registrar:\n• Gasto: "Gastei 50 reais no mercado", "Paguei 30 de Uber"\n• Ganho: "Recebi 1000 reais do cliente"\nVocê pode incluir data: "gastei 40 ontem em roupas" ou "dia 15".',
       }
     }
 

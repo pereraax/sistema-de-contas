@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import type { TipoRegistro } from '@/lib/types'
 import { plenLog } from '@/lib/plen-logs'
+import { interpretarMensagem, formatarRespostaRegistro } from '@/lib/plen-registro'
 
 /** Cria cliente Supabase na rota (sem cache React) para garantir cookies da requisição. */
 async function createSupabaseForRoute() {
@@ -28,50 +28,6 @@ async function createSupabaseForRoute() {
       },
     },
   })
-}
-
-/**
- * Extrai valor numérico de uma string (aceita "30", "30,50", "30.50", "30 reais").
- */
-function extrairValor(texto: string): number | null {
-  const match = texto.match(/(\d+)(?:[.,](\d+))?/)
-  if (!match) return null
-  const inteiro = match[1]
-  const decimal = match[2] || '00'
-  const valor = parseFloat(`${inteiro}.${decimal}`)
-  return isNaN(valor) ? null : valor
-}
-
-/**
- * Interpreta mensagem em linguagem natural e retorna tipo, valor e nome (descrição).
- */
-function interpretarMensagem(texto: string): { tipo: TipoRegistro; valor: number; nome: string } | null {
-  const t = texto.trim().toLowerCase()
-  const valorMatch = t.match(/(\d+)(?:[.,](\d+))?\s*(?:reais?|r\$|r\b)?/i)
-  const valorNum = valorMatch ? extrairValor(valorMatch[0]) : null
-  if (valorNum == null || valorNum <= 0) return null
-
-  // Despesa: gastei, gasteu, paguei (ex.: "gastei 30 reais", "gastei 30 r", "gasteu 400 roupa", "paguei 50 no mercado")
-  const despesaMatch = t.match(/(?:gastei|gasteu|paguei)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|em|com|para)?\s*(.*)/i)
-  if (despesaMatch) {
-    const nome = (despesaMatch[1] || '').trim() || 'Gasto'
-    return { tipo: 'saida', valor: valorNum, nome: nome.substring(0, 200) }
-  }
-  if (/\b(?:gastei|gasteu|paguei)\s+[\d.,]+/i.test(t)) {
-    return { tipo: 'saida', valor: valorNum, nome: 'Gasto' }
-  }
-
-  // Entrada: recebi, entrada de
-  const entradaMatch = t.match(/(?:recebi|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|do|da)?\s*(.*)/i)
-  if (entradaMatch) {
-    const nome = (entradaMatch[1] || '').trim() || 'Entrada'
-    return { tipo: 'entrada', valor: valorNum, nome: nome.substring(0, 200) }
-  }
-  if (/\brecebi\s+[\d.,]+/i.test(t)) {
-    return { tipo: 'entrada', valor: valorNum, nome: 'Entrada' }
-  }
-
-  return null
 }
 
 /** GET: verificar se a rota está no ar (útil para diagnóstico). */
@@ -133,13 +89,12 @@ export async function POST(request: NextRequest) {
     }
 
     const interpretado = interpretarMensagem(message)
-    plenLog(requestId, 'interpret', interpretado ? 'Mensagem interpretada' : 'Mensagem não interpretada como registro', interpretado ? { tipo: interpretado.tipo, valor: interpretado.valor, nome: interpretado.nome } : undefined, 'info')
+    plenLog(requestId, 'interpret', interpretado ? 'Mensagem interpretada' : 'Mensagem não interpretada como registro', interpretado ? { tipo: interpretado.tipo, valor: interpretado.valor, nome: interpretado.nome, categoria: interpretado.categoria } : undefined, 'info')
 
     if (interpretado) {
-      const { tipo, valor, nome } = interpretado
+      const { tipo, valor, nome, data_registro, categoria } = interpretado
       const valorFinal = Math.round(valor * 100) / 100
 
-      // user_id do registro: preferir pessoa da tabela "users"; senão criar uma padrão ou usar o dono da conta
       let registroUserId: string | null = null
 
       const { data: usuarios, error: errUsuarios } = await supabase
@@ -156,7 +111,6 @@ export async function POST(request: NextRequest) {
 
       if (!registroUserId) {
         plenLog(requestId, 'users', 'Nenhuma pessoa; tentando criar "Meus registros"', undefined, 'info')
-        // Criar pessoa padrão "Meus registros" para o dono da conta
         const { data: novoUsuario, error: errCriar } = await supabase
           .from('users')
           .insert({ nome: 'Meus registros', account_owner_id: user.id })
@@ -182,7 +136,8 @@ export async function POST(request: NextRequest) {
           nome,
           tipo,
           valor: valorFinal,
-          data_registro: new Date().toISOString(),
+          data_registro,
+          categoria: categoria || null,
           parcelas_totais: 1,
           parcelas_pagas: 0,
           etiquetas: [],
@@ -199,13 +154,18 @@ export async function POST(request: NextRequest) {
       }
 
       plenLog(requestId, 'insert', 'Registro criado', { id: inserted?.id, nome, tipo, valor: valorFinal }, 'info')
-      const tipoLabel = tipo === 'saida' ? 'Despesa' : 'Entrada'
-      const valorFormatado = valorFinal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      const responseText = formatarRespostaRegistro({
+        nome,
+        tipo,
+        valor: valorFinal,
+        dataRegistro: data_registro,
+        categoria,
+      })
       return jsonResponse({
-        response: `✅ Registrado: ${tipoLabel} de ${valorFormatado} – ${nome}.`,
+        response: responseText,
         actionData: {
           action: 'created',
-          message: `${tipoLabel} de ${valorFormatado} registrada.`,
+          message: responseText,
           id: inserted?.id,
         },
       })
@@ -220,7 +180,7 @@ export async function POST(request: NextRequest) {
     }
     if (t.includes('ajuda') || t.includes('como usar')) {
       return jsonResponse({
-        response: 'Para registrar, escreva por exemplo:\n• "Gastei 50 reais no mercado"\n• "Gasteu 400 roupa"\n• "Recebi 1000 reais"\n• "Paguei 30 de Uber"',
+        response: 'Para registrar:\n• Gasto: "Gastei 50 reais no mercado", "Paguei 30 de Uber"\n• Ganho: "Recebi 1000 reais do cliente"\nVocê pode incluir data: "gastei 40 ontem em roupas" ou "dia 15".',
       })
     }
 
