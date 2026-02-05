@@ -3,10 +3,89 @@
  * Usado pela rota /api/plen/whatsapp-chat e pelo handler (chamada direta, sem fetch).
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/server'
 import { interpretarMensagem, formatarRespostaRegistro } from '@/lib/plen-registro'
 
 export type ProcessPlenWhatsAppResult = { response: string }
+
+/** Estatísticas por conta (para consultas/relatórios no WhatsApp). */
+type StatsPlen = {
+  totalEntradas: number
+  totalSaidas: number
+  totalDividas: number
+  dividasPagas: number
+  totalDividasPendentes: number
+  saldo: number
+}
+
+function fmt(val: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
+}
+
+/** Retorna início e fim da semana (últimos 7 dias) em ISO. */
+function intervaloSemana(): { inicio: string; fim: string } {
+  const fim = new Date()
+  const inicio = new Date(fim)
+  inicio.setDate(inicio.getDate() - 6)
+  inicio.setHours(0, 0, 0, 0)
+  fim.setHours(23, 59, 59, 999)
+  return { inicio: inicio.toISOString(), fim: fim.toISOString() }
+}
+
+/** Retorna início e fim do mês atual em ISO. */
+function intervaloMes(): { inicio: string; fim: string } {
+  const agora = new Date()
+  const inicio = new Date(agora.getFullYear(), agora.getMonth(), 1, 0, 0, 0, 0)
+  const fim = new Date(agora.getFullYear(), agora.getMonth() + 1, 0, 23, 59, 59, 999)
+  return { inicio: inicio.toISOString(), fim: fim.toISOString() }
+}
+
+async function obterEstatisticasPlen(
+  supabase: SupabaseClient,
+  accountOwnerId: string,
+  dataInicio?: string,
+  dataFim?: string
+): Promise<StatsPlen | null> {
+  const { data: usuarios, error: errU } = await supabase
+    .from('users')
+    .select('id')
+    .eq('account_owner_id', accountOwnerId)
+  if (errU || !usuarios?.length) return null
+  const userIds = usuarios.map((u) => u.id)
+
+  let query = supabase
+    .from('registros')
+    .select('tipo, valor, parcelas_totais, parcelas_pagas')
+    .in('user_id', userIds)
+  if (dataInicio) query = query.gte('data_registro', dataInicio)
+  if (dataFim) query = query.lte('data_registro', dataFim)
+  const { data: registros, error } = await query
+  if (error || !registros) return null
+
+  let totalEntradas = 0
+  let totalSaidas = 0
+  let totalDividas = 0
+  let dividasPagas = 0
+  registros.forEach((r) => {
+    if (r.tipo === 'entrada') totalEntradas += Number(r.valor)
+    else if (r.tipo === 'saida') totalSaidas += Number(r.valor)
+    else if (r.tipo === 'divida') {
+      totalDividas += Number(r.valor)
+      const n = Number(r.parcelas_totais) || 1
+      const p = Number(r.parcelas_pagas) || 0
+      dividasPagas += (Number(r.valor) * p) / n
+    }
+  })
+  return {
+    totalEntradas,
+    totalSaidas,
+    totalDividas,
+    dividasPagas,
+    totalDividasPendentes: totalDividas - dividasPagas,
+    saldo: totalEntradas - totalSaidas,
+  }
+}
 
 /**
  * Processa uma mensagem do usuário no contexto WhatsApp (userId = id do profile/account_owner).
@@ -175,7 +254,77 @@ export async function processPlenWhatsAppMessage(
       }
     }
 
-    const t = msg.toLowerCase()
+    const t = rawMessage.toLowerCase()
+
+    // CONSULTAR / RELATÓRIOS: reconhece as frases da mensagem de boas-vindas do PLEN
+    const isRelatorio =
+      /\b(relat[oó]rio|resumo|finan[cç]as|como estão)\b/.test(t) ||
+      /me\s+mostr(e|ar)|mostre\s+meu|quero\s+ver\s+meu/.test(t)
+    const isGastosSemana =
+      /\b(gastos?\s+(dessa|esta|na)\s+semana|gastei\s+na\s+semana|quanto\s+gastei\s+na\s+semana|qual\s+foi\s+meus?\s+gastos?\s+essa\s+semana)\b/.test(t)
+    const isGastosMes =
+      /\b(gastos?\s+(do\s+)?m[eê]s|gastei\s+no\s+m[eê]s|quanto\s+gastei\s+no\s+m[eê]s)\b/.test(t)
+    const isDividas = /\b(d[ií]vidas?|quais\s+s[aã]o\s+minhas?\s+d[ií]vidas?)\b/.test(t)
+    const isSaldo = /\b(saldo|quanto\s+tenho\s+de\s+saldo)\b/.test(t)
+    const isRecebiMes = /\b(recebi\s+(este|no)\s+m[eê]s|quanto\s+recebi\s+este\s+m[eê]s)\b/.test(t)
+
+    if (isRelatorio || isGastosSemana || isGastosMes || isDividas || isSaldo || isRecebiMes) {
+      const { inicio: inicioSemana, fim: fimSemana } = intervaloSemana()
+      const { inicio: inicioMes, fim: fimMes } = intervaloMes()
+      const statsSemana = await obterEstatisticasPlen(supabase, userId, inicioSemana, fimSemana)
+      const statsMes = await obterEstatisticasPlen(supabase, userId, inicioMes, fimMes)
+      if (statsSemana === null && statsMes === null) {
+        return {
+          response:
+            'Não encontrei dados da sua conta. Crie pessoas em Configurações → Usuários e registre alguns lançamentos.',
+        }
+      }
+      const sSemana = statsSemana ?? {
+        totalEntradas: 0,
+        totalSaidas: 0,
+        totalDividas: 0,
+        dividasPagas: 0,
+        totalDividasPendentes: 0,
+        saldo: 0,
+      }
+      const sMes = statsMes ?? {
+        totalEntradas: 0,
+        totalSaidas: 0,
+        totalDividas: 0,
+        dividasPagas: 0,
+        totalDividasPendentes: 0,
+        saldo: 0,
+      }
+
+      const linhas: string[] = []
+      if (isGastosSemana || isRelatorio) {
+        linhas.push('📅 Esta semana')
+        linhas.push(`🟢 Entradas: ${fmt(sSemana.totalEntradas)}`)
+        linhas.push(`🔴 Gastos: ${fmt(sSemana.totalSaidas)}`)
+        linhas.push(`💰 Saldo da semana: ${fmt(sSemana.saldo)}`)
+      }
+      if (isGastosMes || isRecebiMes || isRelatorio) {
+        linhas.push('')
+        linhas.push('📆 Este mês')
+        linhas.push(`🟢 Entradas: ${fmt(sMes.totalEntradas)}`)
+        linhas.push(`🔴 Gastos: ${fmt(sMes.totalSaidas)}`)
+        linhas.push(`💰 Saldo do mês: ${fmt(sMes.saldo)}`)
+      }
+      if (isDividas || isRelatorio) {
+        linhas.push('')
+        linhas.push('📌 Dívidas')
+        linhas.push(`Total: ${fmt(sMes.totalDividas)}`)
+        linhas.push(`Pago: ${fmt(sMes.dividasPagas)}`)
+        linhas.push(`Pendente: ${fmt(sMes.totalDividasPendentes)}`)
+      }
+      if (isSaldo && !linhas.length) {
+        linhas.push(`💰 Saldo atual (entradas − gastos): ${fmt(sMes.saldo)}`)
+        linhas.push(`📌 Dívidas pendentes: ${fmt(sMes.totalDividasPendentes)}`)
+      }
+      const text = linhas.length ? linhas.join('\n') : `💰 Saldo: ${fmt(sMes.saldo)}\n📌 Dívidas pendentes: ${fmt(sMes.totalDividasPendentes)}`
+      return { response: text }
+    }
+
     if (t.includes('oi') || t.includes('olá') || t.includes('ola')) {
       return {
         response: 'Oi! 👋 Pode dizer um gasto ou entrada, por exemplo: "Gastei 30 reais de ônibus" ou "Recebi 500".',
@@ -183,12 +332,14 @@ export async function processPlenWhatsAppMessage(
     }
     if (t.includes('ajuda') || t.includes('como usar')) {
       return {
-        response: 'Para registrar:\n• Gasto: "Gastei 50 no mercado", "Paguei 30 de Uber"\n• Ganho: "Ganhei 20", "Recebi 1000 do cliente"\n• Por padrão o registro vai no seu nome (dono da conta).\n• Para registrar no nome de outro usuário, mande na segunda linha o nome dele:\n  gastei 50 roupas\n  (nome do usuário)',
+        response:
+          'Para registrar:\n• Gasto: "Gastei 50 no mercado", "Paguei 30 de Uber"\n• Ganho: "Ganhei 20", "Recebi 1000 do cliente"\n• Por padrão o registro vai no seu nome (dono da conta).\n• Para registrar no nome de outro usuário, mande na segunda linha o nome dele:\n  gastei 50 roupas\n  (nome do usuário)\n\nConsultar: "quanto gastei na semana?", "me mostre o relatório", "quais são minhas dívidas?"',
       }
     }
 
     return {
-      response: 'Não entendi. Tente: "Gastei 30 reais de ônibus", "Ganhei 20", "Recebi 500 reais" ou "Tenho uma dívida de 200 no cartão".',
+      response:
+        'Não entendi. Tente: "Gastei 30 reais de ônibus", "Ganhei 20", "Recebi 500 reais", "Quanto gastei na semana?" ou "Me mostre o relatório".',
     }
   } catch (err: any) {
     const msg = err?.message ?? String(err)
