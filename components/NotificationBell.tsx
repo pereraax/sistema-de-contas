@@ -23,6 +23,7 @@ export default function NotificationBell() {
   const [toast, setToast] = useState<Toast>(null)
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [popupPosition, setPopupPosition] = useState({ top: 0, right: 0, width: 380, maxHeight: 600 })
+  const [toastPosition, setToastPosition] = useState({ top: 0, right: 0 })
   const [isMobile, setIsMobile] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const router = useRouter()
@@ -35,6 +36,31 @@ export default function NotificationBell() {
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
+
+  // Posicionar o toast logo abaixo do sino
+  useEffect(() => {
+    if (!toast) return
+    const place = () => {
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect()
+        setToastPosition({
+          top: rect.bottom + 8,
+          right: window.innerWidth - rect.right,
+        })
+      } else {
+        setToastPosition({ top: 80, right: 16 })
+      }
+    }
+    place()
+    const t = setTimeout(place, 50)
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [toast])
 
   useEffect(() => {
     if (isOpen && buttonRef.current) {
@@ -266,7 +292,8 @@ export default function NotificationBell() {
           const Icon = config.icon
           return (
             <div
-              className={`fixed top-20 right-4 z-[10001] w-[calc(100vw-2rem)] max-w-[300px] rounded-xl border-l-4 ${config.borderColor} bg-gradient-to-br ${config.bgGradient} shadow-lg ${config.glow} p-3 flex items-start gap-2.5`}
+              className={`fixed z-[10001] w-[calc(100vw-2rem)] max-w-[300px] rounded-xl border-l-4 ${config.borderColor} bg-gradient-to-br ${config.bgGradient} shadow-lg ${config.glow} p-3 flex items-start gap-2.5`}
+              style={{ top: toastPosition.top, right: toastPosition.right }}
               role="alert"
             >
               <div className={`flex-shrink-0 ${config.iconBg} rounded-lg p-1.5 ${config.glow}`}>
