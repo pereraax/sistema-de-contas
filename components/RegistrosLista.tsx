@@ -7,6 +7,7 @@ import { Edit, Trash2, CheckCircle, X, Search, Filter, ChevronDown, Check, Calen
 import { format, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import { marcarParcelaPaga, excluirRegistro } from '@/lib/actions'
+import { createNotification } from './NotificationBell'
 import ModalConfirmacao from './ModalConfirmacao'
 import ModalEditarRegistro from './ModalEditarRegistro'
 
@@ -155,12 +156,16 @@ export default function RegistrosLista({
   }
 
   const confirmarExcluir = async () => {
-    if (registroParaExcluir) {
-      await excluirRegistro(registroParaExcluir)
-      router.refresh()
-      setShowModalExcluir(false)
-      setRegistroParaExcluir(null)
+    if (!registroParaExcluir) return
+    const result = await excluirRegistro(registroParaExcluir)
+    if (result?.error) {
+      createNotification(result.error, 'warning')
+      return
     }
+    createNotification('Registro excluído com sucesso!', 'success')
+    router.refresh()
+    setShowModalExcluir(false)
+    setRegistroParaExcluir(null)
   }
 
   const tipoColors = {

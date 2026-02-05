@@ -205,15 +205,16 @@ export async function excluirRegistro(id: string) {
     usuario_autenticado: user.id
   })
 
-  // Verificar permissão de forma mais flexível:
-  // - Se não tem user_id (null), permitir exclusão (registros antigos ou criados automaticamente)
-  // - Se tem user_id, verificar se corresponde ao usuário autenticado
-  // - Para dívidas, sempre permitir exclusão já que podem ter sido criadas automaticamente
-  //   e o sistema de criação de dívidas de teste pode usar user_id diferente
-  const podeExcluir = 
-    !registroExistente.user_id || // Sem user_id, permitir
-    registroExistente.user_id === user.id || // user_id corresponde ao usuário autenticado
-    registroExistente.tipo === 'divida' // Para dívidas, sempre permitir (sistema flexível)
+  // user_id no registro = id da "pessoa" (tabela users); user.id = dono da conta (auth).
+  // Dono da conta pode excluir qualquer registro cuja pessoa pertença à sua conta (account_owner_id = user.id).
+  const { data: pessoasDaConta } = await supabase
+    .from('users')
+    .select('id')
+    .eq('account_owner_id', user.id)
+  const idsPessoas = (pessoasDaConta ?? []).map((p) => p.id)
+  const podeExcluir =
+    !registroExistente.user_id || // Sem user_id, permitir (registros antigos/automáticos)
+    idsPessoas.includes(registroExistente.user_id) // registro é de uma pessoa desta conta
 
   if (!podeExcluir) {
     console.warn('⚠️ [excluirRegistro] Usuário não tem permissão para excluir este registro', {
@@ -226,8 +227,10 @@ export async function excluirRegistro(id: string) {
 
   console.log('✅ [excluirRegistro] Permissão confirmada, prosseguindo com exclusão')
 
-  // Executar exclusão
-  const { error, data } = await supabase
+  // Executar exclusão com admin client para não ser bloqueado por RLS (já validamos que é da conta do usuário)
+  const admin = createAdminClient()
+  const clientToUse = admin ?? supabase
+  const { error, data } = await clientToUse
     .from('registros')
     .delete()
     .eq('id', id)
