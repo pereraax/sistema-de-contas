@@ -63,27 +63,52 @@ export function interpretarMensagem(texto: string): InterpretadoPlen | null {
   const valorNum = valorMatch ? extrairValor(valorMatch[0]) : null
   if (valorNum == null || valorNum <= 0) return null
 
+  // DÍVIDA: "tenho uma dívida de 200", "dívida de 200 no cartão", "devo 200"
+  const dividaMatch = t.match(/(?:tenho\s+(?:uma\s+)?d[ií]vida\s+de|d[ií]vida\s+de|devo)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:no|em|no\s+)?\s*(.*)/i)
+  if (dividaMatch && /(?:tenho\s+(?:uma\s+)?d[ií]vida|d[ií]vida\s+de|devo)\s+[\d.,]+/i.test(t)) {
+    const nomeDivida = (dividaMatch[1] || '').trim() || 'Dívida'
+    nome = nomeDivida.substring(0, 200)
+    nome = nome.replace(/\s*(hoje|ontem|dia\s+\d{1,2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*$/gi, '').trim() || 'Dívida'
+    const data_registro = parseDataDoTexto(t)
+    const categoria = nome !== 'Dívida' ? nome : 'Outros'
+    return { tipo: 'divida', valor: valorNum, nome, data_registro, categoria }
+  }
+
+  // SALÁRIO (entrada): "meu salário é 3000", "salário de 3000", "meu salário 3000"
+  const salarioMatch = t.match(/(?:meu\s+)?sal[aá]rio\s+(?:é|de)?\s*[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(.*)/i)
+  if (salarioMatch && /sal[aá]rio\s+(?:é|de)?\s*[\d.,]+/i.test(t)) {
+    const nomeSal = (salarioMatch[1] || '').trim() || 'Salário'
+    nome = nomeSal.substring(0, 200) || 'Salário'
+    nome = nome.replace(/\s*(hoje|ontem|dia\s+\d{1,2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*$/gi, '').trim() || 'Salário'
+    const data_registro = parseDataDoTexto(t)
+    return { tipo: 'entrada', valor: valorNum, nome, data_registro, categoria: 'Salário' }
+  }
+
+  // Verbos de GASTO: gastei, gasteu, paguei, pagou, etc.
+  const verbosGasto = /(?:gastei|gasteu|gastou|paguei|pagou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?/i
+  const despesaMatch = t.match(/(?:gastei|gasteu|gastou|paguei|pagou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|em|com|para|no|na)?\s*(.*)/i)
+
+  // Verbos de ENTRADA: recebi, recebeu, ganhei, ganhou, entrei com, entrada de, etc.
+  const verbosEntrada = /(?:recebi|recebeu|ganhei|ganhou|ganhamos|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?/i
+  const entradaMatch = t.match(/(?:recebi|recebeu|ganhei|ganhou|ganhamos|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|do|da|com)?\s*(.*)/i)
+
   let tipo: TipoRegistro
   let nome: string
 
-  const despesaMatch = t.match(/(?:gastei|gasteu|paguei)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|em|com|para|no|na)?\s*(.*)/i)
-  if (despesaMatch) {
+  if (despesaMatch && verbosGasto.test(t)) {
     nome = (despesaMatch[1] || '').trim() || 'Gasto'
     tipo = 'saida'
-  } else if (/\b(?:gastei|gasteu|paguei)\s+[\d.,]+/i.test(t)) {
+  } else if (verbosGasto.test(t)) {
     nome = 'Gasto'
     tipo = 'saida'
+  } else if (entradaMatch && verbosEntrada.test(t)) {
+    nome = (entradaMatch[1] || '').trim() || 'Entrada'
+    tipo = 'entrada'
+  } else if (verbosEntrada.test(t)) {
+    nome = 'Entrada'
+    tipo = 'entrada'
   } else {
-    const entradaMatch = t.match(/(?:recebi|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|do|da)?\s*(.*)/i)
-    if (entradaMatch) {
-      nome = (entradaMatch[1] || '').trim() || 'Entrada'
-      tipo = 'entrada'
-    } else if (/\brecebi\s+[\d.,]+/i.test(t)) {
-      nome = 'Entrada'
-      tipo = 'entrada'
-    } else {
-      return null
-    }
+    return null
   }
 
   // Remover termos de data do final do nome (ex.: "roupas ontem" -> "roupas", "mercado dia 15" -> "mercado")
@@ -133,11 +158,13 @@ export function formatarRespostaRegistro(params: {
   const { nome, tipo, valor, dataRegistro, categoria } = params
   const valorFormatado = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   const dataBR = formatarDataBR(dataRegistro)
-  const emojiValor = tipo === 'saida' ? '🔴' : '🟢'
+  const emojiValor = tipo === 'entrada' ? '🟢' : '🔴' // entrada = ganho (verde), saida/divida = vermelho
   const mensagemSucesso =
     tipo === 'saida'
       ? '✨ Seu gasto foi registrado com sucesso!'
-      : '✨ Sua entrada foi registrada com sucesso!'
+      : tipo === 'divida'
+        ? '✨ Sua dívida foi registrada com sucesso!'
+        : '✨ Sua entrada foi registrada com sucesso!'
 
   return [
     `📌 ${nome}`,

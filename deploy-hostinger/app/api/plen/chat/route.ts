@@ -180,12 +180,12 @@ export async function POST(request: NextRequest) {
     }
     if (t.includes('ajuda') || t.includes('como usar')) {
       return jsonResponse({
-        response: 'Para registrar:\n• Gasto: "Gastei 50 reais no mercado", "Paguei 30 de Uber"\n• Ganho: "Recebi 1000 reais do cliente"\nVocê pode incluir data: "gastei 40 ontem em roupas" ou "dia 15".',
+        response: 'Para registrar:\n• Gasto: "Gastei 50 no mercado", "Paguei 30 de Uber"\n• Ganho: "Ganhei 20", "Recebi 1000 do cliente"\n• Dívida: "Tenho uma dívida de 200 no cartão"\n• Salário: "Meu salário é 3000"\nVocê pode incluir data: "gastei 40 ontem" ou "dia 15".',
       })
     }
 
     return jsonResponse({
-      response: 'Não entendi. Tente algo como: "Gastei 30 reais de ônibus" ou "Recebi 500 reais".',
+      response: 'Não entendi. Tente: "Gastei 30 reais de ônibus", "Ganhei 20", "Recebi 500 reais" ou "Tenho uma dívida de 200 no cartão".',
     })
   } catch (err: any) {
     const msg = err?.message ?? String(err)
