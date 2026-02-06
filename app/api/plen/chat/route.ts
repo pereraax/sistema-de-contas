@@ -6,6 +6,8 @@ import { interpretarMensagem, formatarRespostaRegistro } from '@/lib/plen-regist
 import { getPlenLLMResponse } from '@/lib/plen-llm-fallback'
 import { extrairUsuarioNaMensagem } from '@/lib/plen-whatsapp-chat'
 
+export const dynamic = 'force-dynamic'
+
 /** Cria cliente Supabase na rota (sem cache React) para garantir cookies da requisição. */
 async function createSupabaseForRoute() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

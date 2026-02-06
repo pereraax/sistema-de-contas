@@ -57,6 +57,8 @@ module.exports = {
     'animate-float-3',
     'animate-fade-in',
     'animate-slide-up',
+    'animate-notification-panel',
+    'animate-notification-backdrop',
   ],
   theme: {
     extend: {
@@ -96,6 +98,8 @@ module.exports = {
       animation: {
         'fade-in': 'fadeIn 0.3s ease-in-out',
         'slide-up': 'slideUp 0.3s ease-out',
+        'notification-panel': 'notificationPanel 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+        'notification-backdrop': 'fadeIn 0.2s ease-out forwards',
         'gradient-move': 'gradientMove 15s ease-in-out infinite',
         'gradient-text': 'gradientText 4s ease-in-out infinite',
         'slide-left': 'slideLeft 90s linear infinite',
@@ -105,6 +109,10 @@ module.exports = {
         fadeIn: {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
+        },
+        notificationPanel: {
+          '0%': { opacity: '0', transform: 'translateX(12px) scale(0.98)' },
+          '100%': { opacity: '1', transform: 'translateX(0) scale(1)' },
         },
         slideUp: {
           '0%': { transform: 'translateY(10px)', opacity: '0' },

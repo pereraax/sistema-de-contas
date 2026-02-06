@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { obterEstatisticas } from '@/lib/actions'
-import { TrendingUp, TrendingDown, ChevronDown, ChevronLeft, ChevronRight, Check, Moon, Sun, User, Crown } from 'lucide-react'
+import { TrendingUp, TrendingDown, ChevronDown, ChevronLeft, ChevronRight, Check, Moon, Sun, User, Crown, Wallet } from 'lucide-react'
 import { useFiltroData } from './FiltroRapidoDataWrapper'
 import { MenuButton } from './MobileMenu'
 import NotificationBell from './NotificationBell'
@@ -42,6 +42,16 @@ function datasUltimosDias(dias: number) {
   return { dataInicio: inicio.toISOString(), dataFim: fim.toISOString() }
 }
 
+/** Retorna primeiro e último dia do mês anterior (ISO). */
+function datasMesAnterior() {
+  const agora = new Date()
+  const ano = agora.getFullYear()
+  const mes = agora.getMonth()
+  const inicio = new Date(ano, mes - 1, 1, 0, 0, 0, 0)
+  const fim = new Date(ano, mes, 0, 23, 59, 59, 999)
+  return { dataInicio: inicio.toISOString(), dataFim: fim.toISOString() }
+}
+
 const FILTROS_DIAS = [3, 5, 7, 10] as const
 
 export default function HomeLayoutNovo() {
@@ -58,6 +68,8 @@ export default function HomeLayoutNovo() {
     qtdDespesasPendentes: number
   } | null>(null)
   const [gastosPorBanco, setGastosPorBanco] = useState<Array<{ banco: string; gastos: number; saldo: number }>>([])
+  const [saldoTotal, setSaldoTotal] = useState<number | null>(null)
+  const [saldoMesAnterior, setSaldoMesAnterior] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<{ nome: string; imagem_url?: string }>({ nome: 'Usuário' })
   
@@ -199,7 +211,26 @@ export default function HomeLayoutNovo() {
 
   const carregarEstatisticas = useCallback(async () => {
     try {
-      const result = await obterEstatisticas(dataInicio, dataFim)
+      const [result, resultTotal, resultMesAnterior] = await Promise.all([
+        obterEstatisticas(dataInicio, dataFim),
+        obterEstatisticas(),
+        (() => {
+          const { dataInicio: ini, dataFim: fim } = datasMesAnterior()
+          return obterEstatisticas(ini, fim)
+        })()
+      ])
+
+      if (resultTotal && !resultTotal.error && resultTotal.saldo != null) {
+        setSaldoTotal(resultTotal.saldo)
+      } else {
+        setSaldoTotal(0)
+      }
+      if (resultMesAnterior && !resultMesAnterior.error && resultMesAnterior.saldo != null) {
+        setSaldoMesAnterior(resultMesAnterior.saldo)
+      } else {
+        setSaldoMesAnterior(0)
+      }
+
       if (result.error) {
         setStats({
           totalEntradas: 0,
@@ -225,6 +256,8 @@ export default function HomeLayoutNovo() {
         })
       }
     } catch {
+      setSaldoTotal(0)
+      setSaldoMesAnterior(0)
       setStats({
         totalEntradas: 0,
         totalSaidas: 0,
@@ -446,16 +479,16 @@ export default function HomeLayoutNovo() {
         })}
       </div>
 
-      {/* Saldo atual em contas - CENTRALIZADO */}
+      {/* Saldo atual em contas - CENTRALIZADO (sempre o total, não muda com filtro de mês) */}
       <div className="text-center mb-8">
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Saldo atual em contas</p>
         <p className={`text-4xl sm:text-5xl font-bold ${
-          saldo >= 0 ? 'text-green-600' : 'text-red-600'
+          (saldoTotal ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
         }`}>
           {new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL',
-          }).format(saldo)}
+          }).format(saldoTotal ?? 0)}
         </p>
       </div>
 
@@ -504,9 +537,29 @@ export default function HomeLayoutNovo() {
           Pendências e alertas
         </h2>
         <div className="w-full max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Coluna esquerda: Receitas e Despesas pendentes (um acima do outro) */}
+          {/* Coluna esquerda: Saldo mês anterior + Receitas e Despesas pendentes */}
           <div className="flex flex-col gap-3 min-w-0">
+            {/* Saldo final do mês anterior - sempre do mês passado */}
             <div className="bg-white dark:bg-[#252525] rounded-2xl px-4 py-4 shadow-sm border border-gray-100 dark:border-white/10 relative">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 bg-sky-100 dark:bg-sky-900/30 rounded-lg">
+                  <Wallet className="text-sky-600 dark:text-sky-400" size={20} />
+                </div>
+                <p className="text-sm font-semibold text-brand-midnight dark:text-brand-clean">
+                  Saldo final do mês anterior
+                </p>
+              </div>
+              <p className={`text-xl font-bold tabular-nums ${(saldoMesAnterior ?? 0) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                }).format(saldoMesAnterior ?? 0)}
+              </p>
+            </div>
+            <Link
+              href="/registros?tipo=entrada"
+              className="block bg-white dark:bg-[#252525] rounded-2xl px-4 py-4 shadow-sm border border-gray-100 dark:border-white/10 relative hover:border-green-300 dark:hover:border-green-500/50 transition-smooth cursor-pointer active:scale-[0.99]"
+            >
               <div className="flex items-center gap-2 mb-2">
                 <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-lg">
                   <TrendingUp className="text-green-600 dark:text-green-400" size={20} />
@@ -526,8 +579,11 @@ export default function HomeLayoutNovo() {
                   currency: 'BRL',
                 }).format(receitasPendentes)}
               </p>
-            </div>
-            <div className="bg-white dark:bg-[#252525] rounded-2xl px-4 py-4 shadow-sm border border-gray-100 dark:border-white/10 relative">
+            </Link>
+            <Link
+              href="/registros?tipo=saida"
+              className="block bg-white dark:bg-[#252525] rounded-2xl px-4 py-4 shadow-sm border border-gray-100 dark:border-white/10 relative hover:border-red-300 dark:hover:border-red-500/50 transition-smooth cursor-pointer active:scale-[0.99]"
+            >
               <div className="flex items-center gap-2 mb-2">
                 <div className="p-1.5 bg-red-100 dark:bg-red-900/30 rounded-lg">
                   <TrendingDown className="text-red-600 dark:text-red-400" size={20} />
@@ -547,7 +603,7 @@ export default function HomeLayoutNovo() {
                   currency: 'BRL',
                 }).format(despesasPendentes)}
               </p>
-            </div>
+            </Link>
           </div>
 
           {/* Coluna direita: Painel Gastos por banco */}

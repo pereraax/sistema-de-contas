@@ -3,13 +3,14 @@
 import { useState, useEffect, startTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Registro, User } from '@/lib/types'
-import { Edit, Trash2, CheckCircle, X, Search, Filter, ChevronDown, Check, Calendar, Download } from 'lucide-react'
+import { Edit, Trash2, CheckCircle, X, Search, Filter, ChevronDown, Check, Download } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import { marcarParcelaPaga, excluirRegistro } from '@/lib/actions'
 import { createNotification } from './NotificationBell'
 import ModalConfirmacao from './ModalConfirmacao'
 import ModalEditarRegistro from './ModalEditarRegistro'
+import DatePicker from './DatePicker'
 
 interface RegistrosListaProps {
   registros: Registro[]
@@ -598,27 +599,23 @@ export default function RegistrosLista({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-brand-clean/90 mb-1">Data início</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={filtros.data_inicio}
-                  onChange={(e) => setFiltros({ ...filtros, data_inicio: e.target.value })}
-                  className="w-full px-3 py-2 pr-8 border border-gray-200 dark:border-white/20 rounded-lg text-xs text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full cursor-pointer"
-                />
-                <Calendar size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-white pointer-events-none" />
-              </div>
+              <DatePicker
+                value={filtros.data_inicio}
+                onChange={(v) => setFiltros({ ...filtros, data_inicio: v })}
+                placeholder="dd/mm/aaaa"
+                className="text-xs"
+                inputClassName="px-3 py-2 rounded-lg text-xs border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight"
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-brand-clean/90 mb-1">Data fim</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={filtros.data_fim}
-                  onChange={(e) => setFiltros({ ...filtros, data_fim: e.target.value })}
-                  className="w-full px-3 py-2 pr-8 border border-gray-200 dark:border-white/20 rounded-lg text-xs text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full cursor-pointer"
-                />
-                <Calendar size={16} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-white pointer-events-none" />
-              </div>
+              <DatePicker
+                value={filtros.data_fim}
+                onChange={(v) => setFiltros({ ...filtros, data_fim: v })}
+                placeholder="dd/mm/aaaa"
+                className="text-xs"
+                inputClassName="px-3 py-2 rounded-lg text-xs border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight"
+              />
             </div>
           </div>
 
@@ -1035,15 +1032,12 @@ export default function RegistrosLista({
             <label className="block text-sm font-medium text-gray-700 dark:text-brand-clean/90 mb-1.5">
               Data início
             </label>
-            <div className="relative">
-              <input
-                type="date"
-                value={filtros.data_inicio}
-                onChange={(e) => setFiltros({ ...filtros, data_inicio: e.target.value })}
-                className="w-full px-4 py-2.5 pr-10 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight hover:border-brand-aqua/50 shadow-sm hover:shadow-md [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full cursor-pointer"
-              />
-              <Calendar size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-white pointer-events-none" />
-            </div>
+            <DatePicker
+              value={filtros.data_inicio}
+              onChange={(v) => setFiltros({ ...filtros, data_inicio: v })}
+              placeholder="Selecione a data"
+              inputClassName="px-4 py-2.5 rounded-xl border-2 border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight"
+            />
           </div>
 
           {/* Data fim */}
@@ -1051,15 +1045,12 @@ export default function RegistrosLista({
             <label className="block text-sm font-medium text-gray-700 dark:text-brand-clean/90 mb-1.5">
               Data fim
             </label>
-            <div className="relative">
-              <input
-                type="date"
-                value={filtros.data_fim}
-                onChange={(e) => setFiltros({ ...filtros, data_fim: e.target.value })}
-                className="w-full px-4 py-2.5 pr-10 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight hover:border-brand-aqua/50 shadow-sm hover:shadow-md [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full cursor-pointer"
-              />
-              <Calendar size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-white pointer-events-none" />
-            </div>
+            <DatePicker
+              value={filtros.data_fim}
+              onChange={(v) => setFiltros({ ...filtros, data_fim: v })}
+              placeholder="Selecione a data"
+              inputClassName="px-4 py-2.5 rounded-xl border-2 border-gray-200 dark:border-white/20 bg-white dark:bg-brand-midnight"
+            />
           </div>
         </div>
         

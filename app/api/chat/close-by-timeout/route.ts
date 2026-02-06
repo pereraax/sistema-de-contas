@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+
+export const dynamic = 'force-dynamic'
 import { createAdminClient } from '@/lib/supabase/server'
 
 const TIMEOUT_MS = 5 * 60 * 1000 // 5 minutos

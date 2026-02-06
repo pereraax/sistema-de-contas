@@ -145,18 +145,18 @@ export default function BottomNavigation() {
             onClick={() => handleNavClick('/calendario')}
             className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all ${
               isActive('/calendario')
-                ? 'bg-brand-aqua/10 dark:bg-brand-aqua/20'
+                ? 'bg-brand-aqua/10 dark:bg-[#4a90d9]/25'
                 : 'hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
             }`}
           >
             <Calendar 
               size={24} 
-              className={isActive('/calendario') ? 'text-brand-aqua dark:text-brand-aqua' : 'text-gray-600 dark:text-gray-400'} 
+              className={isActive('/calendario') ? 'text-brand-aqua dark:text-[#7ec8f7]' : 'text-gray-600 dark:text-gray-400'} 
               strokeWidth={isActive('/calendario') ? 2.5 : 2}
             />
             <span className={`text-xs font-medium ${
               isActive('/calendario') 
-                ? 'text-brand-aqua dark:text-brand-aqua' 
+                ? 'text-brand-aqua dark:text-[#7ec8f7]' 
                 : 'text-gray-600 dark:text-gray-400'
             }`}>
               Calendário

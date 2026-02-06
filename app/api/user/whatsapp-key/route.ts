@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 
+export const dynamic = 'force-dynamic'
+
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // sem 0/O, 1/I/L para evitar confusão
 
 function gerarChave(): string {

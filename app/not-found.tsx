@@ -1,26 +1,52 @@
 'use client'
 
-import Link from 'next/link'
-
 export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-brand-clean dark:bg-[#1A1A1A] flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white dark:bg-brand-royal rounded-xl shadow-lg p-6 border border-gray-200 dark:border-white/10 text-center">
-        <h2 className="text-2xl font-bold text-brand-midnight dark:text-brand-clean mb-4">
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        background: '#f8fafc',
+        color: '#0D1B2A',
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 420,
+          width: '100%',
+          background: '#fff',
+          borderRadius: 12,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+          padding: 24,
+          border: '1px solid #e2e8f0',
+          textAlign: 'center',
+        }}
+      >
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>
           Página não encontrada
         </h2>
-        <p className="text-gray-600 dark:text-brand-clean/70 mb-6">
+        <p style={{ color: '#64748b', marginBottom: 24, fontSize: 14 }}>
           A página que você está procurando não existe.
         </p>
-        <Link
+        <a
           href="/home"
-          className="inline-block px-4 py-2 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth"
+          style={{
+            display: 'inline-block',
+            padding: '12px 24px',
+            background: '#1e4976',
+            color: '#fff',
+            borderRadius: 8,
+            fontWeight: 600,
+            textDecoration: 'none',
+          }}
         >
           Voltar para Home
-        </Link>
+        </a>
       </div>
     </div>
   )

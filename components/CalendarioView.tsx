@@ -98,6 +98,9 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
 
   const temFiltrosAtivos = filtroTipo || filtroUsuario || filtroEtiqueta
 
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n)
+
   // Renderização por vista
   const renderVistaMes = () => {
     const inicioMes = startOfMonth(dataAtual)
@@ -109,14 +112,13 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
     return (
       <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
         {diasVaziosInicio.map((_, index) => (
-          <div key={`empty-${index}`} className="aspect-square" />
+          <div key={`empty-${index}`} className="min-h-[72px] sm:min-h-[80px] md:min-h-[88px]" aria-hidden />
         ))}
         {diasDoMes.map((dia) => {
           const registrosDia = registrosPorData(dia)
           const temRegistros = registrosDia.length > 0
           const isSelected = dataSelecionada && isSameDay(dia, dataSelecionada)
           const isToday = isSameDay(dia, new Date())
-          
           const totalEntrada = registrosDia.filter(r => r.tipo === 'entrada').reduce((sum, r) => sum + r.valor, 0)
           const totalSaida = registrosDia.filter(r => r.tipo === 'saida').reduce((sum, r) => sum + r.valor, 0)
 
@@ -127,46 +129,42 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
                 setDataSelecionada(dia)
                 setDataModal(dia)
               }}
-              className={`aspect-square p-1.5 rounded-xl border-2 transition-all hover:scale-105 overflow-hidden ${
+              className={`min-h-[72px] sm:min-h-[80px] md:min-h-[88px] p-1.5 sm:p-2 rounded-xl border-2 overflow-hidden flex flex-col text-left transition-all duration-200 hover:border-brand-aqua/60 dark:hover:border-[#5ba3e8] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-aqua/50 dark:focus-visible:ring-[#5ba3e8]/50 ${
                 isSelected
-                  ? 'border-brand-aqua bg-white dark:bg-brand-royal shadow-lg shadow-brand-aqua/20'
+                  ? 'border-brand-aqua dark:border-[#5ba3e8] bg-white dark:bg-brand-royal shadow-lg shadow-brand-aqua/20 dark:shadow-[0_0_12px_rgba(91,163,232,0.3)] ring-2 ring-brand-aqua/30 dark:ring-[#5ba3e8]/50'
                   : isToday
-                  ? 'border-brand-aqua/50 bg-white dark:bg-brand-royal'
-                  : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-royal hover:border-brand-aqua/50 dark:hover:border-brand-aqua/50'
+                  ? 'border-brand-aqua/50 dark:border-[#5ba3e8] bg-white dark:bg-brand-royal'
+                  : 'border-gray-200 dark:border-[#4a90d9]/60 bg-white dark:bg-brand-royal'
               }`}
             >
-              <div className="flex flex-col h-full min-h-0">
+              <div className="flex items-start justify-between gap-0.5 flex-shrink-0">
                 <span
-                  className={`text-sm font-bold mb-0.5 flex-shrink-0 ${
-                    isSelected
-                      ? 'text-brand-aqua'
-                      : isToday
-                      ? 'text-brand-midnight dark:text-brand-clean'
-                      : 'text-brand-midnight dark:text-brand-clean'
+                  className={`text-sm sm:text-base font-bold ${
+                    isSelected ? 'text-brand-aqua dark:text-[#7ec8f7]' : isToday ? 'text-brand-midnight dark:text-[#7ec8f7]' : 'text-brand-midnight dark:text-brand-clean'
                   }`}
                 >
                   {format(dia, 'd')}
                 </span>
                 {temRegistros && (
-                  <div className="flex-1 flex flex-col justify-end gap-0.5 min-h-0 overflow-hidden">
-                    {totalEntrada > 0 && (
-                      <div className="text-[9px] font-semibold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1 py-0.5 rounded leading-tight truncate">
-                        +{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalEntrada)}
-                      </div>
-                    )}
-                    {totalSaida > 0 && (
-                      <div className="text-[9px] font-semibold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-1 py-0.5 rounded leading-tight truncate">
-                        -{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalSaida)}
-                      </div>
-                    )}
-                    {registrosDia.length > 2 && (
-                      <div className="text-[9px] text-brand-midnight/60 dark:text-brand-clean/60 font-medium text-center leading-tight">
-                        {registrosDia.length} registros
-                      </div>
-                    )}
-                  </div>
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand-aqua/25 dark:bg-[#4a90d9] text-brand-aqua dark:text-white text-[10px] font-bold flex items-center justify-center">
+                    {registrosDia.length}
+                  </span>
                 )}
               </div>
+              {temRegistros && (
+                <div className="flex-1 min-h-0 flex flex-col justify-end gap-0.5 mt-0.5">
+                  {totalEntrada > 0 && (
+                    <div className="text-[10px] sm:text-xs font-semibold text-green-600 dark:text-green-400 bg-green-100/90 dark:bg-green-900/40 px-1.5 py-0.5 rounded leading-tight truncate">
+                      +{fmt(totalEntrada)}
+                    </div>
+                  )}
+                  {totalSaida > 0 && (
+                    <div className="text-[10px] sm:text-xs font-semibold text-red-600 dark:text-red-400 bg-red-100/90 dark:bg-red-900/40 px-1.5 py-0.5 rounded leading-tight truncate">
+                      −{fmt(totalSaida)}
+                    </div>
+                  )}
+                </div>
+              )}
             </button>
           )
         })}
@@ -180,70 +178,77 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
     const diasSemana = eachDayOfInterval({ start: inicioSemana, end: fimSemana })
 
     return (
-      <div className="overflow-x-auto -mx-6 px-6">
-        <div className="grid grid-cols-7 gap-2 sm:gap-3 min-w-[700px]">
-          {diasSemana.map((dia) => {
-            const registrosDia = registrosPorData(dia)
-            const isSelected = dataSelecionada && isSameDay(dia, dataSelecionada)
-            const isToday = isSameDay(dia, new Date())
-            const isOutroMes = !isSameMonth(dia, dataAtual)
+      <div className="space-y-3">
+        {diasSemana.map((dia) => {
+          const registrosDia = registrosPorData(dia)
+          const isSelected = dataSelecionada && isSameDay(dia, dataSelecionada)
+          const isToday = isSameDay(dia, new Date())
+          const isOutroMes = !isSameMonth(dia, dataAtual)
 
-            const totalEntrada = registrosDia.filter(r => r.tipo === 'entrada').reduce((sum, r) => sum + r.valor, 0)
-            const totalSaida = registrosDia.filter(r => r.tipo === 'saida').reduce((sum, r) => sum + r.valor, 0)
-            const saldo = totalEntrada - totalSaida
+          const totalEntrada = registrosDia.filter(r => r.tipo === 'entrada').reduce((sum, r) => sum + r.valor, 0)
+          const totalSaida = registrosDia.filter(r => r.tipo === 'saida').reduce((sum, r) => sum + r.valor, 0)
+          const saldo = totalEntrada - totalSaida
 
-            return (
-              <div
-                key={dia.toISOString()}
-                className={`rounded-xl border-2 p-2 sm:p-3 md:p-4 min-h-[180px] sm:min-h-[200px] transition-all ${
-                  isSelected
-                    ? 'border-brand-aqua bg-white dark:bg-brand-royal shadow-lg'
-                    : isToday
-                    ? 'border-brand-aqua/50 bg-white dark:bg-brand-royal'
-                    : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-royal'
-                }`}
+          return (
+            <div
+              key={dia.toISOString()}
+              className={`rounded-xl border-2 p-3 sm:p-4 transition-all duration-200 ${
+                isSelected
+                  ? 'border-brand-aqua dark:border-[#5ba3e8] bg-white dark:bg-brand-royal shadow-lg ring-2 ring-brand-aqua/30 dark:ring-[#5ba3e8]/50'
+                  : isToday
+                  ? 'border-brand-aqua dark:border-[#5ba3e8] bg-white dark:bg-brand-royal'
+                  : 'border-gray-200 dark:border-[#4a90d9]/70 bg-white dark:bg-brand-royal hover:border-brand-aqua/60 dark:hover:border-[#5ba3e8]'
+              }`}
+            >
+              <button
+                onClick={() => {
+                  setDataSelecionada(dia)
+                  setDataModal(dia)
+                }}
+                className="w-full text-left transition-transform duration-200 active:scale-[0.99]"
               >
-                <button
-                  onClick={() => {
-                    setDataSelecionada(dia)
-                    setDataModal(dia)
-                  }}
-                  className="w-full text-left mb-2 sm:mb-3"
-                >
-                  <div className={`text-[10px] sm:text-xs font-bold mb-0.5 sm:mb-1 ${isOutroMes ? 'text-gray-400' : isToday ? 'text-brand-aqua' : 'text-brand-midnight dark:text-brand-clean'}`}>
-                    {format(dia, 'EEE', { locale: ptBR })}
+                <div className="flex items-center justify-between gap-3 mb-2 sm:mb-3">
+                  <div>
+                    <div className={`text-xs sm:text-sm font-bold capitalize ${isOutroMes ? 'text-gray-400' : isToday ? 'text-brand-aqua dark:text-[#7ec8f7]' : 'text-brand-midnight dark:text-brand-clean'}`}>
+                      {format(dia, 'EEEE', { locale: ptBR })}
+                    </div>
+                    <div className={`text-xl sm:text-2xl font-bold ${isOutroMes ? 'text-gray-400' : isToday ? 'text-brand-aqua dark:text-[#7ec8f7]' : 'text-brand-midnight dark:text-brand-clean'}`}>
+                      {format(dia, 'd')} {format(dia, 'MMMM', { locale: ptBR })}
+                    </div>
                   </div>
-                  <div className={`text-lg sm:text-xl md:text-2xl font-bold ${isOutroMes ? 'text-gray-400' : isToday ? 'text-brand-aqua' : 'text-brand-midnight dark:text-brand-clean'}`}>
-                    {format(dia, 'd')}
-                  </div>
-                </button>
-                
-                <div className="space-y-1.5 sm:space-y-2">
-                  {totalEntrada > 0 && (
-                    <div className="text-[10px] sm:text-xs font-semibold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded leading-tight">
-                      +{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalEntrada)}
-                    </div>
-                  )}
-                  {totalSaida > 0 && (
-                    <div className="text-[10px] sm:text-xs font-semibold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded leading-tight">
-                      -{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalSaida)}
-                    </div>
-                  )}
-                  {saldo !== 0 && (
-                    <div className={`text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded leading-tight ${saldo > 0 ? 'text-green-700 dark:text-green-300 bg-green-200 dark:bg-green-900/40' : 'text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/40'}`}>
-                      Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(saldo)}
-                    </div>
-                  )}
                   {registrosDia.length > 0 && (
-                    <div className="text-[9px] sm:text-xs text-brand-midnight/60 dark:text-brand-clean/60 mt-1.5 sm:mt-2">
-                      {registrosDia.length} {registrosDia.length === 1 ? 'registro' : 'registros'}
-                    </div>
+                    <span className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-aqua/25 dark:bg-[#4a90d9] text-brand-aqua dark:text-white text-sm font-bold flex items-center justify-center shadow-sm dark:shadow-[0_0_12px_rgba(74,144,217,0.4)]">
+                      {registrosDia.length}
+                    </span>
                   )}
                 </div>
+              </button>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                {totalEntrada > 0 && (
+                  <div className="text-xs sm:text-sm font-semibold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1.5 rounded-lg leading-tight">
+                    +{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalEntrada)}
+                  </div>
+                )}
+                {totalSaida > 0 && (
+                  <div className="text-xs sm:text-sm font-semibold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-1.5 rounded-lg leading-tight">
+                    −{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalSaida)}
+                  </div>
+                )}
+                {saldo !== 0 && (
+                  <div className={`text-xs sm:text-sm font-bold px-2 py-1.5 rounded-lg leading-tight ${saldo > 0 ? 'text-green-700 dark:text-green-300 bg-green-200 dark:bg-green-900/40' : 'text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/40'}`}>
+                    Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(saldo)}
+                  </div>
+                )}
               </div>
-            )
-          })}
-        </div>
+              {registrosDia.length > 0 && (
+                <div className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mt-2">
+                  {registrosDia.length} {registrosDia.length === 1 ? 'registro' : 'registros'}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     )
   }
@@ -271,7 +276,7 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
                 setDataAtual(mes)
                 setVista('mes')
               }}
-              className={`p-4 rounded-xl border-2 transition-all hover:scale-105 ${
+              className={`p-4 rounded-xl border-2 transition-all duration-200 active:scale-[0.98] ${
                 isMesAtual
                   ? 'border-brand-aqua bg-white dark:bg-brand-royal shadow-lg'
                   : 'border-gray-200 dark:border-white/20 bg-white dark:bg-brand-royal hover:border-brand-aqua/50'
@@ -334,19 +339,21 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
           <div className="flex items-center gap-1.5 sm:gap-2 w-full md:w-auto justify-end">
             <button
               onClick={periodoAnterior}
-              className="p-1.5 sm:p-2 hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-xl transition-smooth text-brand-midnight dark:text-brand-clean flex-shrink-0"
+              className="p-1.5 sm:p-2 hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-xl transition-all duration-200 text-brand-midnight dark:text-brand-clean flex-shrink-0 active:scale-95"
+              aria-label="Período anterior"
             >
               <ChevronLeft size={20} className="sm:w-6 sm:h-6" strokeWidth={2.5} />
             </button>
             <button
               onClick={irParaHoje}
-              className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-aqua text-white rounded-xl hover:bg-brand-aqua/90 transition-smooth font-semibold text-xs sm:text-sm shadow-md hover:shadow-lg flex-shrink-0"
+              className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-aqua text-white rounded-xl hover:bg-brand-aqua/90 transition-all duration-200 font-semibold text-xs sm:text-sm shadow-md hover:shadow-lg flex-shrink-0 active:scale-95"
             >
               Hoje
             </button>
             <button
               onClick={proximoPeriodo}
-              className="p-1.5 sm:p-2 hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-xl transition-smooth text-brand-midnight dark:text-brand-clean flex-shrink-0"
+              className="p-1.5 sm:p-2 hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 rounded-xl transition-all duration-200 text-brand-midnight dark:text-brand-clean flex-shrink-0 active:scale-95"
+              aria-label="Próximo período"
             >
               <ChevronRight size={20} className="sm:w-6 sm:h-6" strokeWidth={2.5} />
             </button>
@@ -361,7 +368,7 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
               <button
                 key={v}
                 onClick={() => setVista(v)}
-                className={`px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-semibold text-xs sm:text-sm transition-smooth ${
+                className={`px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-200 active:scale-95 ${
                   vista === v
                     ? 'bg-brand-aqua text-white shadow-md'
                     : 'text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-white/10'
@@ -375,7 +382,7 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
           {/* Botão de filtros */}
           <button
             onClick={() => setMostrarFiltros(!mostrarFiltros)}
-            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-semibold text-xs sm:text-sm transition-smooth ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 active:scale-95 ${
               mostrarFiltros || temFiltrosAtivos
                 ? 'bg-brand-aqua text-white shadow-md'
                 : 'bg-gray-100 dark:bg-brand-midnight/80 text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-white/10'
@@ -394,7 +401,7 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
           {temFiltrosAtivos && (
             <button
               onClick={limparFiltros}
-              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl font-semibold text-xs sm:text-sm hover:bg-red-200 dark:hover:bg-red-900/30 transition-smooth"
+              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl font-semibold text-xs sm:text-sm hover:bg-red-200 dark:hover:bg-red-900/30 transition-all duration-200 active:scale-95"
             >
               <X size={16} className="sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
               Limpar
@@ -404,7 +411,7 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
 
         {/* Painel de filtros */}
         {mostrarFiltros && (
-          <div className="mt-4 p-4 bg-white dark:bg-brand-midnight/60 rounded-xl border-2 border-brand-aqua/20 dark:border-brand-aqua/30">
+          <div className="mt-4 p-4 bg-white dark:bg-brand-midnight/60 rounded-xl border-2 border-brand-aqua/20 dark:border-brand-aqua/30 animate-fade-in">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Filtro Tipo */}
               <div className="relative">
@@ -635,12 +642,11 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
         )}
       </div>
 
-      {/* Calendário - Responsivo */}
+      {/* Calendário - Responsivo com animação de troca de vista */}
       <div className="bg-gradient-to-br from-white via-gray-50 to-white dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl border-2 border-brand-aqua/20 dark:border-brand-aqua/30">
         {vista === 'mes' && (
-          <>
-            {/* Dias da semana - Responsivo */}
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-4">
+          <div key={`mes-${format(dataAtual, 'yyyy-MM')}`} className="animate-fade-in">
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-3">
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia) => (
                 <div
                   key={dia}
@@ -651,30 +657,17 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
               ))}
             </div>
             {renderVistaMes()}
-          </>
+          </div>
         )}
 
         {vista === 'semana' && (
-          <>
-            {/* Dias da semana - Responsivo */}
-            <div className="overflow-x-auto -mx-6 px-6 mb-4">
-              <div className="grid grid-cols-7 gap-2 sm:gap-3 min-w-[700px]">
-                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia) => (
-                  <div
-                    key={dia}
-                    className="text-center text-xs sm:text-sm font-bold text-brand-midnight dark:text-brand-clean py-1.5 sm:py-2 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg"
-                  >
-                    {dia}
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div key="semana" className="animate-fade-in">
             {renderVistaSemana()}
-          </>
+          </div>
         )}
 
         {vista === 'ano' && (
-          <div>
+          <div key="ano" className="animate-fade-in">
             <h3 className="text-xl font-bold text-brand-midnight dark:text-brand-clean mb-4">
               {format(dataAtual, 'yyyy', { locale: ptBR })}
             </h3>

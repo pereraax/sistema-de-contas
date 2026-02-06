@@ -6,6 +6,8 @@ import CheckboxModerno from '../CheckboxModerno'
 import { criarAvisoAdmin, desativarAviso, ativarAviso, deletarAviso } from '@/lib/admin-actions'
 import { useRouter } from 'next/navigation'
 import ModalConfirmacao from '@/components/ModalConfirmacao'
+import DatePicker from '@/components/DatePicker'
+import TimePicker from '@/components/TimePicker'
 
 interface AdminAviso {
   id: string
@@ -317,13 +319,26 @@ export default function CentralAvisos({ avisos: avisosIniciais, adminId }: Centr
                       <label className="block text-sm font-medium text-brand-clean/90 mb-2">
                         Data e hora específica de expiração
                       </label>
-                      <input
-                        type="datetime-local"
-                        value={formData.expira_em}
-                        onChange={(e) => setFormData({ ...formData, expira_em: e.target.value, expira_em_dias: '' })}
-                        className="w-full px-4 py-3 bg-brand-midnight border border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-clean"
-                        style={{ color: '#E6E6E6' }}
-                      />
+                      <div className="flex gap-2">
+                        <DatePicker
+                          value={formData.expira_em ? formData.expira_em.slice(0, 10) : ''}
+                          onChange={(v) => {
+                            const time = formData.expira_em ? formData.expira_em.slice(11, 16) : '00:00'
+                            setFormData({ ...formData, expira_em: v ? `${v}T${time}` : '', expira_em_dias: '' })
+                          }}
+                          placeholder="Data"
+                          inputClassName="px-4 py-3 bg-brand-midnight border border-white/20 rounded-xl text-brand-clean"
+                        />
+                        <TimePicker
+                          value={formData.expira_em ? formData.expira_em.slice(11, 16) : ''}
+                          onChange={(t) => {
+                            const date = formData.expira_em ? formData.expira_em.slice(0, 10) : ''
+                            setFormData({ ...formData, expira_em: date ? `${date}T${t || '00:00'}` : '', expira_em_dias: '' })
+                          }}
+                          placeholder="Hora"
+                          inputClassName="px-4 py-3 bg-brand-midnight border border-white/20 rounded-xl text-brand-clean min-w-0"
+                        />
+                      </div>
                     </div>
                     <p className="text-xs text-brand-clean/50">
                       Se não definir, o aviso ficará ativo indefinidamente até ser desativado manualmente.

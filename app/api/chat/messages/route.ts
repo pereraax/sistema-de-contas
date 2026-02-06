@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
+
+export const dynamic = 'force-dynamic'
 
 const TIMEOUT_MS = 5 * 60 * 1000 // 5 minutos para o usuário responder ao atendente
 const CLOSURE_MESSAGE =

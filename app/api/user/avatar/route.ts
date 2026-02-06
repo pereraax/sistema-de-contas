@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 
+export const dynamic = 'force-dynamic'
+
 const SIGNED_URL_EXPIRES = 60 * 60 // 1 hora
 
 export async function GET() {

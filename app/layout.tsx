@@ -41,6 +41,11 @@ const FacebookPixelWrapper = dynamicImport(() => import('@/components/FacebookPi
   loading: () => null,
 })
 
+const CookieConsent = dynamicImport(() => import('@/components/CookieConsent'), {
+  ssr: false,
+  loading: () => null,
+})
+
 // GoogleIndexPing não é crítico - carregar após interação
 const GoogleIndexPing = dynamicImport(() => import('@/components/GoogleIndexPing'), {
   ssr: false,
@@ -186,6 +191,7 @@ export default function RootLayout({
             <PlenAssistant />
             <NotificationPopup />
             <FacebookPixelWrapper />
+            <CookieConsent />
           </MenuProvider>
         </ThemeProvider>
       </body>

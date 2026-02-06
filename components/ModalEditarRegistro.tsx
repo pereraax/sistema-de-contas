@@ -5,6 +5,7 @@ import { Registro, User } from '@/lib/types'
 import { atualizarRegistro, obterUsuarios, obterRegistros } from '@/lib/actions'
 import { X, Plus, User as UserIcon, CreditCard, Wallet, Smartphone, UtensilsCrossed, Car, Home, ShoppingBag, Heart, GraduationCap, Briefcase, Gamepad2, Dumbbell, Plane, Trash2, HelpCircle, Check, Tag, Clock } from 'lucide-react'
 import DatePicker from './DatePicker'
+import TimePicker from './TimePicker'
 import { useRouter } from 'next/navigation'
 import { createNotification } from './NotificationBell'
 import ModalSelecionarUsuario from './ModalSelecionarUsuario'
@@ -984,13 +985,26 @@ export default function ModalEditarRegistro({
                           <label className="block text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70 mb-1">
                             Data *
                           </label>
-                          <input
-                            type="datetime-local"
-                            required
-                            value={parcela.data}
-                            onChange={(e) => atualizarParcela(index, 'data', e.target.value)}
-                            className="w-full px-2 py-1.5 bg-white dark:bg-brand-royal border border-gray-300 dark:border-white/10 rounded focus:outline-none focus:border-brand-aqua transition-smooth text-xs text-brand-midnight dark:text-brand-clean"
-                          />
+                          <div className="flex gap-1.5">
+                            <DatePicker
+                              value={parcela.data.includes('T') ? parcela.data.slice(0, 10) : parcela.data}
+                              onChange={(v) => {
+                                const time = parcela.data.includes('T') ? parcela.data.slice(11, 16) : '00:00'
+                                atualizarParcela(index, 'data', v ? `${v}T${time}` : parcela.data)
+                              }}
+                              placeholder="dd/mm/aaaa"
+                              inputClassName="px-2 py-1.5 bg-white dark:bg-brand-royal border border-gray-300 dark:border-white/10 rounded text-xs"
+                            />
+                            <TimePicker
+                              value={parcela.data.includes('T') ? parcela.data.slice(11, 16) : '00:00'}
+                              onChange={(t) => {
+                                const date = parcela.data.includes('T') ? parcela.data.slice(0, 10) : parcela.data
+                                atualizarParcela(index, 'data', date ? `${date}T${t || '00:00'}` : parcela.data)
+                              }}
+                              placeholder="Hora"
+                              inputClassName="px-2 py-1.5 bg-white dark:bg-brand-royal border border-gray-300 dark:border-white/10 rounded text-xs min-w-0"
+                            />
+                          </div>
                         </div>
                         
                         <div>

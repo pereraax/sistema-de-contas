@@ -140,12 +140,6 @@ const nextConfig = {
   // Desabilitar source maps em produção (segurança)
   productionBrowserSourceMaps: false,
   
-  // Ignorar erros de páginas não encontradas durante build
-  onDemandEntries: {
-    maxInactiveAge: 25 * 1000,
-    pagesBufferLength: 2,
-  },
-  
   // Ignorar erros de TypeScript durante build (temporariamente para permitir deploy)
   // O código funciona, mas há avisos de tipo que podem ser corrigidos depois
   typescript: {
@@ -164,15 +158,9 @@ const nextConfig = {
   // Isso evita erro ao tentar renomear arquivos de export que não existem
   trailingSlash: false,
   
-  // Gerar build ID único para evitar cache
+  // Build ID estável para evitar chunks órfãos (ex.: 8948.js) e cache quebrado
   generateBuildId: async () => {
-    return 'build-' + Date.now()
-  },
-  
-  // Ignorar erros de prerendering durante build
-  onDemandEntries: {
-    maxInactiveAge: 25 * 1000,
-    pagesBufferLength: 2,
+    return process.env.BUILD_ID || 'build-' + (process.env.NODE_ENV === 'production' ? Date.now() : 'dev')
   },
   
   webpack: (config, { isServer, dev }) => {
