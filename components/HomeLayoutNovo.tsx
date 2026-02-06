@@ -8,6 +8,8 @@ import { MenuButton } from './MobileMenu'
 import NotificationBell from './NotificationBell'
 import UserProfileMenu from './UserProfileMenu'
 import ReceitasDespesasDonut from './ReceitasDespesasDonut'
+import RelatoriosHomeCard from './RelatoriosHomeCard'
+import GastosPorCategoriaChart from './GastosPorCategoriaChart'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -605,12 +607,27 @@ export default function HomeLayoutNovo() {
         </div>
       </div>
 
-      {/* Comparativo Mensal - Pessoal */}
+      {/* Gastos por categoria - barra à esquerda, pizza + lista à direita */}
+      <div className="mb-6 max-w-4xl">
+        <h2 className="text-lg font-bold text-brand-midnight dark:text-brand-clean mb-4">
+          Gastos por categoria
+        </h2>
+        <GastosPorCategoriaChart />
+      </div>
+
+      {/* Comparativo Mensal - Pessoal + Relatórios no mesmo bloco */}
       <div className="mb-16 sm:mb-20 lg:mb-20">
         <h2 className="text-lg font-bold text-brand-midnight dark:text-brand-clean mb-4">
           Comparativo Mensal - Pessoal
         </h2>
-        <ReceitasDespesasDonut hideTitle={true} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:items-stretch">
+          <div className="lg:col-span-2 min-h-0">
+            <ReceitasDespesasDonut hideTitle={true} />
+          </div>
+          <div className="flex flex-col h-full min-h-0">
+            <RelatoriosHomeCard />
+          </div>
+        </div>
       </div>
     </div>
   )

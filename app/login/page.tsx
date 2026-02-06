@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createNotification } from '@/components/NotificationBell'
 import { Eye, EyeOff, ArrowLeft, Loader2 } from 'lucide-react'
@@ -25,6 +25,22 @@ function LoginContent() {
     email: '',
     senha: '',
   })
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
+  const sectionRef = useRef<HTMLDivElement>(null)
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = sectionRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setMousePos({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    })
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    setMousePos(null)
+  }, [])
 
   // Detectar modo escuro/claro
   useEffect(() => {
@@ -298,10 +314,34 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-neutral-50">
-      {/* Janela de login — no mobile: única área, centralizada; no desktop: metade esquerda */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-4 md:p-6 lg:p-8 min-h-screen md:min-h-0">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-8">
+    <div className="min-h-screen flex flex-col md:flex-row bg-white">
+      {/* Área do login: no desktop fundo branco + efeito de grade ao passar o mouse (igual à página inicial) */}
+      <div
+        ref={sectionRef}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        className="w-full md:w-1/2 relative overflow-hidden bg-white flex items-center justify-center p-4 md:p-6 lg:p-8 min-h-screen md:min-h-0"
+      >
+        {/* Grade que aparece ao passar o mouse (apenas desktop) — mesmo efeito da página inicial */}
+        <div
+          className="hidden md:block pointer-events-none absolute inset-0 z-0 transition-opacity duration-300"
+          style={{
+            opacity: mousePos ? 0.85 : 0,
+            backgroundImage: `
+              linear-gradient(to right, rgba(0,0,0,0.14) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(0,0,0,0.14) 1px, transparent 1px)
+            `,
+            backgroundSize: '32px 32px',
+            WebkitMaskImage: mousePos
+              ? `radial-gradient(circle 220px at ${mousePos.x}px ${mousePos.y}px, black 0%, transparent 100%)`
+              : 'none',
+            maskImage: mousePos
+              ? `radial-gradient(circle 220px at ${mousePos.x}px ${mousePos.y}px, black 0%, transparent 100%)`
+              : 'none',
+          }}
+          aria-hidden
+        />
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-8 relative z-10">
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1e4976] transition-colors mb-5"

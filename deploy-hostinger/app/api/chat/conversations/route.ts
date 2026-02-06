@@ -16,7 +16,7 @@ export async function GET() {
 
     const { data: messages, error } = await supabase
       .from('chat_messages')
-      .select('user_id, message, sender_type, created_at')
+      .select('user_id, message, sender_type, is_read, created_at')
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -30,7 +30,7 @@ export async function GET() {
       if (!byUser.has(uid)) {
         const userMessages = (messages || []).filter((x: any) => x.user_id === uid)
         const last = userMessages[0]
-        const unread = userMessages.filter((x: any) => x.sender_type === 'user').length
+        const unread = userMessages.filter((x: any) => x.sender_type === 'user' && !x.is_read).length
         byUser.set(uid, {
           last_message: last?.message || '',
           last_message_time: last?.created_at || '',

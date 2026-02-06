@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { criarRegistro, obterUsuarios } from '@/lib/actions'
 import { User } from '@/lib/types'
-import { Plus, X, User as UserIcon, CreditCard, Wallet, Smartphone, UtensilsCrossed, Car, Home, ShoppingBag, Heart, GraduationCap, Briefcase, Gamepad2, Music, Film, Dumbbell, Plane, Coffee, HelpCircle, Check } from 'lucide-react'
+import { Plus, X, User as UserIcon, CreditCard, Wallet, Smartphone, UtensilsCrossed, Car, Home, ShoppingBag, Heart, GraduationCap, Briefcase, Gamepad2, Music, Film, Dumbbell, Plane, Coffee, HelpCircle, Check, Clock } from 'lucide-react'
+import DatePicker from './DatePicker'
 import { useRouter } from 'next/navigation'
 import { createNotification } from './NotificationBell'
 import ModalSelecionarUsuario from './ModalSelecionarUsuario'
@@ -38,58 +39,6 @@ export default function FormularioRegistro() {
       }
     }
   }, [showHelpNome, showHelpObservacao])
-  // Funções para formatar data DD/MM/AAAA
-  const formatDateToDisplay = (isoString: string) => {
-    const date = new Date(isoString)
-    const dia = String(date.getDate()).padStart(2, '0')
-    const mes = String(date.getMonth() + 1).padStart(2, '0')
-    const ano = date.getFullYear()
-    return `${dia}/${mes}/${ano}`
-  }
-
-  const formatTimeToDisplay = (isoString: string) => {
-    const date = new Date(isoString)
-    return date.toTimeString().slice(0, 5)
-  }
-
-  const parseDateFromDisplay = (dateStr: string): string | null => {
-    // Aceitar formato DD/MM/AAAA
-    const match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/)
-    if (match) {
-      const [, dia, mes, ano] = match
-      const date = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia))
-      if (!isNaN(date.getTime())) {
-        return date.toISOString().slice(0, 10)
-      }
-    }
-    return null
-  }
-
-  const combineDateTimeToISO = (dateStr: string, time: string) => {
-    const dateISO = parseDateFromDisplay(dateStr) || new Date().toISOString().slice(0, 10)
-    if (!time) time = new Date().toTimeString().slice(0, 5)
-    return new Date(`${dateISO}T${time}`).toISOString().slice(0, 16)
-  }
-
-  const formatDateInput = (value: string) => {
-    // Remove tudo que não é número
-    const numbers = value.replace(/\D/g, '')
-    
-    // Aplica a máscara DD/MM/AAAA
-    if (numbers.length <= 2) {
-      return numbers
-    } else if (numbers.length <= 4) {
-      return `${numbers.slice(0, 2)}/${numbers.slice(2)}`
-    } else {
-      return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`
-    }
-  }
-
-  const initialDateTime = {
-    date: formatDateToDisplay(new Date().toISOString()),
-    time: formatTimeToDisplay(new Date().toISOString())
-  }
-  
   const [formData, setFormData] = useState({
     nome: '',
     observacao: '',
@@ -100,10 +49,9 @@ export default function FormularioRegistro() {
     metodo_pagamento: 'dinheiro' as 'pix' | 'cartao' | 'dinheiro',
     parcelas_totais: '1',
     valor_parcelas: '',
-    data_registro: new Date().toISOString().slice(0, 16),
+    data: new Date().toISOString().slice(0, 10),
+    hora_opcional: '',
   })
-  const [dataInput, setDataInput] = useState(initialDateTime.date)
-  const [horaInput, setHoraInput] = useState(initialDateTime.time)
   const [temParcelas, setTemParcelas] = useState(false)
 
   const categorias = [
@@ -176,7 +124,10 @@ export default function FormularioRegistro() {
         : 0
       form.append('parcelas_pagas', Math.min(parcelasPagas, parseInt(formData.parcelas_totais)).toString())
     }
-    form.append('data_registro', new Date(formData.data_registro).toISOString())
+    const dataFinal = formData.hora_opcional.trim()
+      ? new Date(`${formData.data}T${formData.hora_opcional}`)
+      : new Date(`${formData.data}T${new Date().toTimeString().slice(0, 5)}`)
+    form.append('data_registro', dataFinal.toISOString())
 
     const result = await criarRegistro(form)
 
@@ -200,10 +151,9 @@ export default function FormularioRegistro() {
         metodo_pagamento: 'dinheiro',
         parcelas_totais: '1',
         valor_parcelas: '',
-        data_registro: new Date().toISOString().slice(0, 16),
+        data: new Date().toISOString().slice(0, 10),
+        hora_opcional: '',
       })
-      setDataInput(newDateTime.date)
-      setHoraInput(newDateTime.time)
       setTemParcelas(false)
       setEtiquetas([])
       router.refresh()
@@ -624,37 +574,30 @@ export default function FormularioRegistro() {
         )}
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Data e hora
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <input
-              type="text"
-              value={dataInput}
-              onChange={(e) => {
-                const formatted = formatDateInput(e.target.value)
-                setDataInput(formatted)
-                const isoDate = combineDateTimeToISO(formatted, horaInput)
-                setFormData({ ...formData, data_registro: isoDate })
-              }}
-              placeholder="DD/MM/AAAA"
-              maxLength={10}
-              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight placeholder-gray-400"
-            />
-          </div>
-          <div>
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr] gap-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Data *</label>
+          <DatePicker
+            value={formData.data}
+            onChange={(v) => setFormData({ ...formData, data: v })}
+            required
+            placeholder="Selecione a data"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Horas <span className="text-gray-400 font-normal">(opcional)</span>
+          </label>
+          <div className="relative">
+            <Clock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-midnight/50 pointer-events-none" />
             <input
               type="time"
-              value={horaInput}
-              onChange={(e) => {
-                setHoraInput(e.target.value)
-                setFormData({ ...formData, data_registro: combineDateTimeToISO(dataInput, e.target.value) })
-              }}
-              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight"
+              value={formData.hora_opcional}
+              onChange={(e) => setFormData({ ...formData, hora_opcional: e.target.value })}
+              className="w-full pl-10 pr-3 py-3 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-aqua/30 focus:border-brand-aqua transition-smooth text-brand-midnight"
             />
           </div>
+          <p className="text-[11px] text-gray-500 mt-1">Se não informar, usa a hora do registro</p>
         </div>
       </div>
 
@@ -672,7 +615,8 @@ export default function FormularioRegistro() {
               metodo_pagamento: 'dinheiro',
               parcelas_totais: '1',
               valor_parcelas: '',
-              data_registro: new Date().toISOString().slice(0, 16),
+              data: new Date().toISOString().slice(0, 10),
+              hora_opcional: '',
             })
             setEtiquetas([])
             setUsuarioSelecionado(null)

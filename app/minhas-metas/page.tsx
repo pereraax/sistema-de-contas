@@ -37,18 +37,14 @@ export default function MinhasMetasPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#1A1A1A]">
       <Sidebar />
-      <main className="lg:ml-64 p-3 sm:p-4 md:p-8 bg-gray-50 dark:bg-brand-midnight pt-6 lg:pt-4">
+      <main className="lg:ml-64 p-3 sm:p-4 md:p-8 bg-gray-50 dark:bg-brand-midnight pt-3 sm:pt-4 lg:pt-4">
         <div className="max-w-7xl mx-auto">
-          {/* Logotipo centralizado acima do header */}
-          <div className="flex justify-center mb-2 lg:hidden">
-            <div className="w-40 sm:w-52">
-              <Logo />
-            </div>
-          </div>
-
-          {/* Header - FORA do PlanoGuard para não ser coberto pelo overlay */}
-          <div className="relative z-30 flex items-center justify-between gap-3 sm:gap-4 mb-6 sm:mb-8">
+          {/* Header: no mobile logo à esquerda do título; headbar compacta */}
+          <div className="relative z-30 flex items-center justify-between gap-2 sm:gap-4 py-1 lg:py-0 mb-3 sm:mb-4">
             <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+              <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center overflow-hidden rounded-lg lg:hidden [&_a]:!p-0 [&_a]:!w-full [&_a]:!h-full [&_img]:!w-full [&_img]:!h-full [&_img]:!object-contain">
+                <Logo />
+              </div>
               <MenuButton />
               <div className="p-1.5 sm:p-2 bg-brand-aqua/20 rounded-lg sm:rounded-xl flex-shrink-0 flex items-center justify-center">
                 <Image 
@@ -62,10 +58,10 @@ export default function MinhasMetasPage() {
                 />
               </div>
               <div className="flex flex-col justify-center min-w-0">
-                <h1 className="text-base sm:text-lg font-display font-bold text-gray-900 dark:text-brand-clean leading-tight whitespace-nowrap">
+                <h1 className="text-base sm:text-lg font-display font-bold text-gray-900 dark:text-brand-clean leading-tight truncate">
                   Confira suas metas:
                 </h1>
-                <p className="text-gray-600 dark:text-brand-clean/70 text-xs sm:text-sm leading-tight mt-0.5">
+                <p className="text-gray-600 dark:text-brand-clean/70 text-xs sm:text-sm leading-tight mt-0.5 truncate">
                   Gerencie suas metas de economia
                 </p>
               </div>

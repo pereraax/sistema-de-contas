@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, startTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Registro, User } from '@/lib/types'
 import { Edit, Trash2, CheckCircle, X, Search, Filter, ChevronDown, Check, Calendar, Download } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import { marcarParcelaPaga, excluirRegistro } from '@/lib/actions'
+import { createNotification } from './NotificationBell'
 import ModalConfirmacao from './ModalConfirmacao'
 import ModalEditarRegistro from './ModalEditarRegistro'
 
@@ -23,6 +24,12 @@ export default function RegistrosLista({
 }: RegistrosListaProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  // Lista local para atualização otimista: evita piscar ao excluir/atualizar
+  const [listaRegistros, setListaRegistros] = useState<Registro[]>(registros)
+  useEffect(() => {
+    setListaRegistros(registros)
+  }, [registros])
+
   const [filtros, setFiltros] = useState({
     nome: filtrosAtuais.nome || '',
     tipo: filtrosAtuais.tipo || '',
@@ -113,14 +120,16 @@ export default function RegistrosLista({
     }
   }, [filtrosAtuais.data_inicio, filtrosAtuais.data_fim])
 
-  // Associar dados do usuário aos registros
-  const registrosComUsuarios = registros.map((registro) => {
-    const user = usuarios.find((u) => u.id === registro.user_id)
-    return {
-      ...registro,
-      user: user || undefined,
-    }
-  })
+  // Associar dados do usuário aos registros e ordenar: último criado primeiro (created_at DESC)
+  const registrosComUsuarios = listaRegistros
+    .map((registro) => {
+      const user = usuarios.find((u) => u.id === registro.user_id)
+      return {
+        ...registro,
+        user: user || undefined,
+      }
+    })
+    .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
 
   const todasEtiquetas = Array.from(
     new Set(registrosComUsuarios.flatMap((r) => r.etiquetas || []))
@@ -144,7 +153,7 @@ export default function RegistrosLista({
 
   const handleMarcarPago = async (id: string) => {
     await marcarParcelaPaga(id)
-    router.refresh()
+    startTransition(() => router.refresh())
   }
 
   const handleExcluir = async (id: string) => {
@@ -153,12 +162,19 @@ export default function RegistrosLista({
   }
 
   const confirmarExcluir = async () => {
-    if (registroParaExcluir) {
-      await excluirRegistro(registroParaExcluir)
-      router.refresh()
-      setShowModalExcluir(false)
-      setRegistroParaExcluir(null)
+    if (!registroParaExcluir) return
+    const idRemovido = registroParaExcluir
+    const result = await excluirRegistro(registroParaExcluir)
+    if (result?.error) {
+      createNotification(result.error, 'warning')
+      return
     }
+    // Atualização otimista: remove da lista na hora para não piscar
+    setListaRegistros((prev) => prev.filter((r) => r.id !== idRemovido))
+    createNotification('Registro excluído com sucesso!', 'success')
+    setShowModalExcluir(false)
+    setRegistroParaExcluir(null)
+    startTransition(() => router.refresh())
   }
 
   const tipoColors = {
@@ -325,18 +341,44 @@ export default function RegistrosLista({
 
   return (
     <div>
-      {/* Barra de busca */}
-      <div className="mb-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-brand-clean/60" size={20} />
+      {/* Barra de busca + botões (desktop na mesma linha) */}
+      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
+        <div className="relative w-full md:max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
           <input
             type="text"
             value={filtros.nome}
             onChange={(e) => setFiltros({ ...filtros, nome: e.target.value })}
             onKeyPress={(e) => e.key === 'Enter' && aplicarFiltros()}
             placeholder="Buscar por nome..."
-            className="w-full pl-11 pr-4 py-2.5 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean bg-white dark:bg-brand-midnight placeholder-gray-400 dark:placeholder-brand-clean/50 hover:border-brand-aqua/50 shadow-sm hover:shadow-md"
+            className="w-full pl-10 pr-3 py-2 border border-gray-200 dark:border-white/15 rounded-lg text-sm text-brand-midnight dark:text-white bg-white dark:bg-white/5 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-aqua/40 focus:border-brand-aqua transition-colors"
           />
+        </div>
+        {/* Desktop: Filtros e Exportar na mesma linha */}
+        <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => setModalFiltrosAberto(!modalFiltrosAberto)}
+            className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm font-semibold whitespace-nowrap transition-colors ${
+              temFiltrosAtivos
+                ? 'bg-brand-aqua text-white border-brand-aqua'
+                : 'bg-white dark:bg-white/10 text-brand-midnight dark:text-white border-gray-200 dark:border-white/20 hover:border-brand-aqua/50'
+            }`}
+          >
+            <Filter size={16} className="text-brand-aqua" strokeWidth={2.5} />
+            <span>Filtros</span>
+            {temFiltrosAtivos && (
+              <span className="px-1.5 py-0.5 bg-white/20 dark:bg-white/20 rounded-full text-xs font-bold">
+                {Object.entries(filtrosAtuais).filter(([k, v]) => k !== 'data_inicio' && k !== 'data_fim' && !!v).length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setModalExportarAberto(true)}
+            className="flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-white/20 rounded-lg text-sm font-semibold whitespace-nowrap bg-white dark:bg-white/10 text-brand-midnight dark:text-white hover:border-brand-aqua/50 transition-colors"
+          >
+            <Download size={16} className="text-brand-aqua" strokeWidth={2.5} />
+            <span>Exportar CSV</span>
+          </button>
         </div>
       </div>
 
@@ -619,37 +661,6 @@ export default function RegistrosLista({
         </div>
       </div>
       )}
-
-      {/* Desktop: Botões de filtro e exportação */}
-      <div className="hidden md:flex items-center gap-3 mb-4 sm:mb-6">
-        <button
-          onClick={() => setModalFiltrosAberto(!modalFiltrosAberto)}
-          className={`flex items-center justify-center gap-2 px-4 py-2.5 border-2 rounded-xl transition-smooth text-sm font-semibold whitespace-nowrap ${
-            temFiltrosAtivos
-              ? 'bg-brand-aqua text-white border-brand-aqua shadow-md'
-              : 'bg-white dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border-gray-200 dark:border-white/20 hover:border-brand-aqua'
-          }`}
-        >
-          <Filter size={18} className="text-brand-aqua" strokeWidth={2.5} />
-          <span>Filtros</span>
-          {temFiltrosAtivos && (
-            <span className="px-1.5 py-0.5 bg-brand-midnight dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-full text-xs font-bold">
-              {Object.entries(filtrosAtuais).filter(([key, value]) => {
-                // Excluir data_inicio e data_fim da contagem
-                if (key === 'data_inicio' || key === 'data_fim') return false
-                return !!value
-              }).length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setModalExportarAberto(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 border-2 rounded-xl transition-smooth text-sm font-semibold whitespace-nowrap bg-white dark:bg-brand-royal text-brand-midnight dark:text-brand-clean border-gray-200 dark:border-white/20 hover:border-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20"
-        >
-          <Download size={18} className="text-brand-aqua" strokeWidth={2.5} />
-          <span>Exportar CSV</span>
-        </button>
-      </div>
 
       {/* Desktop: Filtros Rápidos de Dias */}
       <div className="hidden md:flex items-center gap-2 mb-4">
@@ -1179,6 +1190,9 @@ export default function RegistrosLista({
                       <p className="text-[10px] text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Data</p>
                       <p className="text-xs text-brand-midnight/80 dark:text-brand-clean/80">
                         {format(new Date(registro.data_registro), "dd/MM/yyyy", { locale: ptBR })}
+                        <span className="block text-[10px] text-brand-midnight/60 dark:text-brand-clean/60">
+                          {format(new Date(registro.data_registro ?? registro.created_at ?? 0), "HH:mm", { locale: ptBR })}
+                        </span>
                       </p>
                     </div>
                   </div>
@@ -1375,7 +1389,7 @@ export default function RegistrosLista({
                           locale: ptBR,
                         })}</div>
                         <div className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">
-                          {format(new Date(registro.data_registro), "HH:mm", {
+                          {format(new Date(registro.data_registro ?? registro.created_at ?? 0), "HH:mm", {
                             locale: ptBR,
                           })}
                         </div>

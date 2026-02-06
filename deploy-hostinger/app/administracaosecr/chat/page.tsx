@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { MessageCircle, Send, Search, User, Clock, CheckCircle, ArrowLeft } from 'lucide-react'
+import { MessageCircle, Send, Search, User, Clock, CheckCircle, ArrowLeft, Check, CheckCheck } from 'lucide-react'
 import AdminLayoutWrapper from '@/components/admin/AdminLayoutWrapper'
 
 interface Conversation {
@@ -181,6 +181,18 @@ export default function AdminChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  const handleSelectConversation = (userId: string) => {
+    setSelectedUserId(userId)
+    setConversations((prev) =>
+      prev.map((c) => (c.user_id === userId ? { ...c, unread_count: 0 } : c))
+    )
+    fetch('/api/chat/marcar-visto', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId }),
+    }).catch((err) => console.error('Erro ao marcar como lido:', err))
+  }
+
   const formatTime = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleTimeString('pt-BR', {
@@ -321,7 +333,7 @@ export default function AdminChatPage() {
                   {filteredConversations.map((conv) => (
                     <button
                       key={conv.user_id}
-                      onClick={() => setSelectedUserId(conv.user_id)}
+                      onClick={() => handleSelectConversation(conv.user_id)}
                       className={`w-full p-3 lg:p-4 text-left hover:bg-brand-midnight/50 transition-smooth ${
                         selectedUserId === conv.user_id
                           ? 'bg-brand-aqua/20 border-l-4 border-brand-aqua'
@@ -433,15 +445,24 @@ export default function AdminChatPage() {
                         }`}
                       >
                         <p className="text-xs lg:text-sm leading-relaxed break-words">{message.message}</p>
-                        <p
-                          className={`text-[10px] lg:text-xs mt-1 lg:mt-2 ${
+                        <div
+                          className={`flex items-center gap-1.5 mt-1 lg:mt-2 ${
                             message.sender_type === 'support'
                               ? 'text-brand-midnight/60'
                               : 'text-brand-clean/50'
                           }`}
                         >
-                          {formatTime(message.created_at)}
-                        </p>
+                          <span className="text-[10px] lg:text-xs">
+                            {formatTime(message.created_at)}
+                          </span>
+                          {message.sender_type === 'support' ? (
+                            <CheckCheck size={14} className="flex-shrink-0 opacity-90" />
+                          ) : message.is_read ? (
+                            <CheckCheck size={14} className="flex-shrink-0 opacity-90" />
+                          ) : (
+                            <Check size={14} className="flex-shrink-0 opacity-80" />
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}

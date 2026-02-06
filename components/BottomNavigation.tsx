@@ -22,7 +22,7 @@ export default function BottomNavigation() {
   const router = useRouter()
   const { isOpen: isMobileMenuOpen, setIsOpen: setMobileMenuOpen } = useMenuContext()
 
-  // Verificar se está em uma página autenticada
+  // Verificar se está em uma página autenticada (barra inferior visível em mobile; em desktop fica oculta por lg:hidden)
   const isAuthenticatedPage = pathname?.startsWith('/home') || 
                                pathname?.startsWith('/registros') ||
                                pathname?.startsWith('/calendario') ||
@@ -32,7 +32,8 @@ export default function BottomNavigation() {
                                pathname?.startsWith('/dashboard') ||
                                pathname?.startsWith('/categorias') ||
                                pathname?.startsWith('/tutoriais') ||
-                               pathname?.startsWith('/configuracoes')
+                               pathname?.startsWith('/configuracoes') ||
+                               pathname?.startsWith('/gastos-por-banco')
 
   if (!isAuthenticatedPage) {
     return null
@@ -53,10 +54,12 @@ export default function BottomNavigation() {
     return pathname?.startsWith(href)
   }
 
+  const showBarOnDesktop = pathname?.startsWith('/gastos-por-banco')
+
   return (
     <>
-      {/* Bottom Navigation Bar - Apenas Mobile | Grid 5 colunas = PLEN exatamente no centro */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-brand-royal border-t border-gray-200 dark:border-brand-midnight z-50 lg:hidden shadow-lg pb-[env(safe-area-inset-bottom)]">
+      {/* Bottom Navigation Bar - Mobile sempre; no desktop só na página Gastos por banco */}
+      <nav className={`fixed bottom-0 left-0 right-0 bg-white dark:bg-brand-royal border-t border-gray-200 dark:border-brand-midnight z-50 shadow-lg pb-[env(safe-area-inset-bottom)] ${showBarOnDesktop ? '' : 'lg:hidden'}`}>
         <div className="grid grid-cols-5 items-end justify-items-center w-full max-w-[100vw] px-0 py-2 gap-0">
           {/* Principal */}
           <button
@@ -168,7 +171,8 @@ export default function BottomNavigation() {
               pathname?.startsWith('/dashboard') || 
               pathname?.startsWith('/categorias') || 
               pathname?.startsWith('/tutoriais') || 
-              pathname?.startsWith('/configuracoes')
+              pathname?.startsWith('/configuracoes') ||
+              pathname?.startsWith('/gastos-por-banco')
             return (
               <button
                 onClick={handleMoreClick}
@@ -192,8 +196,8 @@ export default function BottomNavigation() {
         </div>
       </nav>
 
-      {/* Espaçamento no final da página para não ficar coberto pelo bottom nav */}
-      <div className="h-20 lg:hidden" />
+      {/* Espaçamento no final da página para não ficar coberto pelo bottom nav (em desktop só quando a barra está visível) */}
+      <div className={`h-20 ${pathname?.startsWith('/gastos-por-banco') ? '' : 'lg:hidden'}`} />
     </>
   )
 }

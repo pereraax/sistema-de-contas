@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { criarEmprestimo } from '@/lib/actions'
-import { X, Upload, FileText, Plus, Trash2, CreditCard, Wallet, Smartphone } from 'lucide-react'
+import { X, Upload, FileText, Plus, Trash2, CreditCard, Wallet, Smartphone, Clock } from 'lucide-react'
+import DatePicker from './DatePicker'
 import { useRouter } from 'next/navigation'
 import { createNotification } from './NotificationBell'
 import { formatarValorEmTempoReal, converterValorFormatadoParaNumero } from '@/lib/formatCurrency'
@@ -33,8 +34,8 @@ export default function ModalEmprestimo({ onClose }: ModalEmprestimoProps) {
     }
     verificarPlano()
   }, [])
-  const [parcelas, setParcelas] = useState<Array<{ valor: string; data: string }>>([
-    { valor: '', data: '' }
+  const [parcelas, setParcelas] = useState<Array<{ valor: string; data: string; hora_opcional: string }>>([
+    { valor: '', data: '', hora_opcional: '' }
   ])
   const [formData, setFormData] = useState({
     nome_pessoa: '',
@@ -42,7 +43,8 @@ export default function ModalEmprestimo({ onClose }: ModalEmprestimoProps) {
     observacao: '',
     cpf: '',
     celular: '',
-    data_emprestimo: new Date().toISOString().slice(0, 16),
+    data: new Date().toISOString().slice(0, 10),
+    hora_opcional: '',
     metodo_pagamento: 'dinheiro' as 'pix' | 'cartao' | 'dinheiro',
   })
 
@@ -89,7 +91,7 @@ export default function ModalEmprestimo({ onClose }: ModalEmprestimoProps) {
   }
 
   const adicionarParcela = () => {
-    setParcelas([...parcelas, { valor: '', data: '' }])
+    setParcelas([...parcelas, { valor: '', data: '', hora_opcional: '' }])
   }
 
   const removerParcela = (index: number) => {
@@ -99,7 +101,7 @@ export default function ModalEmprestimo({ onClose }: ModalEmprestimoProps) {
   }
 
 
-  const atualizarParcela = (index: number, campo: 'valor' | 'data', valor: string) => {
+  const atualizarParcela = (index: number, campo: 'valor' | 'data' | 'hora_opcional', valor: string) => {
     const novasParcelas = [...parcelas]
     novasParcelas[index][campo] = valor
     setParcelas(novasParcelas)
@@ -133,8 +135,16 @@ export default function ModalEmprestimo({ onClose }: ModalEmprestimoProps) {
     }
 
     const valorTotal = calcularValorTotal()
-    const dataPrimeiraParcela = parcelasValidas[0].data
-    const dataUltimaParcela = parcelasValidas[parcelasValidas.length - 1].data
+    const toISO = (data: string, hora: string) => {
+      const h = hora.trim()
+      return (h ? new Date(`${data}T${h}`) : new Date(`${data}T${new Date().toTimeString().slice(0, 5)}`)).toISOString()
+    }
+    const dataEmprestimoISO = toISO(formData.data, formData.hora_opcional)
+    const parcelasComISO = parcelasValidas.map(p => ({
+      valor: converterValorFormatadoParaNumero(p.valor),
+      data: toISO(p.data, p.hora_opcional)
+    }))
+    const dataUltimaParcelaISO = parcelasComISO[parcelasComISO.length - 1].data
 
     const form = new FormData()
     form.append('nome_pessoa', formData.nome_pessoa)
@@ -142,13 +152,10 @@ export default function ModalEmprestimo({ onClose }: ModalEmprestimoProps) {
     form.append('observacao', formData.observacao)
     form.append('cpf', formData.cpf.replace(/\D/g, ''))
     form.append('celular', formData.celular.replace(/\D/g, ''))
-    form.append('data_emprestimo', new Date(formData.data_emprestimo).toISOString())
-    form.append('data_pagamento', new Date(dataUltimaParcela).toISOString())
+    form.append('data_emprestimo', dataEmprestimoISO)
+    form.append('data_pagamento', dataUltimaParcelaISO)
     form.append('parcelas_totais', parcelasValidas.length.toString())
-    form.append('parcelas', JSON.stringify(parcelasValidas.map(p => ({
-      valor: converterValorFormatadoParaNumero(p.valor),
-      data: new Date(p.data).toISOString()
-    }))))
+    form.append('parcelas', JSON.stringify(parcelasComISO))
     if (arquivoUrl) form.append('arquivo_url', arquivoUrl)
 
     const result = await criarEmprestimo(form)
@@ -249,17 +256,33 @@ export default function ModalEmprestimo({ onClose }: ModalEmprestimoProps) {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
-              Data do Empréstimo *
-            </label>
-            <input
-              type="datetime-local"
-              required
-              value={formData.data_emprestimo}
-              onChange={(e) => setFormData({ ...formData, data_emprestimo: e.target.value })}
-              className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
+                Data do Empréstimo *
+              </label>
+              <DatePicker
+                value={formData.data}
+                onChange={(v) => setFormData({ ...formData, data: v })}
+                required
+                placeholder="Selecione a data"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
+                Horas <span className="text-brand-midnight/50 dark:text-brand-clean/50">(opcional)</span>
+              </label>
+              <div className="relative">
+                <Clock size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-midnight/50 dark:text-brand-clean/50 pointer-events-none" />
+                <input
+                  type="time"
+                  value={formData.hora_opcional}
+                  onChange={(e) => setFormData({ ...formData, hora_opcional: e.target.value })}
+                  className="w-full pl-9 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm"
+                />
+              </div>
+              <p className="text-[11px] text-brand-midnight/50 dark:text-brand-clean/60 mt-0.5">Se não informar, usa a hora do registro</p>
+            </div>
           </div>
 
           <div>
@@ -331,14 +354,25 @@ export default function ModalEmprestimo({ onClose }: ModalEmprestimoProps) {
                       />
                     </div>
                   </div>
-                  <div className="flex-1">
-                    <input
-                      type="datetime-local"
-                      required
-                      value={parcela.data}
-                      onChange={(e) => atualizarParcela(index, 'data', e.target.value)}
-                      className="w-full px-2 py-1.5 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-xs"
-                    />
+                  <div className="flex-1 grid grid-cols-2 gap-1">
+                    <div>
+                      <DatePicker
+                        value={parcela.data}
+                        onChange={(v) => atualizarParcela(index, 'data', v)}
+                        required
+                        placeholder="Data"
+                        inputClassName="py-1.5 text-xs"
+                      />
+                    </div>
+                    <div className="relative">
+                      <Clock size={12} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-brand-midnight/50 dark:text-brand-clean/50 pointer-events-none" />
+                      <input
+                        type="time"
+                        value={parcela.hora_opcional}
+                        onChange={(e) => atualizarParcela(index, 'hora_opcional', e.target.value)}
+                        className="w-full pl-6 pr-1 py-1.5 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-xs"
+                      />
+                    </div>
                   </div>
                   {parcelas.length > 1 && (
                     <button

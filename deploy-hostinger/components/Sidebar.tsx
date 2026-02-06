@@ -46,13 +46,20 @@ export default function Sidebar() {
 
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem(SIDEBAR_COLLAPSED_KEY) : null
-    setCollapsed(stored === 'true')
+    const isCollapsed = stored === 'true'
+    setCollapsed(isCollapsed)
+    if (typeof document !== 'undefined' && document.documentElement) {
+      document.documentElement.setAttribute('data-sidebar', isCollapsed ? 'collapsed' : 'expanded')
+    }
   }, [])
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
       const next = !prev
-      if (typeof window !== 'undefined') localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next))
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next))
+        document.documentElement.setAttribute('data-sidebar', next ? 'collapsed' : 'expanded')
+      }
       return next
     })
   }
@@ -102,8 +109,8 @@ export default function Sidebar() {
                   onMouseEnter={() => handleMouseEnter(item.href)}
                   disabled={isLoading || isActive}
                   title={collapsed ? item.label : undefined}
-                  className={`w-full flex items-center gap-3 rounded-xl transition-all duration-200 text-left disabled:opacity-100 ${
-                    collapsed ? 'justify-center px-0 py-3' : 'px-4 py-3'
+                  className={`w-full flex items-center gap-2.5 rounded-xl transition-all duration-200 text-left disabled:opacity-100 ${
+                    collapsed ? 'justify-center px-0 py-3' : 'px-3 py-2.5'
                   } ${
                     isActive
                       ? 'bg-brand-aqua text-white dark:bg-[#252525] dark:text-white shadow-md'
@@ -118,7 +125,7 @@ export default function Sidebar() {
                     <Icon size={20} strokeWidth={2} className={`flex-shrink-0 ${isActive ? 'text-white' : 'dark:text-white'}`} />
                   )}
                   {!collapsed && (
-                    <span className={`font-medium truncate ${isActive ? 'text-white' : 'text-gray-700 dark:text-white'}`}>
+                    <span className={`text-sm font-medium truncate min-w-0 ${isActive ? 'text-white' : 'text-gray-700 dark:text-white'}`} title={item.label}>
                       {item.label}
                     </span>
                   )}
@@ -132,11 +139,11 @@ export default function Sidebar() {
                 onMouseEnter={() => router.prefetch('/upgrade')}
                 title={collapsed ? 'Fazer Upgrade' : undefined}
                 className={`w-full flex items-center rounded-xl transition-all duration-200 shadow-md hover:shadow-lg text-left group ${
-                  collapsed ? 'justify-center px-0 py-3' : 'gap-3 px-4 py-3'
+                  collapsed ? 'justify-center px-0 py-3' : 'gap-2.5 px-3 py-2.5'
                 } bg-gradient-to-r from-brand-aqua to-primary-500 hover:from-brand-aqua/90 hover:to-primary-400 dark:from-amber-400 dark:to-yellow-500 dark:hover:from-amber-300 dark:hover:to-yellow-400`}
               >
                 <Crown size={20} strokeWidth={2} className="text-white dark:text-amber-900 flex-shrink-0 group-hover:scale-110 transition-transform" />
-                {!collapsed && <span className="font-semibold text-white dark:text-amber-900 truncate">Fazer Upgrade</span>}
+                {!collapsed && <span className="text-sm font-semibold text-white dark:text-amber-900 truncate min-w-0" title="Fazer Upgrade">Fazer Upgrade</span>}
               </button>
             </div>
           </nav>

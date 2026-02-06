@@ -802,11 +802,11 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                 }}
                 className={`flex items-center gap-2 px-6 py-4 font-medium transition-smooth whitespace-nowrap flex-shrink-0 ${
                   tabAtivo === tab.id
-                    ? 'bg-brand-aqua/10 text-brand-aqua border-b-2 border-brand-aqua'
+                    ? 'bg-brand-aqua/15 dark:bg-white/20 text-brand-aqua dark:text-white border-b-2 border-brand-aqua dark:border-white'
                     : 'text-brand-midnight dark:text-white/80 hover:text-brand-midnight dark:hover:text-white hover:bg-brand-clean dark:bg-brand-royal/50'
                 }`}
               >
-                <Icon size={20} strokeWidth={2} />
+                <Icon size={20} strokeWidth={2} className={tabAtivo === tab.id ? 'text-brand-aqua dark:text-white shrink-0' : ''} />
                 {tab.label}
               </button>
             )

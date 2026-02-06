@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { MessageCircle, X, Send, Minimize2, LogIn } from 'lucide-react'
+import { MessageCircle, X, Send, Minimize2, LogIn, Check, CheckCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, usePathname } from 'next/navigation'
 
@@ -10,6 +10,7 @@ interface Message {
   text: string
   sender: 'user' | 'support'
   timestamp: Date
+  isRead?: boolean
 }
 
 export default function ChatWidget() {
@@ -259,7 +260,8 @@ export default function ChatWidget() {
       id: Date.now().toString(),
       text: inputMessage.trim(),
       sender: 'user',
-      timestamp: new Date()
+      timestamp: new Date(),
+      isRead: false
     }
 
     setMessages(prev => [...prev, userMessage])
@@ -309,7 +311,8 @@ export default function ChatWidget() {
           id: msg.id,
           text: msg.message,
           sender: msg.sender_type === 'support' ? 'support' : 'user',
-          timestamp: new Date(msg.created_at)
+          timestamp: new Date(msg.created_at),
+          isRead: !!msg.is_read
         }))
         
         // Detectar novas mensagens do suporte
@@ -936,15 +939,24 @@ export default function ChatWidget() {
                       }`}
                     >
                       <p className="text-xs sm:text-sm leading-relaxed break-words">{message.text}</p>
-                      <p
-                        className={`text-[10px] sm:text-xs mt-1 ${
+                      <div
+                        className={`flex items-center gap-1.5 mt-1 ${
                           message.sender === 'user'
                             ? 'text-white/80'
                             : 'text-brand-midnight/50 dark:text-brand-clean/50'
                         }`}
                       >
-                        {formatTime(message.timestamp)}
-                      </p>
+                        <span className="text-[10px] sm:text-xs">
+                          {formatTime(message.timestamp)}
+                        </span>
+                        {message.sender === 'support' ? (
+                          <CheckCheck size={12} className="flex-shrink-0 opacity-90" />
+                        ) : message.isRead ? (
+                          <CheckCheck size={12} className="flex-shrink-0 opacity-90" />
+                        ) : (
+                          <Check size={12} className="flex-shrink-0 opacity-80" />
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

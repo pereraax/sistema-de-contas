@@ -776,6 +776,81 @@ export async function obterGastosPorBanco(dataInicio?: string, dataFim?: string)
   }
 }
 
+/** Gastos (saídas) agrupados por categoria para o período. */
+export async function obterGastosPorCategoria(
+  dataInicio?: string,
+  dataFim?: string
+): Promise<{ data: Array<{ categoria: string; total: number }>; error: string | null }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: [], error: 'Não autenticado' }
+
+    const { data: usuarios } = await supabase.from('users').select('id').eq('account_owner_id', user.id)
+    const userIds = (usuarios || []).map((u: { id: string }) => u.id)
+    if (userIds.length === 0) return { data: [], error: null }
+
+    let query = supabase
+      .from('registros')
+      .select('categoria, valor')
+      .in('user_id', userIds)
+      .eq('tipo', 'saida')
+    if (dataInicio) query = query.gte('data_registro', dataInicio)
+    if (dataFim) query = query.lte('data_registro', dataFim)
+
+    const { data: registros, error } = await query
+    if (error) return { data: [], error: error.message }
+
+    const map = new Map<string, number>()
+    ;(registros || []).forEach((r: { categoria?: string; valor: number }) => {
+      const cat = (r.categoria || 'Outros').trim() || 'Outros'
+      map.set(cat, (map.get(cat) || 0) + Number(r.valor))
+    })
+    const data = Array.from(map.entries())
+      .map(([categoria, total]) => ({ categoria, total }))
+      .sort((a, b) => b.total - a.total)
+    return { data, error: null }
+  } catch (e: any) {
+    return { data: [], error: e?.message || 'Erro ao buscar gastos por categoria' }
+  }
+}
+
+/** Resumo para relatórios: total de registros e (quando existir) enviados ao WhatsApp. */
+export async function obterResumoRelatorios(
+  dataInicio?: string,
+  dataFim?: string
+): Promise<{
+  totalRegistros: number
+  registrosViaWhatsApp: number
+  error: string | null
+}> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { totalRegistros: 0, registrosViaWhatsApp: 0, error: 'Não autenticado' }
+
+    const { data: usuarios } = await supabase.from('users').select('id').eq('account_owner_id', user.id)
+    const userIds = (usuarios || []).map((u: { id: string }) => u.id)
+    if (userIds.length === 0) return { totalRegistros: 0, registrosViaWhatsApp: 0, error: null }
+
+    let query = supabase
+      .from('registros')
+      .select('*', { count: 'exact', head: true })
+      .in('user_id', userIds)
+    if (dataInicio) query = query.gte('data_registro', dataInicio)
+    if (dataFim) query = query.lte('data_registro', dataFim)
+    const { count: totalRegistros, error } = await query
+    if (error) return { totalRegistros: 0, registrosViaWhatsApp: 0, error: error.message }
+    return {
+      totalRegistros: totalRegistros ?? 0,
+      registrosViaWhatsApp: 0,
+      error: null,
+    }
+  } catch (e: any) {
+    return { totalRegistros: 0, registrosViaWhatsApp: 0, error: e?.message || 'Erro' }
+  }
+}
+
 /** Detalhes de um banco em um período: totais e lista de registros. */
 export async function obterDetalhesBanco(
   bancoId: string,

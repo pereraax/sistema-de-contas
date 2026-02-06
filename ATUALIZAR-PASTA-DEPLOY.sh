@@ -26,8 +26,9 @@ if [ -d "pages" ]; then cp -R pages deploy-hostinger/; fi
 if [ -d "types" ]; then cp -R types deploy-hostinger/; fi
 if [ -d "scripts" ]; then cp -R scripts deploy-hostinger/; fi
 
-# Copiar arquivos de configuração
+# Copiar arquivos de configuração e raiz necessários ao build
 cp package.json package-lock.json next.config.js tailwind.config.js tsconfig.json .nvmrc deploy-hostinger/
+if [ -f "middleware.ts" ]; then cp middleware.ts deploy-hostinger/; fi
 
 # Copiar arquivos opcionais
 if [ -f "postcss.config.js" ]; then cp postcss.config.js deploy-hostinger/; fi

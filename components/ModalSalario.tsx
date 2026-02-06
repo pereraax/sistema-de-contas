@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { criarRegistro, obterUsuarios } from '@/lib/actions'
 import { User } from '@/lib/types'
-import { X, Plus, User as UserIcon, CreditCard, Wallet, Smartphone } from 'lucide-react'
+import { X, Plus, User as UserIcon, CreditCard, Wallet, Smartphone, Clock } from 'lucide-react'
+import DatePicker from './DatePicker'
 import { useRouter } from 'next/navigation'
 import { createNotification } from './NotificationBell'
 import ModalSelecionarUsuario from './ModalSelecionarUsuario'
@@ -37,11 +38,13 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
     }
     verificarPlano()
   }, [])
+  const hoje = new Date()
   const [formData, setFormData] = useState({
     nome: 'Salário',
     valor: '',
     user_id: '',
-    data_registro: new Date().toISOString().slice(0, 16),
+    data: hoje.toISOString().slice(0, 10),
+    hora_opcional: '',
     metodo_pagamento: 'dinheiro' as 'pix' | 'cartao' | 'dinheiro',
   })
 
@@ -87,7 +90,10 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
     form.append('etiquetas', JSON.stringify(['salário', 'entrada', formData.metodo_pagamento]))
     form.append('parcelas_totais', '1')
     form.append('parcelas_pagas', '0')
-    form.append('data_registro', new Date(formData.data_registro).toISOString())
+    const dataFinal = formData.hora_opcional.trim()
+      ? new Date(`${formData.data}T${formData.hora_opcional}`)
+      : new Date(`${formData.data}T${hoje.toTimeString().slice(0, 5)}`)
+    form.append('data_registro', dataFinal.toISOString())
 
     const result = await criarRegistro(form)
 
@@ -182,16 +188,36 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
-              Data
-            </label>
-            <input
-              type="datetime-local"
-              value={formData.data_registro}
-              onChange={(e) => setFormData({ ...formData, data_registro: e.target.value })}
-              className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr] gap-3">
+            <div>
+              <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
+                Data *
+              </label>
+              <DatePicker
+                value={formData.data}
+                onChange={(v) => setFormData({ ...formData, data: v })}
+                required
+                placeholder="Selecione a data"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
+                Horas <span className="text-gray-400 dark:text-brand-clean/50 font-normal">(opcional)</span>
+              </label>
+              <div className="relative">
+                <Clock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-midnight/50 dark:text-brand-clean/50 pointer-events-none" />
+                <input
+                  type="time"
+                  value={formData.hora_opcional}
+                  onChange={(e) => setFormData({ ...formData, hora_opcional: e.target.value })}
+                  className="w-full pl-10 pr-3 py-2.5 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-aqua/30 focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/40"
+                  placeholder="Hora atual"
+                />
+              </div>
+              <p className="text-[11px] text-gray-500 dark:text-brand-clean/60 mt-1">
+                Se não informar, usa a hora do registro
+              </p>
+            </div>
           </div>
 
           <div>

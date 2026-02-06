@@ -1,4 +1,11 @@
-# Tela branca e 404 nos scripts (webpack, main.js, etc.)
+# Tela branca / página sem estilo (CSS) depois do login
+
+## Por que a página fica sem estilo depois de logar?
+
+A página após o login (ex.: `/home`) usa o mesmo HTML e os mesmos arquivos de CSS/JS que o resto do app. Se você vê a página **com conteúdo mas sem cores, layout nem botões estilizados**, é porque os **arquivos em `/_next/static/`** (CSS e JS) **não estão sendo carregados** — em geral por **404** ou proxy incorreto.
+
+- **Local:** costuma ser cache antigo do Next (pasta `.next`) ou abrir em outra porta/URL.
+- **Produção:** o servidor (Nginx, etc.) não está entregando `/_next/*` para o Node que roda o Next.
 
 ## O que foi corrigido no código
 
@@ -9,6 +16,9 @@
 
 2. **package.json**
    - Novo script: `npm run dev:reset` — limpa a pasta `.next` e sobe o dev na porta 3000.
+
+3. **app/layout.tsx**
+   - Estilos inline de fallback no `<body>` (fundo, cor, fonte) para que, se o CSS não carregar, a página ainda fique legível.
 
 ## O que fazer no seu ambiente
 
@@ -43,5 +53,14 @@
     proxy_cache_bypass $http_upgrade;
   }
   ```
+
+### Como conferir se o problema é 404 em assets
+
+1. Abra **Ferramentas do desenvolvedor** (F12) → aba **Rede** (Network).
+2. Faça login e vá para `/home` (ou recarregue a página sem estilo).
+3. Procure requisições em vermelho (falha). Se houver **404** em URLs como:
+   - `/_next/static/chunks/...css`
+   - `/_next/static/chunks/...js`
+   então o servidor não está entregando a pasta `_next` corretamente. Corrija o proxy/build conforme a seção de produção acima.
 
 Depois do deploy, limpe o cache do navegador ou teste em aba anônima.

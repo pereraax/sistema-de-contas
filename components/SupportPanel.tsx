@@ -116,19 +116,19 @@ export default function SupportPanel() {
           
           <a
             href="/registros"
-            className="block p-2 sm:p-2.5 lg:p-1.5 text-xs lg:text-[11px] text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
+            className="block p-2 sm:p-2.5 lg:p-1.5 text-xs lg:text-[11px] text-brand-aqua dark:text-cyan-300 hover:bg-brand-aqua/10 dark:hover:bg-cyan-400/20 rounded-lg transition-smooth font-medium dark:font-semibold"
           >
             → Ver todos os registros
           </a>
           <a
             href="/dividas"
-            className="block p-2 sm:p-2.5 lg:p-1.5 text-xs lg:text-[11px] text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
+            className="block p-2 sm:p-2.5 lg:p-1.5 text-xs lg:text-[11px] text-brand-aqua dark:text-cyan-300 hover:bg-brand-aqua/10 dark:hover:bg-cyan-400/20 rounded-lg transition-smooth font-medium dark:font-semibold"
           >
             → Gerenciar dívidas
           </a>
           <a
             href="/dashboard"
-            className="block p-2 sm:p-2.5 lg:p-1.5 text-xs lg:text-[11px] text-brand-aqua dark:text-brand-aqua hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 rounded-lg transition-smooth"
+            className="block p-2 sm:p-2.5 lg:p-1.5 text-xs lg:text-[11px] text-brand-aqua dark:text-cyan-300 hover:bg-brand-aqua/10 dark:hover:bg-cyan-400/20 rounded-lg transition-smooth font-medium dark:font-semibold"
           >
             → Ver relatórios
           </a>

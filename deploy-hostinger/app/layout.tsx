@@ -133,6 +133,12 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        {/* Tema e estado da sidebar antes da primeira pintura para evitar piscar */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t=localStorage.getItem('theme');var d=!(t&&t!=='dark')&&window.matchMedia('(prefers-color-scheme: dark)').matches;if(t==='dark'||(!t&&d))document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');var s=localStorage.getItem('sidebar-collapsed');document.documentElement.setAttribute('data-sidebar',s==='true'?'collapsed':'expanded');})();`,
+          }}
+        />
         {/* Preconnect para APIs externas - CRÍTICO para performance */}
         <link rel="preconnect" href="https://fonts.googleapis.com" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -155,7 +161,17 @@ export default function RootLayout({
         {/* Dados estruturados para SEO */}
         <StructuredData />
       </head>
-      <body suppressHydrationWarning className="loaded">
+      <body
+        suppressHydrationWarning
+        className="loaded"
+        style={{
+          margin: 0,
+          backgroundColor: '#ffffff',
+          color: '#0D1B2A',
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          minHeight: '100vh',
+        }}
+      >
         <ThemeProvider>
           <MenuProvider>
             {/* Componentes não críticos - carregar após interação */}

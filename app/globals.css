@@ -306,9 +306,9 @@ body::-webkit-scrollbar {
   }
 }
 
-/* Sidebar recolhida no desktop: margem para caber sidebar + botão redondo que se projeta */
+/* Sidebar recolhida no desktop: conteúdo principal usa margem menor para preencher o espaço */
 @media (min-width: 1024px) {
-  aside.sidebar-collapsed + main {
-    margin-left: 6.25rem !important;
+  html[data-sidebar="collapsed"] main {
+    margin-left: 5rem !important; /* w-20 = 5rem, sidebar recolhida */
   }
 }

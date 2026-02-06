@@ -3,6 +3,8 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { plenLog } from '@/lib/plen-logs'
 import { interpretarMensagem, formatarRespostaRegistro } from '@/lib/plen-registro'
+import { getPlenLLMResponse } from '@/lib/plen-llm-fallback'
+import { extrairUsuarioNaMensagem } from '@/lib/plen-whatsapp-chat'
 
 /** Cria cliente Supabase na rota (sem cache React) para garantir cookies da requisição. */
 async function createSupabaseForRoute() {
@@ -88,8 +90,9 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const interpretado = interpretarMensagem(message)
-    plenLog(requestId, 'interpret', interpretado ? 'Mensagem interpretada' : 'Mensagem não interpretada como registro', interpretado ? { tipo: interpretado.tipo, valor: interpretado.valor, nome: interpretado.nome, categoria: interpretado.categoria } : undefined, 'info')
+    const { msgForRegistro, targetUserName: nomeUsuarioPedido } = extrairUsuarioNaMensagem(message)
+    const interpretado = interpretarMensagem(msgForRegistro)
+    plenLog(requestId, 'interpret', interpretado ? 'Mensagem interpretada' : 'Mensagem não interpretada como registro', interpretado ? { tipo: interpretado.tipo, valor: interpretado.valor, nome: interpretado.nome, categoria: interpretado.categoria, nomeUsuarioPedido: nomeUsuarioPedido ?? undefined } : undefined, 'info')
 
     if (interpretado) {
       const { tipo, valor, nome, data_registro, categoria } = interpretado
@@ -107,7 +110,28 @@ export async function POST(request: NextRequest) {
         .eq('account_owner_id', user.id)
         .order('nome', { ascending: true })
 
+      if (nomeUsuarioPedido && (!usuarios?.length || errUsuarios)) {
+        return jsonResponse({
+          response: 'Você pediu para registrar em um usuário, mas ainda não há pessoas cadastradas. Vá em Configurações → Usuários/Pessoas, crie as pessoas e use o nome cadastrado. Ex.: "Gastei 20 usuario juliaa".',
+        })
+      }
       if (!errUsuarios && usuarios?.length) {
+        if (nomeUsuarioPedido) {
+          const nomeBusca = nomeUsuarioPedido.trim().toLowerCase()
+          const encontrado = usuarios.find((u) => (u.nome ?? '').trim().toLowerCase() === nomeBusca)
+          if (encontrado) {
+            registroUserId = encontrado.id
+            nomeUsuarioResposta = (encontrado.nome ?? '').trim()
+            plenLog(requestId, 'users', 'Pessoa indicada na mensagem', { userId: registroUserId, nome: nomeUsuarioResposta }, 'info')
+          } else {
+            return jsonResponse({
+              response: `Usuário "${nomeUsuarioPedido}" não encontrado. Use o nome exatamente como em Configurações → Usuários/Pessoas. Ex.: "Gastei 20 usuario juliaa" (se o nome cadastrado for "juliaa").`,
+            })
+          }
+        }
+      }
+
+      if (!registroUserId && !errUsuarios && usuarios?.length) {
         const profileNomeLower = (profile?.nome ?? profile?.email?.split('@')[0] ?? '').trim().toLowerCase()
         const dono = usuarios.find((u) => (u.nome ?? '').trim().toLowerCase() === profileNomeLower)
         if (dono) {
@@ -211,6 +235,15 @@ export async function POST(request: NextRequest) {
       return jsonResponse({
         response: 'Para registrar:\n• Gasto: "Gastei 50 no mercado", "Paguei 30 de Uber"\n• Ganho: "Ganhei 20", "Recebi 1000 do cliente"\n• Dívida: "Tenho uma dívida de 200 no cartão"\n• Salário: "Meu salário é 3000"\nVocê pode incluir data: "gastei 40 ontem" ou "dia 15".',
       })
+    }
+
+    // Fallback com LLM: resposta natural e amigável, só sobre Plenipay
+    const llmReply = await getPlenLLMResponse({
+      userMessage: message,
+      context: 'O usuário enviou uma mensagem que não foi reconhecida como comando de registro ou consulta. Responda de forma amigável e, se fizer sentido, sugira frases que funcionam (ex.: "Ganhei 40 reais", "Recebi 100", "Me mostre o relatório").',
+    })
+    if (llmReply) {
+      return jsonResponse({ response: llmReply })
     }
 
     return jsonResponse({

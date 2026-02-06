@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { Registro } from '@/lib/types'
-import { X, CheckCircle2 } from 'lucide-react'
+import { X, CheckCircle2, Clock } from 'lucide-react'
+import DatePicker from './DatePicker'
 import { useRouter } from 'next/navigation'
 import { createNotification } from './NotificationBell'
 import { formatarValorEmTempoReal, converterValorFormatadoParaNumero } from '@/lib/formatCurrency'
@@ -23,7 +24,8 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [valorPagamento, setValorPagamento] = useState('')
-  const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().slice(0, 16))
+  const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().slice(0, 10))
+  const [horaPagamentoOpcional, setHoraPagamentoOpcional] = useState('')
 
   // Função para limpar observação removendo JSON do histórico
   const limparObservacao = (observacao: string | undefined): string => {
@@ -116,7 +118,10 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
       }
 
       // Enviar valor e data do pagamento
-      const result = await pagarDivida(divida.id, valorPagar, dataPagamento)
+      const dataPagamentoISO = horaPagamentoOpcional.trim()
+        ? new Date(`${dataPagamento}T${horaPagamentoOpcional}`).toISOString()
+        : new Date(`${dataPagamento}T${new Date().toTimeString().slice(0, 5)}`).toISOString()
+      const result = await pagarDivida(divida.id, valorPagar, dataPagamentoISO)
 
       if (result.error) {
         createNotification('Erro ao processar pagamento: ' + result.error, 'warning')
@@ -274,7 +279,7 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="relative">
                 <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-brand-midnight/70 dark:text-brand-clean/70 font-medium text-sm">
                   R$
@@ -292,14 +297,29 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
                   className="w-full pl-10 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50"
                 />
               </div>
-              <div>
-                <input
-                  type="datetime-local"
-                  required
-                  value={dataPagamento}
-                  onChange={(e) => setDataPagamento(e.target.value)}
-                  className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm"
-                />
+              <div className="grid grid-cols-2 gap-1.5">
+                <div>
+                  <label className="block text-[11px] font-medium text-brand-midnight/70 dark:text-brand-clean/70 mb-0.5">Data *</label>
+                  <DatePicker
+                    value={dataPagamento}
+                    onChange={setDataPagamento}
+                    required
+                    placeholder="Data"
+                    inputClassName="py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-brand-midnight/70 dark:text-brand-clean/70 mb-0.5">Hora (opc.)</label>
+                  <div className="relative">
+                    <Clock size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-brand-midnight/50 dark:text-brand-clean/50 pointer-events-none" />
+                    <input
+                      type="time"
+                      value={horaPagamentoOpcional}
+                      onChange={(e) => setHoraPagamentoOpcional(e.target.value)}
+                      className="w-full pl-8 pr-2 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
             <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mt-1.5">

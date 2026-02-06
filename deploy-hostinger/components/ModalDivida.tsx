@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { criarRegistro, obterUsuarios } from '@/lib/actions'
 import type { User } from '@/lib/types'
-import { X, CreditCard, Wallet, Smartphone, Plus, User as UserIcon, Trash2, UtensilsCrossed, Car, Home, ShoppingBag, Heart, GraduationCap, Briefcase, Gamepad2, Dumbbell, Plane } from 'lucide-react'
+import { X, CreditCard, Wallet, Smartphone, Plus, User as UserIcon, Trash2, UtensilsCrossed, Car, Home, ShoppingBag, Heart, GraduationCap, Briefcase, Gamepad2, Dumbbell, Plane, Clock } from 'lucide-react'
+import DatePicker from './DatePicker'
 import CheckboxModerno from './CheckboxModerno'
 import InputDiaMes from './InputDiaMes'
 import { useRouter } from 'next/navigation'
@@ -40,15 +41,14 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
   }, [])
   const [temParcelas, setTemParcelas] = useState(true) // Se a dívida tem parcelas ou é única
   const [valorDivida, setValorDivida] = useState('') // Valor da dívida (comum para ambos os modos)
-  const [dividaUnica, setDividaUnica] = useState({ data: '' }) // Para dívida sem parcelas (data opcional)
-  const [parcelas, setParcelas] = useState<Array<{ data: string; quantidade: string }>>([
-    { data: '', quantidade: '1' }
+  const [dividaUnica, setDividaUnica] = useState({ data: '', hora_opcional: '' })
+  const [parcelas, setParcelas] = useState<Array<{ data: string; hora_opcional: string; quantidade: string }>>([
+    { data: '', hora_opcional: '', quantidade: '1' }
   ])
   const [formData, setFormData] = useState({
     nome: '',
     observacao: '',
     user_id: '',
-    data_registro: new Date().toISOString().slice(0, 16),
     categoria: '',
     metodo_pagamento: 'dinheiro' as 'pix' | 'cartao' | 'dinheiro',
   })
@@ -97,7 +97,7 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
   }
 
   const adicionarParcela = () => {
-    setParcelas([...parcelas, { data: '', quantidade: '1' }])
+    setParcelas([...parcelas, { data: '', hora_opcional: '', quantidade: '1' }])
   }
 
   const removerParcela = (index: number) => {
@@ -106,7 +106,7 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
     }
   }
 
-  const atualizarParcela = (index: number, campo: 'data' | 'quantidade', valor: string) => {
+  const atualizarParcela = (index: number, campo: 'data' | 'hora_opcional' | 'quantidade', valor: string) => {
     const novasParcelas = [...parcelas]
     novasParcelas[index][campo] = valor
     setParcelas(novasParcelas)
@@ -226,7 +226,10 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
         form.append('etiquetas', JSON.stringify(['dívida', formData.metodo_pagamento]))
         form.append('parcelas_totais', quantidade.toString())
         form.append('parcelas_pagas', '0')
-        form.append('data_registro', new Date(parcela.data).toISOString())
+        const dataParcela = parcela.hora_opcional.trim()
+          ? new Date(`${parcela.data}T${parcela.hora_opcional}`)
+          : new Date(`${parcela.data}T${new Date().toTimeString().slice(0, 5)}`)
+        form.append('data_registro', dataParcela.toISOString())
         
         // Adicionar campos de recorrência se for recorrente
         if (isRecorrente && i === 0) { // Apenas na primeira parcela
@@ -239,7 +242,9 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
           }
           
           // Calcular próxima recorrência
-          const dataInicial = new Date(parcela.data)
+          const dataInicial = parcela.hora_opcional.trim()
+            ? new Date(`${parcela.data}T${parcela.hora_opcional}`)
+            : new Date(`${parcela.data}T${new Date().toTimeString().slice(0, 5)}`)
           let proximaData = new Date(dataInicial)
           
           switch (recorrenciaTipo) {
@@ -302,16 +307,15 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
         // Criar dívida única (sem parcelas)
         const valorUnico = converterValorFormatadoParaNumero(valorDivida)
 
-        // Determinar data: se não fornecida, usar data atual; se recorrente, usar data atual também
         let dataRegistro: Date
         if (isRecorrente) {
-          // Se recorrente, usar data atual (a recorrência define a próxima data)
           dataRegistro = new Date()
         } else if (dividaUnica.data && dividaUnica.data.trim() !== '') {
-          // Se forneceu data e não é recorrente, usar a data fornecida
-          dataRegistro = new Date(dividaUnica.data)
+          const hora = dividaUnica.hora_opcional.trim()
+          dataRegistro = hora
+            ? new Date(`${dividaUnica.data}T${hora}`)
+            : new Date(`${dividaUnica.data}T${new Date().toTimeString().slice(0, 5)}`)
         } else {
-          // Se não forneceu data, usar data atual
           dataRegistro = new Date()
         }
 
@@ -423,13 +427,12 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
           nome: '',
           observacao: '',
           user_id: '',
-          data_registro: new Date().toISOString().slice(0, 16),
           categoria: '',
           metodo_pagamento: 'dinheiro',
         })
-        setParcelas([{ data: '', quantidade: '1' }])
+        setParcelas([{ data: '', hora_opcional: '', quantidade: '1' }])
         setValorDivida('')
-        setDividaUnica({ data: '' })
+        setDividaUnica({ data: '', hora_opcional: '' })
         setTemParcelas(true)
         setUsuarioSelecionado(null)
         setIsRecorrente(false)
@@ -588,20 +591,33 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
                     )}
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div>
                       <label className="block text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70 mb-1">
                         Data *
                       </label>
-                      <input
-                        type="datetime-local"
-                        required
+                      <DatePicker
                         value={parcela.data}
-                        onChange={(e) => atualizarParcela(index, 'data', e.target.value)}
-                        className="w-full px-2 py-1.5 bg-white dark:bg-brand-royal border border-gray-300 dark:border-white/10 rounded focus:outline-none focus:border-brand-aqua transition-smooth text-xs text-brand-midnight dark:text-brand-clean"
+                        onChange={(v) => atualizarParcela(index, 'data', v)}
+                        required
+                        placeholder="Data"
+                        inputClassName="py-1.5 text-xs"
                       />
                     </div>
-                    
+                    <div>
+                      <label className="block text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70 mb-1">
+                        Hora <span className="text-brand-midnight/50 dark:text-brand-clean/50">(opc.)</span>
+                      </label>
+                      <div className="relative">
+                        <Clock size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-brand-midnight/50 dark:text-brand-clean/50 pointer-events-none" />
+                        <input
+                          type="time"
+                          value={parcela.hora_opcional}
+                          onChange={(e) => atualizarParcela(index, 'hora_opcional', e.target.value)}
+                          className="w-full pl-8 pr-2 py-1.5 bg-white dark:bg-brand-royal border border-gray-300 dark:border-white/10 rounded focus:outline-none focus:border-brand-aqua transition-smooth text-xs text-brand-midnight dark:text-brand-clean"
+                        />
+                      </div>
+                    </div>
                     <div>
                       <label className="block text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70 mb-1">
                         Qtd *
@@ -656,28 +672,43 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
                   Dívida Única
                 </label>
                 <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 border border-gray-200 dark:border-white/10">
-                  <div>
-                    <label className="block text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70 mb-1">
-                      Data (Opcional)
-                      {isRecorrente && (
-                        <span className="ml-2 text-orange-500 dark:text-orange-400 text-[10px]">
-                          (Desabilitado - recorrência define a data)
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={dividaUnica.data}
-                      onChange={(e) => setDividaUnica({ ...dividaUnica, data: e.target.value })}
-                      disabled={isRecorrente}
-                      className="w-full px-3 py-2 bg-white dark:bg-brand-royal border border-gray-300 dark:border-white/10 rounded focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                    {!isRecorrente && (
-                      <p className="text-xs text-brand-midnight/50 dark:text-brand-clean/60 mt-1">
-                        Se não informar, será usada a data atual
-                      </p>
-                    )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70 mb-1">
+                        Data (Opcional)
+                        {isRecorrente && (
+                          <span className="ml-2 text-orange-500 dark:text-orange-400 text-[10px]">(Desabilitado)</span>
+                        )}
+                      </label>
+                      <div className={isRecorrente ? 'opacity-50 pointer-events-none' : ''}>
+                        <DatePicker
+                          value={dividaUnica.data}
+                          onChange={(v) => setDividaUnica({ ...dividaUnica, data: v })}
+                          placeholder="Data"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70 mb-1">
+                        Horas (opcional)
+                      </label>
+                      <div className="relative">
+                        <Clock size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-midnight/50 dark:text-brand-clean/50 pointer-events-none" />
+                        <input
+                          type="time"
+                          value={dividaUnica.hora_opcional}
+                          onChange={(e) => setDividaUnica({ ...dividaUnica, hora_opcional: e.target.value })}
+                          disabled={isRecorrente}
+                          className="w-full pl-9 pr-3 py-2 bg-white dark:bg-brand-royal border border-gray-300 dark:border-white/10 rounded focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean disabled:opacity-50 disabled:cursor-not-allowed"
+                        />
+                      </div>
+                    </div>
                   </div>
+                  {!isRecorrente && (
+                    <p className="text-xs text-brand-midnight/50 dark:text-brand-clean/60 mt-1">
+                      Se não informar data, será usada a data atual. Hora em branco usa a hora do registro.
+                    </p>
+                  )}
                 </div>
               </>
             )}

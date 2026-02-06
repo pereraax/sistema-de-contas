@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { Registro, User } from '@/lib/types'
-import { Edit, Trash2, Plus, Search, Repeat, Download, FileText, AlertCircle, TrendingUp, Trophy, CheckCircle, XCircle } from 'lucide-react'
+import { Edit, Trash2, Plus, Search, Repeat, Download, FileText, AlertCircle, TrendingUp, Trophy, CheckCircle, XCircle, Clock, Calendar } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import { excluirRegistro, obterDividas } from '@/lib/actions'
@@ -520,63 +520,55 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
         </div>
       </div>
 
-      {/* Estatísticas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-        <div className="bg-brand-white dark:bg-brand-royal rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-brand-clean dark:border-white/10">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <FileText className="text-blue-600 dark:text-blue-400" size={24} />
+      {/* Estatísticas: grade 2x2 — Pendentes | Atrasados, Concluídos | Total */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+        {/* Pendentes */}
+        <div className="rounded-xl p-3 sm:p-4 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-amber-200/70 dark:bg-amber-800/40 flex items-center justify-center">
+              <Clock className="text-amber-700 dark:text-amber-400" size={18} strokeWidth={2} />
             </div>
-            <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70">
-              Total de Dívidas Pendentes ({dividasPendentes.length})
-            </p>
+            <span className="text-xs font-medium text-amber-700/90 dark:text-amber-400/90">Pendentes</span>
           </div>
-          <p className="text-xl sm:text-2xl font-display text-brand-midnight dark:text-brand-clean" style={{ fontWeight: 900 }}>
-            {new Intl.NumberFormat('pt-BR', {
-              style: 'currency',
-              currency: 'BRL',
-            }).format(totalDividas)}
-          </p>
-          <p className="text-xs text-brand-midnight/50 dark:text-brand-clean/50 mt-1">
-            {dividasQuitadas.length} dívida{dividasQuitadas.length !== 1 ? 's' : ''} quitada{dividasQuitadas.length !== 1 ? 's' : ''}
+          <p className="text-lg sm:text-xl font-bold text-brand-midnight dark:text-brand-clean tabular-nums">
+            {dividasPendentes.length}
           </p>
         </div>
-        <div className="bg-brand-white dark:bg-brand-royal rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-brand-clean dark:border-white/10">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-              <AlertCircle className="text-orange-600 dark:text-orange-400" size={24} />
+        {/* Atrasados */}
+        <div className="rounded-xl p-3 sm:p-4 bg-red-50/80 dark:bg-red-950/30 border border-red-200/60 dark:border-red-800/40">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-red-200/70 dark:bg-red-800/40 flex items-center justify-center">
+              <AlertCircle className="text-red-700 dark:text-red-400" size={18} strokeWidth={2} />
             </div>
-            <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70">Total Pendente</p>
+            <span className="text-xs font-medium text-red-700/90 dark:text-red-400/90">Atrasados</span>
           </div>
-          <p className="text-xl sm:text-2xl font-display text-orange-600 dark:text-orange-400" style={{ fontWeight: 900 }}>
-            {new Intl.NumberFormat('pt-BR', {
-              style: 'currency',
-              currency: 'BRL',
-            }).format(totalPendente)}
+          <p className="text-lg sm:text-xl font-bold text-brand-midnight dark:text-brand-clean tabular-nums">
+            {dividasPendentes.filter((d) => d.proxima_recorrencia && new Date(d.proxima_recorrencia) < new Date()).length}
           </p>
         </div>
-        <div className="bg-brand-white dark:bg-brand-royal rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg border border-brand-clean dark:border-white/10">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <TrendingUp className="text-green-600 dark:text-green-400" size={24} />
+        {/* Concluídos */}
+        <div className="rounded-xl p-3 sm:p-4 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/40">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-emerald-200/70 dark:bg-emerald-800/40 flex items-center justify-center">
+              <CheckCircle className="text-emerald-700 dark:text-emerald-400" size={18} strokeWidth={2} />
             </div>
-            <p className="text-xs sm:text-sm text-brand-midnight/70 dark:text-brand-clean/70">Progresso Geral</p>
+            <span className="text-xs font-medium text-emerald-700/90 dark:text-emerald-400/90">Concluídos</span>
           </div>
-          <div className="mt-2">
-            <div className="w-full bg-brand-clean dark:bg-brand-midnight rounded-full h-3">
-              <div
-                className="bg-brand-aqua h-3 rounded-full transition-all"
-                style={{
-                  width: `${dividas.length > 0 && totalDividas > 0 ? Math.min(100, Math.max(0, ((totalDividas - totalPendente) / totalDividas) * 100)) : 0}%`,
-                }}
-              />
+          <p className="text-lg sm:text-xl font-bold text-brand-midnight dark:text-brand-clean tabular-nums">
+            {dividasQuitadas.length}
+          </p>
+        </div>
+        {/* Total */}
+        <div className="rounded-xl p-3 sm:p-4 bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200/60 dark:border-sky-800/40">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-sky-200/70 dark:bg-sky-800/40 flex items-center justify-center">
+              <Calendar className="text-sky-700 dark:text-sky-400" size={18} strokeWidth={2} />
             </div>
-            <p className="text-sm text-brand-midnight/70 dark:text-brand-clean/70 mt-2">
-              {dividas.length > 0 && totalDividas > 0
-                ? `${Math.round(((totalDividas - totalPendente) / totalDividas) * 100)}% quitado`
-                : '0% quitado'}
-            </p>
+            <span className="text-xs font-medium text-sky-700/90 dark:text-sky-400/90">Total</span>
           </div>
+          <p className="text-lg sm:text-xl font-bold text-brand-midnight dark:text-brand-clean tabular-nums">
+            {dividasFiltradas.length}
+          </p>
         </div>
       </div>
 
@@ -595,19 +587,31 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                   className="bg-white dark:bg-brand-royal rounded-xl p-4 border border-gray-200 dark:border-white/10 relative hover:shadow-md transition-shadow duration-200 cursor-pointer"
                   onClick={() => setRegistroEditando(divida)}
                 >
-                  {/* Botão de excluir no canto superior direito */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleExcluir(divida.id)
-                    }}
-                    className="absolute top-3 right-3 p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth z-10"
-                    title="Excluir"
-                  >
-                    <Trash2 size={18} strokeWidth={2} />
-                  </button>
+                  {/* Editar e excluir no canto superior direito (mobile) */}
+                  <div className="absolute top-3 right-3 flex items-center gap-1 z-10">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setRegistroEditando(divida)
+                      }}
+                      className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
+                      title="Editar"
+                    >
+                      <Edit size={18} strokeWidth={2} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleExcluir(divida.id)
+                      }}
+                      className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
+                      title="Excluir"
+                    >
+                      <Trash2 size={18} strokeWidth={2} />
+                    </button>
+                  </div>
                   
-                  <div className="space-y-3 pr-8">
+                  <div className="space-y-3 pr-20">
                     {/* Nome e Recorrente */}
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -684,7 +688,7 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                           <p className="text-brand-midnight/40 dark:text-brand-clean/40">-</p>
                         )}
                       </div>
-                      <div>
+                      <div className="pl-4 md:pl-0">
                         <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-0.5">Status</p>
                         {divida.parcelas_pagas >= divida.parcelas_totais ? (
                           <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs font-medium border border-green-200 dark:border-green-800/50">
@@ -694,7 +698,7 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                         ) : (
                           <button
                             onClick={() => setDividaPagando(divida)}
-                            className="w-full px-3 py-1.5 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-xs shadow-sm"
+                            className="w-full px-3 py-1.5 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth font-medium text-xs shadow-sm"
                           >
                             Pagar Dívida
                           </button>
@@ -721,12 +725,12 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                     {/* Etiquetas */}
                     {divida.etiquetas && divida.etiquetas.length > 0 && (
                       <div>
-                        <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-1.5">Etiquetas</p>
+                        <p className="text-xs text-brand-midnight/60 dark:text-gray-300 mb-1.5">Etiquetas</p>
                         <div className="flex flex-wrap gap-1">
                           {divida.etiquetas.map((tag, index) => (
                             <span
                               key={index}
-                              className="px-2 py-1 bg-brand-aqua/10 dark:bg-brand-aqua/20 text-brand-aqua dark:text-brand-aqua text-xs rounded-lg"
+                              className="px-2 py-1 bg-brand-aqua/10 dark:bg-white/15 text-brand-aqua dark:text-white text-xs rounded-lg font-medium"
                             >
                               {tag}
                             </span>
@@ -734,26 +738,6 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                         </div>
                       </div>
                     )}
-
-                    {/* Ações */}
-                    <div className="pt-2 border-t border-brand-clean/20 dark:border-white/10">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => setRegistroEditando(divida)}
-                          className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
-                          title="Editar"
-                        >
-                          <Edit size={18} strokeWidth={2} />
-                        </button>
-                        <button
-                          onClick={() => handleExcluir(divida.id)}
-                          className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
-                          title="Excluir"
-                        >
-                          <Trash2 size={18} strokeWidth={2} />
-                        </button>
-                      </div>
-                    </div>
                   </div>
                 </div>
               ))}
@@ -764,31 +748,31 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
               <table className="w-full">
                 <thead className="bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal border-b border-brand-aqua/20 dark:border-white/10">
                   <tr>
-                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Nome
                     </th>
-                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Valor
                     </th>
-                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Usuário
                     </th>
-                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Categoria
                     </th>
-                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 pl-6 text-left text-sm font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Etiquetas
                     </th>
-                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Parcelas
                     </th>
-                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Data
                     </th>
-                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-sm font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Ações
                     </th>
                   </tr>
@@ -875,7 +859,7 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                           <span className="text-sm text-brand-midnight/40 dark:text-brand-clean/40">-</span>
                         )}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
+                      <td className="px-4 py-4 whitespace-nowrap pl-6">
                         {divida.parcelas_pagas >= divida.parcelas_totais ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm font-medium border border-green-200 dark:border-green-800/50">
                             <CheckCircle size={16} />
@@ -887,7 +871,7 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                               e.stopPropagation()
                               setDividaPagando(divida)
                             }}
-                            className="w-full px-4 py-2 bg-brand-aqua dark:bg-brand-aqua text-white dark:text-brand-midnight rounded-lg hover:bg-brand-aqua/90 dark:hover:bg-brand-aqua/80 transition-smooth font-medium text-sm shadow-sm"
+                            className="w-full px-4 py-2 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth font-medium text-sm shadow-sm"
                           >
                             Pagar Dívida
                           </button>
@@ -899,13 +883,13 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                             divida.etiquetas.map((tag, index) => (
                               <span
                                 key={index}
-                                className="px-2 py-1 bg-brand-aqua/10 dark:bg-brand-aqua/20 text-brand-aqua dark:text-brand-aqua text-xs rounded-lg"
+                                className="px-2 py-1 bg-brand-aqua/10 dark:bg-white/15 text-brand-aqua dark:text-white text-xs rounded-lg font-medium"
                               >
                                 {tag}
                               </span>
                             ))
                           ) : (
-                            <span className="text-xs text-brand-midnight/40 dark:text-brand-clean/40">-</span>
+                            <span className="text-xs text-brand-midnight/40 dark:text-gray-400">-</span>
                           )}
                         </div>
                       </td>
@@ -980,10 +964,33 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
               {dividasQuitadas.map((divida) => (
                 <div 
                   key={divida.id} 
-                  className="bg-white dark:bg-brand-royal rounded-xl p-4 border border-gray-200 dark:border-white/10 hover:shadow-md transition-shadow duration-200 cursor-pointer"
+                  className="bg-white dark:bg-brand-royal rounded-xl p-4 border border-gray-200 dark:border-white/10 hover:shadow-md transition-shadow duration-200 cursor-pointer relative"
                   onClick={() => setRegistroEditando(divida)}
                 >
-                  <div className="space-y-3">
+                  {/* Editar e excluir no canto superior direito (mobile) */}
+                  <div className="absolute top-3 right-3 flex items-center gap-1 z-10">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setRegistroEditando(divida)
+                      }}
+                      className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
+                      title="Editar"
+                    >
+                      <Edit size={18} strokeWidth={2} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleExcluir(divida.id)
+                      }}
+                      className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
+                      title="Excluir"
+                    >
+                      <Trash2 size={18} strokeWidth={2} />
+                    </button>
+                  </div>
+                  <div className="space-y-3 pr-20">
                     <div>
                       <h3 className="text-base font-semibold text-brand-midnight dark:text-brand-clean">
                         {divida.nome}
@@ -1054,12 +1061,12 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                     </div>
                     {divida.etiquetas && divida.etiquetas.length > 0 && (
                       <div>
-                        <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mb-1.5">Etiquetas</p>
+                        <p className="text-xs text-brand-midnight/60 dark:text-gray-300 mb-1.5">Etiquetas</p>
                         <div className="flex flex-wrap gap-1">
                           {divida.etiquetas.map((tag, index) => (
                             <span
                               key={index}
-                              className="px-2 py-1 bg-brand-aqua/10 dark:bg-brand-aqua/20 text-brand-aqua dark:text-brand-aqua text-xs rounded-lg"
+                              className="px-2 py-1 bg-brand-aqua/10 dark:bg-white/15 text-brand-aqua dark:text-white text-xs rounded-lg font-medium"
                             >
                               {tag}
                             </span>
@@ -1067,24 +1074,6 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                         </div>
                       </div>
                     )}
-                    <div className="pt-2 border-t border-brand-clean/20 dark:border-white/10">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => setRegistroEditando(divida)}
-                          className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
-                          title="Editar"
-                        >
-                          <Edit size={18} strokeWidth={2} />
-                        </button>
-                        <button
-                          onClick={() => handleExcluir(divida.id)}
-                          className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-smooth"
-                          title="Excluir"
-                        >
-                          <Trash2 size={18} strokeWidth={2} />
-                        </button>
-                      </div>
-                    </div>
                   </div>
                 </div>
               ))}
@@ -1095,31 +1084,31 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
               <table className="w-full">
                 <thead className="bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal border-b border-brand-aqua/20 dark:border-white/10">
                   <tr>
-                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Nome
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Valor
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Usuário
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Categoria
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Etiquetas
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Parcelas
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Data
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-brand-clean uppercase tracking-wider">
+                    <th className="px-4 py-4 text-left text-xs font-display font-bold text-white dark:text-white uppercase tracking-wider">
                       Ações
                     </th>
                   </tr>
@@ -1192,13 +1181,13 @@ export default function DividasLista({ dividas: dividasIniciais, usuarios = [], 
                             divida.etiquetas.map((tag, index) => (
                               <span
                                 key={index}
-                                className="px-2 py-1 bg-brand-aqua/10 text-brand-aqua text-xs rounded-lg"
+                                className="px-2 py-1 bg-brand-aqua/10 dark:bg-white/15 text-brand-aqua dark:text-white text-xs rounded-lg font-medium"
                               >
                                 {tag}
                               </span>
                             ))
                           ) : (
-                            <span className="text-xs text-brand-midnight/40">-</span>
+                            <span className="text-xs text-brand-midnight/40 dark:text-gray-400">-</span>
                           )}
                         </div>
                       </td>

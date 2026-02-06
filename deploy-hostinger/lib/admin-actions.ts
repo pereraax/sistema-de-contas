@@ -105,6 +105,41 @@ export async function obterAvisosAtivos(userId: string) {
   return { data: avisosNaoVistos, error: null }
 }
 
+/** Retorna todos os avisos ativos (não expirados) para exibir na central de notificações, com flag read por usuário */
+export async function obterAvisosParaUsuario(userId: string) {
+  const supabase = await createClient()
+  const { data: avisos, error: avisosError } = await supabase
+    .from('admin_avisos')
+    .select('id, titulo, mensagem, tipo, created_at, mostrar_popup, data_expiracao')
+    .eq('ativo', true)
+    .order('created_at', { ascending: false })
+
+  if (avisosError) return { error: avisosError.message, data: [] }
+
+  const agora = new Date()
+  const avisosNaoExpirados = (avisos || []).filter((aviso: { data_expiracao?: string | null }) => {
+    if (!aviso.data_expiracao) return true
+    return new Date(aviso.data_expiracao) > agora
+  })
+
+  const { data: avisosVistos } = await supabase
+    .from('avisos_vistos')
+    .select('aviso_id')
+    .eq('user_id', userId)
+  const vistosSet = new Set((avisosVistos || []).map((a: { aviso_id: string }) => a.aviso_id))
+
+  const data = avisosNaoExpirados.map((a: { id: string; titulo: string; mensagem: string; tipo: string; created_at: string; mostrar_popup: boolean; data_expiracao?: string | null }) => ({
+    id: a.id,
+    titulo: a.titulo,
+    mensagem: a.mensagem,
+    tipo: a.tipo,
+    created_at: a.created_at,
+    mostrar_popup: a.mostrar_popup,
+    read: vistosSet.has(a.id),
+  }))
+  return { data, error: null }
+}
+
 // Marcar aviso como visto
 export async function marcarAvisoComoVisto(avisoId: string, userId: string) {
   const supabase = await createClient()

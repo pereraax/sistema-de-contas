@@ -76,6 +76,9 @@ export function interpretarMensagem(texto: string): InterpretadoPlen | null {
   const valorNum = valorMatch ? extrairValor(valorMatch[0]) : null
   if (valorNum == null || valorNum <= 0) return null
 
+  let tipo: TipoRegistro
+  let nome: string
+
   // DÍVIDA: "tenho uma dívida de 200", "dívida de 200 no cartão", "devo 200"
   const dividaMatch = t.match(/(?:tenho\s+(?:uma\s+)?d[ií]vida\s+de|d[ií]vida\s+de|devo)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:no|em|no\s+)?\s*(.*)/i)
   if (dividaMatch && /(?:tenho\s+(?:uma\s+)?d[ií]vida|d[ií]vida\s+de|devo)\s+[\d.,]+/i.test(t)) {
@@ -97,6 +100,28 @@ export function interpretarMensagem(texto: string): InterpretadoPlen | null {
     return { tipo: 'entrada', valor: valorNum, nome, data_registro, categoria: 'Salário' }
   }
 
+  // ENTRADA por "ganhos de X", "novos ganhos de X reais", "entrada de X", "adicione X como ganho"
+  const ganhosDeMatch = t.match(/(?:novos?\s+)?ganhos?\s+de\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(.*)/i)
+  if (ganhosDeMatch) {
+    const resto = (ganhosDeMatch[1] || '').trim().replace(/\s*(hoje|ontem|dia\s+\d{1,2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*$/gi, '').trim()
+    nome = resto ? resto.substring(0, 200) : 'Ganhos'
+    const data_registro = parseDataDoTexto(t)
+    return { tipo: 'entrada', valor: valorNum, nome, data_registro, categoria: 'Outros' }
+  }
+  const entradaDeMatch = t.match(/\bentrada\s+de\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(.*)/i)
+  if (entradaDeMatch) {
+    const resto = (entradaDeMatch[1] || '').trim().replace(/\s*(hoje|ontem|dia\s+\d{1,2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*$/gi, '').trim()
+    nome = resto ? resto.substring(0, 200) : 'Entrada'
+    const data_registro = parseDataDoTexto(t)
+    return { tipo: 'entrada', valor: valorNum, nome, data_registro, categoria: 'Outros' }
+  }
+  const adicioneGanhoMatch = t.match(/\badicione?\s+(?:um\s+)?(?:ganho\s+de\s+)?[\d.,]+\s*(?:reais?|r\$|r\b)?/i)
+  if (adicioneGanhoMatch) {
+    nome = 'Ganhos'
+    const data_registro = parseDataDoTexto(t)
+    return { tipo: 'entrada', valor: valorNum, nome, data_registro, categoria: 'Outros' }
+  }
+
   // Verbos de GASTO: gastei, gasteu, paguei, pagou, etc.
   const verbosGasto = /(?:gastei|gasteu|gastou|paguei|pagou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?/i
   const despesaMatch = t.match(/(?:gastei|gasteu|gastou|paguei|pagou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|em|com|para|no|na)?\s*(.*)/i)
@@ -104,9 +129,6 @@ export function interpretarMensagem(texto: string): InterpretadoPlen | null {
   // Verbos de ENTRADA: recebi, recebeu, ganhei, ganhou, entrei com, entrada de, etc.
   const verbosEntrada = /(?:recebi|recebeu|ganhei|ganhou|ganhamos|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?/i
   const entradaMatch = t.match(/(?:recebi|recebeu|ganhei|ganhou|ganhamos|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|do|da|com)?\s*(.*)/i)
-
-  let tipo: TipoRegistro
-  let nome: string
 
   if (despesaMatch && verbosGasto.test(t)) {
     nome = (despesaMatch[1] || '').trim() || 'Gasto'

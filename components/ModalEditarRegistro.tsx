@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { Registro, User } from '@/lib/types'
 import { atualizarRegistro, obterUsuarios, obterRegistros } from '@/lib/actions'
-import { X, Plus, User as UserIcon, CreditCard, Wallet, Smartphone, UtensilsCrossed, Car, Home, ShoppingBag, Heart, GraduationCap, Briefcase, Gamepad2, Dumbbell, Plane, Trash2, HelpCircle, Check, Tag } from 'lucide-react'
+import { X, Plus, User as UserIcon, CreditCard, Wallet, Smartphone, UtensilsCrossed, Car, Home, ShoppingBag, Heart, GraduationCap, Briefcase, Gamepad2, Dumbbell, Plane, Trash2, HelpCircle, Check, Tag, Clock } from 'lucide-react'
+import DatePicker from './DatePicker'
 import { useRouter } from 'next/navigation'
 import { createNotification } from './NotificationBell'
 import ModalSelecionarUsuario from './ModalSelecionarUsuario'
@@ -60,7 +61,9 @@ export default function ModalEditarRegistro({
     metodo_pagamento: 'pix' | 'cartao' | 'dinheiro'
     parcelas_totais: string
     valor_parcelas: string
-    data_registro: string
+    data: string
+    hora_opcional: string
+    banco?: string
   }>({
     nome: '',
     observacao: '',
@@ -71,72 +74,16 @@ export default function ModalEditarRegistro({
     metodo_pagamento: 'dinheiro',
     parcelas_totais: '1',
     valor_parcelas: '',
-    data_registro: '',
+    data: new Date().toISOString().slice(0, 10),
+    hora_opcional: '',
     banco: '',
   })
   const [temParcelas, setTemParcelas] = useState(false)
-  
-  // Funções para formatar data DD/MM/AAAA (mais simples que calendário)
-  const formatDateToDisplay = (isoString: string) => {
-    if (!isoString) {
-      const now = new Date()
-      const dia = String(now.getDate()).padStart(2, '0')
-      const mes = String(now.getMonth() + 1).padStart(2, '0')
-      const ano = now.getFullYear()
-      return `${dia}/${mes}/${ano}`
-    }
-    const date = new Date(isoString)
-    const dia = String(date.getDate()).padStart(2, '0')
-    const mes = String(date.getMonth() + 1).padStart(2, '0')
-    const ano = date.getFullYear()
-    return `${dia}/${mes}/${ano}`
-  }
 
-  const formatTimeToDisplay = (isoString: string) => {
-    if (!isoString) return new Date().toTimeString().slice(0, 5)
-    const date = new Date(isoString)
-    return date.toTimeString().slice(0, 5)
+  const buildDataRegistroISO = (data: string, horaOpcional: string) => {
+    const h = horaOpcional.trim()
+    return (h ? new Date(`${data}T${h}`) : new Date(`${data}T${new Date().toTimeString().slice(0, 5)}`)).toISOString()
   }
-
-  const parseDateFromDisplay = (dateStr: string): string | null => {
-    // Aceitar formato DD/MM/AAAA
-    const match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/)
-    if (match) {
-      const [, dia, mes, ano] = match
-      const date = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia))
-      if (!isNaN(date.getTime())) {
-        return date.toISOString().slice(0, 10)
-      }
-    }
-    return null
-  }
-
-  const combineDateTimeToISO = (dateStr: string, time: string) => {
-    const dateISO = parseDateFromDisplay(dateStr) || new Date().toISOString().slice(0, 10)
-    if (!time) time = new Date().toTimeString().slice(0, 5)
-    return new Date(`${dateISO}T${time}`).toISOString().slice(0, 16)
-  }
-
-  const formatDateInput = (value: string) => {
-    // Remove tudo que não é número
-    const numbers = value.replace(/\D/g, '')
-    
-    // Aplica a máscara DD/MM/AAAA
-    if (numbers.length <= 2) {
-      return numbers
-    } else if (numbers.length <= 4) {
-      return `${numbers.slice(0, 2)}/${numbers.slice(2)}`
-    } else {
-      return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`
-    }
-  }
-
-  const initialDateTime = {
-    date: formatDateToDisplay(new Date().toISOString()),
-    time: formatTimeToDisplay(new Date().toISOString())
-  }
-  const [dataInput, setDataInput] = useState(initialDateTime.date)
-  const [horaInput, setHoraInput] = useState(initialDateTime.time)
 
   const BANCOS = [
     { id: 'inter', nome: 'Inter', cor: '#FF7A00', inicial: 'I' },
@@ -344,7 +291,7 @@ export default function ModalEditarRegistro({
         : 0
       
       setFormData({
-        nome: registro.nome.replace(/\s*-\s*Parcela\s*\d+.*$/i, '').trim(), // Remover " - Parcela X" do nome
+        nome: registro.nome.replace(/\s*-\s*Parcela\s*\d+.*$/i, '').trim(),
         observacao: observacaoLimpa,
         user_id: registro.user_id,
         tipo: registro.tipo,
@@ -353,14 +300,10 @@ export default function ModalEditarRegistro({
         metodo_pagamento: metodoPagamento as 'pix' | 'cartao' | 'dinheiro',
         parcelas_totais: registro.parcelas_totais.toString(),
         valor_parcelas: valorParcelas > 0 ? formatarValorEmTempoReal(valorParcelas.toString()) : '',
-        data_registro: new Date(registro.data_registro).toISOString().slice(0, 16),
+        data: new Date(registro.data_registro).toISOString().slice(0, 10),
+        hora_opcional: new Date(registro.data_registro).toTimeString().slice(0, 5),
+        banco: (registro as any).banco || '',
       })
-      const dateTime = {
-        date: formatDateToDisplay(new Date(registro.data_registro).toISOString()),
-        time: formatTimeToDisplay(new Date(registro.data_registro).toISOString())
-      }
-      setDataInput(dateTime.date)
-      setHoraInput(dateTime.time)
       setTemParcelas(parcelasTotais > 1 || parcelasPagas > 0)
       setEtiquetas(registro.etiquetas?.filter((e: string) => !['pix', 'cartao', 'dinheiro'].includes(e)) || [])
       if (registro.user) {
@@ -386,16 +329,10 @@ export default function ModalEditarRegistro({
         metodo_pagamento: 'dinheiro',
         parcelas_totais: '1',
         valor_parcelas: '',
-        data_registro: new Date().toISOString().slice(0, 16),
+        data: new Date().toISOString().slice(0, 10),
+        hora_opcional: '',
         banco: '',
       })
-      const now = new Date()
-      const newDateTime = {
-        date: formatDateToDisplay(now.toISOString()),
-        time: formatTimeToDisplay(now.toISOString())
-      }
-      setDataInput(newDateTime.date)
-      setHoraInput(newDateTime.time)
       setTemParcelas(false)
       setEtiquetas([])
       setUsuarioSelecionado(null)
@@ -481,7 +418,7 @@ export default function ModalEditarRegistro({
       
       // Se for dívida e tiver parcelas, usar os dados da parcela atual
       let valorFinalParaSalvar = valorFinal
-      let dataRegistroParaSalvar = new Date(formData.data_registro).toISOString()
+      let dataRegistroParaSalvar = buildDataRegistroISO(formData.data, formData.hora_opcional)
       let parcelasTotaisParaSalvar = formData.parcelas_totais
       let nomeParaSalvar = formData.nome
       
@@ -603,7 +540,7 @@ export default function ModalEditarRegistro({
           : 0
         form.append('parcelas_pagas', Math.min(parcelasPagas, parseInt(formData.parcelas_totais)).toString())
       }
-      form.append('data_registro', new Date(formData.data_registro).toISOString())
+      form.append('data_registro', buildDataRegistroISO(formData.data, formData.hora_opcional))
       if (formData.banco) form.append('banco', formData.banco)
 
       const result = await criarRegistro(form)
@@ -1195,33 +1132,30 @@ export default function ModalEditarRegistro({
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
-              Data e hora
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="text"
-                value={dataInput}
-                onChange={(e) => {
-                  const formatted = formatDateInput(e.target.value)
-                  setDataInput(formatted)
-                  const isoDate = combineDateTimeToISO(formatted, horaInput)
-                  setFormData({ ...formData, data_registro: isoDate })
-                }}
-                placeholder="DD/MM/AAAA"
-                maxLength={10}
-                className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50"
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">Data *</label>
+              <DatePicker
+                value={formData.data}
+                onChange={(v) => setFormData({ ...formData, data: v })}
+                required
+                placeholder="Selecione a data"
               />
-              <input
-                type="time"
-                value={horaInput}
-                onChange={(e) => {
-                  setHoraInput(e.target.value)
-                  setFormData({ ...formData, data_registro: combineDateTimeToISO(dataInput, e.target.value) })
-                }}
-                className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm"
-              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
+                Horas <span className="text-brand-midnight/50 dark:text-brand-clean/50">(opcional)</span>
+              </label>
+              <div className="relative">
+                <Clock size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-midnight/50 dark:text-brand-clean/50 pointer-events-none" />
+                <input
+                  type="time"
+                  value={formData.hora_opcional}
+                  onChange={(e) => setFormData({ ...formData, hora_opcional: e.target.value })}
+                  className="w-full pl-9 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm"
+                />
+              </div>
+              <p className="text-[11px] text-brand-midnight/50 dark:text-brand-clean/60 mt-0.5">Se não informar, usa a hora do registro</p>
             </div>
           </div>
 

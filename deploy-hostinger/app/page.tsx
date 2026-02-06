@@ -123,9 +123,9 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="relative z-10 min-h-screen bg-white">
       {/* Header - Clean, minimal, finlo-style */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
+      <header className="relative z-50 bg-white border-b border-gray-100 sticky top-0">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 max-w-6xl">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center flex-shrink-0">
@@ -222,9 +222,9 @@ export default function LandingPage() {
         onMouseLeave={handleHeroMouseLeave}
         className="relative overflow-hidden bg-neutral-50 pt-16 sm:pt-20 md:pt-24 pb-12 md:pb-20"
       >
-        {/* Grade que aparece ao passar o mouse */}
+        {/* Grade que aparece ao passar o mouse - não bloqueia cliques */}
         <div
-          className="pointer-events-none absolute inset-0 transition-opacity duration-300"
+          className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-300"
           style={{
             opacity: mousePos ? 0.85 : 0,
             backgroundImage: `
@@ -241,17 +241,12 @@ export default function LandingPage() {
           }}
           aria-hidden
         />
-        <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
+        <div className="container relative z-10 mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
           <div className="max-w-2xl mx-auto">
             {/* Conteúdo do hero */}
             <div className={`text-center transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
               <p className="text-xs font-medium text-[#1e4976] uppercase tracking-wider mb-4">Plataforma #1 em Controle Financeiro</p>
-              <h1
-                className="text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-semibold mb-6 leading-[1.1] bg-clip-text text-transparent bg-[length:200%_100%] animate-gradient-text"
-                style={{
-                  backgroundImage: 'linear-gradient(90deg, #0a0a0a 0%, #2d2d2d 25%, #0a0a0a 50%, #404040 75%, #0a0a0a 100%)',
-                }}
-              >
+              <h1 className="text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-semibold mb-6 leading-[1.1] text-[#0D1B2A]">
                 Controle financeiro simplificado no WhatsApp.
               </h1>
               <p className="text-base text-gray-500 max-w-lg mx-auto mb-8 leading-relaxed">

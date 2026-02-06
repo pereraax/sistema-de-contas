@@ -9,7 +9,31 @@ export default function UserProfileMenu() {
   const [isOpen, setIsOpen] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [userProfile, setUserProfile] = useState<{ nome: string; imagem_url?: string | null } | null>(null)
   const router = useRouter()
+
+  const carregarPerfil = async () => {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('nome, imagem_url')
+        .eq('id', user.id)
+        .maybeSingle()
+      const nome = profile?.nome?.trim() || user.user_metadata?.nome?.trim() || user.email?.split('@')[0] || 'Usuário'
+      setUserProfile({ nome, imagem_url: profile?.imagem_url ?? null })
+    } catch (_) {}
+  }
+
+  useEffect(() => {
+    carregarPerfil()
+  }, [])
+
+  useEffect(() => {
+    if (isOpen) carregarPerfil()
+  }, [isOpen])
 
   useEffect(() => {
     // Carregar preferência de tema do localStorage
@@ -125,17 +149,42 @@ export default function UserProfileMenu() {
           />
           <div className="absolute right-0 top-12 w-64 bg-white dark:bg-brand-midnight rounded-2xl shadow-2xl z-[95] overflow-hidden flex flex-col animate-scale-up pointer-events-auto border-2 border-gray-200 dark:border-brand-aqua/30">
             <div className="p-4 border-b border-gray-200 dark:border-brand-aqua/20 bg-gradient-to-r from-brand-aqua/10 to-brand-royal/10 dark:from-brand-midnight dark:to-brand-royal/50">
-              <h3 className="font-display font-bold text-lg text-brand-midnight dark:text-brand-clean">
-                Perfil
-              </h3>
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden bg-brand-aqua/15 dark:bg-white/15 border-2 border-brand-aqua/30 dark:border-white/20 flex items-center justify-center">
+                  {userProfile?.imagem_url ? (
+                    <img
+                      src={userProfile.imagem_url}
+                      alt={userProfile.nome || 'Perfil'}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                        const fallback = e.currentTarget.nextElementSibling as HTMLElement
+                        if (fallback) fallback.style.display = 'flex'
+                      }}
+                    />
+                  ) : null}
+                  <div
+                    className="w-full h-full flex items-center justify-center text-brand-aqua dark:text-white"
+                    style={{ display: userProfile?.imagem_url ? 'none' : 'flex' }}
+                  >
+                    <User size={20} strokeWidth={2} />
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-display font-bold text-lg text-brand-midnight dark:text-white truncate">
+                    {userProfile?.nome || 'Perfil'}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">Minha conta</p>
+                </div>
+              </div>
             </div>
             <div className="flex flex-col bg-white dark:bg-brand-royal/80">
               <button
                 onClick={handlePerfil}
                 className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-brand-aqua/10 dark:hover:bg-brand-aqua/20 transition-smooth text-left border-b border-gray-100 dark:border-white/10"
               >
-                <div className="p-2 bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-lg">
-                  <Settings size={18} className="text-brand-midnight dark:text-brand-aqua" />
+                <div className="p-2 bg-brand-aqua/10 dark:bg-white/15 rounded-lg">
+                  <Settings size={18} className="text-brand-midnight dark:text-white" />
                 </div>
                 <span className="text-sm font-semibold text-brand-midnight dark:text-brand-clean">
                   Configurações do Perfil

@@ -6,6 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/server'
 import { interpretarMensagem, formatarRespostaRegistro } from '@/lib/plen-registro'
+import { getPlenLLMResponse } from '@/lib/plen-llm-fallback'
 
 export type ProcessPlenWhatsAppResult = { response: string }
 
@@ -21,6 +22,28 @@ type StatsPlen = {
 
 function fmt(val: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
+}
+
+/**
+ * Detecta "gastei 30 usuario NOME" / "recebi 100 usuário NOME" na mesma linha.
+ * Retorna mensagem limpa (só valor) e nome do usuário alvo para atribuir o registro.
+ * Exportado para uso no chat in-app (app/api/plen/chat) e no WhatsApp.
+ */
+export function extrairUsuarioNaMensagem(raw: string): { msgForRegistro: string; targetUserName: string | null } {
+  const t = raw.trim()
+  // Padrão: (gastei|paguei|recebi|ganhei|...) valor (reais?) usuario/usuário NOME
+  const match = t.match(
+    /^(gastei|gasteu|gastou|paguei|pagou|recebi|recebeu|ganhei|ganhou|ganhamos)\s+([\d.,]+)\s*(reais?|r\$|r\b)?\s*usu[aá]rio\s+(.+)$/i
+  )
+  if (!match) return { msgForRegistro: t, targetUserName: null }
+  const valorPart = (match[2] || '').trim()
+  const reaisPart = (match[3] || '').trim()
+  const nomeCompleto = (match[4] || '').trim()
+    .replace(/\s*(hoje|ontem|dia\s+\d{1,2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*$/gi, '')
+    .trim()
+  if (!nomeCompleto) return { msgForRegistro: t, targetUserName: null }
+  const msgLimpa = `${match[1]} ${valorPart}${reaisPart ? ' ' + reaisPart : ''}`.trim()
+  return { msgForRegistro: msgLimpa, targetUserName: nomeCompleto }
 }
 
 /** Retorna início e fim da semana (últimos 7 dias) em ISO. */
@@ -109,10 +132,11 @@ export async function processPlenWhatsAppMessage(
       return { response: 'Envie uma mensagem. Ex.: "Gastei 50 reais" ou "Recebi 200".' }
     }
 
-    // Segunda linha = nome do usuário (pessoa) para registrar no nome dele; senão usa dono da conta
+    // Suporte a "gastei 30 usuario NOME" na mesma linha OU segunda linha = nome do usuário
     const linhas = rawMessage.split(/\n/).map((l) => l.trim()).filter(Boolean)
-    const msgForRegistro = linhas[0] ?? rawMessage
-    const nomeOutroUsuario = linhas.length > 1 ? linhas[1] : null
+    const primeiraLinha = linhas[0] ?? rawMessage
+    const { msgForRegistro, targetUserName: usuarioNaFrase } = extrairUsuarioNaMensagem(primeiraLinha)
+    const nomeOutroUsuario = usuarioNaFrase ?? (linhas.length > 1 ? linhas[1] : null)
 
     const interpretado = interpretarMensagem(msgForRegistro)
 
@@ -335,6 +359,15 @@ export async function processPlenWhatsAppMessage(
         response:
           'Para registrar:\n• Gasto: "Gastei 50 no mercado", "Paguei 30 de Uber"\n• Ganho: "Ganhei 20", "Recebi 1000 do cliente"\n• Por padrão o registro vai no seu nome (dono da conta).\n• Para registrar no nome de outro usuário, mande na segunda linha o nome dele:\n  gastei 50 roupas\n  (nome do usuário)\n\nConsultar: "quanto gastei na semana?", "me mostre o relatório", "quais são minhas dívidas?"',
       }
+    }
+
+    // Fallback com LLM: resposta natural e amigável, só sobre Plenipay
+    const llmReply = await getPlenLLMResponse({
+      userMessage: rawMessage,
+      context: 'O usuário enviou uma mensagem que não foi reconhecida como comando de registro ou consulta. Responda de forma amigável e, se fizer sentido, sugira frases que funcionam (ex.: "Ganhei 40 reais", "Recebi 100", "Me mostre o relatório").',
+    })
+    if (llmReply) {
+      return { response: llmReply }
     }
 
     return {
