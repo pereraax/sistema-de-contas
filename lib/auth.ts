@@ -1073,8 +1073,9 @@ export async function enviarLinkRedefinicaoSenha(email: string) {
         logSuccess(`Link de redefinição enviado para ${emailTrim}`, 'AUTH')
         return { success: true }
       } catch (smtpError: any) {
-        logError(`Erro SMTP ao enviar redefinição: ${smtpError.message}`, 'AUTH')
-        return { error: 'Erro ao enviar email. Verifique a configuração SMTP (variáveis SMTP_* no .env).' }
+        const msg = smtpError?.message || 'Erro desconhecido ao enviar email'
+        logError(`Erro SMTP ao enviar redefinição: ${msg}`, 'AUTH')
+        return { error: msg }
       }
     }
 
