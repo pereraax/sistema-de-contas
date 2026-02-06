@@ -11,6 +11,7 @@ import ModalSelecionarUsuario from './ModalSelecionarUsuario'
 import { formatarValorEmTempoReal, converterValorFormatadoParaNumero } from '@/lib/formatCurrency'
 import { obterPlanoUsuario } from '@/lib/plano'
 import UpgradeModal from './UpgradeModal'
+import { useModalBodyLock } from '@/hooks/useModalBodyLock'
 
 interface ModalSalarioProps {
   onClose: () => void
@@ -47,6 +48,8 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
     hora_opcional: '',
     metodo_pagamento: 'dinheiro' as 'pix' | 'cartao' | 'dinheiro',
   })
+
+  useModalBodyLock()
 
   useEffect(() => {
     carregarUsuarios()
@@ -109,7 +112,7 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in">
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in overflow-hidden" style={{ touchAction: 'none' }}>
       <div className="bg-white dark:bg-brand-royal rounded-2xl max-w-md w-full max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border border-gray-200 dark:border-white/10">
         <div className="flex-shrink-0 border-b border-brand-aqua/20 dark:border-white/10 px-5 py-4 flex items-center justify-between bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal">
           <h2 className="text-xl font-display font-bold text-white dark:text-brand-clean">Registrar Salário</h2>
@@ -122,7 +125,7 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 bg-white dark:bg-brand-royal overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 py-4 space-y-4" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
           <div>
             <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
               Valor do Salário *
@@ -140,7 +143,8 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
                   setFormData({ ...formData, valor: formatted })
                 }}
                 placeholder="0,00"
-                className="w-full pl-10 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50"
+                className="w-full pl-10 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-base placeholder-gray-400 dark:placeholder-brand-clean/50"
+                style={{ fontSize: '16px' }}
               />
             </div>
           </div>
@@ -210,7 +214,8 @@ export default function ModalSalario({ onClose }: ModalSalarioProps) {
                   type="time"
                   value={formData.hora_opcional}
                   onChange={(e) => setFormData({ ...formData, hora_opcional: e.target.value })}
-                  className="w-full pl-10 pr-3 py-2.5 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-aqua/30 focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/40"
+                  className="w-full pl-10 pr-3 py-2.5 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-aqua/30 focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-base placeholder-gray-400 dark:placeholder-brand-clean/40"
+                  style={{ fontSize: '16px' }}
                   placeholder="Hora atual"
                 />
               </div>

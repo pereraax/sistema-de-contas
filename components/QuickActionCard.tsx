@@ -146,7 +146,7 @@ export default function QuickActionCard({
         <button
           onClick={handleClick}
           disabled={isDisabled}
-          className={`w-full px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-full font-bold transition-all duration-300 shadow-md hover:shadow-2xl hover:shadow-[#1e4976]/40 flex items-center justify-center gap-2 text-sm sm:text-base transform hover:scale-105 active:scale-100 mt-auto ${
+          className={`w-fit min-w-[140px] self-center px-5 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-full font-bold transition-all duration-300 shadow-md hover:shadow-2xl hover:shadow-[#1e4976]/40 flex items-center justify-center gap-2 text-sm sm:text-base transform hover:scale-105 active:scale-100 mt-auto ${
             isDisabled 
               ? 'opacity-50 cursor-not-allowed transform-none' 
               : ''

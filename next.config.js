@@ -164,6 +164,11 @@ const nextConfig = {
   },
   
   webpack: (config, { isServer, dev }) => {
+    // Em dev: desabilitar cache do webpack para evitar chunk órfão (ex.: 8948.js)
+    if (dev) {
+      config.cache = false
+    }
+
     // Configurar paths do TypeScript (@/*)
     config.resolve.alias = {
       ...config.resolve.alias,

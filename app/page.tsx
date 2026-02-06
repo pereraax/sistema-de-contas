@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, Target, FolderTree, BarChart3, CheckCircle2, Star, ChevronDown, Users, TrendingUp, Calendar, FileText, MessageCircle, Smartphone, ChevronLeft, ChevronRight, Bot, Monitor, Sparkles, DollarSign, Instagram, Mail } from 'lucide-react'
+import { ArrowRight, Target, FolderTree, BarChart3, CheckCircle2, Star, ChevronDown, Users, TrendingUp, Calendar, FileText, MessageCircle, Smartphone, ChevronLeft, ChevronRight, Bot, Monitor, Sparkles, DollarSign, Instagram, Mail, Moon, Sun } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import AnimateOnScroll from '@/components/AnimateOnScroll'
 
@@ -60,10 +60,16 @@ export default function LandingPage() {
   useEffect(() => {
     setIsVisible(true)
     
-    // Detectar modo escuro/claro
+    // Detectar modo escuro/claro (document, localStorage ou preferência do sistema)
     const checkDarkMode = () => {
-      const isDark = document.documentElement.classList.contains('dark')
-      setIsDarkMode(isDark)
+      try {
+        const hasClass = document.documentElement.classList.contains('dark')
+        const saved = localStorage.getItem('theme')
+        const isDark = hasClass || saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        setIsDarkMode(!!isDark)
+      } catch {
+        setIsDarkMode(false)
+      }
     }
     
     checkDarkMode()
@@ -122,10 +128,25 @@ export default function LandingPage() {
     setOpenFaq(openFaq === index ? null : index)
   }
 
+  const toggleDarkMode = () => {
+    const next = !isDarkMode
+    setIsDarkMode(next)
+    try {
+      localStorage.setItem('theme', next ? 'dark' : 'light')
+      if (next) {
+        document.documentElement.classList.add('dark')
+        document.body.style.backgroundColor = '#1A1A1A'
+      } else {
+        document.documentElement.classList.remove('dark')
+        document.body.style.backgroundColor = ''
+      }
+    } catch {}
+  }
+
   return (
-    <div className="relative z-10 min-h-screen bg-white">
+    <div className={`relative z-10 min-h-screen transition-colors ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-white'}`}>
       {/* Header - Clean, minimal, finlo-style */}
-      <header className="relative z-50 bg-white border-b border-gray-100 sticky top-0">
+      <header className={`relative z-50 sticky top-0 border-b transition-colors ${isDarkMode ? 'bg-[#1A1A1A] border-white/10' : 'bg-white border-gray-100'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 max-w-6xl">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center flex-shrink-0">
@@ -147,7 +168,7 @@ export default function LandingPage() {
                   e.preventDefault()
                   document.getElementById('funcionalidades')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }}
-                className="text-sm text-gray-500 hover:text-[#1e4976] transition-colors"
+                className={`text-sm transition-colors ${isDarkMode ? 'text-gray-300 hover:text-white' : 'text-gray-500 hover:text-[#1e4976]'}`}
               >
                 Funcionalidades
               </a>
@@ -157,7 +178,7 @@ export default function LandingPage() {
                   e.preventDefault()
                   document.getElementById('como-funciona')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }}
-                className="text-sm text-gray-500 hover:text-[#1e4976] transition-colors"
+                className={`text-sm transition-colors ${isDarkMode ? 'text-gray-300 hover:text-white' : 'text-gray-500 hover:text-[#1e4976]'}`}
               >
                 Como funciona
               </a>
@@ -167,7 +188,7 @@ export default function LandingPage() {
                   e.preventDefault()
                   document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }}
-                className="text-sm text-gray-500 hover:text-[#1e4976] transition-colors"
+                className={`text-sm transition-colors ${isDarkMode ? 'text-gray-300 hover:text-white' : 'text-gray-500 hover:text-[#1e4976]'}`}
               >
                 Planos
               </a>
@@ -177,7 +198,7 @@ export default function LandingPage() {
                   e.preventDefault()
                   document.getElementById('faq')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }}
-                className="text-sm text-gray-500 hover:text-[#1e4976] transition-colors"
+                className={`text-sm transition-colors ${isDarkMode ? 'text-gray-300 hover:text-white' : 'text-gray-500 hover:text-[#1e4976]'}`}
               >
                 FAQ
               </a>
@@ -193,9 +214,22 @@ export default function LandingPage() {
               </Link>
             ) : (
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleDarkMode}
+                  className="p-2.5 rounded-lg transition-colors border border-transparent hover:border-gray-300 dark:hover:border-white/20"
+                  title={isDarkMode ? 'Modo claro' : 'Modo escuro'}
+                  aria-label={isDarkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
+                >
+                  {isDarkMode ? (
+                    <Sun size={20} className="text-amber-400" strokeWidth={2} />
+                  ) : (
+                    <Moon size={20} className="text-[#1e4976]" strokeWidth={2} />
+                  )}
+                </button>
                 <Link
                   href="/login"
-                  className="px-4 py-2.5 text-sm font-medium text-[#1e4976] hover:text-[#163a5f] transition-colors font-sans"
+                  className={`px-4 py-2.5 text-sm font-medium transition-colors font-sans ${isDarkMode ? 'text-white hover:text-gray-200' : 'text-[#1e4976] hover:text-[#163a5f]'}`}
                 >
                   Entrar
                 </Link>
@@ -220,7 +254,7 @@ export default function LandingPage() {
         ref={heroRef}
         onMouseMove={handleHeroMouseMove}
         onMouseLeave={handleHeroMouseLeave}
-        className="relative overflow-hidden bg-neutral-50 pt-16 sm:pt-20 md:pt-24 pb-12 md:pb-20"
+        className={`relative overflow-hidden pt-16 sm:pt-20 md:pt-24 pb-12 md:pb-20 transition-colors ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-neutral-50'}`}
       >
         {/* Grade que aparece ao passar o mouse - não bloqueia cliques */}
         <div
@@ -245,11 +279,11 @@ export default function LandingPage() {
           <div className="max-w-2xl mx-auto">
             {/* Conteúdo do hero */}
             <div className={`text-center transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-              <p className="text-xs font-medium text-[#1e4976] uppercase tracking-wider mb-4">Plataforma #1 em Controle Financeiro</p>
-              <h1 className="text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-semibold mb-6 leading-[1.1] text-[#0D1B2A]">
+              <p className={`text-xs font-medium uppercase tracking-wider mb-4 ${isDarkMode ? 'text-cyan-400' : 'text-[#1e4976]'}`}>Plataforma #1 em Controle Financeiro</p>
+              <h1 className={`text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-semibold mb-6 leading-[1.1] ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                 Controle financeiro simplificado no WhatsApp.
               </h1>
-              <p className="text-base text-gray-500 max-w-lg mx-auto mb-8 leading-relaxed">
+              <p className={`text-base max-w-lg mx-auto mb-8 leading-relaxed ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                 Gerencie finanças, dívidas e metas de forma inteligente. Tudo em um só lugar, via WhatsApp.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-[220px] sm:max-w-none mx-auto">
@@ -266,7 +300,7 @@ export default function LandingPage() {
                     e.preventDefault()
                     document.getElementById('funcionalidades')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }}
-                  className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-3 text-sm font-medium text-[#1e4976] border border-[#1e4976] rounded-xl hover:border-[#163a5f] transition-colors font-sans"
+                  className={`w-full sm:w-auto inline-flex items-center justify-center px-5 py-3 text-sm font-medium rounded-xl transition-colors font-sans ${isDarkMode ? 'text-cyan-400 border border-cyan-400 hover:border-cyan-300 hover:text-cyan-300' : 'text-[#1e4976] border border-[#1e4976] hover:border-[#163a5f]'}`}
                 >
                   Ver funcionalidades
                 </a>
@@ -277,12 +311,12 @@ export default function LandingPage() {
       </section>
 
       {/* Features - Blocos empilhados: 1º imagem esquerda / texto direita, 2º texto esquerda / imagem direita */}
-      <section id="funcionalidades" className="bg-white py-16 md:py-24 scroll-mt-20">
+      <section id="funcionalidades" className={`py-16 md:py-24 scroll-mt-20 transition-colors ${isDarkMode ? 'bg-[#0f0f0f]' : 'bg-white'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
           <div className="text-center mb-12 md:mb-16">
-            <p className="text-xs font-medium text-[#1e4976] uppercase tracking-[0.2em] mb-2">Funcionalidades</p>
-            <h2 className="text-2xl md:text-3xl font-semibold text-[#0D1B2A] tracking-tight mb-2">Tudo em um só lugar.</h2>
-            <p className="text-gray-500 max-w-xl mx-auto text-sm">Metas, categorias e relatórios integrados ao WhatsApp.</p>
+            <p className={`text-xs font-medium uppercase tracking-[0.2em] mb-2 ${isDarkMode ? 'text-cyan-400' : 'text-[#1e4976]'}`}>Funcionalidades</p>
+            <h2 className={`text-2xl md:text-3xl font-semibold tracking-tight mb-2 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>Tudo em um só lugar.</h2>
+            <p className={`max-w-xl mx-auto text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Metas, categorias e relatórios integrados ao WhatsApp.</p>
           </div>
 
           {/* Bloco 1: Metas Financeiras — imagem à esquerda, texto à direita */}
@@ -304,10 +338,10 @@ export default function LandingPage() {
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#2c5aa0] to-[#163a5f] flex items-center justify-center mb-4 shadow-lg shadow-[#1e4976]/20">
                     <Target size={24} className="text-white" />
                   </div>
-                  <h3 className="text-xl font-semibold text-[#0D1B2A] mb-3 tracking-tight">
+                  <h3 className={`text-xl font-semibold mb-3 tracking-tight ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                     Metas Financeiras
                   </h3>
-                  <p className="text-gray-600 mb-5 text-sm leading-relaxed">
+                  <p className={`mb-5 text-sm leading-relaxed ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                     Crie e acompanhe suas metas de economia de forma simples e direta pelo WhatsApp. 
                     Defina objetivos, acompanhe o progresso e receba atualizações automáticas.
                   </p>
@@ -319,8 +353,8 @@ export default function LandingPage() {
                       'Visualização do status das metas',
                     ].map((item, i) => (
                       <li key={i} className="flex items-center gap-3">
-                        <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
-                        <span className="text-sm text-gray-700">{item}</span>
+                        <CheckCircle2 size={18} className={isDarkMode ? 'text-cyan-400 flex-shrink-0' : 'text-[#1e4976] flex-shrink-0'} />
+                        <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{item}</span>
                       </li>
                     ))}
                   </ul>
@@ -337,10 +371,10 @@ export default function LandingPage() {
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#2c5aa0] to-[#163a5f] flex items-center justify-center mb-4 shadow-lg shadow-[#1e4976]/20">
                     <FolderTree size={24} className="text-white" />
                   </div>
-                  <h3 className="text-xl font-semibold text-[#0D1B2A] mb-3 tracking-tight">
+                  <h3 className={`text-xl font-semibold mb-3 tracking-tight ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                     Categorias Inteligentes
                   </h3>
-                  <p className="text-gray-600 mb-5 text-sm leading-relaxed">
+                  <p className={`mb-5 text-sm leading-relaxed ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                     Classificação automática dos seus gastos por categoria via WhatsApp. 
                     Organize suas despesas de forma inteligente e receba relatórios detalhados.
                   </p>
@@ -352,8 +386,8 @@ export default function LandingPage() {
                       'Análise de padrões de gastos',
                     ].map((item, i) => (
                       <li key={i} className="flex items-center gap-3">
-                        <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
-                        <span className="text-sm text-gray-700">{item}</span>
+                        <CheckCircle2 size={18} className={isDarkMode ? 'text-cyan-400 flex-shrink-0' : 'text-[#1e4976] flex-shrink-0'} />
+                        <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{item}</span>
                       </li>
                     ))}
                   </ul>
@@ -376,7 +410,7 @@ export default function LandingPage() {
       </section>
 
       {/* Seção Como Usar PLEN no WhatsApp */}
-      <section id="como-funciona" className="bg-white py-16 md:py-24 scroll-mt-20">
+      <section id="como-funciona" className={`py-16 md:py-24 scroll-mt-20 transition-colors ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-white'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
           <div className="grid md:grid-cols-2 gap-4 md:gap-6 items-center">
             {/* Imagem do Celular à Esquerda */}
@@ -399,8 +433,8 @@ export default function LandingPage() {
             {/* Texto Explicativo à Direita */}
             <AnimateOnScroll delay={200} direction="left">
               <div className="order-1 md:order-2 text-center md:text-left">
-              <p className="text-xs font-medium text-[#1e4976] uppercase tracking-wider mb-3">WhatsApp</p>
-              <h2 className="text-2xl md:text-3xl font-semibold text-[#0D1B2A] mb-8 leading-tight">
+              <p className={`text-xs font-medium uppercase tracking-wider mb-3 ${isDarkMode ? 'text-cyan-400' : 'text-[#1e4976]'}`}>WhatsApp</p>
+              <h2 className={`text-2xl md:text-3xl font-semibold mb-8 leading-tight ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                 Registre transações em poucos passos
               </h2>
 
@@ -408,22 +442,22 @@ export default function LandingPage() {
                 <div className="flex gap-4 items-start">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm flex-shrink-0">1</div>
                   <div>
-                    <h3 className="font-semibold text-[#0D1B2A] mb-1">Fale com o PLEN</h3>
-                    <p className="text-sm text-gray-500">Mensagem, foto, áudio ou PDF. O PLEN entende tudo.</p>
+                    <h3 className={`font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>Fale com o PLEN</h3>
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Mensagem, foto, áudio ou PDF. O PLEN entende tudo.</p>
                   </div>
                 </div>
                 <div className="flex gap-4 items-start">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm flex-shrink-0">2</div>
                   <div>
-                    <h3 className="font-semibold text-[#0D1B2A] mb-1">Interpretação automática</h3>
-                    <p className="text-sm text-gray-500">Valor, tipo e categoria identificados na hora.</p>
+                    <h3 className={`font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>Interpretação automática</h3>
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Valor, tipo e categoria identificados na hora.</p>
                   </div>
                 </div>
                 <div className="flex gap-4 items-start">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm flex-shrink-0">3</div>
                   <div>
-                    <h3 className="font-semibold text-[#0D1B2A] mb-1">Registro em tempo real</h3>
-                    <p className="text-sm text-gray-500">Movimentação sincronizada no painel e relatórios.</p>
+                    <h3 className={`font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>Registro em tempo real</h3>
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Movimentação sincronizada no painel e relatórios.</p>
                   </div>
                 </div>
               </div>
@@ -444,10 +478,10 @@ export default function LandingPage() {
       </section>
 
       {/* Seção O PLEN é para você que */}
-      <section className="bg-neutral-50 py-16 md:py-24">
+      <section className={`py-16 md:py-24 transition-colors ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-neutral-50'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
           <AnimateOnScroll delay={0} direction="up">
-            <h2 className="text-2xl md:text-3xl font-semibold text-[#0D1B2A] text-center mb-12">
+            <h2 className={`text-2xl md:text-3xl font-semibold text-center mb-12 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
               O PLEN é para você que:
             </h2>
           </AnimateOnScroll>
@@ -455,12 +489,12 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             {/* Bloco 1 */}
             <AnimateOnScroll delay={100} direction="up">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className={`rounded-2xl p-6 shadow-sm border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
               <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm mb-3">1</div>
-              <h3 className="font-semibold text-[#0D1B2A] mb-2">
+              <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                 O dinheiro simplesmente some
               </h3>
-              <p className="text-sm text-gray-500">
+              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 Você trabalha, recebe... e continua no vermelho.
               </p>
               </div>
@@ -468,12 +502,12 @@ export default function LandingPage() {
 
             {/* Bloco 2 */}
             <AnimateOnScroll delay={200} direction="up">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className={`rounded-2xl p-6 shadow-sm border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
               <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm mb-3">2</div>
-              <h3 className="font-semibold text-[#0D1B2A] mb-2">
+              <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                 Não sabe onde gastou
               </h3>
-              <p className="text-sm text-gray-500">
+              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 Perde o controle dos gastos e não consegue economizar.
               </p>
               </div>
@@ -481,12 +515,12 @@ export default function LandingPage() {
 
             {/* Bloco 3 */}
             <AnimateOnScroll delay={300} direction="up">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className={`rounded-2xl p-6 shadow-sm border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
               <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm mb-3">3</div>
-              <h3 className="font-semibold text-[#0D1B2A] mb-2">
+              <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                 Quer simplificar sua vida
               </h3>
-              <p className="text-sm text-gray-500">
+              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 Busca uma forma prática e rápida de controlar suas finanças.
               </p>
               </div>
@@ -494,12 +528,12 @@ export default function LandingPage() {
 
             {/* Bloco 4 */}
             <AnimateOnScroll delay={400} direction="up">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className={`rounded-2xl p-6 shadow-sm border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
               <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm mb-3">4</div>
-              <h3 className="font-semibold text-[#0D1B2A] mb-2">
+              <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                 Quer ter controle total
               </h3>
-              <p className="text-sm text-gray-500">
+              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 Deseja acompanhar receitas, despesas e metas em um só lugar.
               </p>
               </div>
@@ -509,13 +543,13 @@ export default function LandingPage() {
       </section>
 
       {/* Seção Funcionalidades do PLENIPAY - Carrossel contínuo deslizando para a esquerda */}
-      <section className="bg-white py-16 md:py-24 overflow-hidden">
+      <section className={`py-16 md:py-24 overflow-hidden transition-colors ${isDarkMode ? 'bg-[#0f0f0f]' : 'bg-white'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
           <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-semibold text-[#0D1B2A] mb-3">
+            <h2 className={`text-2xl md:text-3xl font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
               Funcionalidades do PLENIPAY
             </h2>
-            <p className="text-sm text-gray-500 max-w-xl mx-auto">
+            <p className={`text-sm max-w-xl mx-auto ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               I.A que transforma sua vida financeira via WhatsApp
             </p>
           </div>
@@ -613,13 +647,13 @@ export default function LandingPage() {
       </section>
 
       {/* Seção Simples e Prático */}
-      <section className="bg-neutral-50/80 py-16 md:py-24">
+      <section className={`py-16 md:py-24 transition-colors ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-neutral-50/80'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
           <div className="text-center mb-14">
-            <p className="text-xs font-medium text-[#1e4976] uppercase tracking-[0.2em] mb-2">
+            <p className={`text-xs font-medium uppercase tracking-[0.2em] mb-2 ${isDarkMode ? 'text-cyan-400' : 'text-[#1e4976]'}`}>
               Como funciona
             </p>
-            <h2 className="text-2xl md:text-3xl font-semibold text-[#0D1B2A] tracking-tight">
+            <h2 className={`text-2xl md:text-3xl font-semibold tracking-tight ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
               Simples e prático
             </h2>
           </div>
@@ -627,48 +661,48 @@ export default function LandingPage() {
           {/* Grid de 3 Passos */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
             {/* Passo 1 */}
-            <div className="group relative bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100/80 hover:shadow-xl hover:border-[#1e4976]/10 hover:-translate-y-1 transition-all duration-300">
-              <span className="absolute top-5 right-5 text-2xl font-light text-gray-200 tabular-nums">01</span>
+            <div className={`group relative rounded-2xl p-6 md:p-8 shadow-sm border hover:shadow-xl hover:-translate-y-1 transition-all duration-300 ${isDarkMode ? 'bg-white/5 border-white/10 hover:border-white/20' : 'bg-white border-gray-100/80 hover:border-[#1e4976]/10'}`}>
+              <span className={`absolute top-5 right-5 text-2xl font-light tabular-nums ${isDarkMode ? 'text-gray-500' : 'text-gray-200'}`}>01</span>
               <div className="flex flex-col items-center text-center">
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#2c5aa0] to-[#163a5f] flex items-center justify-center mb-5 text-white shadow-lg shadow-[#1e4976]/20">
                   <MessageCircle size={24} strokeWidth={2} className="text-white" />
                 </div>
-                <h3 className="text-lg font-semibold text-[#0D1B2A] mb-3 tracking-tight">
+                <h3 className={`text-lg font-semibold mb-3 tracking-tight ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                   Você envia uma mensagem
                 </h3>
-                <p className="text-gray-600 leading-relaxed text-sm max-w-[260px]">
+                <p className={`leading-relaxed text-sm max-w-[260px] ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                   Simplesmente envie uma mensagem para o PLEN no WhatsApp com seus gastos ou receitas.
                 </p>
               </div>
             </div>
 
             {/* Passo 2 */}
-            <div className="group relative bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100/80 hover:shadow-xl hover:border-[#1e4976]/10 hover:-translate-y-1 transition-all duration-300">
-              <span className="absolute top-5 right-5 text-2xl font-light text-gray-200 tabular-nums">02</span>
+            <div className={`group relative rounded-2xl p-6 md:p-8 shadow-sm border hover:shadow-xl hover:-translate-y-1 transition-all duration-300 ${isDarkMode ? 'bg-white/5 border-white/10 hover:border-white/20' : 'bg-white border-gray-100/80 hover:border-[#1e4976]/10'}`}>
+              <span className={`absolute top-5 right-5 text-2xl font-light tabular-nums ${isDarkMode ? 'text-gray-500' : 'text-gray-200'}`}>02</span>
               <div className="flex flex-col items-center text-center">
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#2c5aa0] to-[#163a5f] flex items-center justify-center mb-5 text-white shadow-lg shadow-[#1e4976]/20">
                   <Bot size={24} strokeWidth={2} className="text-white" />
                 </div>
-                <h3 className="text-lg font-semibold text-[#0D1B2A] mb-3 tracking-tight">
+                <h3 className={`text-lg font-semibold mb-3 tracking-tight ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                   A inteligência artificial processa
                 </h3>
-                <p className="text-gray-600 leading-relaxed text-sm max-w-[260px]">
+                <p className={`leading-relaxed text-sm max-w-[260px] ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                   O PLEN entende o que você diz, identifica se é um gasto, lembrete ou comprovante e já organiza tudo na categoria certa.
                 </p>
               </div>
             </div>
 
             {/* Passo 3 */}
-            <div className="group relative bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100/80 hover:shadow-xl hover:border-[#1e4976]/10 hover:-translate-y-1 transition-all duration-300">
-              <span className="absolute top-5 right-5 text-2xl font-light text-gray-200 tabular-nums">03</span>
+            <div className={`group relative rounded-2xl p-6 md:p-8 shadow-sm border hover:shadow-xl hover:-translate-y-1 transition-all duration-300 ${isDarkMode ? 'bg-white/5 border-white/10 hover:border-white/20' : 'bg-white border-gray-100/80 hover:border-[#1e4976]/10'}`}>
+              <span className={`absolute top-5 right-5 text-2xl font-light tabular-nums ${isDarkMode ? 'text-gray-500' : 'text-gray-200'}`}>03</span>
               <div className="flex flex-col items-center text-center">
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#2c5aa0] to-[#163a5f] flex items-center justify-center mb-5 text-white shadow-lg shadow-[#1e4976]/20">
                   <Monitor size={24} strokeWidth={2} className="text-white" />
                 </div>
-                <h3 className="text-lg font-semibold text-[#0D1B2A] mb-3 tracking-tight">
+                <h3 className={`text-lg font-semibold mb-3 tracking-tight ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                   Registra e envia para o seu dashboard
                 </h3>
-                <p className="text-gray-600 leading-relaxed text-sm max-w-[260px]">
+                <p className={`leading-relaxed text-sm max-w-[260px] ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                   Em segundos, seu registro é sincronizado com o seu dashboard. Acesso pelo celular, tablet ou computador.
                 </p>
               </div>
@@ -678,35 +712,35 @@ export default function LandingPage() {
       </section>
 
       {/* Relatórios Section */}
-      <section className="bg-white py-16 md:py-24">
+      <section className={`py-16 md:py-24 transition-colors ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-white'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
           <div className="p-8 md:p-10 text-center">
-            <div className="w-10 h-10 bg-[#1e4976]/10 rounded-lg flex items-center justify-center mb-4 mx-auto">
-              <BarChart3 size={20} className="text-[#1e4976]" />
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-4 mx-auto ${isDarkMode ? 'bg-cyan-400/20' : 'bg-[#1e4976]/10'}`}>
+              <BarChart3 size={20} className={isDarkMode ? 'text-cyan-400' : 'text-[#1e4976]'} />
             </div>
-            <h3 className="text-xl md:text-2xl font-semibold text-[#0D1B2A] mb-3">
+            <h3 className={`text-xl md:text-2xl font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
               Relatórios Detalhados
             </h3>
-            <p className="text-gray-500 mb-6 leading-relaxed text-sm max-w-xl mx-auto">
+            <p className={`mb-6 leading-relaxed text-sm max-w-xl mx-auto ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               Relatórios financeiros simples e diretos pelo WhatsApp. Visualize seus dados de forma clara e 
               organize suas informações financeiras sem complicação.
             </p>
             <div className="grid sm:grid-cols-2 gap-3 mb-6 max-w-2xl mx-auto">
               <div className="flex items-center justify-center gap-2">
-                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
-                <span className="text-gray-700 text-sm">Relatórios automáticos por período</span>
+                <CheckCircle2 size={18} className={isDarkMode ? 'text-cyan-400 flex-shrink-0' : 'text-[#1e4976] flex-shrink-0'} />
+                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Relatórios automáticos por período</span>
               </div>
               <div className="flex items-center justify-center gap-2">
-                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
-                <span className="text-gray-700 text-sm">Gráficos e resumos por categoria</span>
+                <CheckCircle2 size={18} className={isDarkMode ? 'text-cyan-400 flex-shrink-0' : 'text-[#1e4976] flex-shrink-0'} />
+                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Gráficos e resumos por categoria</span>
               </div>
               <div className="flex items-center justify-center gap-2">
-                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
-                <span className="text-gray-700 text-sm">Análise de receitas e despesas</span>
+                <CheckCircle2 size={18} className={isDarkMode ? 'text-cyan-400 flex-shrink-0' : 'text-[#1e4976] flex-shrink-0'} />
+                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Análise de receitas e despesas</span>
               </div>
               <div className="flex items-center justify-center gap-2">
-                <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
-                <span className="text-gray-700 text-sm">Exportação de dados em formato simples</span>
+                <CheckCircle2 size={18} className={isDarkMode ? 'text-cyan-400 flex-shrink-0' : 'text-[#1e4976] flex-shrink-0'} />
+                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Exportação de dados em formato simples</span>
               </div>
             </div>
             {/* Imagem do relatório */}
@@ -735,13 +769,13 @@ export default function LandingPage() {
       </section>
 
       {/* Depoimentos/Clientes - Carrossel contínuo deslizando para a esquerda */}
-      <section className="bg-neutral-50 py-16 md:py-24 overflow-hidden">
+      <section className={`py-16 md:py-24 overflow-hidden transition-colors ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-neutral-50'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
           <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-semibold text-[#0D1B2A] mb-3">
+            <h2 className={`text-2xl md:text-3xl font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
               Transforme você também a sua relação com o dinheiro
             </h2>
-            <p className="text-sm text-gray-500 max-w-xl mx-auto">
+            <p className={`text-sm max-w-xl mx-auto ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               Veja o que nossos usuários dizem sobre o PLENIPAY
             </p>
           </div>
@@ -751,7 +785,9 @@ export default function LandingPage() {
             <div
               className="absolute left-0 top-0 bottom-0 w-20 md:w-32 z-10 pointer-events-none"
               style={{
-                background: 'linear-gradient(to right, rgb(250 250 250) 0%, rgba(250,250,250,0.5) 70%, transparent 100%)',
+                background: isDarkMode
+                  ? 'linear-gradient(to right, #1A1A1A 0%, rgba(26,26,26,0.5) 70%, transparent 100%)'
+                  : 'linear-gradient(to right, rgb(250 250 250) 0%, rgba(250,250,250,0.5) 70%, transparent 100%)',
               }}
               aria-hidden
             />
@@ -759,7 +795,9 @@ export default function LandingPage() {
             <div
               className="absolute right-0 top-0 bottom-0 w-20 md:w-32 z-10 pointer-events-none"
               style={{
-                background: 'linear-gradient(to left, rgb(250 250 250) 0%, rgba(250,250,250,0.5) 70%, transparent 100%)',
+                background: isDarkMode
+                  ? 'linear-gradient(to left, #1A1A1A 0%, rgba(26,26,26,0.5) 70%, transparent 100%)'
+                  : 'linear-gradient(to left, rgb(250 250 250) 0%, rgba(250,250,250,0.5) 70%, transparent 100%)',
               }}
               aria-hidden
             />
@@ -773,12 +811,12 @@ export default function LandingPage() {
                     return (
                       <div
                         key={`a-${index}`}
-                        className="w-[280px] sm:w-[320px] flex-shrink-0 bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col"
+                        className={`w-[280px] sm:w-[320px] flex-shrink-0 rounded-2xl p-6 md:p-8 shadow-sm border hover:shadow-md transition-shadow flex flex-col ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}
                       >
-                        <p className="text-gray-700 leading-relaxed text-sm md:text-base mb-6 flex-1">
+                        <p className={`leading-relaxed text-sm md:text-base mb-6 flex-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                           {testimonial.text}
                         </p>
-                        <div className="flex flex-col items-center text-center pt-4 border-t border-gray-100">
+                        <div className={`flex flex-col items-center text-center pt-4 border-t ${isDarkMode ? 'border-white/10' : 'border-gray-100'}`}>
                           <div className="w-14 h-14 rounded-full overflow-hidden shadow-md flex-shrink-0 mb-3 bg-gradient-to-br from-[#2c5aa0] to-[#163a5f] flex items-center justify-center">
                             <img
                               src={avatarUrl}
@@ -787,8 +825,8 @@ export default function LandingPage() {
                               loading="lazy"
                             />
                           </div>
-                          <h4 className="font-bold text-[#0D1B2A] text-base mb-0.5">{testimonial.name}</h4>
-                          <p className="text-sm text-gray-600">{testimonial.role}</p>
+                          <h4 className={`font-bold text-base mb-0.5 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>{testimonial.name}</h4>
+                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{testimonial.role}</p>
                         </div>
                       </div>
                     )
@@ -801,12 +839,12 @@ export default function LandingPage() {
                     return (
                       <div
                         key={`b-${index}`}
-                        className="w-[280px] sm:w-[320px] flex-shrink-0 bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col"
+                        className={`w-[280px] sm:w-[320px] flex-shrink-0 rounded-2xl p-6 md:p-8 shadow-sm border hover:shadow-md transition-shadow flex flex-col ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}
                       >
-                        <p className="text-gray-700 leading-relaxed text-sm md:text-base mb-6 flex-1">
+                        <p className={`leading-relaxed text-sm md:text-base mb-6 flex-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                           {testimonial.text}
                         </p>
-                        <div className="flex flex-col items-center text-center pt-4 border-t border-gray-100">
+                        <div className={`flex flex-col items-center text-center pt-4 border-t ${isDarkMode ? 'border-white/10' : 'border-gray-100'}`}>
                           <div className="w-14 h-14 rounded-full overflow-hidden shadow-md flex-shrink-0 mb-3 bg-gradient-to-br from-[#2c5aa0] to-[#163a5f] flex items-center justify-center">
                             <img
                               src={avatarUrl}
@@ -815,8 +853,8 @@ export default function LandingPage() {
                               loading="lazy"
                             />
                           </div>
-                          <h4 className="font-bold text-[#0D1B2A] text-base mb-0.5">{testimonial.name}</h4>
-                          <p className="text-sm text-gray-600">{testimonial.role}</p>
+                          <h4 className={`font-bold text-base mb-0.5 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>{testimonial.name}</h4>
+                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{testimonial.role}</p>
                         </div>
                       </div>
                     )
@@ -829,14 +867,14 @@ export default function LandingPage() {
       </section>
 
       {/* Planos */}
-      <section id="planos" className="bg-white py-16 md:py-24 scroll-mt-20">
+      <section id="planos" className={`py-16 md:py-24 scroll-mt-20 transition-colors ${isDarkMode ? 'bg-[#0f0f0f]' : 'bg-white'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
           <AnimateOnScroll delay={0} direction="up">
             <div className="text-center mb-12">
-              <h2 className="text-2xl md:text-3xl font-semibold text-[#0D1B2A] mb-3">
+              <h2 className={`text-2xl md:text-3xl font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                 Escolha o plano ideal para sua jornada
               </h2>
-              <p className="text-sm text-gray-500 max-w-xl mx-auto">
+              <p className={`text-sm max-w-xl mx-auto ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 Comece grátis e evolua conforme cresce
               </p>
             </div>
@@ -844,36 +882,36 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 max-w-7xl mx-auto items-start">
             {/* Plano Gratuito */}
             <AnimateOnScroll delay={0} direction="up">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="bg-gray-100 text-[#0D1B2A] rounded-xl py-1.5 sm:py-2 px-2 sm:px-3 mb-3 sm:mb-4 text-center">
+              <div className={`rounded-2xl p-6 shadow-sm border hover:shadow-md transition-shadow ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
+              <div className={`rounded-xl py-1.5 sm:py-2 px-2 sm:px-3 mb-3 sm:mb-4 text-center ${isDarkMode ? 'bg-white/10 text-white' : 'bg-gray-100 text-[#0D1B2A]'}`}>
                 <h3 className="text-base sm:text-lg font-bold">Plano Gratuito</h3>
               </div>
               <div className="mb-3 sm:mb-4">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-xl sm:text-2xl md:text-3xl font-bold text-[#0D1B2A]">R$ 0</span>
+                  <span className={`text-xl sm:text-2xl md:text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>R$ 0</span>
                 </div>
-                <p className="text-xs sm:text-sm text-gray-600 mt-1 sm:mt-2">sempre grátis</p>
+                <p className={`text-xs sm:text-sm mt-1 sm:mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>sempre grátis</p>
               </div>
               <div className="space-y-1.5 sm:space-y-2 mb-4 sm:mb-6">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <CheckCircle2 size={16} className="text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]" />
-                  <span className="text-xs sm:text-sm text-gray-700">Registros (50/mês)</span>
+                  <CheckCircle2 size={16} className={isDarkMode ? 'text-cyan-400 flex-shrink-0 sm:w-[18px] sm:h-[18px]' : 'text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]'} />
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Registros (50/mês)</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
-                  <span className="text-sm text-gray-700">Dashboard básico</span>
+                  <CheckCircle2 size={18} className={isDarkMode ? 'text-cyan-400 flex-shrink-0' : 'text-[#1e4976] flex-shrink-0'} />
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Dashboard básico</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <CheckCircle2 size={18} className="text-[#1e4976] flex-shrink-0" />
-                  <span className="text-sm text-gray-700">Até 2 usuários</span>
+                  <CheckCircle2 size={18} className={isDarkMode ? 'text-cyan-400 flex-shrink-0' : 'text-[#1e4976] flex-shrink-0'} />
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Até 2 usuários</span>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <CheckCircle2 size={16} className="text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]" />
-                  <span className="text-xs sm:text-sm text-gray-700">Filtros básicos</span>
+                  <CheckCircle2 size={16} className={isDarkMode ? 'text-cyan-400 flex-shrink-0 sm:w-[18px] sm:h-[18px]' : 'text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]'} />
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Filtros básicos</span>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <CheckCircle2 size={16} className="text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]" />
-                  <span className="text-xs sm:text-sm text-gray-700">Acesso ao PLEN AI</span>
+                  <CheckCircle2 size={16} className={isDarkMode ? 'text-cyan-400 flex-shrink-0 sm:w-[18px] sm:h-[18px]' : 'text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]'} />
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Acesso ao PLEN AI</span>
                 </div>
               </div>
               <button
@@ -882,7 +920,7 @@ export default function LandingPage() {
                   e.stopPropagation()
                   router.push('/cadastro?plano=teste')
                 }}
-                className="block w-full text-center py-3 text-sm sm:text-base bg-gray-100 hover:bg-gray-200 text-[#0D1B2A] rounded-xl font-bold transition-all duration-300"
+                className={`block w-full text-center py-3 text-sm sm:text-base rounded-xl font-bold transition-all duration-300 ${isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-100 hover:bg-gray-200 text-[#0D1B2A]'}`}
               >
                 Começar Grátis
               </button>
@@ -891,49 +929,49 @@ export default function LandingPage() {
 
             {/* Plano Básico */}
             <AnimateOnScroll delay={150} direction="up">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+              <div className={`rounded-2xl p-6 shadow-sm border hover:shadow-md transition-shadow ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
               <div className="bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white rounded-xl py-1.5 sm:py-2 px-2 sm:px-3 mb-3 sm:mb-4 text-center">
                 <h3 className="text-base sm:text-lg font-bold">Plano Básico</h3>
               </div>
               <div className="mb-3 sm:mb-4">
                 <div className="flex items-baseline gap-2">
-                          <span className="text-xl sm:text-2xl md:text-3xl font-bold text-[#0D1B2A]">R$ 29,90</span>
-                  <span className="text-gray-600 text-xs sm:text-sm">/mês</span>
+                          <span className={`text-xl sm:text-2xl md:text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>R$ 29,90</span>
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>/mês</span>
                 </div>
-                <p className="text-xs text-[#1e4976] font-semibold mt-1 sm:mt-2">7 dias grátis</p>
+                <p className={`text-xs font-semibold mt-1 sm:mt-2 ${isDarkMode ? 'text-cyan-400' : 'text-[#1e4976]'}`}>7 dias grátis</p>
               </div>
               <div className="space-y-1.5 sm:space-y-2 mb-4 sm:mb-6">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <CheckCircle2 size={16} className="text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]" />
-                  <span className="text-xs sm:text-sm text-gray-700">Tudo do Gratuito</span>
+                  <CheckCircle2 size={16} className={isDarkMode ? 'text-cyan-400 flex-shrink-0 sm:w-[18px] sm:h-[18px]' : 'text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]'} />
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Tudo do Gratuito</span>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <CheckCircle2 size={16} className="text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]" />
-                  <span className="text-xs sm:text-sm text-gray-700">Registros ilimitados</span>
+                  <CheckCircle2 size={16} className={isDarkMode ? 'text-cyan-400 flex-shrink-0 sm:w-[18px] sm:h-[18px]' : 'text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]'} />
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Registros ilimitados</span>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <CheckCircle2 size={16} className="text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]" />
-                  <span className="text-xs sm:text-sm text-gray-700">Gerenciar Dívidas</span>
+                  <CheckCircle2 size={16} className={isDarkMode ? 'text-cyan-400 flex-shrink-0 sm:w-[18px] sm:h-[18px]' : 'text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]'} />
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Gerenciar Dívidas</span>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <CheckCircle2 size={16} className="text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]" />
-                  <span className="text-xs sm:text-sm text-gray-700">Salário recorrente</span>
+                  <CheckCircle2 size={16} className={isDarkMode ? 'text-cyan-400 flex-shrink-0 sm:w-[18px] sm:h-[18px]' : 'text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]'} />
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Salário recorrente</span>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <CheckCircle2 size={16} className="text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]" />
-                  <span className="text-xs sm:text-sm text-gray-700">Calendário Financeiro</span>
+                  <CheckCircle2 size={16} className={isDarkMode ? 'text-cyan-400 flex-shrink-0 sm:w-[18px] sm:h-[18px]' : 'text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]'} />
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Calendário Financeiro</span>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <CheckCircle2 size={16} className="text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]" />
-                  <span className="text-xs sm:text-sm text-gray-700">Metas (até 3)</span>
+                  <CheckCircle2 size={16} className={isDarkMode ? 'text-cyan-400 flex-shrink-0 sm:w-[18px] sm:h-[18px]' : 'text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]'} />
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Metas (até 3)</span>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <CheckCircle2 size={16} className="text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]" />
-                  <span className="text-xs sm:text-sm text-gray-700">Até 10 usuários</span>
+                  <CheckCircle2 size={16} className={isDarkMode ? 'text-cyan-400 flex-shrink-0 sm:w-[18px] sm:h-[18px]' : 'text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]'} />
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Até 10 usuários</span>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <CheckCircle2 size={16} className="text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]" />
-                  <span className="text-xs sm:text-sm text-gray-700">Suporte prioritário</span>
+                  <CheckCircle2 size={16} className={isDarkMode ? 'text-cyan-400 flex-shrink-0 sm:w-[18px] sm:h-[18px]' : 'text-[#1e4976] flex-shrink-0 sm:w-[18px] sm:h-[18px]'} />
+                  <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Suporte prioritário</span>
                 </div>
               </div>
               <button
@@ -1060,29 +1098,29 @@ export default function LandingPage() {
       </section>
 
       {/* Estatísticas - cards com animação recorrente */}
-      <section className="bg-neutral-50 py-16 md:py-20">
+      <section className={`py-16 md:py-20 transition-colors ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-neutral-50'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="bg-white rounded-2xl p-6 text-center shadow-sm border border-gray-100 hover:shadow-md transition-shadow animate-stats-float" style={{ animationDelay: '0s' }}>
-              <div className="w-10 h-10 bg-[#1e4976]/10 rounded-lg flex items-center justify-center mx-auto mb-3">
-                <Users size={20} className="text-[#1e4976]" />
+            <div className={`rounded-2xl p-6 text-center shadow-sm border hover:shadow-md transition-shadow animate-stats-float ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`} style={{ animationDelay: '0s' }}>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-3 ${isDarkMode ? 'bg-cyan-400/20' : 'bg-[#1e4976]/10'}`}>
+                <Users size={20} className={isDarkMode ? 'text-cyan-400' : 'text-[#1e4976]'} />
               </div>
-              <div className="text-xl md:text-2xl font-bold text-[#0D1B2A] mb-1">+1,205</div>
-              <div className="text-xs md:text-sm text-gray-600">Usuários ativos</div>
+              <div className={`text-xl md:text-2xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>+1,205</div>
+              <div className={`text-xs md:text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Usuários ativos</div>
             </div>
-            <div className="bg-white rounded-2xl p-6 text-center shadow-sm border border-gray-100 hover:shadow-md transition-shadow animate-stats-float" style={{ animationDelay: '0.4s' }}>
-              <div className="w-10 h-10 bg-[#1e4976]/10 rounded-lg flex items-center justify-center mx-auto mb-3">
-                <TrendingUp size={20} className="text-[#1e4976]" />
+            <div className={`rounded-2xl p-6 text-center shadow-sm border hover:shadow-md transition-shadow animate-stats-float ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`} style={{ animationDelay: '0.4s' }}>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-3 ${isDarkMode ? 'bg-cyan-400/20' : 'bg-[#1e4976]/10'}`}>
+                <TrendingUp size={20} className={isDarkMode ? 'text-cyan-400' : 'text-[#1e4976]'} />
               </div>
-              <div className="text-xl md:text-2xl font-bold text-[#0D1B2A] mb-1">+36k</div>
-              <div className="text-xs md:text-sm text-gray-600">Transações</div>
+              <div className={`text-xl md:text-2xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>+36k</div>
+              <div className={`text-xs md:text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Transações</div>
             </div>
-            <div className="bg-white rounded-2xl p-6 text-center shadow-sm border border-gray-100 hover:shadow-md transition-shadow animate-stats-float" style={{ animationDelay: '0.8s' }}>
-              <div className="w-10 h-10 bg-[#1e4976]/10 rounded-lg flex items-center justify-center mx-auto mb-3">
-                <Calendar size={20} className="text-[#1e4976]" />
+            <div className={`rounded-2xl p-6 text-center shadow-sm border hover:shadow-md transition-shadow animate-stats-float ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`} style={{ animationDelay: '0.8s' }}>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-3 ${isDarkMode ? 'bg-cyan-400/20' : 'bg-[#1e4976]/10'}`}>
+                <Calendar size={20} className={isDarkMode ? 'text-cyan-400' : 'text-[#1e4976]'} />
               </div>
-              <div className="text-xl md:text-2xl font-bold text-[#0D1B2A] mb-1">+17k</div>
-              <div className="text-xs md:text-sm text-gray-600">Lembretes</div>
+              <div className={`text-xl md:text-2xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>+17k</div>
+              <div className={`text-xs md:text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Lembretes</div>
             </div>
             <div className="bg-gradient-to-br from-[#2c5aa0] via-[#1e4976] to-[#163a5f] rounded-2xl p-6 text-center shadow-sm border border-[#163a5f]/50 animate-stats-float" style={{ animationDelay: '1.2s' }}>
               <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mx-auto mb-3">
@@ -1096,10 +1134,10 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="bg-white py-16 md:py-24 scroll-mt-20">
+      <section id="faq" className={`py-16 md:py-24 scroll-mt-20 transition-colors ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-white'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-2xl">
           <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-semibold text-[#0D1B2A] mb-2">
+            <h2 className={`text-2xl md:text-3xl font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
               Perguntas Frequentes
             </h2>
           </div>
@@ -1129,16 +1167,16 @@ export default function LandingPage() {
             ].map((faq, index) => (
               <div
                 key={index}
-                className="bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-gray-200 transition-colors"
+                className={`rounded-xl overflow-hidden border transition-colors ${isDarkMode ? 'bg-white/5 border-white/10 hover:border-white/20' : 'bg-white border-gray-100 hover:border-gray-200'}`}
               >
                 <button
                   onClick={() => toggleFaq(index)}
-                  className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-gray-50/80 transition-colors gap-3"
+                  className={`w-full px-4 py-3.5 flex items-center justify-between text-left transition-colors gap-3 ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-gray-50/80'}`}
                 >
                   <span className="flex-shrink-0 w-6 text-center text-gray-400 font-light text-xs tabular-nums">
                     {String(index + 1).padStart(2, '0')}
                   </span>
-                  <span className="font-medium text-[#0D1B2A] text-sm flex-1 pr-3 text-left">{faq.question}</span>
+                  <span className={`font-medium text-sm flex-1 pr-3 text-left ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>{faq.question}</span>
                   <ChevronDown
                     size={18}
                     className={`text-gray-400 transition-transform duration-300 ease-out flex-shrink-0 ${openFaq === index ? 'rotate-180' : ''}`}
@@ -1151,8 +1189,8 @@ export default function LandingPage() {
                     opacity: openFaq === index ? 1 : 0,
                   }}
                 >
-                  <div className="px-4 py-3.5 pt-3 pl-9 border-t border-gray-100 bg-gray-50/50">
-                    <p className="text-gray-500 leading-relaxed text-sm">{faq.answer}</p>
+                  <div className={`px-4 py-3.5 pt-3 pl-9 border-t ${isDarkMode ? 'border-white/10 bg-white/5' : 'border-gray-100 bg-gray-50/50'}`}>
+                    <p className={`leading-relaxed text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{faq.answer}</p>
                   </div>
                 </div>
               </div>
@@ -1162,13 +1200,13 @@ export default function LandingPage() {
       </section>
 
       {/* Seção de Suporte WhatsApp */}
-      <section className="bg-neutral-50 py-16 md:py-24">
+      <section className={`py-16 md:py-24 transition-colors ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-neutral-50'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-2xl">
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 text-center">
-              <h2 className="text-xl font-semibold text-[#0D1B2A] mb-2">
+            <div className={`rounded-2xl p-8 shadow-sm border text-center ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
+              <h2 className={`text-xl font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                 Ainda tem dúvidas?
               </h2>
-              <p className="text-gray-500 mb-6 leading-relaxed text-sm">
+              <p className={`mb-6 leading-relaxed text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 Nossa equipe está pronta para ajudar
               </p>
               <a
@@ -1187,7 +1225,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer - compacto no mobile, organizado e com espaço para o chat */}
-      <footer className="bg-[#F5F5F5] border-t border-gray-200 py-4 md:py-8 pb-20 md:pb-8">
+      <footer className={`border-t py-4 md:py-8 pb-20 md:pb-8 transition-colors ${isDarkMode ? 'bg-[#0f0f0f] border-white/10' : 'bg-[#F5F5F5] border-gray-200'}`}>
         <div className="container mx-auto px-4 max-w-3xl md:max-w-4xl">
           {/* Mobile: marca no topo, depois Produto + Legal lado a lado */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 items-start">
@@ -1202,10 +1240,10 @@ export default function LandingPage() {
                   className="h-6 md:h-7 w-auto object-contain"
                 />
               </Link>
-              <p className="text-[11px] md:text-xs text-gray-600 leading-snug max-w-[200px]">
+              <p className={`text-[11px] md:text-xs leading-snug max-w-[200px] ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 Gestão financeira pessoal em uma só plataforma.
               </p>
-              <p className="text-[11px] md:text-xs text-gray-600 leading-snug max-w-[200px] -mt-0.5 hidden sm:block">
+              <p className={`text-[11px] md:text-xs leading-snug max-w-[200px] -mt-0.5 hidden sm:block ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 Organize seu dinheiro com clareza e praticidade.
               </p>
               <div className="flex gap-1.5 md:gap-2">
@@ -1213,7 +1251,7 @@ export default function LandingPage() {
                   href="https://instagram.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-8 h-8 md:w-7 md:h-7 rounded-lg md:rounded border border-gray-700 flex items-center justify-center text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976] transition-colors"
+                  className={`w-8 h-8 md:w-7 md:h-7 rounded-lg md:rounded border flex items-center justify-center transition-colors ${isDarkMode ? 'border-white/30 text-gray-300 hover:border-cyan-400 hover:text-cyan-400' : 'border-gray-700 text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976]'}`}
                   aria-label="Instagram"
                 >
                   <Instagram size={14} strokeWidth={1.5} />
@@ -1222,7 +1260,7 @@ export default function LandingPage() {
                   href="https://twitter.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-8 h-8 md:w-7 md:h-7 rounded-lg md:rounded border border-gray-700 flex items-center justify-center text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976] transition-colors"
+                  className={`w-8 h-8 md:w-7 md:h-7 rounded-lg md:rounded border flex items-center justify-center transition-colors ${isDarkMode ? 'border-white/30 text-gray-300 hover:border-cyan-400 hover:text-cyan-400' : 'border-gray-700 text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976]'}`}
                   aria-label="Twitter/X"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -1231,7 +1269,7 @@ export default function LandingPage() {
                 </a>
                 <a
                   href="mailto:contato@plenipay.com"
-                  className="w-8 h-8 md:w-7 md:h-7 rounded-lg md:rounded border border-gray-700 flex items-center justify-center text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976] transition-colors"
+                  className={`w-8 h-8 md:w-7 md:h-7 rounded-lg md:rounded border flex items-center justify-center transition-colors ${isDarkMode ? 'border-white/30 text-gray-300 hover:border-cyan-400 hover:text-cyan-400' : 'border-gray-700 text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976]'}`}
                   aria-label="E-mail"
                 >
                   <Mail size={14} strokeWidth={1.5} />
@@ -1243,29 +1281,29 @@ export default function LandingPage() {
             <div className="grid grid-cols-2 md:contents gap-x-6 gap-y-4 md:gap-0">
               {/* Produto */}
               <div className="flex flex-col items-center md:items-start">
-                <h3 className="text-[10px] font-semibold text-gray-700 uppercase tracking-wider mb-1.5 md:mb-2">Produto</h3>
+                <h3 className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 md:mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-700'}`}>Produto</h3>
                 <ul className="space-y-0.5 md:space-y-1">
-                  <li><Link href="#funcionalidades" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Recursos</Link></li>
-                  <li><Link href="#planos" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Preços</Link></li>
-                  <li><Link href="#faq" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">FAQ</Link></li>
-                  <li><Link href="/home" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Dashboard</Link></li>
+                  <li><Link href="#funcionalidades" className={`text-[11px] md:text-xs transition-colors ${isDarkMode ? 'text-gray-400 hover:text-cyan-400' : 'text-gray-600 hover:text-[#1e4976]'}`}>Recursos</Link></li>
+                  <li><Link href="#planos" className={`text-[11px] md:text-xs transition-colors ${isDarkMode ? 'text-gray-400 hover:text-cyan-400' : 'text-gray-600 hover:text-[#1e4976]'}`}>Preços</Link></li>
+                  <li><Link href="#faq" className={`text-[11px] md:text-xs transition-colors ${isDarkMode ? 'text-gray-400 hover:text-cyan-400' : 'text-gray-600 hover:text-[#1e4976]'}`}>FAQ</Link></li>
+                  <li><Link href="/home" className={`text-[11px] md:text-xs transition-colors ${isDarkMode ? 'text-gray-400 hover:text-cyan-400' : 'text-gray-600 hover:text-[#1e4976]'}`}>Dashboard</Link></li>
                 </ul>
               </div>
 
               {/* Legal */}
               <div className="flex flex-col items-center md:items-start">
-                <h3 className="text-[10px] font-semibold text-gray-700 uppercase tracking-wider mb-1.5 md:mb-2">Legal</h3>
+                <h3 className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 md:mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-700'}`}>Legal</h3>
                 <ul className="space-y-0.5 md:space-y-1">
-                  <li><Link href="/privacidade" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Política de Privacidade</Link></li>
-                  <li><Link href="/termos" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Termos de Uso</Link></li>
-                  <li><Link href="/suporte" className="text-[11px] md:text-xs text-gray-600 hover:text-[#1e4976] transition-colors">Suporte</Link></li>
+                  <li><Link href="/privacidade" className={`text-[11px] md:text-xs transition-colors ${isDarkMode ? 'text-gray-400 hover:text-cyan-400' : 'text-gray-600 hover:text-[#1e4976]'}`}>Política de Privacidade</Link></li>
+                  <li><Link href="/termos" className={`text-[11px] md:text-xs transition-colors ${isDarkMode ? 'text-gray-400 hover:text-cyan-400' : 'text-gray-600 hover:text-[#1e4976]'}`}>Termos de Uso</Link></li>
+                  <li><Link href="/suporte" className={`text-[11px] md:text-xs transition-colors ${isDarkMode ? 'text-gray-400 hover:text-cyan-400' : 'text-gray-600 hover:text-[#1e4976]'}`}>Suporte</Link></li>
                 </ul>
               </div>
             </div>
           </div>
 
-          <div className="mt-4 md:mt-5 pt-3 md:pt-4 border-t border-gray-300 text-center">
-            <p className="text-[10px] md:text-[11px] text-gray-500">© 2025 PLENIPAY. Todos os direitos reservados.</p>
+          <div className={`mt-4 md:mt-5 pt-3 md:pt-4 border-t text-center ${isDarkMode ? 'border-white/10' : 'border-gray-300'}`}>
+            <p className={`text-[10px] md:text-[11px] ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>© 2025 PLENIPAY. Todos os direitos reservados.</p>
           </div>
         </div>
       </footer>

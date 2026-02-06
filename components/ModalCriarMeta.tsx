@@ -11,6 +11,7 @@ import {
 import { criarMetaCofrinho, editarMetaCofrinho } from '@/lib/actions'
 import { formatarValorEmTempoReal, converterValorFormatadoParaNumero } from '@/lib/formatCurrency'
 import type { MetaCofrinho } from '@/lib/types'
+import { useModalBodyLock } from '@/hooks/useModalBodyLock'
 
 interface ModalCriarMetaProps {
   onClose: () => void
@@ -47,6 +48,8 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [numBausCalculado, setNumBausCalculado] = useState<number | null>(null)
+
+  useModalBodyLock()
 
   // Recalcular quando os valores mudarem
   useEffect(() => {
@@ -128,7 +131,8 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
     <>
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4 animate-fade-in"
+        className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center p-4 animate-fade-in overflow-hidden"
+        style={{ touchAction: 'none' }}
         onClick={onClose}
       >
         {/* Modal - Compacto e Organizado */}
@@ -157,7 +161,7 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
           {/* Form Completo */}
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
             {/* Conteúdo Scrollável */}
-            <div className="overflow-y-auto scrollbar-hide flex-1">
+            <div className="overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-hide flex-1" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
               <div className="px-5 py-4">
                 {erro && (
                   <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-xs">
@@ -178,7 +182,8 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
                       value={nome}
                       onChange={(e) => setNome(e.target.value)}
                       placeholder="Ex: Viagem, Novo celular..."
-                      className="w-full pl-8 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50"
+                      className="w-full pl-8 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-base text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50"
+                      style={{ fontSize: '16px' }}
                       maxLength={50}
                     />
                   </div>
@@ -233,7 +238,8 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
                         setMetaTotalStr(formatarValorEmTempoReal(e.target.value))
                       }}
                       placeholder="0,00"
-                      className="w-full pl-8 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-sm font-semibold text-brand-midnight dark:text-white placeholder-gray-400 dark:placeholder-white/50"
+                      className="w-full pl-8 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-base font-semibold text-brand-midnight dark:text-white placeholder-gray-400 dark:placeholder-white/50"
+                      style={{ fontSize: '16px' }}
                     />
                   </div>
                 </div>
@@ -252,7 +258,8 @@ export default function ModalCriarMeta({ onClose, onMetaCriada, metaParaEditar }
                         setValorMaxPorBauStr(formatarValorEmTempoReal(e.target.value))
                       }}
                       placeholder="0,00"
-                      className="w-full pl-8 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-sm font-semibold text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50"
+                      className="w-full pl-8 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-base font-semibold text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50"
+                      style={{ fontSize: '16px' }}
                     />
                   </div>
                   {numBausCalculado !== null && (

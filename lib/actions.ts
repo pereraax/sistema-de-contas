@@ -510,6 +510,28 @@ export async function obterUsuarios() {
   return { data: data || [] }
 }
 
+export async function obterLembretes() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { data: [], error: 'Não autenticado' }
+  }
+
+  const { data, error } = await supabase
+    .from('lembretes')
+    .select('*')
+    .eq('account_owner_id', user.id)
+    .order('data_lembrete', { ascending: true })
+
+  if (error) {
+    console.error('Erro ao buscar lembretes:', error)
+    return { data: [], error: error.message }
+  }
+
+  return { data: data || [] }
+}
+
 export async function criarUsuario(formData: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -729,6 +751,131 @@ export async function obterEstatisticas(dataInicio?: string, dataFim?: string) {
     // Saldo calculado apenas com entradas e saídas, SEM incluir dívidas
     // Dívidas têm seção própria e são gerenciadas separadamente
     saldo: totalEntradas - totalSaidas,
+  }
+}
+
+/** Processa lista de registros e retorna totais (entradas, saídas, saldo). */
+function processarRegistrosParaStats(registros: Array<{ tipo: string; valor: number; parcelas_totais?: number; parcelas_pagas?: number }> | null) {
+  let totalEntradas = 0
+  let totalSaidas = 0
+  registros?.forEach((r) => {
+    if (r.tipo === 'entrada') totalEntradas += Number(r.valor)
+    else if (r.tipo === 'saida') totalSaidas += Number(r.valor)
+  })
+  return { totalEntradas, totalSaidas, saldo: totalEntradas - totalSaidas }
+}
+
+/** Processa pendências: receitas a receber (entradas parceladas) e despesas a pagar (saídas/dívidas parceladas). */
+function processarPendentes(registros: Array<{ tipo: string; valor: number; parcelas_totais?: number; parcelas_pagas?: number }> | null) {
+  let receitasPendentes = 0
+  let despesasPendentes = 0
+  let qtdReceitasPendentes = 0
+  let qtdDespesasPendentes = 0
+  registros?.forEach((r) => {
+    const total = r.parcelas_totais ?? 1
+    const pagas = r.parcelas_pagas ?? 0
+    if (total <= 0 || pagas >= total) return
+    const valorPendente = (Number(r.valor) * (total - pagas)) / total
+    if (r.tipo === 'entrada') {
+      receitasPendentes += valorPendente
+      qtdReceitasPendentes += 1
+    } else if (r.tipo === 'saida' || r.tipo === 'divida') {
+      despesasPendentes += valorPendente
+      qtdDespesasPendentes += 1
+    }
+  })
+  return { receitasPendentes, despesasPendentes, qtdReceitasPendentes, qtdDespesasPendentes }
+}
+
+/**
+ * Uma única chamada para carregar todos os dados da home (período, saldo total, mês anterior).
+ * Reduz 3 round-trips a 1, deixando o carregamento após login muito mais rápido.
+ */
+export async function obterHomeEstatisticas(dataInicio?: string, dataFim?: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Não autenticado', stats: null, saldoTotal: 0, saldoMesAnterior: 0 }
+  }
+
+  const { data: usuarios, error: usuariosError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('account_owner_id', user.id)
+
+  if (usuariosError || !usuarios?.length) {
+    return { error: 'Nenhum usuário encontrado', stats: null, saldoTotal: 0, saldoMesAnterior: 0 }
+  }
+
+  const userIds = usuarios.map(u => u.id)
+  const baseQuery = () =>
+    supabase
+      .from('registros')
+      .select('tipo, valor, parcelas_totais, parcelas_pagas, data_registro')
+      .in('user_id', userIds)
+
+  // Primeiro e último dia do mês anterior (ex: se hoje é fev/2025 -> 1 jan a 31 jan)
+  const agora = new Date()
+  const inicioMesAnterior = new Date(agora.getFullYear(), agora.getMonth() - 1, 1, 0, 0, 0, 0)
+  const fimMesAnterior = new Date(agora.getFullYear(), agora.getMonth(), 0, 23, 59, 59, 999)
+  const dataInicioMesAnterior = inicioMesAnterior.toISOString()
+  const dataFimMesAnterior = fimMesAnterior.toISOString()
+
+  const inicioPeriodo = dataInicio || new Date(new Date().getFullYear(), new Date().getMonth(), 1, 0, 0, 0, 0).toISOString()
+  const fimPeriodo = dataFim || new Date().toISOString()
+
+  const [resPeriodo, resTotal, resMesAnterior] = await Promise.all([
+    baseQuery().gte('data_registro', inicioPeriodo).lte('data_registro', fimPeriodo),
+    baseQuery(),
+    baseQuery().gte('data_registro', dataInicioMesAnterior).lte('data_registro', dataFimMesAnterior),
+  ])
+
+  const { totalEntradas, totalSaidas, saldo } = processarRegistrosParaStats(resPeriodo.data)
+  const { saldo: saldoTotal } = processarRegistrosParaStats(resTotal.data)
+  const { saldo: saldoMesAnterior } = processarRegistrosParaStats(resMesAnterior.data)
+  const { receitasPendentes, despesasPendentes, qtdReceitasPendentes, qtdDespesasPendentes } = processarPendentes(resTotal.data)
+
+  return {
+    error: null,
+    stats: {
+      totalEntradas,
+      totalSaidas,
+      saldo,
+      receitasPendentes: receitasPendentes ?? 0,
+      despesasPendentes: despesasPendentes ?? 0,
+      qtdReceitasPendentes: qtdReceitasPendentes ?? 0,
+      qtdDespesasPendentes: qtdDespesasPendentes ?? 0,
+    },
+    saldoTotal: saldoTotal ?? 0,
+    saldoMesAnterior: saldoMesAnterior ?? 0,
+  }
+}
+
+/**
+ * Perfil do usuário atual (nome e avatar) para exibir na home sem delay.
+ * Usado no servidor para pré-carregar junto com as estatísticas.
+ */
+export async function obterPerfilUsuario(): Promise<{ nome: string; imagem_url?: string } | null> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('nome, imagem_url')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const md = user.user_metadata
+    let nomeExibido = profile?.nome?.trim() || md?.full_name?.trim() || md?.name?.trim() || md?.nome?.trim() || (user.email ? user.email.split('@')[0] : '') || 'Usuário'
+
+    return {
+      nome: nomeExibido,
+      imagem_url: profile?.imagem_url ?? undefined,
+    }
+  } catch {
+    return null
   }
 }
 

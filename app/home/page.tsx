@@ -7,6 +7,7 @@ import NotificationBell from '@/components/NotificationBell'
 import UserProfileMenu from '@/components/UserProfileMenu'
 import FiltroRapidoDataWrapper, { FiltroDataProvider } from '@/components/FiltroRapidoDataWrapper'
 import HomeLayoutNovo from '@/components/HomeLayoutNovo'
+import { obterHomeEstatisticas, obterPerfilUsuario } from '@/lib/actions'
 import { Suspense } from 'react'
 import dynamicImport from 'next/dynamic'
 
@@ -42,9 +43,23 @@ const EmailConfirmadoSucessoWrapper = dynamicImport(() => import('@/components/E
 
 export const dynamic = 'force-dynamic'
 
+// Período do mês atual (mesmo critério do FiltroDataProvider) para pré-carregar stats no servidor
+function getCurrentMonthRange() {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+  return { inicio: start.toISOString(), fim: end.toISOString() }
+}
+
 // Middleware já verifica autenticação, não precisa verificar novamente aqui
 
 export default async function HomePage() {
+  const { inicio, fim } = getCurrentMonthRange()
+  const [initialStats, initialUserProfile] = await Promise.all([
+    obterHomeEstatisticas(inicio, fim),
+    obterPerfilUsuario(),
+  ])
+
   return (
     <FiltroDataProvider>
       <div className="min-h-screen bg-brand-clean dark:bg-[#1A1A1A]">
@@ -60,8 +75,8 @@ export default async function HomePage() {
           {/* Popup de sucesso quando email é confirmado */}
           <EmailConfirmadoSucessoWrapper />
 
-          {/* Novo Layout da Home */}
-          <HomeLayoutNovo />
+          {/* Novo Layout da Home - dados e perfil já vêm do servidor para evitar delay */}
+          <HomeLayoutNovo initialStats={initialStats} initialUserProfile={initialUserProfile} />
 
           {/* Conteúdo Principal - Cards de Ação Rápida */}
           <div className="flex flex-col lg:flex-row gap-6 lg:mt-4">

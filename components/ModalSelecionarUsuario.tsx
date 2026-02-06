@@ -6,6 +6,7 @@ import { obterUsuarios, criarUsuario } from '@/lib/actions'
 import { X, Plus, Settings, Search, Star } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createNotification } from './NotificationBell'
+import { useModalBodyLock } from '@/hooks/useModalBodyLock'
 
 interface ModalSelecionarUsuarioProps {
   isOpen: boolean
@@ -30,6 +31,8 @@ export default function ModalSelecionarUsuario({
   const [showNovoUsuario, setShowNovoUsuario] = useState(false)
   const [novoUsuarioNome, setNovoUsuarioNome] = useState('')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  useModalBodyLock(isOpen && !buttonRef)
 
   useEffect(() => {
     if (isOpen) {
@@ -141,7 +144,7 @@ export default function ModalSelecionarUsuario({
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-3 space-y-3" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
           {/* Busca */}
           <div className="relative">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-brand-aqua dark:text-brand-aqua" size={20} strokeWidth={2.5} />
@@ -150,7 +153,8 @@ export default function ModalSelecionarUsuario({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar usuário..."
-              className="w-full pl-12 pr-4 py-3 bg-white dark:bg-brand-midnight border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/60 shadow-sm hover:shadow-md"
+              className="w-full pl-12 pr-4 py-3 bg-white dark:bg-brand-midnight border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-base placeholder-gray-400 dark:placeholder-brand-clean/60 shadow-sm hover:shadow-md"
+              style={{ fontSize: '16px' }}
             />
           </div>
 
@@ -173,7 +177,8 @@ export default function ModalSelecionarUsuario({
                   onChange={(e) => setNovoUsuarioNome(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleCriarUsuario()}
                   placeholder="Digite o nome do novo usuário..."
-                  className="flex-1 px-4 py-2.5 bg-white dark:bg-brand-midnight border-2 border-gray-200 dark:border-white/20 rounded-xl text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/60 focus:outline-none focus:border-brand-aqua transition-smooth text-sm shadow-sm"
+                  className="flex-1 px-4 py-2.5 bg-white dark:bg-brand-midnight border-2 border-gray-200 dark:border-white/20 rounded-xl text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/60 focus:outline-none focus:border-brand-aqua transition-smooth text-base shadow-sm"
+                  style={{ fontSize: '16px' }}
                 />
                 <button
                   onClick={handleCriarUsuario}
@@ -272,7 +277,7 @@ export default function ModalSelecionarUsuario({
 
   // Renderizar como modal centralizado (compatibilidade com código antigo)
   return (
-    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[10000] flex items-center justify-center p-4 animate-fade-in">
+    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[10000] flex items-center justify-center p-4 animate-fade-in overflow-hidden" style={{ touchAction: 'none' }}>
       <div className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border-2 border-brand-aqua/30 dark:border-brand-aqua/40">
         <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-6 py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal">
           <h2 className="text-2xl font-display font-bold text-white dark:text-brand-clean">
@@ -295,7 +300,7 @@ export default function ModalSelecionarUsuario({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 bg-white/50 dark:bg-brand-midnight/60">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-6 py-5 space-y-4 bg-white/50 dark:bg-brand-midnight/60" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
           {/* Busca */}
           <div className="relative">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-brand-aqua dark:text-brand-aqua" size={20} strokeWidth={2.5} />
@@ -304,7 +309,8 @@ export default function ModalSelecionarUsuario({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar usuário..."
-              className="w-full pl-12 pr-4 py-3 bg-white dark:bg-brand-midnight border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/60 shadow-sm hover:shadow-md"
+              className="w-full pl-12 pr-4 py-3 bg-white dark:bg-brand-midnight border-2 border-gray-200 dark:border-white/20 rounded-xl focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-base placeholder-gray-400 dark:placeholder-brand-clean/60 shadow-sm hover:shadow-md"
+              style={{ fontSize: '16px' }}
             />
           </div>
 
@@ -327,7 +333,8 @@ export default function ModalSelecionarUsuario({
                   onChange={(e) => setNovoUsuarioNome(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleCriarUsuario()}
                   placeholder="Digite o nome do novo usuário..."
-                  className="flex-1 px-4 py-2.5 bg-white dark:bg-brand-midnight border-2 border-gray-200 dark:border-white/20 rounded-xl text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/60 focus:outline-none focus:border-brand-aqua transition-smooth text-sm shadow-sm"
+                  className="flex-1 px-4 py-2.5 bg-white dark:bg-brand-midnight border-2 border-gray-200 dark:border-white/20 rounded-xl text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/60 focus:outline-none focus:border-brand-aqua transition-smooth text-base shadow-sm"
+                  style={{ fontSize: '16px' }}
                 />
                 <button
                   onClick={handleCriarUsuario}

@@ -18,10 +18,26 @@ interface ConfiguracoesViewProps {
       id: string
       email: string
       email_confirmed_at: string | null
+      user_metadata?: { nome?: string; full_name?: string; name?: string } | null
     }
     profile: any
     whatsappKey: string | null
   } | null
+}
+
+// Extrai nome para exibição: profile > full_name (OAuth) > name > nome > email
+function extrairNomeExibicao(profile: { nome?: string | null } | null | undefined, user?: { user_metadata?: { full_name?: string; name?: string; nome?: string } | null; email?: string } | null): string {
+  const nome = profile?.nome?.trim()
+  if (nome) return nome
+  const md = user?.user_metadata
+  const fullName = md?.full_name?.trim()
+  if (fullName) return fullName
+  const name = md?.name?.trim()
+  if (name) return name
+  const metaNome = md?.nome?.trim()
+  if (metaNome) return metaNome
+  if (user?.email) return user.email.split('@')[0]
+  return 'Usuário'
 }
 
 export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfileData }: ConfiguracoesViewProps) {
@@ -36,9 +52,22 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
   const [touchStart, setTouchStart] = useState<number | null>(null)
   const [touchEnd, setTouchEnd] = useState<number | null>(null)
   
-  // Estados para perfil
-  // Se tiver initialProfileData, começar sem loading para mostrar imediatamente
-  const [userProfile, setUserProfile] = useState<any>(null)
+  // Estados para perfil - inicializar síncronamente do servidor para exibição instantânea (sem flash de loading)
+  const getInitialProfileState = () => {
+    if (!initialProfileData) return null
+    const { user, profile, whatsappKey } = initialProfileData
+    return {
+      ...user,
+      email: user.email || '',
+      email_confirmed_at: user.email_confirmed_at || null,
+      profile: profile,
+    }
+  }
+  const getInitialNome = () => {
+    if (!initialProfileData) return ''
+    return extrairNomeExibicao(initialProfileData.profile, initialProfileData.user)
+  }
+  const [userProfile, setUserProfile] = useState<any>(getInitialProfileState)
   const [loadingProfile, setLoadingProfile] = useState(!initialProfileData)
   const [showRedefinirSenha, setShowRedefinirSenha] = useState(false)
   const [senhaAtual, setSenhaAtual] = useState('')
@@ -54,20 +83,20 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
   const [showModalLogout, setShowModalLogout] = useState(false)
   const [showModalExcluirUsuario, setShowModalExcluirUsuario] = useState(false)
   const [usuarioParaExcluir, setUsuarioParaExcluir] = useState<User | null>(null)
-  const [cpf, setCpf] = useState('')
+  const [cpf, setCpf] = useState(() => initialProfileData?.profile?.cpf || '')
   const [editandoCpf, setEditandoCpf] = useState(false)
   const [loadingCpf, setLoadingCpf] = useState(false)
-  const [whatsapp, setWhatsapp] = useState('')
+  const [whatsapp, setWhatsapp] = useState(() => initialProfileData?.profile?.whatsapp || '')
   const [editandoWhatsapp, setEditandoWhatsapp] = useState(false)
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(false)
-  const [nome, setNome] = useState('')
+  const [nome, setNome] = useState(getInitialNome)
   const [showModalEditarNome, setShowModalEditarNome] = useState(false)
   const [uploadingImagem, setUploadingImagem] = useState<string | null>(null)
   const [loadingNome, setLoadingNome] = useState(false)
   const [showModalVerificarEmail, setShowModalVerificarEmail] = useState(false)
   const [bypassLimpo, setBypassLimpo] = useState(false) // Flag para evitar limpar bypass múltiplas vezes
   const [carregandoPerfil, setCarregandoPerfil] = useState(false) // Flag para evitar múltiplos carregamentos simultâneos
-  const [whatsappKey, setWhatsappKey] = useState<string | null>(null)
+  const [whatsappKey, setWhatsappKey] = useState<string | null>(() => initialProfileData?.whatsappKey ?? null)
   const [loadingWhatsappKey, setLoadingWhatsappKey] = useState(false)
   const historyEntryAdded = useRef(false)
   const [showWhatsappKey, setShowWhatsappKey] = useState(false)
@@ -76,39 +105,23 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
   const photoPerfilRef = useRef<HTMLInputElement>(null)
   const [avatarCacheKey, setAvatarCacheKey] = useState(0)
 
-  // Inicializar dados do perfil se fornecidos pelo servidor IMEDIATAMENTE (antes de qualquer loading)
+  // Sincronizar dados adicionais do initialProfileData (caso mude por hot reload ou navegação)
   useEffect(() => {
-    if (initialProfileData) {
+    if (initialProfileData && !userProfile?.profile) {
       const { user, profile, whatsappKey } = initialProfileData
-      
-      // Montar estrutura de userProfile
-      const profileData: any = {
+      setUserProfile({
         ...user,
         email: user.email || '',
         email_confirmed_at: user.email_confirmed_at || null,
         profile: profile,
-      }
-      
-      setUserProfile(profileData)
+      })
       setLoadingProfile(false)
-      setCarregandoPerfil(false)
-      
-      // Carregar dados adicionais
-      if (profile?.cpf) {
-        setCpf(profile.cpf)
-      }
-      if (profile?.whatsapp) {
-        setWhatsapp(profile.whatsapp)
-      }
-      if (whatsappKey) {
-        setWhatsappKey(whatsappKey)
-      }
-      if (profile?.nome) {
-        setNome(profile.nome)
-      }
+      if (profile?.cpf) setCpf(profile.cpf)
+      if (profile?.whatsapp) setWhatsapp(profile.whatsapp)
+      if (whatsappKey) setWhatsappKey(whatsappKey)
+      setNome(extrairNomeExibicao(profile, user))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Executar apenas uma vez na montagem
+  }, [initialProfileData])
 
   useEffect(() => {
     const tab = searchParams.get('tab')
@@ -207,17 +220,6 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabAtivo, initialProfileData]) // Adicionar initialProfileData para evitar recarregamento
 
-  // Debug: monitorar mudanças no userProfile
-  useEffect(() => {
-    console.log('🔍 userProfile mudou:', {
-      exists: !!userProfile,
-      email: userProfile?.email,
-      emailConfirmed: userProfile?.email_confirmed_at,
-      hasProfile: !!userProfile?.profile,
-      loading: loadingProfile
-    })
-  }, [userProfile, loadingProfile])
-
   // Bloquear scroll do body quando modais estiverem abertos
   useEffect(() => {
     const hasOpenModal = showModalResetar || showModalLogout || showModalExcluirUsuario || showRedefinirSenha || showModalEditarNome
@@ -273,7 +275,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
       }
       if (showModalEditarNome) {
         setShowModalEditarNome(false)
-        setNome(userProfile?.profile?.nome || userProfile?.email?.split('@')[0] || 'Usuário')
+        setNome(extrairNomeExibicao(userProfile?.profile, userProfile))
       }
       // Resetar a flag quando o modal fechar via popstate
       historyEntryAdded.current = false
@@ -456,17 +458,15 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
           } else {
             setWhatsappKey(null)
           }
-          // Carregar nome se existir
-          if (profile.nome) {
-            setNome(profile.nome)
-          }
+          // Carregar nome com fallback completo
+          setNome(extrairNomeExibicao(profile, user))
         } else {
           console.log('ℹ️ Perfil ainda não criado na tabela profiles - isso é normal para novos usuários')
           // Para novos usuários, definir plano padrão como 'teste'
           profileData.profile = {
             id: user.id,
             email: user.email || '',
-            nome: user.user_metadata?.nome || user.email?.split('@')[0] || 'Usuário',
+            nome: extrairNomeExibicao(null, user),
             plano: 'teste',
             plano_status: null
           }
@@ -882,14 +882,18 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                               {userProfile.profile?.imagem_url ? (
                                 <img
                                   src={`/api/user/avatar?t=${avatarCacheKey}`}
-                                  alt={userProfile.profile?.nome || 'Perfil'}
+                                  alt={extrairNomeExibicao(userProfile.profile, userProfile)}
                                   className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                  fetchPriority="high"
+                                  loading="eager"
                                   onError={(e) => {
                                     const target = e.target as HTMLImageElement
                                     target.style.display = 'none'
                                     const parent = target.parentElement
-                                    if (parent) {
-                                      const inicial = (userProfile.profile?.nome || userProfile.email || 'U').charAt(0).toUpperCase()
+                                    if (parent && !parent.querySelector('span.text-brand-aqua')) {
+                                      const nomeExibido = extrairNomeExibicao(userProfile.profile, userProfile) || 'U'
+                                      const inicial = nomeExibido.charAt(0).toUpperCase()
                                       const span = document.createElement('span')
                                       span.className = 'text-brand-aqua font-bold text-2xl'
                                       span.textContent = inicial
@@ -899,7 +903,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                                 />
                               ) : (
                                 <span className="text-brand-aqua font-bold text-2xl">
-                                  {(userProfile.profile?.nome || userProfile.email || 'U').charAt(0).toUpperCase()}
+                                  {extrairNomeExibicao(userProfile.profile, userProfile).charAt(0).toUpperCase()}
                                 </span>
                               )}
                             </div>
@@ -958,11 +962,11 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <p className="text-lg font-semibold text-brand-midnight dark:text-brand-clean">
-                              {userProfile.profile?.nome || userProfile.email?.split('@')[0] || 'Usuário'}
+                              {extrairNomeExibicao(userProfile.profile, userProfile)}
                             </p>
                             <button
                               onClick={() => {
-                                setNome(userProfile.profile?.nome || userProfile.email?.split('@')[0] || 'Usuário')
+                                setNome(extrairNomeExibicao(userProfile.profile, userProfile))
                                 setShowModalEditarNome(true)
                               }}
                               className="p-1.5 text-brand-aqua hover:text-brand-aqua/80 hover:bg-brand-aqua/10 rounded-lg transition-smooth"
@@ -973,7 +977,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                           </div>
                           <p className="text-sm text-brand-midnight dark:text-brand-clean/60 break-words">{userProfile.email || 'Email não disponível'}</p>
                           <p className="text-xs text-brand-midnight/70 dark:text-brand-clean/50 mt-1">
-                            O usuário <span className="font-medium text-brand-midnight dark:text-brand-clean/80">{userProfile.profile?.nome || userProfile.email?.split('@')[0] || 'Usuário'}</span> é dono dessa conta.
+                            O usuário <span className="font-medium text-brand-midnight dark:text-brand-clean/80">{extrairNomeExibicao(userProfile.profile, userProfile)}</span> é dono dessa conta.
                           </p>
                         </div>
                       </div>
@@ -1436,7 +1440,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                                 <span className="text-sm font-medium text-brand-midnight dark:text-brand-clean/70">Fazer Upgrade:</span>
                                 <button
                                   onClick={() => router.push('/upgrade')}
-                                  className="w-full max-w-xs px-4 py-2.5 bg-gradient-to-r from-brand-aqua to-blue-500 text-white rounded-lg font-semibold hover:from-brand-aqua/90 hover:to-blue-400 transition-smooth flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                                  className="w-full max-w-xs px-4 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-500 text-amber-900 rounded-lg font-semibold hover:from-amber-300 hover:to-yellow-400 transition-smooth flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
                                 >
                                   <Crown size={18} />
                                   Fazer Upgrade
@@ -2347,7 +2351,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                   <button
                     onClick={() => {
                       setShowModalEditarNome(false)
-                      setNome(userProfile.profile?.nome || userProfile.email?.split('@')[0] || 'Usuário')
+                      setNome(extrairNomeExibicao(userProfile.profile, userProfile))
                     }}
                     disabled={loadingNome}
                     className="px-4 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-smooth font-medium disabled:opacity-50"

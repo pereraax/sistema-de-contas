@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { obterEstatisticas } from '@/lib/actions'
+import { obterHomeEstatisticas } from '@/lib/actions'
 import { TrendingUp, TrendingDown, ChevronDown, ChevronLeft, ChevronRight, Check, Moon, Sun, User, Crown, Wallet } from 'lucide-react'
 import { useFiltroData } from './FiltroRapidoDataWrapper'
 import { MenuButton } from './MobileMenu'
@@ -54,7 +54,9 @@ function datasMesAnterior() {
 
 const FILTROS_DIAS = [3, 5, 7, 10] as const
 
-export default function HomeLayoutNovo() {
+type InitialStats = Awaited<ReturnType<typeof obterHomeEstatisticas>>
+
+export default function HomeLayoutNovo({ initialStats, initialUserProfile }: { initialStats?: InitialStats | null; initialUserProfile?: { nome: string; imagem_url?: string } | null }) {
   const { dataInicio, dataFim, setFiltroData } = useFiltroData()
   const router = useRouter()
   const [isDarkMode, setIsDarkMode] = useState(false)
@@ -66,12 +68,24 @@ export default function HomeLayoutNovo() {
     despesasPendentes: number
     qtdReceitasPendentes: number
     qtdDespesasPendentes: number
-  } | null>(null)
+  } | null>(() => {
+    if (initialStats?.stats) {
+      return {
+        ...initialStats.stats,
+        receitasPendentes: initialStats.stats.receitasPendentes ?? 0,
+        despesasPendentes: initialStats.stats.despesasPendentes ?? 0,
+        qtdReceitasPendentes: initialStats.stats.qtdReceitasPendentes ?? 0,
+        qtdDespesasPendentes: initialStats.stats.qtdDespesasPendentes ?? 0,
+      }
+    }
+    return null
+  })
   const [gastosPorBanco, setGastosPorBanco] = useState<Array<{ banco: string; gastos: number; saldo: number }>>([])
-  const [saldoTotal, setSaldoTotal] = useState<number | null>(null)
-  const [saldoMesAnterior, setSaldoMesAnterior] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [userProfile, setUserProfile] = useState<{ nome: string; imagem_url?: string }>({ nome: 'Usuário' })
+  const [saldoTotal, setSaldoTotal] = useState<number | null>(() => initialStats?.saldoTotal ?? null)
+  const [saldoMesAnterior, setSaldoMesAnterior] = useState<number | null>(() => initialStats?.saldoMesAnterior ?? null)
+  const [loading, setLoading] = useState(!initialStats?.stats)
+  const [userProfile, setUserProfile] = useState<{ nome: string; imagem_url?: string }>(() => initialUserProfile ?? { nome: 'Usuário' })
+  const initialDataUsedRef = useRef(!!initialStats?.stats)
   
   const meses = MESES
   
@@ -153,8 +167,15 @@ export default function HomeLayoutNovo() {
     router.push('/configuracoes?tab=perfil')
   }
 
-  // Carregar perfil do usuário
+  // Prefetch configurações ao passar o mouse para carregamento instantâneo
+  const handlePerfilMouseEnter = () => {
+    router.prefetch('/configuracoes?tab=perfil')
+  }
+
+  // Carregar perfil do usuário só quando não veio do servidor (evita delay e request duplicado)
   useEffect(() => {
+    if (initialUserProfile != null) return // já veio na home, não busca de novo no mount
+
     const carregarPerfil = async () => {
       try {
         const supabase = await createClient()
@@ -167,17 +188,9 @@ export default function HomeLayoutNovo() {
             .eq('id', user.id)
             .maybeSingle()
           
-          // Determinar o nome a ser exibido: perfil > user_metadata > email > "Usuário"
-          let nomeExibido = 'Usuário'
-          
-          if (profile?.nome && profile.nome.trim()) {
-            nomeExibido = profile.nome.trim()
-          } else if (user.user_metadata?.nome && user.user_metadata.nome.trim()) {
-            nomeExibido = user.user_metadata.nome.trim()
-          } else if (user.email) {
-            // Usar a parte antes do @ do email como fallback
-            nomeExibido = user.email.split('@')[0]
-          }
+          // Determinar o nome: perfil > full_name (OAuth) > name > nome > email
+          const md = user.user_metadata
+          const nomeExibido = profile?.nome?.trim() || md?.full_name?.trim() || md?.name?.trim() || md?.nome?.trim() || (user.email ? user.email.split('@')[0] : '') || 'Usuário'
           
             setUserProfile({
             nome: nomeExibido,
@@ -190,7 +203,7 @@ export default function HomeLayoutNovo() {
     }
     
     carregarPerfil()
-  }, [])
+  }, [initialUserProfile])
 
   // Fechar dropdown ao clicar fora
   useEffect(() => {
@@ -211,27 +224,10 @@ export default function HomeLayoutNovo() {
 
   const carregarEstatisticas = useCallback(async () => {
     try {
-      const [result, resultTotal, resultMesAnterior] = await Promise.all([
-        obterEstatisticas(dataInicio, dataFim),
-        obterEstatisticas(),
-        (() => {
-          const { dataInicio: ini, dataFim: fim } = datasMesAnterior()
-          return obterEstatisticas(ini, fim)
-        })()
-      ])
-
-      if (resultTotal && !resultTotal.error && resultTotal.saldo != null) {
-        setSaldoTotal(resultTotal.saldo)
-      } else {
-        setSaldoTotal(0)
-      }
-      if (resultMesAnterior && !resultMesAnterior.error && resultMesAnterior.saldo != null) {
-        setSaldoMesAnterior(resultMesAnterior.saldo)
-      } else {
-        setSaldoMesAnterior(0)
-      }
-
-      if (result.error) {
+      const res = await obterHomeEstatisticas(dataInicio, dataFim)
+      if (res.error || !res.stats) {
+        setSaldoTotal(res.saldoTotal ?? 0)
+        setSaldoMesAnterior(res.saldoMesAnterior ?? 0)
         setStats({
           totalEntradas: 0,
           totalSaidas: 0,
@@ -242,17 +238,14 @@ export default function HomeLayoutNovo() {
           qtdDespesasPendentes: 0
         })
       } else {
-        const totalEntradas = result.totalEntradas || 0
-        const totalSaidas = result.totalSaidas || 0
-        const saldo = totalEntradas - totalSaidas
+        setSaldoTotal(res.saldoTotal)
+        setSaldoMesAnterior(res.saldoMesAnterior)
         setStats({
-          totalEntradas,
-          totalSaidas,
-          saldo,
-          receitasPendentes: 700,
-          despesasPendentes: 1900,
-          qtdReceitasPendentes: 1,
-          qtdDespesasPendentes: 2
+          ...res.stats,
+          receitasPendentes: res.stats.receitasPendentes ?? 0,
+          despesasPendentes: res.stats.despesasPendentes ?? 0,
+          qtdReceitasPendentes: res.stats.qtdReceitasPendentes ?? 0,
+          qtdDespesasPendentes: res.stats.qtdDespesasPendentes ?? 0
         })
       }
     } catch {
@@ -273,6 +266,11 @@ export default function HomeLayoutNovo() {
   }, [dataInicio, dataFim])
 
   useEffect(() => {
+    if (initialDataUsedRef.current) {
+      initialDataUsedRef.current = false
+      const t = setInterval(carregarEstatisticas, 60000)
+      return () => clearInterval(t)
+    }
     setLoading(true)
     carregarEstatisticas()
     const t = setInterval(carregarEstatisticas, 60000)
@@ -306,6 +304,7 @@ export default function HomeLayoutNovo() {
               </div>
               <button
                 onClick={handlePerfilClick}
+                onMouseEnter={handlePerfilMouseEnter}
                 type="button"
                 className="w-9 h-9 border-[2.5px] border-brand-aqua bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-full hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 transition-smooth flex items-center justify-center overflow-hidden flex-shrink-0 cursor-pointer relative"
                 title="Configurações de perfil"

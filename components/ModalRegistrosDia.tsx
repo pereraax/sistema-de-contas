@@ -4,20 +4,33 @@ import { useState } from 'react'
 import { Registro } from '@/lib/types'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
-import { X, Edit, Trash2, CheckCircle } from 'lucide-react'
+import { X, Edit, Trash2, CheckCircle, Clock } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { excluirRegistro, marcarParcelaPaga } from '@/lib/actions'
 import ModalConfirmacao from './ModalConfirmacao'
 import ModalEditarRegistro from './ModalEditarRegistro'
 import { createNotification } from './NotificationBell'
 
+interface Lembrete {
+  id: string
+  descricao: string
+  data_lembrete: string
+  horario?: string | null
+  status: string
+  valor?: number | null
+  tipo?: 'entrada' | 'saida' | null
+  is_recorrente_mensal?: boolean
+  recorrencia_dia_mes?: number | null
+}
+
 interface ModalRegistrosDiaProps {
   data: Date
   registros: Registro[]
+  lembretes?: Lembrete[]
   onClose: () => void
 }
 
-export default function ModalRegistrosDia({ data, registros, onClose }: ModalRegistrosDiaProps) {
+export default function ModalRegistrosDia({ data, registros, lembretes = [], onClose }: ModalRegistrosDiaProps) {
   const router = useRouter()
   const [registroEditando, setRegistroEditando] = useState<Registro | null>(null)
   const [showModalExcluir, setShowModalExcluir] = useState(false)
@@ -102,7 +115,7 @@ export default function ModalRegistrosDia({ data, registros, onClose }: ModalReg
           <div className="flex-shrink-0 border-b border-brand-aqua/20 dark:border-white/10 px-5 py-4 flex items-center justify-between bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal">
             <div>
               <h2 className="text-xl font-display font-bold text-white dark:text-brand-clean">
-                Registros do Dia
+                {registros.length > 0 || lembretes.length > 0 ? 'Registros e Lembretes do Dia' : 'Registros do Dia'}
               </h2>
               <p className="text-xs text-white/80 dark:text-brand-clean/70 mt-1">
                 {format(data, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
@@ -156,12 +169,52 @@ export default function ModalRegistrosDia({ data, registros, onClose }: ModalReg
               </div>
             )}
 
-            {/* Lista de registros */}
-            {registros.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-brand-midnight/60 dark:text-brand-clean/60 text-sm">Nenhum registro neste dia</p>
+            {/* Lista de lembretes */}
+            {lembretes.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-brand-midnight dark:text-brand-clean mb-3 flex items-center gap-2">
+                  <Clock size={18} className="text-amber-500" />
+                  Lembretes ({lembretes.length})
+                </h3>
+                <div className="space-y-2">
+                  {lembretes.map((lembrete) => (
+                    <div
+                      key={lembrete.id}
+                      className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 dark:border-amber-800"
+                    >
+                      <p className="font-medium text-brand-midnight dark:text-brand-clean">{lembrete.descricao}</p>
+                      {(lembrete.valor != null && lembrete.valor > 0) && (
+                        <p className="text-sm text-brand-midnight/70 dark:text-brand-clean/70 mt-1">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lembrete.valor)}
+                          {lembrete.tipo && (
+                            <span className={`ml-2 px-1.5 py-0.5 rounded text-xs font-medium ${lembrete.tipo === 'entrada' ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'}`}>
+                              {lembrete.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                            </span>
+                          )}
+                        </p>
+                      )}
+                      {lembrete.horario && (
+                        <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mt-1">
+                          Horário: {lembrete.horario.slice(0, 5)}
+                        </p>
+                      )}
+                      {lembrete.is_recorrente_mensal && (
+                        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                          Repete todo mês no dia {lembrete.recorrencia_dia_mes}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ) : (
+            )}
+
+            {/* Lista de registros */}
+            {registros.length === 0 && lembretes.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-brand-midnight/60 dark:text-brand-clean/60 text-sm">Nenhum registro ou lembrete neste dia</p>
+              </div>
+            ) : registros.length > 0 ? (
               <div className="space-y-3">
                 {registros.map((registro) => (
                   <div
@@ -276,7 +329,7 @@ export default function ModalRegistrosDia({ data, registros, onClose }: ModalReg
                   </div>
                 ))}
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

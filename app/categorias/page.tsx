@@ -25,7 +25,7 @@ export default function CategoriasPage() {
                 Gerenciar Categorias
               </h1>
             </div>
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
               <NotificationBell />
               <UserProfileMenu />
             </div>

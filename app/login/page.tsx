@@ -9,6 +9,7 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import ModalEmailConfirmadoSucesso from '@/components/ModalEmailConfirmadoSucesso'
 import ModalLoginConcluido from '@/components/ModalLoginConcluido'
+import logoTipoFundoClaro from '@/assets/fundo claro.png'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,6 +83,11 @@ function LoginContent() {
       localStorage.removeItem('savedEmail')
     }
   }, [rememberMe])
+
+  // Prefetch da home para carregamento instantâneo após login
+  useEffect(() => {
+    router.prefetch('/home')
+  }, [router])
 
   // Mostrar mensagem da URL se existir (vindo do cadastro)
   useEffect(() => {
@@ -314,13 +320,14 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-white">
-      {/* Área do login: no desktop fundo branco + efeito de grade ao passar o mouse (igual à página inicial) */}
+    <div className="login-page-wrap min-h-screen flex flex-col md:flex-row bg-gray-50 md:bg-white" style={{ backgroundColor: 'var(--login-bg, #f8fafc)' }}>
+      {/* Área do login: fundo claro no mobile (globals.css força .login-page-wrap claro mesmo em dark) */}
       <div
         ref={sectionRef}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
-        className="w-full md:w-1/2 relative overflow-hidden bg-white flex items-center justify-center p-4 md:p-6 lg:p-8 min-h-screen md:min-h-0"
+        className="login-page-inner w-full md:w-1/2 relative overflow-hidden bg-gray-50 md:bg-white flex items-center justify-center p-4 md:p-6 lg:p-8 min-h-screen md:min-h-0"
+        style={{ backgroundColor: 'var(--login-bg, #f8fafc)' }}
       >
         {/* Grade que aparece ao passar o mouse (apenas desktop) — mesmo efeito da página inicial */}
         <div
@@ -342,6 +349,16 @@ function LoginContent() {
           aria-hidden
         />
         <div className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-8 relative z-10">
+          {/* Logo centralizado acima do login — apenas mobile */}
+          <div className="md:hidden flex justify-center mb-5">
+            <Image
+              src={logoTipoFundoClaro}
+              alt="PLENIPAY"
+              width={80}
+              height={80}
+              className="object-contain"
+            />
+          </div>
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1e4976] transition-colors mb-5"
@@ -375,8 +392,9 @@ function LoginContent() {
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all"
+                className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all"
                 placeholder="seu@email.com"
+                style={{ fontSize: '16px' }}
               />
             </div>
 
@@ -390,8 +408,9 @@ function LoginContent() {
                   required
                   value={formData.senha}
                   onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all pr-10"
+                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all pr-10"
                   placeholder="Sua senha"
+                  style={{ fontSize: '16px' }}
                 />
                 <button
                   type="button"

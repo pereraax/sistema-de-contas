@@ -64,11 +64,12 @@ export default function Sidebar() {
     })
   }
 
-  // Prefetch agressivo
+  // Prefetch agressivo - carregar imediatamente para navegação instantânea
   useEffect(() => {
     menuItems.forEach((item) => {
       if (item.href !== pathname) {
-        setTimeout(() => router.prefetch(item.href), 100)
+        router.prefetch(item.href)
+        if (item.href === '/configuracoes') router.prefetch('/configuracoes?tab=perfil')
       }
     })
   }, [router, pathname])
@@ -140,10 +141,10 @@ export default function Sidebar() {
                 title={collapsed ? 'Fazer Upgrade' : undefined}
                 className={`w-full flex items-center rounded-xl transition-all duration-200 shadow-md hover:shadow-lg text-left group ${
                   collapsed ? 'justify-center px-0 py-3' : 'gap-2.5 px-3 py-2.5'
-                } bg-gradient-to-r from-brand-aqua to-primary-500 hover:from-brand-aqua/90 hover:to-primary-400 dark:from-amber-400 dark:to-yellow-500 dark:hover:from-amber-300 dark:hover:to-yellow-400`}
+                } bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-yellow-400`}
               >
-                <Crown size={20} strokeWidth={2} className="text-white dark:text-amber-900 flex-shrink-0 group-hover:scale-110 transition-transform" />
-                {!collapsed && <span className="text-sm font-semibold text-white dark:text-amber-900 truncate min-w-0" title="Fazer Upgrade">Fazer Upgrade</span>}
+                <Crown size={20} strokeWidth={2} className="text-amber-900 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                {!collapsed && <span className="text-sm font-semibold text-amber-900 truncate min-w-0" title="Fazer Upgrade">Fazer Upgrade</span>}
               </button>
             </div>
           </nav>

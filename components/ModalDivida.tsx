@@ -13,6 +13,7 @@ import ModalSelecionarUsuario from './ModalSelecionarUsuario'
 import { formatarValorEmTempoReal, converterValorFormatadoParaNumero } from '@/lib/formatCurrency'
 import { obterPlanoUsuario } from '@/lib/plano'
 import UpgradeModal from './UpgradeModal'
+import { useModalBodyLock } from '@/hooks/useModalBodyLock'
 
 interface ModalDividaProps {
   onClose: () => void
@@ -84,6 +85,8 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
     viagem: 'bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800/50',
     outros: 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800/50',
   }
+
+  useModalBodyLock()
 
   useEffect(() => {
     carregarUsuarios()
@@ -457,7 +460,7 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4 animate-fade-in overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4 animate-fade-in overflow-hidden" style={{ touchAction: 'none' }}>
       <div className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[90vh] sm:max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border-2 border-brand-aqua/30 dark:border-brand-aqua/40 my-4 sm:my-0">
         <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal">
           <h2 className="text-xl sm:text-2xl font-display font-bold text-white dark:text-brand-clean">
@@ -472,7 +475,7 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 bg-white/50 dark:bg-brand-midnight/60 overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 sm:px-6 py-4 sm:py-5 space-y-4" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
               <div>
                 <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
                   Usuário/Envolvido *
@@ -515,7 +518,8 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
                   required
                   value={formData.nome}
                   onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50"
+                  className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-base placeholder-gray-400 dark:placeholder-brand-clean/50"
+                  style={{ fontSize: '16px' }}
                   placeholder="Ex: Conta de luz, Cartão de crédito, Financiamento, Empréstimo..."
                 />
           </div>
@@ -528,7 +532,8 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
               value={formData.observacao}
               onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
               rows={2}
-              className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50 resize-none"
+              className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-base placeholder-gray-400 dark:placeholder-brand-clean/50 resize-none"
+              style={{ fontSize: '16px' }}
               placeholder="Observações sobre a dívida..."
             />
           </div>
@@ -551,7 +556,8 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
                   setValorDivida(formatted)
                 }}
                 placeholder="0,00"
-                className="w-full pl-7 pr-2 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50"
+                className="w-full pl-7 pr-2 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-base text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50"
+                style={{ fontSize: '16px' }}
               />
             </div>
           </div>
@@ -614,7 +620,8 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
                           type="time"
                           value={parcela.hora_opcional}
                           onChange={(e) => atualizarParcela(index, 'hora_opcional', e.target.value)}
-                          className="w-full pl-8 pr-2 py-1.5 bg-white dark:bg-brand-royal border border-gray-300 dark:border-white/10 rounded focus:outline-none focus:border-brand-aqua transition-smooth text-xs text-brand-midnight dark:text-brand-clean"
+                          className="w-full pl-8 pr-2 py-1.5 bg-white dark:bg-brand-royal border border-gray-300 dark:border-white/10 rounded focus:outline-none focus:border-brand-aqua transition-smooth text-base text-brand-midnight dark:text-brand-clean"
+                          style={{ fontSize: '16px' }}
                         />
                       </div>
                     </div>
@@ -629,7 +636,8 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
                         value={parcela.quantidade}
                         onChange={(e) => atualizarParcela(index, 'quantidade', e.target.value)}
                         placeholder="1"
-                        className="w-full px-2 py-1.5 bg-white dark:bg-brand-royal border border-gray-300 dark:border-white/10 rounded focus:outline-none focus:border-brand-aqua transition-smooth text-xs text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50"
+                        className="w-full px-2 py-1.5 bg-white dark:bg-brand-royal border border-gray-300 dark:border-white/10 rounded focus:outline-none focus:border-brand-aqua transition-smooth text-base text-brand-midnight dark:text-brand-clean placeholder-gray-400 dark:placeholder-brand-clean/50"
+                        style={{ fontSize: '16px' }}
                       />
                     </div>
                   </div>
@@ -699,7 +707,8 @@ export default function ModalDivida({ onClose }: ModalDividaProps) {
                           value={dividaUnica.hora_opcional}
                           onChange={(e) => setDividaUnica({ ...dividaUnica, hora_opcional: e.target.value })}
                           disabled={isRecorrente}
-                          className="w-full pl-9 pr-3 py-2 bg-white dark:bg-brand-royal border border-gray-300 dark:border-white/10 rounded focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full pl-9 pr-3 py-2 bg-white dark:bg-brand-royal border border-gray-300 dark:border-white/10 rounded focus:outline-none focus:border-brand-aqua transition-smooth text-base text-brand-midnight dark:text-brand-clean disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{ fontSize: '16px' }}
                         />
                       </div>
                     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
 import FiltroRapidoData from './FiltroRapidoData'
 
 interface FiltroDataContextType {
@@ -11,6 +11,13 @@ interface FiltroDataContextType {
 
 const FiltroDataContext = createContext<FiltroDataContextType | undefined>(undefined)
 
+function getCurrentMonthRange() {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+  return { inicio: start.toISOString(), fim: end.toISOString() }
+}
+
 export function useFiltroData() {
   const context = useContext(FiltroDataContext)
   if (!context) {
@@ -20,13 +27,14 @@ export function useFiltroData() {
 }
 
 export function FiltroDataProvider({ children }: { children: ReactNode }) {
-  const [dataInicio, setDataInicio] = useState<string | undefined>(undefined)
-  const [dataFim, setDataFim] = useState<string | undefined>(undefined)
+  const { inicio: defaultInicio, fim: defaultFim } = getCurrentMonthRange()
+  const [dataInicio, setDataInicio] = useState<string | undefined>(defaultInicio)
+  const [dataFim, setDataFim] = useState<string | undefined>(defaultFim)
 
-  const setFiltroData = (inicio: string | undefined, fim: string | undefined) => {
+  const setFiltroData = useCallback((inicio: string | undefined, fim: string | undefined) => {
     setDataInicio(inicio)
     setDataFim(fim)
-  }
+  }, [])
 
   return (
     <FiltroDataContext.Provider value={{ dataInicio, dataFim, setFiltroData }}>

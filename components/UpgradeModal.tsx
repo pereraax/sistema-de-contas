@@ -159,11 +159,11 @@ export default function UpgradeModal({
           <Link
             href="/upgrade"
             onClick={handleUpgrade}
-            className="flex-1 px-4 py-2.5 bg-brand-aqua text-white rounded-lg font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2"
+            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-500 text-amber-900 rounded-lg font-semibold hover:from-amber-300 hover:to-yellow-400 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center justify-center gap-2"
           >
             {loading ? (
               <>
-                <div className="w-4 h-4 border-2 border-brand-midnight border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-4 h-4 border-2 border-amber-900 border-t-transparent rounded-full animate-spin"></div>
                 <span>Redirecionando...</span>
               </>
             ) : (

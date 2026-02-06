@@ -18,6 +18,7 @@ import { User } from '@/lib/types'
 import { formatarValorEmTempoReal, converterValorFormatadoParaNumero } from '@/lib/formatCurrency'
 import DatePicker from '@/components/DatePicker'
 import TimePicker from '@/components/TimePicker'
+import DiaMesPicker from '@/components/DiaMesPicker'
 
 import { ptBR } from 'date-fns/locale/pt-BR'
 
@@ -32,6 +33,8 @@ interface Lembrete {
   nota?: string | null
   user_id?: string | null
   tipo?: 'entrada' | 'saida' | null
+  is_recorrente_mensal?: boolean
+  recorrencia_dia_mes?: number | null
 }
 
 export default function LembretesPage() {
@@ -67,6 +70,8 @@ export default function LembretesPage() {
     nota: '',
     user_id: '',
     tipo: '' as 'entrada' | 'saida' | '',
+    is_recorrente_mensal: false,
+    recorrencia_dia_mes: new Date().getDate().toString(),
   })
   const [editFormData, setEditFormData] = useState({
     descricao: '',
@@ -76,7 +81,18 @@ export default function LembretesPage() {
     nota: '',
     user_id: '',
     tipo: '' as 'entrada' | 'saida' | '',
+    is_recorrente_mensal: false,
+    recorrencia_dia_mes: new Date().getDate().toString(),
   })
+
+  // Travar scroll do body quando modal Criar ou Editar Lembrete estiver aberto
+  useEffect(() => {
+    if (showCreateModal || showEditModal) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => { document.body.style.overflow = prev }
+    }
+  }, [showCreateModal, showEditModal])
 
   const carregarLembretes = async () => {
     try {
@@ -278,20 +294,22 @@ export default function LembretesPage() {
   const confirmarDeletar = async () => {
     if (!lembreteToDelete) return
 
-    setDeletingId(lembreteToDelete.id)
+    const idToDelete = lembreteToDelete.id
+    setDeletingId(idToDelete)
 
     try {
       const supabase = createClient()
       const { error } = await supabase
         .from('lembretes')
         .delete()
-        .eq('id', lembreteToDelete.id)
+        .eq('id', idToDelete)
 
       if (error) {
         console.error('Erro ao deletar lembrete:', error)
         alert('Erro ao deletar lembrete')
       } else {
-        carregarLembretes()
+        // Atualização otimista: remove da lista sem recarregar a página
+        setLembretes(prev => prev.filter(l => l.id !== idToDelete))
       }
     } catch (error) {
       console.error('Erro ao deletar lembrete:', error)
@@ -321,6 +339,8 @@ export default function LembretesPage() {
       nota: lembrete.nota || '',
       user_id: lembrete.user_id || '',
       tipo: lembrete.tipo || '',
+      is_recorrente_mensal: !!lembrete.is_recorrente_mensal,
+      recorrencia_dia_mes: lembrete.recorrencia_dia_mes ? String(lembrete.recorrencia_dia_mes) : String(new Date(lembrete.data_lembrete).getDate()),
     })
     
     // Carregar dados do usuário se houver user_id
@@ -354,6 +374,8 @@ export default function LembretesPage() {
       descricao: '',
       data_lembrete: new Date().toISOString().slice(0, 10),
       horario_lembrete: '',
+      is_recorrente_mensal: false,
+      recorrencia_dia_mes: new Date().getDate().toString(),
       valor: '',
       nota: '',
       user_id: '',
@@ -401,8 +423,17 @@ export default function LembretesPage() {
       }
 
       const horarioFinal = editFormData.horario_lembrete ? `${editFormData.horario_lembrete}:00` : '10:00:00'
-      const dataLembrete = new Date(`${editFormData.data_lembrete}T${horarioFinal.slice(0, 5)}`)
-      
+      let dataLembrete = new Date(`${editFormData.data_lembrete}T${horarioFinal.slice(0, 5)}`)
+
+      // Para lembretes recorrentes, usar o dia selecionado em recorrencia_dia_mes
+      if (editFormData.is_recorrente_mensal && editFormData.recorrencia_dia_mes) {
+        const diaEscolhido = parseInt(editFormData.recorrencia_dia_mes, 10)
+        if (diaEscolhido >= 1 && diaEscolhido <= 31) {
+          const maxDia = new Date(dataLembrete.getFullYear(), dataLembrete.getMonth() + 1, 0).getDate()
+          dataLembrete.setDate(Math.min(diaEscolhido, maxDia))
+        }
+      }
+
       // Converter valor formatado para número
       const valorNumerico = editFormData.valor ? converterValorFormatadoParaNumero(editFormData.valor) : null
 
@@ -425,6 +456,12 @@ export default function LembretesPage() {
       } else {
         updateData.tipo = null
       }
+
+      // Repetição mensal
+      updateData.is_recorrente_mensal = editFormData.is_recorrente_mensal
+      updateData.recorrencia_dia_mes = editFormData.is_recorrente_mensal
+        ? parseInt(editFormData.recorrencia_dia_mes || String(new Date().getDate()), 10)
+        : null
 
       const { error } = await supabase
         .from('lembretes')
@@ -468,8 +505,17 @@ export default function LembretesPage() {
       }
 
       const horarioFinal = formData.horario_lembrete ? `${formData.horario_lembrete}:00` : '10:00:00'
-      const dataLembrete = new Date(`${formData.data_lembrete}T${horarioFinal.slice(0, 5)}`)
-      
+      let dataLembrete = new Date(`${formData.data_lembrete}T${horarioFinal.slice(0, 5)}`)
+
+      // Para lembretes recorrentes, usar o dia selecionado em recorrencia_dia_mes
+      if (formData.is_recorrente_mensal && formData.recorrencia_dia_mes) {
+        const diaEscolhido = parseInt(formData.recorrencia_dia_mes, 10)
+        if (diaEscolhido >= 1 && diaEscolhido <= 31) {
+          const maxDia = new Date(dataLembrete.getFullYear(), dataLembrete.getMonth() + 1, 0).getDate()
+          dataLembrete.setDate(Math.min(diaEscolhido, maxDia))
+        }
+      }
+
       // Converter valor formatado para número
       const valorNumerico = formData.valor ? converterValorFormatadoParaNumero(formData.valor) : null
       
@@ -494,6 +540,12 @@ export default function LembretesPage() {
         insertData.tipo = formData.tipo
       }
 
+      // Repetição mensal
+      if (formData.is_recorrente_mensal) {
+        insertData.is_recorrente_mensal = true
+        insertData.recorrencia_dia_mes = parseInt(formData.recorrencia_dia_mes || String(new Date().getDate()), 10)
+      }
+
       const { error } = await supabase
         .from('lembretes')
         .insert(insertData)
@@ -512,6 +564,8 @@ export default function LembretesPage() {
           nota: '',
           user_id: '',
           tipo: '',
+          is_recorrente_mensal: false,
+          recorrencia_dia_mes: new Date().getDate().toString(),
         })
         carregarLembretes()
       }
@@ -582,7 +636,7 @@ export default function LembretesPage() {
       <Sidebar />
       <main className="lg:ml-64 p-3 sm:p-4 lg:p-8 dark:bg-brand-midnight pt-3 sm:pt-4 lg:pt-4 pb-24 sm:pb-28">
         <div className="max-w-7xl mx-auto">
-          {/* Header: no mobile logo à esquerda do título; headbar compacta */}
+          {/* Header: no mobile logo à esquerda do título; headbar compacta — ícones no canto direito (padrão categorias) */}
           <div className="flex items-center justify-between gap-2 sm:gap-4 py-1 lg:py-0 mb-3 sm:mb-4">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center overflow-hidden rounded-lg lg:hidden [&_a]:!p-0 [&_a]:!w-full [&_a]:!h-full [&_img]:!w-full [&_img]:!h-full [&_img]:!object-contain">
@@ -593,18 +647,22 @@ export default function LembretesPage() {
                 Lembretes
               </h1>
             </div>
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
               <NotificationBell />
               <UserProfileMenu />
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-brand-aqua hover:bg-brand-aqua/90 text-white rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg"
-              >
-                <Plus size={18} />
-                <span className="hidden sm:inline">Novo Lembrete</span>
-                <span className="sm:hidden">Novo</span>
-              </button>
             </div>
+          </div>
+
+          {/* Botão Novo: abaixo do headbar e acima dos quadros (Pendentes, Atrasados, etc.) */}
+          <div className="mb-3 sm:mb-4 flex justify-end">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-brand-aqua hover:bg-brand-aqua/90 text-white rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg"
+            >
+              <Plus size={18} />
+              <span className="hidden sm:inline">Novo Lembrete</span>
+              <span className="sm:hidden">Novo</span>
+            </button>
           </div>
 
           {loading ? (
@@ -616,41 +674,41 @@ export default function LembretesPage() {
             </div>
           ) : (
             <div className="space-y-4 sm:space-y-5">
-              {/* Estatísticas: grade 2x2 — Pendentes | Atrasados, Concluídos | Total */}
+              {/* Estatísticas: grade 2x2 — apenas ícones com cores leves para identificar */}
               <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                <div className="rounded-xl p-3 sm:p-4 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40">
+                <div className="rounded-xl p-3 sm:p-4 bg-white dark:bg-brand-midnight/60 border border-gray-200 dark:border-white/10 shadow-sm">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-amber-200/70 dark:bg-amber-800/40 flex items-center justify-center">
-                      <Clock className="text-amber-700 dark:text-amber-400" size={18} strokeWidth={2} />
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                      <Clock className="text-amber-500 dark:text-amber-400" size={18} strokeWidth={2} />
                     </div>
-                    <span className="text-xs font-medium text-amber-700/90 dark:text-amber-400/90">Pendentes</span>
+                    <span className="text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70">Pendentes</span>
                   </div>
                   <p className="text-lg sm:text-xl font-bold text-brand-midnight dark:text-brand-clean tabular-nums">{lembretesPendentes.length}</p>
                 </div>
-                <div className="rounded-xl p-3 sm:p-4 bg-red-50/80 dark:bg-red-950/30 border border-red-200/60 dark:border-red-800/40">
+                <div className="rounded-xl p-3 sm:p-4 bg-white dark:bg-brand-midnight/60 border border-gray-200 dark:border-white/10 shadow-sm">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-red-200/70 dark:bg-red-800/40 flex items-center justify-center">
-                      <AlertCircle className="text-red-700 dark:text-red-400" size={18} strokeWidth={2} />
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                      <AlertCircle className="text-orange-500 dark:text-orange-400" size={18} strokeWidth={2} />
                     </div>
-                    <span className="text-xs font-medium text-red-700/90 dark:text-red-400/90">Atrasados</span>
+                    <span className="text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70">Atrasados</span>
                   </div>
                   <p className="text-lg sm:text-xl font-bold text-brand-midnight dark:text-brand-clean tabular-nums">{lembretesAtrasados.length}</p>
                 </div>
-                <div className="rounded-xl p-3 sm:p-4 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/40">
+                <div className="rounded-xl p-3 sm:p-4 bg-white dark:bg-brand-midnight/60 border border-gray-200 dark:border-white/10 shadow-sm">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-emerald-200/70 dark:bg-emerald-800/40 flex items-center justify-center">
-                      <CheckCircle2 className="text-emerald-700 dark:text-emerald-400" size={18} strokeWidth={2} />
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                      <CheckCircle2 className="text-emerald-500 dark:text-emerald-400" size={18} strokeWidth={2} />
                     </div>
-                    <span className="text-xs font-medium text-emerald-700/90 dark:text-emerald-400/90">Concluídos</span>
+                    <span className="text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70">Concluídos</span>
                   </div>
                   <p className="text-lg sm:text-xl font-bold text-brand-midnight dark:text-brand-clean tabular-nums">{lembretesConcluidos.length}</p>
                 </div>
-                <div className="rounded-xl p-3 sm:p-4 bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200/60 dark:border-sky-800/40">
+                <div className="rounded-xl p-3 sm:p-4 bg-white dark:bg-brand-midnight/60 border border-gray-200 dark:border-white/10 shadow-sm">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-sky-200/70 dark:bg-sky-800/40 flex items-center justify-center">
-                      <Calendar className="text-sky-700 dark:text-sky-400" size={18} strokeWidth={2} />
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
+                      <Calendar className="text-sky-500 dark:text-sky-400" size={18} strokeWidth={2} />
                     </div>
-                    <span className="text-xs font-medium text-sky-700/90 dark:text-sky-400/90">Total</span>
+                    <span className="text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70">Total</span>
                   </div>
                   <p className="text-lg sm:text-xl font-bold text-brand-midnight dark:text-brand-clean tabular-nums">{lembretes.length}</p>
                 </div>
@@ -674,8 +732,8 @@ export default function LembretesPage() {
                       onClick={() => setFilterStatus('todos')}
                       className={`px-3 sm:px-4 py-2 text-sm rounded-lg font-medium transition-all duration-200 ${
                         filterStatus === 'todos'
-                          ? 'bg-gradient-to-r from-brand-aqua to-blue-500 text-white shadow-md shadow-brand-aqua/30 scale-105'
-                          : 'bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-brand-midnight/80'
+                          ? 'bg-brand-aqua text-white'
+                          : 'bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-white/10'
                       }`}
                     >
                       Todos
@@ -684,8 +742,8 @@ export default function LembretesPage() {
                       onClick={() => setFilterStatus('pendente')}
                       className={`px-3 sm:px-4 py-2 text-sm rounded-lg font-medium transition-all duration-200 ${
                         filterStatus === 'pendente'
-                          ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white shadow-md shadow-yellow-500/30 scale-105'
-                          : 'bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-brand-midnight/80'
+                          ? 'bg-brand-aqua text-white'
+                          : 'bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-white/10'
                       }`}
                     >
                       Pendentes
@@ -694,8 +752,8 @@ export default function LembretesPage() {
                       onClick={() => setFilterStatus('concluido')}
                       className={`px-3 sm:px-4 py-2 text-sm rounded-lg font-medium transition-all duration-200 ${
                         filterStatus === 'concluido'
-                          ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-md shadow-green-500/30 scale-105'
-                          : 'bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-brand-midnight/80'
+                          ? 'bg-brand-aqua text-white'
+                          : 'bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean hover:bg-gray-200 dark:hover:bg-white/10'
                       }`}
                     >
                       Concluídos
@@ -704,77 +762,77 @@ export default function LembretesPage() {
                 </div>
               </div>
 
-              {/* Lembretes Atrasados */}
+              {/* Lembretes Atrasados — design clean Plenipay */}
               {lembretesAtrasados.length > 0 && (
                 <div className="animate-fade-in">
                   <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-md">
-                      <AlertCircle className="text-white" size={18} />
+                    <div className="w-8 h-8 rounded-lg bg-brand-aqua/10 dark:bg-brand-aqua/20 flex items-center justify-center">
+                      <AlertCircle className="text-brand-aqua" size={18} strokeWidth={2} />
                     </div>
                     <h2 className="text-lg sm:text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
-                      Atrasados <span className="text-red-500 dark:text-red-400">({lembretesAtrasados.length})</span>
+                      Atrasados <span className="text-brand-midnight/60 dark:text-brand-clean/60 font-normal">({lembretesAtrasados.length})</span>
                     </h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {lembretesAtrasados.map((lembrete) => {
                       const dataLembrete = new Date(lembrete.data_lembrete)
-                      const dataFormatada = format(dataLembrete, 'dd/MM/yyyy', { locale: ptBR })
+                      const dataParaExibir = lembrete.is_recorrente_mensal && lembrete.recorrencia_dia_mes
+                        ? new Date(dataLembrete.getFullYear(), dataLembrete.getMonth(), Math.min(lembrete.recorrencia_dia_mes, new Date(dataLembrete.getFullYear(), dataLembrete.getMonth() + 1, 0).getDate()))
+                        : dataLembrete
+                      const dataFormatada = format(dataParaExibir, 'dd/MM/yyyy', { locale: ptBR })
                       const horarioFormatado = (lembrete.horario || '10:00:00').slice(0, 5)
 
                       return (
                         <div
                           key={lembrete.id}
                           onClick={() => abrirModalDetalhes(lembrete)}
-                          className="group relative bg-white dark:bg-brand-royal rounded-xl p-4 sm:p-5 shadow-lg border-2 border-red-400 dark:border-red-500/50 hover:border-red-500 dark:hover:border-red-400 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden cursor-pointer"
+                          className="group bg-white dark:bg-brand-midnight/60 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-white/10 hover:border-brand-aqua/40 dark:hover:border-brand-aqua/40 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md"
                         >
-                          <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 dark:bg-red-500/20 rounded-full -mr-12 -mt-12 blur-xl"></div>
-                          <div className="relative">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex-1">
-                                <h3 className="font-bold text-brand-midnight dark:text-brand-clean text-base sm:text-lg mb-2 leading-tight">
-                                  {lembrete.descricao}
-                                </h3>
-                                <div className="space-y-1.5 text-xs sm:text-sm">
-                                  <div className="flex items-center gap-1.5 text-brand-midnight/70 dark:text-brand-clean/70">
-                                    <Calendar className="text-red-500 dark:text-red-400" size={14} />
-                                    <span>{dataFormatada}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 text-brand-midnight/70 dark:text-brand-clean/70">
-                                    <Clock className="text-red-500 dark:text-red-400" size={14} />
-                                    <span>{horarioFormatado}</span>
-                                  </div>
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-brand-midnight dark:text-brand-clean text-base sm:text-lg mb-2 leading-tight truncate">
+                                {lembrete.descricao}
+                              </h3>
+                              <div className="space-y-1.5 text-xs sm:text-sm">
+                                <div className="flex items-center gap-1.5 text-brand-midnight/60 dark:text-brand-clean/60">
+                                  <Calendar className="text-brand-midnight/40 dark:text-brand-clean/40 shrink-0" size={14} />
+                                  <span>{dataFormatada}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-brand-midnight/60 dark:text-brand-clean/60">
+                                  <Clock className="text-brand-midnight/40 dark:text-brand-clean/40 shrink-0" size={14} />
+                                  <span>{horarioFormatado}</span>
                                 </div>
                               </div>
-                              <span className="text-xs font-semibold bg-gradient-to-r from-red-500 to-red-600 text-white px-2 py-1 rounded-full shadow-md">
-                                Atrasado
-                              </span>
                             </div>
-                            <div className="flex gap-2 mt-3 sm:mt-4" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                onClick={() => marcarComoConcluido(lembrete.id)}
-                                className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
-                              >
-                                <CheckCircle2 size={16} />
-                                Concluir
-                              </button>
-                              <button
-                                onClick={() => abrirModalEditar(lembrete)}
-                                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
-                              >
-                                <Pencil size={16} />
-                              </button>
-                              <button
-                                onClick={() => abrirModalDeletar(lembrete.id, lembrete.descricao)}
-                                disabled={deletingId === lembrete.id}
-                                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {deletingId === lembrete.id ? (
-                                  <Loader2 size={16} className="animate-spin" />
-                                ) : (
-                                  <Trash2 size={16} />
-                                )}
-                              </button>
-                            </div>
+                            <span className="text-[11px] font-medium bg-brand-midnight/8 dark:bg-white/10 text-brand-midnight/80 dark:text-brand-clean/80 px-2 py-1 rounded-md shrink-0">
+                              Atrasado
+                            </span>
+                          </div>
+                          <div className="flex gap-2 mt-3 sm:mt-4" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => marcarComoConcluido(lembrete.id)}
+                              className="flex-1 flex items-center justify-center gap-1.5 bg-brand-aqua hover:bg-brand-aqua/90 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <CheckCircle2 size={16} />
+                              Concluir
+                            </button>
+                            <button
+                              onClick={() => abrirModalEditar(lembrete)}
+                              className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/10 text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/15 dark:hover:bg-brand-aqua/20 transition-colors"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              onClick={() => abrirModalDeletar(lembrete.id, lembrete.descricao)}
+                              disabled={deletingId === lembrete.id}
+                              className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/10 text-brand-midnight/70 dark:text-brand-clean/70 hover:bg-gray-200 dark:hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {deletingId === lembrete.id ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <Trash2 size={16} />
+                              )}
+                            </button>
                           </div>
                         </div>
                       )
@@ -783,77 +841,77 @@ export default function LembretesPage() {
                 </div>
               )}
 
-              {/* Lembretes Hoje */}
+              {/* Lembretes Hoje — design clean Plenipay */}
               {lembretesHoje.length > 0 && (
                 <div className="animate-fade-in">
                   <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md">
-                      <Calendar className="text-white" size={18} />
+                    <div className="w-8 h-8 rounded-lg bg-brand-aqua/10 dark:bg-brand-aqua/20 flex items-center justify-center">
+                      <Calendar className="text-brand-aqua" size={18} strokeWidth={2} />
                     </div>
                     <h2 className="text-lg sm:text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
-                      Hoje <span className="text-blue-500 dark:text-blue-400">({lembretesHoje.length})</span>
+                      Hoje <span className="text-brand-midnight/60 dark:text-brand-clean/60 font-normal">({lembretesHoje.length})</span>
                     </h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {lembretesHoje.map((lembrete) => {
                       const dataLembrete = new Date(lembrete.data_lembrete)
-                      const dataFormatada = format(dataLembrete, 'dd/MM/yyyy', { locale: ptBR })
+                      const dataParaExibir = lembrete.is_recorrente_mensal && lembrete.recorrencia_dia_mes
+                        ? new Date(dataLembrete.getFullYear(), dataLembrete.getMonth(), Math.min(lembrete.recorrencia_dia_mes, new Date(dataLembrete.getFullYear(), dataLembrete.getMonth() + 1, 0).getDate()))
+                        : dataLembrete
+                      const dataFormatada = format(dataParaExibir, 'dd/MM/yyyy', { locale: ptBR })
                       const horarioFormatado = (lembrete.horario || '10:00:00').slice(0, 5)
 
                       return (
                         <div
                           key={lembrete.id}
                           onClick={() => abrirModalDetalhes(lembrete)}
-                          className="group relative bg-white dark:bg-brand-royal rounded-xl p-4 sm:p-5 shadow-lg border-2 border-blue-400 dark:border-blue-500/50 hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden cursor-pointer"
+                          className="group bg-white dark:bg-brand-midnight/60 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-white/10 hover:border-brand-aqua/40 dark:hover:border-brand-aqua/40 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md"
                         >
-                          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 dark:bg-blue-500/20 rounded-full -mr-12 -mt-12 blur-xl"></div>
-                          <div className="relative">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex-1">
-                                <h3 className="font-bold text-brand-midnight dark:text-brand-clean text-base sm:text-lg mb-2 leading-tight">
-                                  {lembrete.descricao}
-                                </h3>
-                                <div className="space-y-1.5 text-xs sm:text-sm">
-                                  <div className="flex items-center gap-1.5 text-brand-midnight/70 dark:text-brand-clean/70">
-                                    <Calendar className="text-blue-500 dark:text-blue-400" size={14} />
-                                    <span>{dataFormatada}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 text-brand-midnight/70 dark:text-brand-clean/70">
-                                    <Clock className="text-blue-500 dark:text-blue-400" size={14} />
-                                    <span>{horarioFormatado}</span>
-                                  </div>
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-brand-midnight dark:text-brand-clean text-base sm:text-lg mb-2 leading-tight truncate">
+                                {lembrete.descricao}
+                              </h3>
+                              <div className="space-y-1.5 text-xs sm:text-sm">
+                                <div className="flex items-center gap-1.5 text-brand-midnight/60 dark:text-brand-clean/60">
+                                  <Calendar className="text-brand-midnight/40 dark:text-brand-clean/40 shrink-0" size={14} />
+                                  <span>{dataFormatada}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-brand-midnight/60 dark:text-brand-clean/60">
+                                  <Clock className="text-brand-midnight/40 dark:text-brand-clean/40 shrink-0" size={14} />
+                                  <span>{horarioFormatado}</span>
                                 </div>
                               </div>
-                              <span className="text-xs font-semibold bg-gradient-to-r from-blue-500 to-blue-600 text-white px-2 py-1 rounded-full shadow-md">
-                                Hoje
-                              </span>
                             </div>
-                            <div className="flex gap-2 mt-3 sm:mt-4" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                onClick={() => marcarComoConcluido(lembrete.id)}
-                                className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
-                              >
-                                <CheckCircle2 size={16} />
-                                Concluir
-                              </button>
-                              <button
-                                onClick={() => abrirModalEditar(lembrete)}
-                                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
-                              >
-                                <Pencil size={16} />
-                              </button>
-                              <button
-                                onClick={() => abrirModalDeletar(lembrete.id, lembrete.descricao)}
-                                disabled={deletingId === lembrete.id}
-                                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {deletingId === lembrete.id ? (
-                                  <Loader2 size={16} className="animate-spin" />
-                                ) : (
-                                  <Trash2 size={16} />
-                                )}
-                              </button>
-                            </div>
+                            <span className="text-[11px] font-medium bg-brand-aqua/15 dark:bg-brand-aqua/25 text-brand-aqua px-2 py-1 rounded-md shrink-0">
+                              Hoje
+                            </span>
+                          </div>
+                          <div className="flex gap-2 mt-3 sm:mt-4" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => marcarComoConcluido(lembrete.id)}
+                              className="flex-1 flex items-center justify-center gap-1.5 bg-brand-aqua hover:bg-brand-aqua/90 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <CheckCircle2 size={16} />
+                              Concluir
+                            </button>
+                            <button
+                              onClick={() => abrirModalEditar(lembrete)}
+                              className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/10 text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/15 dark:hover:bg-brand-aqua/20 transition-colors"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              onClick={() => abrirModalDeletar(lembrete.id, lembrete.descricao)}
+                              disabled={deletingId === lembrete.id}
+                              className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/10 text-brand-midnight/70 dark:text-brand-clean/70 hover:bg-gray-200 dark:hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {deletingId === lembrete.id ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <Trash2 size={16} />
+                              )}
+                            </button>
                           </div>
                         </div>
                       )
@@ -862,77 +920,77 @@ export default function LembretesPage() {
                 </div>
               )}
 
-              {/* Lembretes Amanhã */}
+              {/* Lembretes Amanhã — design clean Plenipay */}
               {lembretesAmanha.length > 0 && (
                 <div className="animate-fade-in">
                   <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-md">
-                      <Calendar className="text-white" size={18} />
+                    <div className="w-8 h-8 rounded-lg bg-brand-aqua/10 dark:bg-brand-aqua/20 flex items-center justify-center">
+                      <Calendar className="text-brand-aqua" size={18} strokeWidth={2} />
                     </div>
                     <h2 className="text-lg sm:text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
-                      Amanhã <span className="text-purple-500 dark:text-purple-400">({lembretesAmanha.length})</span>
+                      Amanhã <span className="text-brand-midnight/60 dark:text-brand-clean/60 font-normal">({lembretesAmanha.length})</span>
                     </h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {lembretesAmanha.map((lembrete) => {
                       const dataLembrete = new Date(lembrete.data_lembrete)
-                      const dataFormatada = format(dataLembrete, 'dd/MM/yyyy', { locale: ptBR })
+                      const dataParaExibir = lembrete.is_recorrente_mensal && lembrete.recorrencia_dia_mes
+                        ? new Date(dataLembrete.getFullYear(), dataLembrete.getMonth(), Math.min(lembrete.recorrencia_dia_mes, new Date(dataLembrete.getFullYear(), dataLembrete.getMonth() + 1, 0).getDate()))
+                        : dataLembrete
+                      const dataFormatada = format(dataParaExibir, 'dd/MM/yyyy', { locale: ptBR })
                       const horarioFormatado = (lembrete.horario || '10:00:00').slice(0, 5)
 
                       return (
                         <div
                           key={lembrete.id}
                           onClick={() => abrirModalDetalhes(lembrete)}
-                          className="group relative bg-white dark:bg-brand-royal rounded-xl p-4 sm:p-5 shadow-lg border-2 border-purple-400 dark:border-purple-500/50 hover:border-purple-500 dark:hover:border-purple-400 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl overflow-hidden cursor-pointer"
+                          className="group bg-white dark:bg-brand-midnight/60 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-white/10 hover:border-brand-aqua/40 dark:hover:border-brand-aqua/40 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md"
                         >
-                          <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/10 dark:bg-purple-500/20 rounded-full -mr-12 -mt-12 blur-xl"></div>
-                          <div className="relative">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex-1">
-                                <h3 className="font-bold text-brand-midnight dark:text-brand-clean text-base sm:text-lg mb-2 leading-tight">
-                                  {lembrete.descricao}
-                                </h3>
-                                <div className="space-y-1.5 text-xs sm:text-sm">
-                                  <div className="flex items-center gap-1.5 text-brand-midnight/70 dark:text-brand-clean/70">
-                                    <Calendar className="text-purple-500 dark:text-purple-400" size={14} />
-                                    <span>{dataFormatada}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 text-brand-midnight/70 dark:text-brand-clean/70">
-                                    <Clock className="text-purple-500 dark:text-purple-400" size={14} />
-                                    <span>{horarioFormatado}</span>
-                                  </div>
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-brand-midnight dark:text-brand-clean text-base sm:text-lg mb-2 leading-tight truncate">
+                                {lembrete.descricao}
+                              </h3>
+                              <div className="space-y-1.5 text-xs sm:text-sm">
+                                <div className="flex items-center gap-1.5 text-brand-midnight/60 dark:text-brand-clean/60">
+                                  <Calendar className="text-brand-midnight/40 dark:text-brand-clean/40 shrink-0" size={14} />
+                                  <span>{dataFormatada}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-brand-midnight/60 dark:text-brand-clean/60">
+                                  <Clock className="text-brand-midnight/40 dark:text-brand-clean/40 shrink-0" size={14} />
+                                  <span>{horarioFormatado}</span>
                                 </div>
                               </div>
-                              <span className="text-xs font-semibold bg-gradient-to-r from-purple-500 to-purple-600 text-white px-2 py-1 rounded-full shadow-md">
-                                Amanhã
-                              </span>
                             </div>
-                            <div className="flex gap-2 mt-3 sm:mt-4" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                onClick={() => marcarComoConcluido(lembrete.id)}
-                                className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
-                              >
-                                <CheckCircle2 size={16} />
-                                Concluir
-                              </button>
-                              <button
-                                onClick={() => abrirModalEditar(lembrete)}
-                                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
-                              >
-                                <Pencil size={16} />
-                              </button>
-                              <button
-                                onClick={() => abrirModalDeletar(lembrete.id, lembrete.descricao)}
-                                disabled={deletingId === lembrete.id}
-                                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {deletingId === lembrete.id ? (
-                                  <Loader2 size={16} className="animate-spin" />
-                                ) : (
-                                  <Trash2 size={16} />
-                                )}
-                              </button>
-                            </div>
+                            <span className="text-[11px] font-medium bg-brand-midnight/8 dark:bg-white/10 text-brand-midnight/80 dark:text-brand-clean/80 px-2 py-1 rounded-md shrink-0">
+                              Amanhã
+                            </span>
+                          </div>
+                          <div className="flex gap-2 mt-3 sm:mt-4" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => marcarComoConcluido(lembrete.id)}
+                              className="flex-1 flex items-center justify-center gap-1.5 bg-brand-aqua hover:bg-brand-aqua/90 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <CheckCircle2 size={16} />
+                              Concluir
+                            </button>
+                            <button
+                              onClick={() => abrirModalEditar(lembrete)}
+                              className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/10 text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/15 dark:hover:bg-brand-aqua/20 transition-colors"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              onClick={() => abrirModalDeletar(lembrete.id, lembrete.descricao)}
+                              disabled={deletingId === lembrete.id}
+                              className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/10 text-brand-midnight/70 dark:text-brand-clean/70 hover:bg-gray-200 dark:hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {deletingId === lembrete.id ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <Trash2 size={16} />
+                              )}
+                            </button>
                           </div>
                         </div>
                       )
@@ -941,73 +999,74 @@ export default function LembretesPage() {
                 </div>
               )}
 
-              {/* Lembretes Próximos */}
+              {/* Lembretes Próximos — design clean Plenipay */}
               {lembretesProximos.length > 0 && (
                 <div className="animate-fade-in">
                   <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-yellow-500 to-yellow-600 flex items-center justify-center shadow-md">
-                      <Clock className="text-white" size={18} />
+                    <div className="w-8 h-8 rounded-lg bg-brand-aqua/10 dark:bg-brand-aqua/20 flex items-center justify-center">
+                      <Clock className="text-brand-aqua" size={18} strokeWidth={2} />
                     </div>
                     <h2 className="text-lg sm:text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
-                      Próximos <span className="text-yellow-500 dark:text-yellow-400">({lembretesProximos.length})</span>
+                      Próximos <span className="text-brand-midnight/60 dark:text-brand-clean/60 font-normal">({lembretesProximos.length})</span>
                     </h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {lembretesProximos.map((lembrete) => {
                       const dataLembrete = new Date(lembrete.data_lembrete)
-                      const dataFormatada = format(dataLembrete, 'dd/MM/yyyy', { locale: ptBR })
+                      const dataParaExibir = lembrete.is_recorrente_mensal && lembrete.recorrencia_dia_mes
+                        ? new Date(dataLembrete.getFullYear(), dataLembrete.getMonth(), Math.min(lembrete.recorrencia_dia_mes, new Date(dataLembrete.getFullYear(), dataLembrete.getMonth() + 1, 0).getDate()))
+                        : dataLembrete
+                      const dataFormatada = format(dataParaExibir, 'dd/MM/yyyy', { locale: ptBR })
                       const horarioFormatado = (lembrete.horario || '10:00:00').slice(0, 5)
 
                       return (
                         <div
                           key={lembrete.id}
-                          className="group relative bg-white dark:bg-brand-royal rounded-2xl p-6 shadow-xl border-2 border-yellow-400 dark:border-yellow-500/50 hover:border-yellow-500 dark:hover:border-yellow-400 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl overflow-hidden"
+                          onClick={() => abrirModalDetalhes(lembrete)}
+                          className="group bg-white dark:bg-brand-midnight/60 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-white/10 hover:border-brand-aqua/40 dark:hover:border-brand-aqua/40 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md"
                         >
-                          <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-500/10 dark:bg-yellow-500/20 rounded-full -mr-12 -mt-12 blur-xl"></div>
-                          <div className="relative">
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="flex-1">
-                                <h3 className="font-bold text-brand-midnight dark:text-brand-clean text-base sm:text-lg mb-2 leading-tight">
-                                  {lembrete.descricao}
-                                </h3>
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex items-center gap-2 text-brand-midnight/70 dark:text-brand-clean/70">
-                                    <Calendar className="text-yellow-500 dark:text-yellow-400" size={16} />
-                                    <span>{dataFormatada}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2 text-brand-midnight/70 dark:text-brand-clean/70">
-                                    <Clock className="text-yellow-500 dark:text-yellow-400" size={16} />
-                                    <span>{horarioFormatado}</span>
-                                  </div>
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-brand-midnight dark:text-brand-clean text-base sm:text-lg mb-2 leading-tight truncate">
+                                {lembrete.descricao}
+                              </h3>
+                              <div className="space-y-1.5 text-xs sm:text-sm">
+                                <div className="flex items-center gap-1.5 text-brand-midnight/60 dark:text-brand-clean/60">
+                                  <Calendar className="text-brand-midnight/40 dark:text-brand-clean/40 shrink-0" size={14} />
+                                  <span>{dataFormatada}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-brand-midnight/60 dark:text-brand-clean/60">
+                                  <Clock className="text-brand-midnight/40 dark:text-brand-clean/40 shrink-0" size={14} />
+                                  <span>{horarioFormatado}</span>
                                 </div>
                               </div>
                             </div>
-                            <div className="flex gap-2 mt-3 sm:mt-4" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                onClick={() => marcarComoConcluido(lembrete.id)}
-                                className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
-                              >
-                                <CheckCircle2 size={16} />
-                                Concluir
-                              </button>
-                              <button
-                                onClick={() => abrirModalEditar(lembrete)}
-                                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
-                              >
-                                <Pencil size={16} />
-                              </button>
-                              <button
-                                onClick={() => abrirModalDeletar(lembrete.id, lembrete.descricao)}
-                                disabled={deletingId === lembrete.id}
-                                className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {deletingId === lembrete.id ? (
-                                  <Loader2 size={16} className="animate-spin" />
-                                ) : (
-                                  <Trash2 size={16} />
-                                )}
-                              </button>
-                            </div>
+                          </div>
+                          <div className="flex gap-2 mt-3 sm:mt-4" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => marcarComoConcluido(lembrete.id)}
+                              className="flex-1 flex items-center justify-center gap-1.5 bg-brand-aqua hover:bg-brand-aqua/90 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <CheckCircle2 size={16} />
+                              Concluir
+                            </button>
+                            <button
+                              onClick={() => abrirModalEditar(lembrete)}
+                              className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/10 text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/15 dark:hover:bg-brand-aqua/20 transition-colors"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              onClick={() => abrirModalDeletar(lembrete.id, lembrete.descricao)}
+                              disabled={deletingId === lembrete.id}
+                              className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/10 text-brand-midnight/70 dark:text-brand-clean/70 hover:bg-gray-200 dark:hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {deletingId === lembrete.id ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <Trash2 size={16} />
+                              )}
+                            </button>
                           </div>
                         </div>
                       )
@@ -1016,74 +1075,75 @@ export default function LembretesPage() {
                 </div>
               )}
 
-              {/* Lembretes Concluídos */}
+              {/* Lembretes Concluídos — design clean Plenipay */}
               {lembretesConcluidos.length > 0 && (
                 <div className="animate-fade-in">
                   <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-md">
-                      <CheckCircle2 className="text-white" size={18} />
+                    <div className="w-8 h-8 rounded-lg bg-brand-aqua/10 dark:bg-brand-aqua/20 flex items-center justify-center">
+                      <CheckCircle2 className="text-brand-aqua" size={18} strokeWidth={2} />
                     </div>
                     <h2 className="text-lg sm:text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
-                      Concluídos <span className="text-green-500 dark:text-green-400">({lembretesConcluidos.length})</span>
+                      Concluídos <span className="text-brand-midnight/60 dark:text-brand-clean/60 font-normal">({lembretesConcluidos.length})</span>
                     </h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {lembretesConcluidos.map((lembrete) => {
                       const dataLembrete = new Date(lembrete.data_lembrete)
-                      const dataFormatada = format(dataLembrete, 'dd/MM/yyyy', { locale: ptBR })
+                      const dataParaExibir = lembrete.is_recorrente_mensal && lembrete.recorrencia_dia_mes
+                        ? new Date(dataLembrete.getFullYear(), dataLembrete.getMonth(), Math.min(lembrete.recorrencia_dia_mes, new Date(dataLembrete.getFullYear(), dataLembrete.getMonth() + 1, 0).getDate()))
+                        : dataLembrete
+                      const dataFormatada = format(dataParaExibir, 'dd/MM/yyyy', { locale: ptBR })
                       const horarioFormatado = (lembrete.horario || '10:00:00').slice(0, 5)
 
                       return (
                         <div
                           key={lembrete.id}
                           onClick={() => abrirModalDetalhes(lembrete)}
-                          className="group relative bg-white dark:bg-brand-royal rounded-xl p-4 sm:p-5 shadow-md border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 transition-all duration-200 cursor-pointer"
+                          className="group bg-white dark:bg-brand-midnight/60 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-white/10 hover:border-brand-aqua/30 dark:hover:border-brand-aqua/30 transition-all duration-200 cursor-pointer shadow-sm"
                         >
-                          <div className="relative">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex-1">
-                                <h3 className="font-bold text-brand-midnight/60 dark:text-brand-clean/60 text-base sm:text-lg mb-2 leading-tight line-through">
-                                  {lembrete.descricao}
-                                </h3>
-                                <div className="space-y-1.5 text-sm">
-                                  <div className="flex items-center gap-1.5 text-brand-midnight/50 dark:text-brand-clean/50">
-                                    <Calendar className="text-brand-midnight/40 dark:text-brand-clean/40" size={14} />
-                                    <span>{dataFormatada}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 text-brand-midnight/50 dark:text-brand-clean/50">
-                                    <Clock className="text-brand-midnight/40 dark:text-brand-clean/40" size={14} />
-                                    <span>{horarioFormatado}</span>
-                                  </div>
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-brand-midnight/60 dark:text-brand-clean/60 text-base sm:text-lg mb-2 leading-tight line-through truncate">
+                                {lembrete.descricao}
+                              </h3>
+                              <div className="space-y-1.5 text-xs sm:text-sm">
+                                <div className="flex items-center gap-1.5 text-brand-midnight/50 dark:text-brand-clean/50">
+                                  <Calendar className="text-brand-midnight/40 dark:text-brand-clean/40 shrink-0" size={14} />
+                                  <span>{dataFormatada}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-brand-midnight/50 dark:text-brand-clean/50">
+                                  <Clock className="text-brand-midnight/40 dark:text-brand-clean/40 shrink-0" size={14} />
+                                  <span>{horarioFormatado}</span>
                                 </div>
                               </div>
-                              <span className="text-xs font-medium bg-gray-200 dark:bg-white/15 text-brand-midnight/70 dark:text-brand-clean/70 px-2 py-0.5 rounded-full">
-                                Concluído
-                              </span>
                             </div>
-                            <div className="flex items-center gap-1.5 mt-3" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                onClick={() => abrirModalEditar(lembrete)}
-                                className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors"
-                                title="Editar"
-                              >
-                                <Pencil size={14} />
-                              </button>
-                              <button
-                                onClick={() => abrirModalDeletar(lembrete.id, lembrete.descricao)}
-                                disabled={deletingId === lembrete.id}
-                                className="flex items-center justify-center gap-1 min-w-0 px-2 sm:px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Deletar"
-                              >
-                                {deletingId === lembrete.id ? (
-                                  <Loader2 size={14} className="animate-spin shrink-0" />
-                                ) : (
-                                  <>
-                                    <Trash2 size={14} className="shrink-0" />
-                                    <span className="sm:inline hidden">Deletar</span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
+                            <span className="text-[11px] font-medium bg-brand-midnight/6 dark:bg-white/8 text-brand-midnight/60 dark:text-brand-clean/60 px-2 py-1 rounded-md shrink-0">
+                              Concluído
+                            </span>
+                          </div>
+                          <div className="flex gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => abrirModalEditar(lembrete)}
+                              className="flex items-center justify-center w-9 h-9 rounded-lg bg-gray-100 dark:bg-white/10 text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/15 dark:hover:bg-brand-aqua/20 transition-colors"
+                              title="Editar"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => abrirModalDeletar(lembrete.id, lembrete.descricao)}
+                              disabled={deletingId === lembrete.id}
+                              className="flex items-center justify-center gap-1.5 min-w-0 px-3 py-2 rounded-lg bg-gray-100 dark:bg-white/10 text-brand-midnight/70 dark:text-brand-clean/70 hover:bg-gray-200 dark:hover:bg-white/20 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Deletar"
+                            >
+                              {deletingId === lembrete.id ? (
+                                <Loader2 size={14} className="animate-spin shrink-0" />
+                              ) : (
+                                <>
+                                  <Trash2 size={14} className="shrink-0" />
+                                  <span className="hidden sm:inline">Deletar</span>
+                                </>
+                              )}
+                            </button>
                           </div>
                         </div>
                       )
@@ -1123,7 +1183,8 @@ export default function LembretesPage() {
           {/* Modal de Criar Lembrete */}
           {showCreateModal && (
             <div 
-              className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center p-4 animate-fade-in"
+              className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center p-4 animate-fade-in overflow-hidden"
+              style={{ touchAction: 'none' }}
               onClick={() => {
                 setShowCreateModal(false)
                 setUsuarioSelecionado(null)
@@ -1135,14 +1196,16 @@ export default function LembretesPage() {
                   nota: '',
                   user_id: '',
                   tipo: '',
+                  is_recorrente_mensal: false,
+                  recorrencia_dia_mes: new Date().getDate().toString(),
                 })
               }}
             >
               <div 
-                className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-8 animate-slide-up border-2 border-brand-aqua/30 dark:border-brand-aqua/40 overflow-hidden"
+                className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl shadow-2xl max-w-md w-full max-h-[85vh] flex flex-col animate-slide-up border-2 border-brand-aqua/30 dark:border-brand-aqua/40 overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex-shrink-0 flex items-center justify-between p-6 sm:px-8 pt-6 sm:pt-8 pb-4">
                   <h2 className="text-2xl font-display font-bold text-brand-midnight dark:text-brand-clean">
                     Criar Lembrete
                   </h2>
@@ -1158,6 +1221,8 @@ export default function LembretesPage() {
                         nota: '',
                         user_id: '',
                         tipo: '',
+                        is_recorrente_mensal: false,
+                        recorrencia_dia_mes: new Date().getDate().toString(),
                       })
                     }}
                     className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
@@ -1166,7 +1231,7 @@ export default function LembretesPage() {
                   </button>
                 </div>
 
-                <div className="space-y-3">
+                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-6 sm:px-8 pb-4 space-y-3" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
                   <div>
                     <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
                       Descrição *
@@ -1176,7 +1241,8 @@ export default function LembretesPage() {
                       value={formData.descricao}
                       onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
                       placeholder="Ex: Pagar conta de luz"
-                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua transition-smooth text-sm"
+                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua transition-smooth text-base"
+                      style={{ fontSize: '16px' }}
                       required
                     />
                   </div>
@@ -1228,7 +1294,8 @@ export default function LembretesPage() {
                             setFormData({ ...formData, valor: formatted })
                           }}
                           placeholder="0,00"
-                          className="w-full pl-7 pr-2 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean"
+                          className="w-full pl-7 pr-2 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-base text-brand-midnight dark:text-brand-clean"
+                          style={{ fontSize: '16px' }}
                         />
                       </div>
                     </div>
@@ -1292,6 +1359,33 @@ export default function LembretesPage() {
                     </div>
                   </div>
 
+                  <div className="space-y-3 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white dark:from-brand-midnight/40 dark:to-brand-royal/40 border-2 border-gray-200/80 dark:border-white/10 shadow-sm">
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={formData.is_recorrente_mensal}
+                        onChange={(e) => setFormData(prev => ({ ...prev, is_recorrente_mensal: e.target.checked }))}
+                        className="w-5 h-5 rounded-md border-2 border-gray-300 dark:border-white/30 text-brand-aqua focus:ring-2 focus:ring-brand-aqua/40 focus:ring-offset-0 transition-all"
+                      />
+                      <span className="text-sm font-semibold text-brand-midnight dark:text-brand-clean group-hover:text-brand-aqua transition-colors">
+                        Repetir todo mês?
+                      </span>
+                    </label>
+                    {formData.is_recorrente_mensal && (
+                      <div className="space-y-2 pt-1">
+                        <label className="block text-xs font-semibold text-brand-midnight dark:text-brand-clean">
+                          Dia do mês
+                        </label>
+                        <DiaMesPicker
+                          value={formData.recorrencia_dia_mes}
+                          onChange={(v) => setFormData(prev => ({ ...prev, recorrencia_dia_mes: v }))}
+                          placeholder="Selecione o dia"
+                        />
+                        <p className="text-[11px] text-brand-midnight/50 dark:text-brand-clean/50">O lembrete aparecerá neste dia em todos os meses no calendário</p>
+                      </div>
+                    )}
+                  </div>
+
                   <div>
                     <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
                       Nota
@@ -1301,12 +1395,13 @@ export default function LembretesPage() {
                       onChange={(e) => setFormData({ ...formData, nota: e.target.value })}
                       rows={2}
                       placeholder="Observações sobre o lembrete..."
-                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm resize-none"
+                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-base resize-none"
+                      style={{ fontSize: '16px' }}
                     />
                   </div>
                 </div>
 
-                <div className="flex gap-3 mt-6">
+                <div className="flex-shrink-0 flex gap-3 p-6 sm:px-8 pb-6 sm:pb-8 pt-4 border-t border-gray-200 dark:border-white/10">
                   <button
                     onClick={() => setShowCreateModal(false)}
                     className="flex-1 px-4 py-3 bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/10 transition-smooth"
@@ -1328,14 +1423,15 @@ export default function LembretesPage() {
           {/* Modal de Editar Lembrete */}
           {showEditModal && lembreteToEdit && (
             <div 
-              className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center p-4 animate-fade-in"
+              className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center p-4 animate-fade-in overflow-hidden"
+              style={{ touchAction: 'none' }}
               onClick={fecharModalEditar}
             >
               <div 
-                className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-8 animate-slide-up border-2 border-brand-aqua/30 dark:border-brand-aqua/40 overflow-hidden"
+                className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl shadow-2xl max-w-md w-full max-h-[85vh] flex flex-col animate-slide-up border-2 border-brand-aqua/30 dark:border-brand-aqua/40 overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex-shrink-0 flex items-center justify-between p-6 sm:px-8 pt-6 sm:pt-8 pb-4">
                   <h2 className="text-2xl font-display font-bold text-brand-midnight dark:text-brand-clean">
                     Editar Lembrete
                   </h2>
@@ -1347,7 +1443,7 @@ export default function LembretesPage() {
                   </button>
                 </div>
 
-                <div className="space-y-3">
+                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-6 sm:px-8 pb-4 space-y-3" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
                   <div>
                     <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
                       Descrição *
@@ -1357,7 +1453,8 @@ export default function LembretesPage() {
                       value={editFormData.descricao}
                       onChange={(e) => setEditFormData({ ...editFormData, descricao: e.target.value })}
                       placeholder="Ex: Pagar conta de luz"
-                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua transition-smooth text-sm"
+                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua transition-smooth text-base"
+                      style={{ fontSize: '16px' }}
                       required
                     />
                   </div>
@@ -1409,7 +1506,8 @@ export default function LembretesPage() {
                             setEditFormData({ ...editFormData, valor: formatted })
                           }}
                           placeholder="0,00"
-                          className="w-full pl-7 pr-2 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-sm text-brand-midnight dark:text-brand-clean"
+                          className="w-full pl-7 pr-2 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-base text-brand-midnight dark:text-brand-clean"
+                          style={{ fontSize: '16px' }}
                         />
                       </div>
                     </div>
@@ -1473,6 +1571,33 @@ export default function LembretesPage() {
                     </div>
                   </div>
 
+                  <div className="space-y-3 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-white dark:from-brand-midnight/40 dark:to-brand-royal/40 border-2 border-gray-200/80 dark:border-white/10 shadow-sm">
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={editFormData.is_recorrente_mensal}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, is_recorrente_mensal: e.target.checked }))}
+                        className="w-5 h-5 rounded-md border-2 border-gray-300 dark:border-white/30 text-brand-aqua focus:ring-2 focus:ring-brand-aqua/40 focus:ring-offset-0 transition-all"
+                      />
+                      <span className="text-sm font-semibold text-brand-midnight dark:text-brand-clean group-hover:text-brand-aqua transition-colors">
+                        Repetir todo mês?
+                      </span>
+                    </label>
+                    {editFormData.is_recorrente_mensal && (
+                      <div className="space-y-2 pt-1">
+                        <label className="block text-xs font-semibold text-brand-midnight dark:text-brand-clean">
+                          Dia do mês
+                        </label>
+                        <DiaMesPicker
+                          value={editFormData.recorrencia_dia_mes}
+                          onChange={(v) => setEditFormData(prev => ({ ...prev, recorrencia_dia_mes: v }))}
+                          placeholder="Selecione o dia"
+                        />
+                        <p className="text-[11px] text-brand-midnight/50 dark:text-brand-clean/50">O lembrete aparecerá neste dia em todos os meses no calendário</p>
+                      </div>
+                    )}
+                  </div>
+
                   <div>
                     <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean mb-1.5">
                       Nota
@@ -1482,12 +1607,13 @@ export default function LembretesPage() {
                       onChange={(e) => setEditFormData({ ...editFormData, nota: e.target.value })}
                       rows={2}
                       placeholder="Observações sobre o lembrete..."
-                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm resize-none"
+                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-base resize-none"
+                      style={{ fontSize: '16px' }}
                     />
                   </div>
                 </div>
 
-                <div className="flex gap-3 mt-6">
+                <div className="flex-shrink-0 flex gap-3 p-6 sm:px-8 pb-6 sm:pb-8 pt-4 border-t border-gray-200 dark:border-white/10">
                   <button
                     onClick={fecharModalEditar}
                     className="flex-1 px-4 py-3 bg-gray-100 dark:bg-brand-midnight text-brand-midnight dark:text-brand-clean rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/10 transition-smooth"
@@ -1726,7 +1852,9 @@ export default function LembretesPage() {
                       <div className="flex items-center gap-2">
                         <Calendar className="text-brand-aqua" size={18} />
                         <p className="text-brand-midnight dark:text-brand-clean">
-                          {format(new Date(lembreteDetalhes.data_lembrete), 'dd/MM/yyyy', { locale: ptBR })}
+                          {lembreteDetalhes.is_recorrente_mensal && lembreteDetalhes.recorrencia_dia_mes
+                            ? format(new Date(new Date(lembreteDetalhes.data_lembrete).getFullYear(), new Date(lembreteDetalhes.data_lembrete).getMonth(), Math.min(lembreteDetalhes.recorrencia_dia_mes, new Date(new Date(lembreteDetalhes.data_lembrete).getFullYear(), new Date(lembreteDetalhes.data_lembrete).getMonth() + 1, 0).getDate())), 'dd/MM/yyyy', { locale: ptBR })
+                            : format(new Date(lembreteDetalhes.data_lembrete), 'dd/MM/yyyy', { locale: ptBR })}
                         </p>
                       </div>
                     </div>

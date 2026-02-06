@@ -23,17 +23,30 @@ import {
   subDays
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
-import { ChevronLeft, ChevronRight, Calendar, Filter, X, Check, ChevronDown } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, Filter, X, Check, ChevronDown, Clock } from 'lucide-react'
 import ModalRegistrosDia from './ModalRegistrosDia'
+
+interface Lembrete {
+  id: string
+  descricao: string
+  data_lembrete: string
+  horario?: string | null
+  status: string
+  is_recorrente_mensal?: boolean
+  recorrencia_dia_mes?: number | null
+  valor?: number | null
+  tipo?: 'entrada' | 'saida' | null
+}
 
 interface CalendarioViewProps {
   registros: Registro[]
   usuarios?: User[]
+  lembretes?: Lembrete[]
 }
 
 type VistaCalendario = 'mes' | 'semana' | 'ano'
 
-export default function CalendarioView({ registros, usuarios = [] }: CalendarioViewProps) {
+export default function CalendarioView({ registros, usuarios = [], lembretes = [] }: CalendarioViewProps) {
   const [dataAtual, setDataAtual] = useState(new Date())
   const [dataSelecionada, setDataSelecionada] = useState<Date | null>(null)
   const [dataModal, setDataModal] = useState<Date | null>(null)
@@ -73,6 +86,17 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
     return registrosFiltrados.filter((reg) =>
       isSameDay(new Date(reg.data_registro), data)
     )
+  }
+
+  // Lembretes para uma data: normais na data exata; repetidos mensais no dia do mês (ex: dia 15 = todo dia 15)
+  const lembretesPorData = (data: Date) => {
+    return lembretes.filter((lem) => {
+      if (lem.status === 'concluido' || lem.status === 'cancelado') return false
+      if (lem.is_recorrente_mensal && lem.recorrencia_dia_mes) {
+        return data.getDate() === lem.recorrencia_dia_mes
+      }
+      return isSameDay(new Date(lem.data_lembrete), data)
+    })
   }
 
   // Navegação
@@ -116,7 +140,9 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
         ))}
         {diasDoMes.map((dia) => {
           const registrosDia = registrosPorData(dia)
+          const lembretesDia = lembretesPorData(dia)
           const temRegistros = registrosDia.length > 0
+          const temLembretes = lembretesDia.length > 0
           const isSelected = dataSelecionada && isSameDay(dia, dataSelecionada)
           const isToday = isSameDay(dia, new Date())
           const totalEntrada = registrosDia.filter(r => r.tipo === 'entrada').reduce((sum, r) => sum + r.valor, 0)
@@ -145,13 +171,20 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
                 >
                   {format(dia, 'd')}
                 </span>
-                {temRegistros && (
-                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand-aqua/25 dark:bg-[#4a90d9] text-brand-aqua dark:text-white text-[10px] font-bold flex items-center justify-center">
-                    {registrosDia.length}
-                  </span>
-                )}
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  {temRegistros && (
+                    <span className="w-5 h-5 rounded-full bg-brand-aqua/25 dark:bg-[#4a90d9] text-brand-aqua dark:text-white text-[10px] font-bold flex items-center justify-center">
+                      {registrosDia.length}
+                    </span>
+                  )}
+                  {temLembretes && (
+                    <span className="w-5 h-5 rounded-full bg-amber-500/30 dark:bg-amber-500/40 text-amber-700 dark:text-amber-400 text-[10px] font-bold flex items-center justify-center" title={`${lembretesDia.length} lembrete(s)`}>
+                      {lembretesDia.length}
+                    </span>
+                  )}
+                </div>
               </div>
-              {temRegistros && (
+              {(temRegistros || temLembretes) && (
                 <div className="flex-1 min-h-0 flex flex-col justify-end gap-0.5 mt-0.5">
                   {totalEntrada > 0 && (
                     <div className="text-[10px] sm:text-xs font-semibold text-green-600 dark:text-green-400 bg-green-100/90 dark:bg-green-900/40 px-1.5 py-0.5 rounded leading-tight truncate">
@@ -181,9 +214,11 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
       <div className="space-y-3">
         {diasSemana.map((dia) => {
           const registrosDia = registrosPorData(dia)
+          const lembretesDia = lembretesPorData(dia)
           const isSelected = dataSelecionada && isSameDay(dia, dataSelecionada)
           const isToday = isSameDay(dia, new Date())
           const isOutroMes = !isSameMonth(dia, dataAtual)
+          const temLembretes = lembretesDia.length > 0
 
           const totalEntrada = registrosDia.filter(r => r.tipo === 'entrada').reduce((sum, r) => sum + r.valor, 0)
           const totalSaida = registrosDia.filter(r => r.tipo === 'saida').reduce((sum, r) => sum + r.valor, 0)
@@ -216,11 +251,18 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
                       {format(dia, 'd')} {format(dia, 'MMMM', { locale: ptBR })}
                     </div>
                   </div>
-                  {registrosDia.length > 0 && (
-                    <span className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-aqua/25 dark:bg-[#4a90d9] text-brand-aqua dark:text-white text-sm font-bold flex items-center justify-center shadow-sm dark:shadow-[0_0_12px_rgba(74,144,217,0.4)]">
-                      {registrosDia.length}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {registrosDia.length > 0 && (
+                      <span className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-aqua/25 dark:bg-[#4a90d9] text-brand-aqua dark:text-white text-sm font-bold flex items-center justify-center shadow-sm dark:shadow-[0_0_12px_rgba(74,144,217,0.4)]">
+                        {registrosDia.length}
+                      </span>
+                    )}
+                    {temLembretes && (
+                      <span className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500/30 dark:bg-amber-500/40 text-amber-700 dark:text-amber-400 text-sm font-bold flex items-center justify-center" title={`${lembretesDia.length} lembrete(s)`}>
+                        {lembretesDia.length}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </button>
 
@@ -240,10 +282,16 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
                     Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(saldo)}
                   </div>
                 )}
+                {temLembretes && (
+                  <div className="text-xs sm:text-sm font-semibold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-1.5 rounded-lg leading-tight flex items-center gap-1">
+                    <Clock size={14} /> {lembretesDia.length} lembrete(s)
+                  </div>
+                )}
               </div>
-              {registrosDia.length > 0 && (
-                <div className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mt-2">
-                  {registrosDia.length} {registrosDia.length === 1 ? 'registro' : 'registros'}
+              {(registrosDia.length > 0 || temLembretes) && (
+                <div className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mt-2 flex gap-2">
+                  {registrosDia.length > 0 && <span>{registrosDia.length} {registrosDia.length === 1 ? 'registro' : 'registros'}</span>}
+                  {temLembretes && <span>{lembretesDia.length} {lembretesDia.length === 1 ? 'lembrete' : 'lembretes'}</span>}
                 </div>
               )}
             </div>
@@ -681,6 +729,7 @@ export default function CalendarioView({ registros, usuarios = [] }: CalendarioV
         <ModalRegistrosDia
           data={dataModal}
           registros={registrosPorData(dataModal)}
+          lembretes={lembretesPorData(dataModal)}
           onClose={() => setDataModal(null)}
         />
       )}

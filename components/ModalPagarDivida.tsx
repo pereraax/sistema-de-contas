@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useModalBodyLock } from '@/hooks/useModalBodyLock'
 import { Registro } from '@/lib/types'
 import { X, CheckCircle2, Clock } from 'lucide-react'
 import DatePicker from './DatePicker'
@@ -72,6 +73,8 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
     }
     return []
   }
+
+  useModalBodyLock()
 
   const historicoPagamentos = extrairHistoricoPagamentos()
 
@@ -161,7 +164,7 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
   const progressoFuturo = calcularProgressoFuturo(converterValorFormatadoParaNumero(valorPagamento))
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in">
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 animate-fade-in overflow-hidden" style={{ touchAction: 'none' }}>
       <div className="bg-white dark:bg-brand-royal rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border border-gray-200 dark:border-white/10">
         <div className="flex-shrink-0 border-b border-gray-200 dark:border-white/10 px-5 py-4 flex items-center justify-between bg-white dark:bg-brand-midnight">
           <h2 className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
@@ -176,7 +179,7 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 bg-white dark:bg-brand-royal overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 py-4 space-y-4" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
           {/* Informações da Dívida */}
           <div className="bg-gray-50 dark:bg-brand-midnight/50 rounded-lg p-3 space-y-2">
             <div>
@@ -294,7 +297,8 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
                   }}
                   placeholder="0,00"
                   maxLength={15}
-                  className="w-full pl-10 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50"
+                  className="w-full pl-10 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-base placeholder-gray-400 dark:placeholder-brand-clean/50"
+                  style={{ fontSize: '16px' }}
                 />
               </div>
               <div className="grid grid-cols-2 gap-1.5">
@@ -316,7 +320,8 @@ export default function ModalPagarDivida({ divida, onClose }: ModalPagarDividaPr
                       type="time"
                       value={horaPagamentoOpcional}
                       onChange={(e) => setHoraPagamentoOpcional(e.target.value)}
-                      className="w-full pl-8 pr-2 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm"
+                      className="w-full pl-8 pr-2 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-base"
+                      style={{ fontSize: '16px' }}
                     />
                   </div>
                 </div>

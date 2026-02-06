@@ -71,6 +71,12 @@ body {
   background-color: #1A1A1A !important;
 }
 
+/* Página de login: fundo sempre claro mesmo em dark mode */
+.dark .login-page-wrap.min-h-screen,
+.dark .login-page-wrap .login-page-inner {
+  background-color: #f8fafc !important;
+}
+
 .dark main {
   background-color: #1A1A1A !important;
 }

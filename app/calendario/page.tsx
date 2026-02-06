@@ -5,7 +5,7 @@ import PlanoGuard from '@/components/PlanoGuard'
 import NotificationBell from '@/components/NotificationBell'
 import UserProfileMenu from '@/components/UserProfileMenu'
 import Logo from '@/components/Logo'
-import { obterRegistros, obterUsuarios } from '@/lib/actions'
+import { obterRegistros, obterUsuarios, obterLembretes } from '@/lib/actions'
 import { Suspense } from 'react'
 
 export const dynamic = 'force-dynamic'
@@ -17,17 +17,20 @@ const CalendarioView = nextDynamic(() => import('@/components/CalendarioView'), 
 async function CalendarioContent() {
   let registros: any[] = []
   let usuarios: any[] = []
+  let lembretes: any[] = []
   try {
-    const [registrosResult, usuariosResult] = await Promise.all([
+    const [registrosResult, usuariosResult, lembretesResult] = await Promise.all([
       obterRegistros(),
-      obterUsuarios()
+      obterUsuarios(),
+      obterLembretes()
     ])
     registros = registrosResult?.data ?? []
     usuarios = usuariosResult?.data ?? []
+    lembretes = lembretesResult?.data ?? []
   } catch (e) {
     console.error('[CalendarioContent] Erro ao carregar dados:', e)
   }
-  return <CalendarioView registros={registros} usuarios={usuarios} />
+  return <CalendarioView registros={registros} usuarios={usuarios} lembretes={lembretes} />
 }
 
 export default async function CalendarioPage() {

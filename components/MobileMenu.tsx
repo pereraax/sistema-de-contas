@@ -182,14 +182,14 @@ export default function MobileMenu() {
                   <Link
                     href="/upgrade"
                     onClick={() => setIsOpen(false)}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg text-left group bg-gradient-to-r from-brand-aqua to-primary-500 hover:from-brand-aqua/90 hover:to-primary-400 dark:from-amber-400 dark:to-yellow-500 dark:hover:from-amber-300 dark:hover:to-yellow-400"
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg text-left group bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-yellow-400"
                   >
                     <Crown 
                       size={20} 
                       strokeWidth={2} 
-                      className="text-white dark:text-amber-900 flex-shrink-0 group-hover:scale-110 transition-transform"
+                      className="text-amber-900 flex-shrink-0 group-hover:scale-110 transition-transform"
                     />
-                    <span className="font-semibold text-white dark:text-amber-900 truncate">
+                    <span className="font-semibold text-amber-900 truncate">
                       Fazer Upgrade
                     </span>
                   </Link>

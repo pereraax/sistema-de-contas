@@ -9,35 +9,31 @@ import { Suspense } from 'react'
 
 export const dynamic = 'force-dynamic'
 
-// Função otimizada para carregar dados do perfil no servidor
+// Otimizado: getSession primeiro (mais rápido), fallback para getUser se necessário
 async function loadProfileData() {
   try {
     const supabase = await createClient()
-    
-    // Buscar usuário primeiro
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    let user = session?.user
 
-    if (userError || !user) {
-      return null
+    if (!user) {
+      const { data: { user: u } } = await supabase.auth.getUser()
+      user = u
     }
+    if (!user) return null
 
-    // Buscar perfil do usuário (apenas campos necessários)
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile } = await supabase
       .from('profiles')
       .select('id, nome, email, cpf, whatsapp, whatsapp_key, plano, imagem_url, email_confirmed_at')
       .eq('id', user.id)
       .maybeSingle()
-
-    // Ignorar erro de perfil se não existir (pode ser criado depois)
-    if (profileError && profileError.code !== 'PGRST116') {
-      console.error('Erro ao buscar perfil:', profileError)
-    }
 
     return {
       user: {
         id: user.id,
         email: user.email || '',
         email_confirmed_at: user.email_confirmed_at || null,
+        user_metadata: user.user_metadata || null,
       },
       profile: profile || null,
       whatsappKey: profile?.whatsapp_key || null,
@@ -48,15 +44,45 @@ async function loadProfileData() {
   }
 }
 
-// Middleware já verifica autenticação, não precisa verificar novamente aqui
+// Wrapper assíncrono para streaming - shell renderiza imediatamente
+async function ProfileContentWrapper({ profilePromise, tabAtivo }: { profilePromise: ReturnType<typeof loadProfileData>; tabAtivo: string }) {
+  const profileData = await profilePromise
+  return <ConfiguracoesView tabAtivo={tabAtivo} initialProfileData={profileData} />
+}
+
+function ProfileSkeleton() {
+  return (
+    <div className="bg-brand-white dark:bg-brand-royal rounded-2xl shadow-lg border border-brand-clean dark:border-white/10 overflow-hidden animate-pulse">
+      <div className="border-b border-brand-clean p-4 flex gap-2">
+        <div className="h-10 w-32 bg-gray-200 dark:bg-white/10 rounded" />
+        <div className="h-10 w-24 bg-gray-200 dark:bg-white/10 rounded" />
+        <div className="h-10 w-36 bg-gray-200 dark:bg-white/10 rounded" />
+      </div>
+      <div className="p-6 space-y-6">
+        <div className="flex items-center gap-4 pb-4 border-b border-gray-200 dark:border-white/10">
+          <div className="w-16 h-16 rounded-full bg-gray-200 dark:bg-white/10" />
+          <div className="flex-1 space-y-2">
+            <div className="h-5 w-32 bg-gray-200 dark:bg-white/10 rounded" />
+            <div className="h-4 w-48 bg-gray-200 dark:bg-white/10 rounded" />
+          </div>
+        </div>
+        <div className="space-y-3">
+          <div className="h-4 w-full bg-gray-200 dark:bg-white/10 rounded" />
+          <div className="h-4 w-3/4 bg-gray-200 dark:bg-white/10 rounded" />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default async function ConfiguracoesPage({
   searchParams,
 }: {
   searchParams: { tab?: string } | null
 }) {
-  // Carregar dados do perfil no servidor para melhor performance
-  const profileData = await loadProfileData()
+  const tabAtivo = searchParams?.tab || 'perfil'
+  // Streaming: NÃO aguardar - renderiza shell imediatamente, dados em paralelo
+  const profilePromise = loadProfileData()
 
   return (
     <div className="min-h-screen bg-brand-clean dark:bg-[#1A1A1A] overflow-hidden">
@@ -81,15 +107,8 @@ export default async function ConfiguracoesPage({
             </div>
           </div>
 
-          <Suspense fallback={
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-aqua"></div>
-            </div>
-          }>
-            <ConfiguracoesView 
-              tabAtivo={searchParams?.tab || 'perfil'} 
-              initialProfileData={profileData}
-            />
+          <Suspense fallback={<ProfileSkeleton />}>
+            <ProfileContentWrapper profilePromise={profilePromise} tabAtivo={tabAtivo} />
           </Suspense>
         </div>
       </main>

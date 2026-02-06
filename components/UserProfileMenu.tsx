@@ -22,7 +22,8 @@ export default function UserProfileMenu() {
         .select('nome, imagem_url')
         .eq('id', user.id)
         .maybeSingle()
-      const nome = profile?.nome?.trim() || user.user_metadata?.nome?.trim() || user.email?.split('@')[0] || 'Usuário'
+      const md = user.user_metadata
+      const nome = profile?.nome?.trim() || md?.full_name?.trim() || md?.name?.trim() || md?.nome?.trim() || user.email?.split('@')[0] || 'Usuário'
       setUserProfile({ nome, imagem_url: profile?.imagem_url ?? null })
     } catch (_) {}
   }
@@ -32,8 +33,11 @@ export default function UserProfileMenu() {
   }, [])
 
   useEffect(() => {
-    if (isOpen) carregarPerfil()
-  }, [isOpen])
+    if (isOpen) {
+      carregarPerfil()
+      router.prefetch('/configuracoes?tab=perfil')
+    }
+  }, [isOpen, router])
 
   useEffect(() => {
     // Carregar preferência de tema do localStorage

@@ -35,6 +35,13 @@ export default function ModalEditarRegistro({
   const [novaCategoriaNome, setNovaCategoriaNome] = useState('')
   const [categoriasPersonalizadas, setCategoriasPersonalizadas] = useState<Array<{ id: string; nome: string; icon: any }>>([])
 
+  // Travar scroll do body enquanto o modal estiver aberto (conteúdo só rola dentro do modal)
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
   // Fechar tooltips ao clicar fora
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -559,8 +566,15 @@ export default function ModalEditarRegistro({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in" style={{ top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh' }}>
-      <div className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border-2 border-brand-aqua/30 dark:border-brand-aqua/40">
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in overflow-hidden"
+      style={{ top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', touchAction: 'none' }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl animate-slide-up overflow-hidden border-2 border-brand-aqua/30 dark:border-brand-aqua/40"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex-shrink-0 border-b-2 border-brand-aqua/20 dark:border-brand-aqua/30 px-6 py-5 flex items-center justify-between bg-gradient-to-r from-brand-aqua to-blue-500 dark:from-brand-midnight dark:to-brand-royal">
           <h2 className="text-2xl font-display font-bold text-white dark:text-brand-clean">
             {registro ? 'Editar Registro' : 'Novo Registro'}
@@ -574,7 +588,10 @@ export default function ModalEditarRegistro({
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 bg-white/50 dark:bg-brand-midnight/60 overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          <div
+            className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-5 space-y-4 overscroll-contain"
+            style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
+          >
           <div>
             <label className="flex items-center gap-2 mb-1.5 text-xs font-medium text-brand-midnight dark:text-brand-clean">
               <span>Nome do registro *</span>
@@ -613,8 +630,9 @@ export default function ModalEditarRegistro({
               required
               value={formData.nome}
               onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-              className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50"
+              className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-base placeholder-gray-400 dark:placeholder-brand-clean/50"
               placeholder="Ex: Salário, Aluguel, Supermercado..."
+              style={{ fontSize: '16px' }}
             />
           </div>
 
@@ -653,8 +671,9 @@ export default function ModalEditarRegistro({
               value={formData.observacao}
               onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
               rows={2}
-              className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50 resize-none"
+              className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-base placeholder-gray-400 dark:placeholder-brand-clean/50 resize-none"
               placeholder="Adicione detalhes sobre este registro..."
+              style={{ fontSize: '16px' }}
             />
           </div>
 
@@ -752,7 +771,8 @@ export default function ModalEditarRegistro({
                   setFormData({ ...formData, valor: formatted })
                 }}
                 placeholder="0,00"
-                className="w-full pl-10 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-sm placeholder-gray-400 dark:placeholder-brand-clean/50"
+                className="w-full pl-10 pr-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:border-brand-aqua transition-smooth text-brand-midnight dark:text-brand-clean text-base placeholder-gray-400 dark:placeholder-brand-clean/50"
+                style={{ fontSize: '16px' }}
               />
             </div>
           </div>
