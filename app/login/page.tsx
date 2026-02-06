@@ -9,6 +9,7 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import ModalEmailConfirmadoSucesso from '@/components/ModalEmailConfirmadoSucesso'
 import ModalLoginConcluido from '@/components/ModalLoginConcluido'
+import ModalEsqueceuSenha from '@/components/ModalEsqueceuSenha'
 import logoTipoFundoClaro from '@/assets/fundo claro.png'
 
 export const dynamic = 'force-dynamic'
@@ -20,6 +21,7 @@ function LoginContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [showModalLoginConcluido, setShowModalLoginConcluido] = useState(false)
+  const [showModalEsqueceuSenha, setShowModalEsqueceuSenha] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [formData, setFormData] = useState({
@@ -454,9 +456,13 @@ function LoginContent() {
                 </div>
                 <span className="select-none group-hover:text-[#1e4976] transition-colors">Lembrar-me</span>
               </label>
-              <Link href="#" className="text-xs text-[#1e4976] hover:text-[#163a5f] font-medium">
+              <button
+                type="button"
+                onClick={() => setShowModalEsqueceuSenha(true)}
+                className="text-xs text-[#1e4976] hover:text-[#163a5f] font-medium"
+              >
                 Esqueceu a senha?
-              </Link>
+              </button>
             </div>
 
             <button
@@ -506,6 +512,13 @@ function LoginContent() {
       {/* Popup de sucesso quando email foi confirmado via link */}
       <ModalEmailConfirmadoSucesso />
       
+      {/* Modal Esqueceu a senha */}
+      <ModalEsqueceuSenha
+        isOpen={showModalEsqueceuSenha}
+        onClose={() => setShowModalEsqueceuSenha(false)}
+        emailPadrao={formData.email}
+      />
+
       {/* Popup de sucesso quando login for concluído */}
       <ModalLoginConcluido
         isOpen={showModalLoginConcluido}
