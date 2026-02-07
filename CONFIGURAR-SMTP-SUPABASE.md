@@ -28,13 +28,14 @@ O "Esqueceu a senha?" usa o Supabase para enviar o email. O email é enviado pel
 
 6. Clique em **Save**
 
-### 3. Adicione a URL de redirecionamento
+### 3. Configure URLs corretamente (OBRIGATÓRIO para o link funcionar)
 
-1. Ainda em **Authentication** → **URL Configuration**
-2. Em **Redirect URLs**, adicione:
+1. Em **Authentication** → **URL Configuration**
+2. **Site URL** deve ser: `https://plenipay.com` (ou `https://www.plenipay.com` se usar www)
+3. Em **Redirect URLs**, adicione **exatamente** (sem barra no final):
    - `https://plenipay.com/auth/redefinir-senha`
    - `https://www.plenipay.com/auth/redefinir-senha`
-3. Salve
+4. Salve
 
 ### 4. Pronto
 

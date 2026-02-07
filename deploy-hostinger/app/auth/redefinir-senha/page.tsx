@@ -21,7 +21,7 @@ function RedefinirSenhaContent() {
     const processarAuth = async () => {
       const supabase = createClient()
 
-      // 1. Verificar hash (#access_token) PRIMEIRO - fluxo implícito (hash não vem no request, só no client)
+      // 1. Hash (#access_token) primeiro - fluxo implícito
       const hash = typeof window !== 'undefined' ? window.location.hash : ''
       if (hash && hash.includes('access_token')) {
         const hashParams = new URLSearchParams(hash.substring(1))
@@ -40,7 +40,7 @@ function RedefinirSenhaContent() {
         }
       }
 
-      // 2. Verificar code na query (fluxo PKCE) - Supabase recovery usa isso
+      // 2. Code na query (fluxo PKCE)
       const code = searchParams?.get('code')
       if (code) {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code)
@@ -48,7 +48,6 @@ function RedefinirSenhaContent() {
           setStatus('ready')
           return
         }
-        // Fallback: tentar verifyOtp com code como token_hash (alguns fluxos usam isso)
         const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
           type: 'recovery',
           token_hash: code,
@@ -59,7 +58,7 @@ function RedefinirSenhaContent() {
         }
       }
 
-      // 3. Verificar token_hash na query
+      // 3. token_hash na query
       const tokenHash = searchParams?.get('token_hash')
       const type = searchParams?.get('type') || 'recovery'
       if (tokenHash) {
@@ -73,7 +72,7 @@ function RedefinirSenhaContent() {
         }
       }
 
-      // 4. Verificar token na query (formato alternativo)
+      // 4. token na query
       const token = searchParams?.get('token')
       if (token) {
         const { data, error } = await supabase.auth.verifyOtp({
@@ -86,7 +85,7 @@ function RedefinirSenhaContent() {
         }
       }
 
-      // 5. Verificar se já tem sessão
+      // 5. Sessão existente
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         setStatus('ready')
