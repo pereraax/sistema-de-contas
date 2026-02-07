@@ -1057,8 +1057,8 @@ export async function enviarLinkRedefinicaoSenha(email: string) {
       }
     }
 
-    const { isSmtpConfigured, sendMail } = await import('./mailer')
-    if (isSmtpConfigured()) {
+    const { isSmtpConfigured, isResendConfigured, sendMail } = await import('./mailer')
+    if (isSmtpConfigured() || isResendConfigured()) {
       try {
         const { readFileSync } = await import('fs')
         const { join } = await import('path')
@@ -1079,8 +1079,8 @@ export async function enviarLinkRedefinicaoSenha(email: string) {
       }
     }
 
-    // SMTP não configurado - retornar erro orientando configurar
-    return { error: 'Envio de email não configurado. Configure SMTP_* no .env.local (host, porta, usuário, senha).' }
+    // Email não configurado - orientar usar Resend (funciona no Railway) ou SMTP
+    return { error: 'Email não configurado. Adicione RESEND_API_KEY (recomendado para Railway) ou SMTP_* nas variáveis do Railway.' }
   } catch (error: any) {
     console.error('Erro ao enviar link de redefinição:', error)
     return { error: error.message || 'Erro ao enviar link. Tente novamente.' }
