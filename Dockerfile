@@ -47,6 +47,7 @@ COPY --from=builder /app/components ./components
 COPY --from=builder /app/middleware.ts ./
 COPY --from=builder /app/next.config.js ./
 COPY --from=builder /app/tsconfig.json ./
+COPY --from=builder /app/TEMPLATE-EMAIL-RESET-SENHA.html ./
 
 # Criar diretório de cache e dar permissão ao usuário nextjs
 RUN mkdir -p /app/.next/cache && chown -R nextjs:nodejs /app/.next
