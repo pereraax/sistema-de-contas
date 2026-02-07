@@ -1001,7 +1001,7 @@ export async function enviarLinkRedefinicaoSenha(email: string) {
       return { error: 'Informe um email válido' }
     }
 
-    // Links em emails devem SEMPRE usar domínio público (plenipay.com) - usuário clica no email e não pode acessar localhost
+    // Links em emails devem SEMPRE usar domínio público (plenipay.com)
     let siteUrl = await getSiteUrl()
     if (siteUrl.includes('localhost') || siteUrl.includes('127.0.0.1')) {
       siteUrl = 'https://plenipay.com'
@@ -1009,78 +1009,25 @@ export async function enviarLinkRedefinicaoSenha(email: string) {
     const redirectTo = `${siteUrl}/auth/redefinir-senha`
     const emailTrim = email.trim()
 
-    // Usar Admin API + SMTP próprio (como confirmação) - Supabase resetPasswordForEmail depende do SMTP do painel
-    const { createAdminClient } = await import('./supabase/server')
-    const supabaseAdmin = createAdminClient()
+    // Usar resetPasswordForEmail do Supabase - o email é enviado pelos SERVIDORES do Supabase,
+    // que conectam ao SMTP configurado no painel. Assim comercial@plenipay.com funciona em produção.
+    // Configure SMTP em: Supabase Dashboard → Project Settings → Auth → SMTP (Hostinger)
+    const supabase = await createClient()
+    const { error } = await supabase.auth.resetPasswordForEmail(emailTrim, { redirectTo })
 
-    if (!supabaseAdmin) {
-      // Fallback: tentar resetPasswordForEmail padrão
-      const supabase = await createClient()
-      const { error } = await supabase.auth.resetPasswordForEmail(emailTrim, { redirectTo })
-      if (error) {
-        const msg = (error.message || '').toLowerCase()
-        if (msg.includes('rate limit') || msg.includes('too many requests')) {
-          return { error: 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.' }
-        }
-        if (msg.includes('user') && (msg.includes('not found') || msg.includes('email not found'))) {
-          return { error: 'Nenhuma conta encontrada com este email. Verifique ou crie uma conta.' }
-        }
-        return { error: error.message }
+    if (error) {
+      const msg = (error.message || '').toLowerCase()
+      if (msg.includes('rate limit') || msg.includes('too many requests')) {
+        return { error: 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.' }
       }
-      return { success: true }
-    }
-
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'recovery',
-      email: emailTrim,
-      options: { redirectTo },
-    } as any)
-
-    if (linkError || !linkData?.properties?.action_link) {
-      logError(`Erro ao gerar link de redefinição: ${linkError?.message}`, 'AUTH')
-      const msg = (linkError?.message || '').toLowerCase()
       if ((msg.includes('user') && msg.includes('not found')) || msg.includes('email not found')) {
         return { error: 'Nenhuma conta encontrada com este email. Verifique ou crie uma conta.' }
       }
-      return { error: linkError?.message || 'Erro ao gerar link. Verifique se o email está cadastrado.' }
+      return { error: error.message }
     }
 
-    let linkGerado = linkData.properties.action_link
-    const isLinkSupabase = linkGerado.includes('supabase.co/auth/v1/verify')
-    if (isLinkSupabase) {
-      const codeMatch = linkGerado.match(/[?&]code=([^&#]+)/i)
-      const tokenMatch = linkGerado.match(/[?&]token=([^&#]+)/i)
-      if (codeMatch) {
-        linkGerado = `${siteUrl}/auth/redefinir-senha?code=${encodeURIComponent(codeMatch[1])}`
-      } else if (tokenMatch) {
-        linkGerado = `${siteUrl}/auth/redefinir-senha?token_hash=${encodeURIComponent(tokenMatch[1])}&type=recovery`
-      }
-    }
-
-    const { isSmtpConfigured, isResendConfigured, sendMail } = await import('./mailer')
-    if (isSmtpConfigured() || isResendConfigured()) {
-      try {
-        const { readFileSync } = await import('fs')
-        const { join } = await import('path')
-        const templatePath = join(process.cwd(), 'TEMPLATE-EMAIL-RESET-SENHA.html')
-        let templateHtml = readFileSync(templatePath, 'utf-8')
-        templateHtml = templateHtml.replace(/\{\{ \.ConfirmationURL \}\}/g, linkGerado)
-        await sendMail({
-          to: emailTrim,
-          subject: 'Redefinir sua Senha - PLENIPAY',
-          html: templateHtml,
-        })
-        logSuccess(`Link de redefinição enviado para ${emailTrim}`, 'AUTH')
-        return { success: true }
-      } catch (smtpError: any) {
-        const msg = smtpError?.message || 'Erro desconhecido ao enviar email'
-        logError(`Erro SMTP ao enviar redefinição: ${msg}`, 'AUTH')
-        return { error: msg }
-      }
-    }
-
-    // Email não configurado - orientar usar Resend (funciona no Railway) ou SMTP
-    return { error: 'Email não configurado. Adicione RESEND_API_KEY (recomendado para Railway) ou SMTP_* nas variáveis do Railway.' }
+    logSuccess(`Link de redefinição solicitado para ${emailTrim}`, 'AUTH')
+    return { success: true }
   } catch (error: any) {
     console.error('Erro ao enviar link de redefinição:', error)
     return { error: error.message || 'Erro ao enviar link. Tente novamente.' }
