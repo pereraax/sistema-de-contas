@@ -1,0 +1,4 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "echo 'Este projeto deve rodar apenas no Railway. Remova o projeto do Vercel.' && exit 1"
+}

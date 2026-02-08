@@ -139,10 +139,10 @@ export default function MobileMenu() {
             onTouchEnd={handleTouchEnd}
             className="fixed left-0 top-0 h-screen w-64 bg-white dark:bg-[#1A1A1A] border-r border-gray-200 dark:border-white/10 shadow-lg z-40 lg:hidden animate-slide-in-from-left flex flex-col overflow-hidden"
           >
-            {/* Área rolável: rolar deslizando no celular */}
+            {/* Área rolável: permite deslizar para cima e para baixo no celular */}
             <div
-              className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-6"
-              style={{ WebkitOverflowScrolling: 'touch' }}
+              className="flex-1 min-h-0 overflow-y-scroll overflow-x-hidden overscroll-contain p-6 touch-pan-y"
+              style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
             >
               {/* Logo menor, menos espaço em cima e embaixo (igual ao desktop) */}
               <div className="mb-5 flex items-center justify-center shrink-0 max-h-12 [&_a]:!block [&_img]:!h-10 [&_img]:!w-auto [&_img]:!object-contain">
