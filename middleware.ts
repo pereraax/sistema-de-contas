@@ -128,12 +128,13 @@ export const config = {
      * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
+     * - next/static (rewrite em next.config -> _next/static)
      * - favicon.ico (favicon file)
      * - robots.txt
      * - sitemap.xml
      * 
      * IMPORTANTE: Incluir /auth/confirm para interceptar links de email
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)',
+    '/((?!api|_next/static|_next/image|next/static|favicon.ico|robots.txt|sitemap.xml).*)',
   ],
 }
