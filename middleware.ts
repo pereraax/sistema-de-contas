@@ -39,7 +39,8 @@ export function middleware(request: NextRequest) {
       response.headers.set('Cache-Control', 'no-store, must-revalidate')
     } else if (isPublicRoute) {
       response.headers.set('X-Robots-Tag', 'index, follow')
-      response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400')
+      // no-store: evita que Cloudflare/CDN cacheie HTML e impeça atualizações após redeploy
+      response.headers.set('Cache-Control', 'no-store, must-revalidate')
     } else {
       response.headers.set('X-Robots-Tag', 'index, follow')
       response.headers.set('Cache-Control', 'no-store, must-revalidate')
@@ -109,8 +110,8 @@ export function middleware(request: NextRequest) {
   } else if (isPublicRoute) {
     // Permitir indexação para rotas públicas
     response.headers.set('X-Robots-Tag', 'index, follow')
-    // Cache mais permissivo para páginas públicas (melhor para SEO)
-    response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400')
+    // no-store: evita que Cloudflare/CDN cacheie e impeça atualizações após redeploy
+    response.headers.set('Cache-Control', 'no-store, must-revalidate')
   } else {
     // Para outras rotas, permitir indexação mas com cache controlado
     response.headers.set('X-Robots-Tag', 'index, follow')
