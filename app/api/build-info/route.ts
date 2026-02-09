@@ -16,10 +16,10 @@ export async function GET() {
   }
 
   try {
-    // No Docker/Railway o arquivo fica na raiz do app (/app/build-time.txt)
-    const path = join(process.cwd(), 'build-time.txt')
-    if (existsSync(path)) {
-      const buildTime = readFileSync(path, 'utf-8').trim()
+    // Caminho explícito no Docker (BUILD_TIME_PATH) ou fallback para process.cwd()
+    const buildTimePath = process.env.BUILD_TIME_PATH || join(process.cwd(), 'build-time.txt')
+    if (existsSync(buildTimePath)) {
+      const buildTime = readFileSync(buildTimePath, 'utf-8').trim()
       return NextResponse.json(
         {
           buildTime,

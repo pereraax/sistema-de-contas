@@ -39,6 +39,7 @@ RUN adduser --system --uid 1001 nextjs
 
 # Copiar arquivos necessários
 COPY --from=builder /app/build-time.txt ./
+RUN chown nextjs:nodejs /app/build-time.txt
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
@@ -59,5 +60,6 @@ USER nextjs
 
 EXPOSE 3000
 ENV PORT=3000
+ENV BUILD_TIME_PATH=/app/build-time.txt
 
 CMD ["node", "server.js"]
