@@ -9,10 +9,10 @@ Se o deploy termina no Railway mas **www.plenipay.com** não mostra as mudanças
 1. Acesse **https://dash.cloudflare.com** → domínio **plenipay.com**.
 2. No menu lateral: **Rules** → **Page Rules** (ou **Regras** → **Page Rules**).
 3. Clique em **Create Page Rule** (ou **Adicionar regra**).
-4. Em **URL** (ou "Se o URL corresponder a"), use um destes:
-   - `*www.plenipay.com/*`
-   - ou `*plenipay.com/*`
-   (assim a regra vale para todo o site.)
+4. Em **URL** (ou "Se o URL corresponder a"), use **uma regra para cada** (crie duas se precisar):
+   - `*www.plenipay.com/*`  → Cache Level: **Bypass**
+   - `*plenipay.com/*`      → Cache Level: **Bypass**  
+   (assim o tráfego com e sem www não usa cache.)
 5. Em **Setting** (Configuração), adicione:
    - **Cache Level** → **Bypass** (ou "Ignorar cache").
 6. Salve (**Save and Deploy** / **Salvar e implantar**).

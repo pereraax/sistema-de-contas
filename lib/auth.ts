@@ -906,17 +906,16 @@ export async function verificarCodigoEmail(codigo: string, email: string) {
     console.log('📧 Email confirmado em:', data.user.email_confirmed_at || 'Agora')
     console.log('🔐 Fazendo login automático após confirmação...')
     
-    // IMPORTANTE: Após confirmar o código, fazer login automático
-    // O verifyOtp já cria uma sessão, mas vamos garantir que está funcionando
-    const { data: sessionData } = await supabase.auth.getSession()
-    if (sessionData?.session) {
+    // IMPORTANTE: Após confirmar o código, verificar usuário (getUser valida no servidor Auth)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
       console.log('✅ Sessão criada automaticamente após verificação OTP')
     } else {
       console.warn('⚠️ Sessão não foi criada automaticamente - pode precisar fazer login manual')
     }
     
     revalidatePath('/')
-    return { data, success: true, session: sessionData?.session }
+    return { data, success: true, session: undefined }
   } catch (error: any) {
     console.error('❌ Erro inesperado ao verificar código:', error)
     return { error: error.message || 'Erro inesperado ao verificar código' }
