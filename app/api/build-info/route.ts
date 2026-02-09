@@ -16,13 +16,13 @@ export async function GET() {
   }
 
   try {
-    // Tentar vários caminhos (Railway pode ter cwd diferente)
+    // public/build-time.txt é sempre copiado no Docker; cwd=/app no Railway
     const candidates = [
+      join(process.cwd(), 'public', 'build-time.txt'),
+      '/app/public/build-time.txt',
       process.env.BUILD_TIME_PATH,
       '/app/build-time.txt',
-      '/app/app/build-time.txt',
       join(process.cwd(), 'build-time.txt'),
-      join(process.cwd(), 'app', 'build-time.txt'),
     ].filter(Boolean) as string[]
     for (const buildTimePath of candidates) {
       if (existsSync(buildTimePath)) {

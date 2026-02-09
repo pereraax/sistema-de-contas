@@ -25,8 +25,8 @@ ARG NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 RUN npm run build
-# Horário do build para verificar qual deploy está no ar (api/build-info)
-RUN date -u +%Y-%m-%dT%H:%M:%SZ > /app/build-time.txt
+# Horário do build (em public/ para garantir que seja copiado e encontrado no runtime)
+RUN date -u +%Y-%m-%dT%H:%M:%SZ > /app/build-time.txt && cp /app/build-time.txt /app/public/build-time.txt
 
 # Produção
 FROM base AS runner
