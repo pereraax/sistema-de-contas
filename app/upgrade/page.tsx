@@ -138,7 +138,7 @@ export default function UpgradePage() {
   return (
     <div className="min-h-screen bg-white dark:bg-[#1A1A1A]">
       <Sidebar />
-      <main className="lg:ml-64 min-h-screen bg-white dark:bg-[#1A1A1A]">
+      <main className="lg:ml-64 min-h-screen bg-white dark:bg-[#1A1A1A] pb-24 sm:pb-28">
         {/* Header Mobile */}
         <div className="lg:hidden pt-6 pb-4 px-3 sm:px-4 bg-white dark:bg-[#1A1A1A] border-b border-gray-200 dark:border-white/10">
           <div className="flex justify-center mb-4">
@@ -158,10 +158,10 @@ export default function UpgradePage() {
         <section className="bg-white dark:bg-[#1A1A1A] py-10 md:py-12">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-8">
-              <h2 className="text-2xl md:text-3xl font-display font-bold text-[#0D1B2A] mb-3">
-                Escolha o <span className="text-[#1e4976]">Plano Ideal</span> para Você
+              <h2 className="text-2xl md:text-3xl font-display font-bold text-[#0D1B2A] dark:text-white mb-3">
+                Escolha o <span className="text-[#1e4976] dark:text-brand-aqua">Plano Ideal</span> para Você
               </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
                 Planos que se adaptam às suas necessidades. Comece grátis e evolua conforme cresce.
               </p>
             </div>
@@ -175,7 +175,7 @@ export default function UpgradePage() {
                       ? plano.id === 'premium'
                         ? 'bg-gradient-to-br from-[#2c5aa0] via-[#1e4976] to-[#163a5f] rounded-2xl p-5 md:p-6 shadow-xl border-2 border-white relative transform scale-[1.02] hover:scale-[1.03] transition-all duration-300 z-10'
                         : 'bg-gradient-to-br from-[#0D1B2A] via-[#1B263B] to-[#0D1B2A] rounded-2xl p-5 md:p-6 shadow-xl border-2 border-white relative transform scale-[1.02] hover:scale-[1.03] transition-all duration-300 z-10'
-                      : 'bg-white rounded-2xl p-5 shadow-lg border-2 border-gray-200 transform hover:scale-105 transition-all duration-300'
+                      : 'bg-white dark:bg-gray-800/90 rounded-2xl p-5 shadow-lg border-2 border-gray-200 dark:border-gray-600 transform hover:scale-105 transition-all duration-300'
                   }`}
                 >
                   {/* Badge destacado */}
@@ -197,7 +197,7 @@ export default function UpgradePage() {
 
                   {/* Header do plano */}
                   <div className={`${plano.corHeader} ${plano.corTexto} rounded-xl py-2 px-3 mb-4 text-center ${
-                    plano.destacado ? 'border border-white/30' : ''
+                    plano.destacado ? 'border border-white/30' : plano.id === 'gratuito' ? 'dark:bg-gray-700 dark:text-white' : ''
                   }`}>
                     <h3 className="text-lg font-bold">{plano.nome}</h3>
                   </div>
@@ -206,20 +206,20 @@ export default function UpgradePage() {
                   <div className="mb-4">
                     <div className="flex items-baseline gap-2">
                       <span className={`text-2xl md:text-3xl font-bold ${
-                        plano.destacado ? 'text-white' : 'text-[#0D1B2A]'
+                        plano.destacado ? 'text-white' : 'text-[#0D1B2A] dark:text-white'
                       }`}>
                         {plano.preco}
                       </span>
                       {plano.periodo && (
                         <span className={`text-sm ${
-                          plano.destacado ? 'text-white/80' : 'text-gray-600'
+                          plano.destacado ? 'text-white/80' : 'text-gray-600 dark:text-gray-300'
                         }`}>
                           {plano.periodo}
                         </span>
                       )}
                     </div>
                     <p className={`text-sm mt-2 ${
-                      plano.destacado ? 'text-white/90' : 'text-gray-600'
+                      plano.destacado ? 'text-white/90' : 'text-gray-600 dark:text-gray-300'
                     }`}>
                       {plano.descricao}
                     </p>
@@ -242,11 +242,11 @@ export default function UpgradePage() {
                         <CheckCircle2
                           size={18}
                           className={`flex-shrink-0 ${
-                            plano.destacado ? 'text-white' : 'text-[#1e4976]'
+                            plano.destacado ? 'text-white' : 'text-[#1e4976] dark:text-brand-aqua'
                           }`}
                         />
                         <span className={`text-sm ${
-                          plano.destacado ? 'text-white font-medium' : 'text-gray-700'
+                          plano.destacado ? 'text-white font-medium' : 'text-gray-700 dark:text-gray-200'
                         }`}>
                           {feature}
                         </span>
@@ -282,14 +282,14 @@ export default function UpgradePage() {
         </section>
 
         {/* Seção de Suporte WhatsApp */}
-        <section className="bg-white py-10 md:py-12">
+        <section className="bg-white dark:bg-[#1A1A1A] py-10 md:py-12">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-2xl mx-auto">
-              <div className="bg-gray-50 rounded-2xl p-6 md:p-8 shadow-lg border border-gray-200 text-center">
-                <h2 className="text-xl md:text-2xl font-display font-bold text-[#0D1B2A] mb-3">
+              <div className="bg-gray-50 dark:bg-gray-800/80 rounded-2xl p-6 md:p-8 shadow-lg border border-gray-200 dark:border-gray-700 text-center">
+                <h2 className="text-xl md:text-2xl font-display font-bold text-[#0D1B2A] dark:text-white mb-3">
                   Ainda tem dúvidas?
                 </h2>
-                <p className="text-gray-600 mb-8 leading-relaxed text-base md:text-lg">
+                <p className="text-gray-600 dark:text-gray-300 mb-8 leading-relaxed text-base md:text-lg">
                   Nossa equipe está pronta para ajudar e responder a todas as suas perguntas.
                 </p>
                 <a

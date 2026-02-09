@@ -144,6 +144,32 @@ function PagamentoPixContent() {
     return () => clearInterval(interval)
   }, [pixQrCode, pixCopyPaste, isExpired])
 
+  // Polling para detectar pagamento concluído
+  useEffect(() => {
+    if (!subscriptionId || showModalBoasVindas || loading) return
+    if (!pixQrCode && !pixCopyPaste) return
+    if (isExpired) return
+
+    const verificarPagamento = async () => {
+      try {
+        const params = new URLSearchParams({ subscriptionId })
+        if (plano) params.set('plano', plano)
+        const res = await fetch(`/api/pagamento/status?${params.toString()}`)
+        const data = await res.json()
+        if (data.success && data.pago && data.plano) {
+          createNotification('Pagamento confirmado!', 'success')
+          setShowModalBoasVindas(true)
+        }
+      } catch {
+        // Silencioso - continua pollando
+      }
+    }
+
+    const interval = setInterval(verificarPagamento, 5000)
+    verificarPagamento()
+    return () => clearInterval(interval)
+  }, [subscriptionId, plano, pixQrCode, pixCopyPaste, showModalBoasVindas, loading, isExpired])
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
@@ -367,16 +393,15 @@ function PagamentoPixContent() {
         </div>
       </main>
 
-      {/* Modal de Boas-Vindas */}
-      {showModalBoasVindas && plano && (
+      {/* Modal de Boas-Vindas - Pagamento concluído */}
+      {showModalBoasVindas && (
         <ModalBoasVindas
           isOpen={showModalBoasVindas}
           onClose={() => {
             setShowModalBoasVindas(false)
-            // Redirecionar para home após fechar o modal
             router.push('/home')
           }}
-          plano={plano}
+          plano={plano === 'anual' ? 'premium' : (plano || 'basico')}
         />
       )}
     </div>

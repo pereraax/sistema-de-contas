@@ -653,6 +653,38 @@ export async function atualizarImagemProprioPerfil(imagemUrl: string) {
   return { data }
 }
 
+/** Atualiza o nome do perfil e invalida cache para exibição imediata após refresh */
+export async function atualizarNomePerfil(nome: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'Não autenticado' }
+  }
+
+  const nomeTrim = nome?.trim()
+  if (!nomeTrim) {
+    return { error: 'Nome é obrigatório' }
+  }
+
+  // Upsert garante persistência mesmo se a linha não existir em profiles
+  const { error } = await supabase
+    .from('profiles')
+    .upsert(
+      { id: user.id, nome: nomeTrim, email: user.email || '' },
+      { onConflict: 'id' }
+    )
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath('/configuracoes')
+  revalidatePath('/home')
+
+  return { success: true }
+}
+
 export async function resetarTodosRegistros() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

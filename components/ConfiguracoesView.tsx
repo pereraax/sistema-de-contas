@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@/lib/types'
-import { obterUsuarios, criarUsuario, resetarTodosRegistros, atualizarImagemPerfilUsuario, atualizarImagemProprioPerfil } from '@/lib/actions'
+import { obterUsuarios, criarUsuario, resetarTodosRegistros, atualizarImagemPerfilUsuario, atualizarImagemProprioPerfil, atualizarNomePerfil } from '@/lib/actions'
 import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown, Download, Smartphone, Share2, ArrowRight, Lightbulb, Copy, Check, Camera } from 'lucide-react'
 import { createNotification } from './NotificationBell'
 import { atualizarSenha, reenviarEmailConfirmacao, signOut, limparBypassEmailConfirmacao } from '@/lib/auth'
@@ -105,23 +105,30 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
   const photoPerfilRef = useRef<HTMLInputElement>(null)
   const [avatarCacheKey, setAvatarCacheKey] = useState(0)
 
-  // Sincronizar dados adicionais do initialProfileData (caso mude por hot reload ou navegação)
+  // Sincronizar com initialProfileData sempre que houver dados (nome/foto atualizados em outras páginas)
   useEffect(() => {
-    if (initialProfileData && !userProfile?.profile) {
-      const { user, profile, whatsappKey } = initialProfileData
-      setUserProfile({
-        ...user,
-        email: user.email || '',
-        email_confirmed_at: user.email_confirmed_at || null,
-        profile: profile,
-      })
-      setLoadingProfile(false)
-      if (profile?.cpf) setCpf(profile.cpf)
-      if (profile?.whatsapp) setWhatsapp(profile.whatsapp)
-      if (whatsappKey) setWhatsappKey(whatsappKey)
-      setNome(extrairNomeExibicao(profile, user))
+    if (!initialProfileData?.profile || showModalEditarNome) return
+    const { user, profile, whatsappKey } = initialProfileData
+    setUserProfile({
+      ...user,
+      email: user.email || '',
+      email_confirmed_at: user.email_confirmed_at || null,
+      profile: profile,
+    })
+    setLoadingProfile(false)
+    if (profile?.cpf) setCpf(profile.cpf)
+    if (profile?.whatsapp) setWhatsapp(profile.whatsapp)
+    if (whatsappKey) setWhatsappKey(whatsappKey)
+    setNome(extrairNomeExibicao(profile, user))
+    setAvatarCacheKey((k) => k + 1) // Força reload da foto quando dados do servidor mudam
+  }, [initialProfileData, showModalEditarNome])
+
+  // Forçar refresh do servidor ao montar na aba perfil - evita dados em cache de prefetch
+  useEffect(() => {
+    if (searchParams.get('tab') === 'perfil' || !searchParams.get('tab')) {
+      router.refresh()
     }
-  }, [initialProfileData])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const tab = searchParams.get('tab')
@@ -135,9 +142,9 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
       setTabAtivo('perfil') // Padrão agora é Perfil ao invés de Geral
     }
     carregarUsuarios()
-    // NUNCA carregar perfil se já tiver initialProfileData do servidor
-    // Carregar perfil apenas se não houver dados iniciais E não houver userProfile
-    if (tab === 'perfil' && !initialProfileData && !userProfile && !userProfile?.error) {
+    // Carregar perfil no client quando aba perfil (ou padrão) e sem dados
+    const mostraPerfil = tab === 'perfil' || !tab
+    if (mostraPerfil && !initialProfileData && !userProfile) {
       carregarPerfil()
     }
     // Carregar chave WhatsApp apenas se não foi fornecida pelo servidor e não existir
@@ -557,6 +564,34 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
     const result = await obterUsuarios()
     if (result.data) {
       setUsuarios(result.data)
+    }
+  }
+
+  // Salvar nome no perfil - usa server action com upsert + revalidatePath para persistência e refresh
+  const salvarNome = async () => {
+    if (!nome.trim() || loadingNome) return
+    setLoadingNome(true)
+    try {
+      const result = await atualizarNomePerfil(nome.trim())
+
+      if (result.error) {
+        createNotification('Erro ao salvar nome: ' + result.error, 'warning')
+      } else {
+        createNotification('Nome salvo com sucesso!', 'success')
+        setShowModalEditarNome(false)
+        const nomeSalvo = nome.trim()
+        // Atualizar estado local imediatamente (NÃO chamar carregarPerfil - ele sobrescreve com dados em cache)
+        setUserProfile((prev: any) =>
+          prev ? { ...prev, profile: { ...prev.profile, nome: nomeSalvo } } : prev
+        )
+        setNome(nomeSalvo)
+        // Refresh em background para invalidar cache - sem recarregar imediatamente para não sobrescrever
+        setTimeout(() => router.refresh(), 500)
+      }
+    } catch (error: any) {
+      createNotification('Erro ao salvar nome', 'warning')
+    } finally {
+      setLoadingNome(false)
     }
   }
 
@@ -2285,32 +2320,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && nome.trim() && !loadingNome) {
                         e.preventDefault()
-                        const handleSalvar = async () => {
-                          setLoadingNome(true)
-                          try {
-                            const supabase = createClient()
-                            const { data: { user } } = await supabase.auth.getUser()
-                            if (user) {
-                              const { error } = await supabase
-                                .from('profiles')
-                                .update({ nome: nome.trim() })
-                                .eq('id', user.id)
-                              
-                              if (error) {
-                                createNotification('Erro ao salvar nome: ' + error.message, 'warning')
-                              } else {
-                                createNotification('Nome salvo com sucesso!', 'success')
-                                setShowModalEditarNome(false)
-                                carregarPerfil()
-                              }
-                            }
-                          } catch (error: any) {
-                            createNotification('Erro ao salvar nome', 'warning')
-                          } finally {
-                            setLoadingNome(false)
-                          }
-                        }
-                        handleSalvar()
+                        salvarNome()
                       }
                     }}
                   />
@@ -2318,31 +2328,7 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
 
                 <div className="flex gap-3 pt-2">
                   <button
-                    onClick={async () => {
-                      setLoadingNome(true)
-                      try {
-                        const supabase = createClient()
-                        const { data: { user } } = await supabase.auth.getUser()
-                        if (user) {
-                          const { error } = await supabase
-                            .from('profiles')
-                            .update({ nome: nome.trim() })
-                            .eq('id', user.id)
-                          
-                          if (error) {
-                            createNotification('Erro ao salvar nome: ' + error.message, 'warning')
-                          } else {
-                            createNotification('Nome salvo com sucesso!', 'success')
-                            setShowModalEditarNome(false)
-                            carregarPerfil()
-                          }
-                        }
-                      } catch (error: any) {
-                        createNotification('Erro ao salvar nome', 'warning')
-                      } finally {
-                        setLoadingNome(false)
-                      }
-                    }}
+                    onClick={() => salvarNome()}
                     disabled={loadingNome || !nome.trim()}
                     className="flex-1 px-4 py-3 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                   >

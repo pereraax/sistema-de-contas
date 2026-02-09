@@ -190,12 +190,12 @@ function CheckoutContent() {
           statusText: response.statusText,
         })
 
-        // Tentar parsear JSON
+        // Ler body como texto primeiro para evitar "body stream already read"
+        const textResponse = await response.text()
         try {
-          data = await response.json()
+          data = textResponse ? JSON.parse(textResponse) : {}
         } catch (parseError) {
-          const textResponse = await response.text()
-          console.error('❌ Erro ao parsear JSON:', parseError, 'Resposta:', textResponse)
+          console.error('❌ Erro ao parsear JSON:', parseError, 'Resposta:', textResponse?.slice(0, 200))
           throw new Error('Resposta inválida do servidor. Tente novamente.')
         }
 

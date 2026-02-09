@@ -311,6 +311,26 @@ export async function buscarPagamentoAsaas(paymentId: string): Promise<AsaasResp
   return response.json()
 }
 
+/**
+ * Buscar QR Code PIX de um pagamento
+ */
+export async function buscarPixQrCode(paymentId: string): Promise<{ encodedImage?: string; payload?: string; expirationDate?: string }> {
+  const apiKey = getAsaasApiKeyLazy()
+  
+  const response = await fetch(`${ASAAS_API_URL}/payments/${paymentId}/pixQrCode`, {
+    headers: {
+      'access_token': apiKey,
+    },
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error('❌ [lib/asaas] Erro ao buscar PIX QR Code:', response.status, errorText)
+    throw new Error('Erro ao buscar QR Code PIX')
+  }
+
+  return response.json()
+}
 
 
 

@@ -995,6 +995,91 @@ export async function reenviarEmailConfirmacao() {
   }
 }
 
+export async function enviarLinkRedefinicaoSenha(email: string) {
+  try {
+    if (!email?.trim() || !email.includes('@')) {
+      return { error: 'Informe um email válido' }
+    }
+
+    // Links em emails devem SEMPRE usar domínio público (plenipay.com)
+    let siteUrl = await getSiteUrl()
+    if (siteUrl.includes('localhost') || siteUrl.includes('127.0.0.1')) {
+      siteUrl = 'https://plenipay.com'
+    }
+    const redirectTo = `${siteUrl}/auth/redefinir-senha`
+    const emailTrim = email.trim()
+
+    const { createAdminClient } = await import('./supabase/server')
+    const supabaseAdmin = createAdminClient()
+
+    if (!supabaseAdmin) {
+      const supabase = await createClient()
+      const { error } = await supabase.auth.resetPasswordForEmail(emailTrim, { redirectTo })
+      if (error) {
+        const msg = (error.message || '').toLowerCase()
+        if (msg.includes('rate limit') || msg.includes('too many requests')) {
+          return { error: 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.' }
+        }
+        if (msg.includes('user') && (msg.includes('not found') || msg.includes('email not found'))) {
+          return { error: 'Nenhuma conta encontrada com este email. Verifique ou crie uma conta.' }
+        }
+        return { error: error.message }
+      }
+      return { success: true }
+    }
+
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email: emailTrim,
+      options: { redirectTo },
+    } as any)
+
+    if (linkError || !linkData?.properties?.action_link) {
+      const msg = (linkError?.message || '').toLowerCase()
+      if ((msg.includes('user') && msg.includes('not found')) || msg.includes('email not found')) {
+        return { error: 'Nenhuma conta encontrada com este email. Verifique ou crie uma conta.' }
+      }
+      return { error: linkError?.message || 'Erro ao gerar link. Verifique se o email está cadastrado.' }
+    }
+
+    let linkGerado = linkData.properties.action_link
+    const isLinkSupabase = linkGerado.includes('supabase.co/auth/v1/verify')
+    if (isLinkSupabase) {
+      const codeMatch = linkGerado.match(/[?&]code=([^&#]+)/i)
+      const tokenMatch = linkGerado.match(/[?&]token=([^&#]+)/i)
+      if (codeMatch) {
+        linkGerado = `${siteUrl}/auth/redefinir-senha?code=${encodeURIComponent(codeMatch[1])}`
+      } else if (tokenMatch) {
+        linkGerado = `${siteUrl}/auth/redefinir-senha?token_hash=${encodeURIComponent(tokenMatch[1])}&type=recovery`
+      }
+    }
+
+    const { isSmtpConfigured, sendMail } = await import('./mailer')
+    if (isSmtpConfigured()) {
+      try {
+        const { readFileSync } = await import('fs')
+        const { join } = await import('path')
+        const templatePath = join(process.cwd(), 'TEMPLATE-EMAIL-RESET-SENHA.html')
+        let templateHtml = readFileSync(templatePath, 'utf-8')
+        templateHtml = templateHtml.replace(/\{\{ \.ConfirmationURL \}\}/g, linkGerado)
+        await sendMail({
+          to: emailTrim,
+          subject: 'Redefinir sua Senha - PLENIPAY',
+          html: templateHtml,
+        })
+        return { success: true }
+      } catch (smtpError: any) {
+        return { error: 'Erro ao enviar email. Verifique a configuração SMTP (variáveis SMTP_* no .env).' }
+      }
+    }
+
+    return { error: 'Envio de email não configurado. Configure SMTP_* no .env (host, porta, usuário, senha).' }
+  } catch (error: any) {
+    console.error('Erro ao enviar link de redefinição:', error)
+    return { error: error.message || 'Erro ao enviar link. Tente novamente.' }
+  }
+}
+
 export async function limparBypassEmailConfirmacao() {
   'use server'
   

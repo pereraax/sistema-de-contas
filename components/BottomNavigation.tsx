@@ -33,7 +33,10 @@ export default function BottomNavigation() {
                                pathname?.startsWith('/categorias') ||
                                pathname?.startsWith('/tutoriais') ||
                                pathname?.startsWith('/configuracoes') ||
-                               pathname?.startsWith('/gastos-por-banco')
+                               pathname?.startsWith('/gastos-por-banco') ||
+                               pathname?.startsWith('/upgrade') ||
+                               pathname?.startsWith('/checkout') ||
+                               pathname?.startsWith('/pagamento')
 
   if (!isAuthenticatedPage) {
     return null
@@ -172,7 +175,10 @@ export default function BottomNavigation() {
               pathname?.startsWith('/categorias') || 
               pathname?.startsWith('/tutoriais') || 
               pathname?.startsWith('/configuracoes') ||
-              pathname?.startsWith('/gastos-por-banco')
+              pathname?.startsWith('/gastos-por-banco') ||
+              pathname?.startsWith('/upgrade') ||
+              pathname?.startsWith('/checkout') ||
+              pathname?.startsWith('/pagamento')
             return (
               <button
                 onClick={handleMoreClick}
