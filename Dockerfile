@@ -56,6 +56,9 @@ COPY --from=builder /app/TEMPLATE-EMAIL-RESET-SENHA.html ./
 # Criar diretório de cache e dar permissão ao usuário nextjs
 RUN mkdir -p /app/.next/cache && chown -R nextjs:nodejs /app/.next
 
+# Criar build-time.txt AQUI no runner (não depende de COPY do builder = evita cache)
+RUN date -u +%Y-%m-%dT%H:%M:%SZ > /app/build-time.txt && chown nextjs:nodejs /app/build-time.txt
+
 USER nextjs
 
 EXPOSE 3000
