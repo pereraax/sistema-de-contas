@@ -287,7 +287,7 @@ export default function HomeLayoutNovo({ initialStats, initialUserProfile }: { i
   const qtdDespesasPendentes = stats?.qtdDespesasPendentes ?? 0
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Header: no mobile logo ao lado do perfil; headbar compacta */}
       <div className="flex items-center justify-between gap-2 sm:gap-4 py-1 lg:py-0">
         {/* Esquerda: no mobile Logo + perfil + saudação + toggle; no desktop perfil + saudação + toggle */}
@@ -662,16 +662,16 @@ export default function HomeLayoutNovo({ initialStats, initialUserProfile }: { i
         </div>
       </div>
 
-      {/* Gastos por categoria - barra à esquerda, pizza + lista à direita */}
-      <div className="mb-6 max-w-4xl">
+      {/* Gastos por categoria - barra à esquerda, pizza + lista à direita — centralizado no desktop */}
+      <div className="mb-6 max-w-4xl mx-auto">
         <h2 className="text-lg font-bold text-brand-midnight dark:text-brand-clean mb-4">
           Gastos por categoria
         </h2>
         <GastosPorCategoriaChart />
       </div>
 
-      {/* Comparativo Mensal - Pessoal + Relatórios no mesmo bloco */}
-      <div className="mb-16 sm:mb-20 lg:mb-20">
+      {/* Comparativo Mensal - Pessoal + Relatórios no mesmo bloco — centralizado no desktop */}
+      <div className="mb-16 sm:mb-20 lg:mb-20 max-w-5xl mx-auto">
         <h2 className="text-lg font-bold text-brand-midnight dark:text-brand-clean mb-4">
           Comparativo Mensal - Pessoal
         </h2>
