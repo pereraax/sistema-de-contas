@@ -36,14 +36,19 @@ export function middleware(request: NextRequest) {
         pathname.startsWith('/home') ||
         pathname.startsWith('/api')) {
       response.headers.set('X-Robots-Tag', 'noindex, nofollow')
-      response.headers.set('Cache-Control', 'no-store, must-revalidate')
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+      response.headers.set('Pragma', 'no-cache')
+      response.headers.set('Expires', '0')
     } else if (isPublicRoute) {
       response.headers.set('X-Robots-Tag', 'index, follow')
-      // no-store: evita que Cloudflare/CDN cacheie HTML e impeça atualizações após redeploy
-      response.headers.set('Cache-Control', 'no-store, must-revalidate')
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+      response.headers.set('Pragma', 'no-cache')
+      response.headers.set('Expires', '0')
     } else {
       response.headers.set('X-Robots-Tag', 'index, follow')
-      response.headers.set('Cache-Control', 'no-store, must-revalidate')
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+      response.headers.set('Pragma', 'no-cache')
+      response.headers.set('Expires', '0')
     }
     
     return response
@@ -104,18 +109,20 @@ export function middleware(request: NextRequest) {
       pathname.startsWith('/admin') || 
       pathname.startsWith('/home') ||
       pathname.startsWith('/api')) {
-    // Bloquear indexação apenas para rotas privadas
     response.headers.set('X-Robots-Tag', 'noindex, nofollow')
-    response.headers.set('Cache-Control', 'no-store, must-revalidate')
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
   } else if (isPublicRoute) {
-    // Permitir indexação para rotas públicas
     response.headers.set('X-Robots-Tag', 'index, follow')
-    // no-store: evita que Cloudflare/CDN cacheie e impeça atualizações após redeploy
-    response.headers.set('Cache-Control', 'no-store, must-revalidate')
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
   } else {
-    // Para outras rotas, permitir indexação mas com cache controlado
     response.headers.set('X-Robots-Tag', 'index, follow')
-    response.headers.set('Cache-Control', 'no-store, must-revalidate')
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
   }
   
   return response
