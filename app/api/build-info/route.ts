@@ -16,18 +16,26 @@ export async function GET() {
   }
 
   try {
-    // Caminho explícito no Docker (BUILD_TIME_PATH) ou fallback para process.cwd()
-    const buildTimePath = process.env.BUILD_TIME_PATH || join(process.cwd(), 'build-time.txt')
-    if (existsSync(buildTimePath)) {
-      const buildTime = readFileSync(buildTimePath, 'utf-8').trim()
-      return NextResponse.json(
-        {
-          buildTime,
-          source: 'railway',
-          hint: 'Compare com a URL direta do Railway. Se forem diferentes, o DNS do domínio não está apontando para o deploy atual.',
-        },
-        { status: 200, headers }
-      )
+    // Tentar vários caminhos (Railway pode ter cwd diferente)
+    const candidates = [
+      process.env.BUILD_TIME_PATH,
+      '/app/build-time.txt',
+      '/app/app/build-time.txt',
+      join(process.cwd(), 'build-time.txt'),
+      join(process.cwd(), 'app', 'build-time.txt'),
+    ].filter(Boolean) as string[]
+    for (const buildTimePath of candidates) {
+      if (existsSync(buildTimePath)) {
+        const buildTime = readFileSync(buildTimePath, 'utf-8').trim()
+        return NextResponse.json(
+          {
+            buildTime,
+            source: 'railway',
+            hint: 'Compare com a URL direta do Railway. Se forem diferentes, o DNS do domínio não está apontando para o deploy atual.',
+          },
+          { status: 200, headers }
+        )
+      }
     }
   } catch {
     // ignore
@@ -38,6 +46,7 @@ export async function GET() {
       buildTime: 'development',
       source: 'local',
       hint: 'Em produção (Railway) este endpoint mostra a data do build.',
+      _debug: process.env.NODE_ENV === 'production' ? { cwd: process.cwd(), BUILD_TIME_PATH: process.env.BUILD_TIME_PATH || '(não definido)' } : undefined,
     },
     { status: 200, headers }
   )
