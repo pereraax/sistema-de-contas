@@ -40,6 +40,7 @@ export default function ChatWidget() {
   const closeTimerRef = useRef<NodeJS.Timeout | null>(null)
   const hasSentInactivityMessageRef = useRef(false)
   const lastSupportMessageIdRef = useRef<string | null>(null)
+  const guestRestoreAttemptedRef = useRef(false)
   /** Timer de 5 min: se o usuário não responder à última mensagem do atendente, o chat é encerrado */
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -127,6 +128,7 @@ export default function ChatWidget() {
         setFormData({ nome: '', email: '', motivo: '' })
         setIsOpen(false)
         setIsMinimized(false)
+        guestRestoreAttemptedRef.current = false
       } else if (event === 'SIGNED_IN' && session) {
         setIsAuthenticated(true)
       }
@@ -278,17 +280,19 @@ export default function ChatWidget() {
     }
 
     try {
-      // Enviar mensagem para a API
-      const response = await fetch('/api/chat/send', {
+      const url = isAuthenticated ? '/api/chat/send' : '/api/chat/guest/send'
+      const opts: RequestInit = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: messageToSend })
-      })
+      }
+      if (!isAuthenticated) opts.credentials = 'include'
+      const response = await fetch(url, opts)
 
       if (response.ok) {
-        // Aguardar um pouco para garantir que a mensagem automática foi salva
         setTimeout(() => {
-          loadMessages()
+          if (isAuthenticated) loadMessages()
+          else loadGuestMessages()
         }, 500)
       } else {
         console.error('Erro ao enviar mensagem')
@@ -404,12 +408,36 @@ export default function ChatWidget() {
   }
 
   const handleStartChat = async () => {
-    // Visitante (não logado): mostrar formulário para preencher e depois pedir login para enviar
     if (!isAuthenticated) {
       setShowForm(true)
       setHasStartedChat(false)
       setIsChatClosed(false)
       setMessages([])
+      setIsStartingChat(true)
+      try {
+        const res = await fetch('/api/chat/guest/messages', { credentials: 'include' })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.messages?.length > 0) {
+            const formattedMessages: Message[] = (data.messages || []).map((msg: any) => ({
+              id: msg.id,
+              text: msg.message,
+              sender: msg.sender_type === 'support' ? 'support' : 'user',
+              timestamp: new Date(msg.created_at),
+              isRead: !!msg.is_read
+            }))
+            setMessages(formattedMessages)
+            setHasStartedChat(true)
+            setShowForm(false)
+            setIsChatClosed(data.isClosed || false)
+            setAssignedAgentName(data.assignedAgentName ?? null)
+          }
+        }
+      } catch (_) {
+        // manter formulário visível
+      } finally {
+        setIsStartingChat(false)
+      }
       return
     }
 
@@ -451,15 +479,47 @@ export default function ChatWidget() {
     }
   }
 
+  const loadGuestMessages = async () => {
+    try {
+      const response = await fetch('/api/chat/guest/messages', { credentials: 'include' })
+      if (!response.ok) return
+      const data = await response.json()
+      const formattedMessages: Message[] = (data.messages || []).map((msg: any) => ({
+        id: msg.id,
+        text: msg.message,
+        sender: msg.sender_type === 'support' ? 'support' : 'user',
+        timestamp: new Date(msg.created_at),
+        isRead: !!msg.is_read
+      }))
+      const supportMessages = formattedMessages.filter(msg => msg.sender === 'support')
+      const previousLastId = lastSupportMessageIdRef.current
+      if (supportMessages.length > 0) {
+        const lastSupportMessage = supportMessages[supportMessages.length - 1]
+        if (previousLastId !== null && lastSupportMessage.id !== previousLastId) {
+          playNotificationSound()
+        }
+        lastSupportMessageIdRef.current = lastSupportMessage.id
+      }
+      setMessages(formattedMessages)
+      setIsChatClosed(data.isClosed || false)
+      setAssignedAgentName(data.assignedAgentName ?? null)
+      if (data.isClosed) {
+        setAssignedAgentName(null)
+        setHasStartedChat(true)
+        setShowForm(false)
+        lastSupportMessageIdRef.current = null
+      } else if (formattedMessages.length > 0) {
+        setHasStartedChat(true)
+        setShowForm(false)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar mensagens do visitante:', error)
+    }
+  }
+
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    
-    // Visitante não logado: redirecionar para login para poder enviar
-    if (!isAuthenticated) {
-      router.push('/login?mensagem=Faça login para enviar sua mensagem ao suporte.')
-      return
-    }
     
     console.log('📝 Iniciando envio do formulário...', formData)
     
@@ -485,66 +545,59 @@ export default function ChatWidget() {
     setIsSubmittingForm(true)
 
     try {
-      // A API /api/chat/send já reabre a conversa automaticamente se estiver finalizada
-      // Não precisamos chamar /api/chat/close aqui
-      
-      // Enviar mensagem com as informações do formulário
       const messageText = `Nome: ${formData.nome}\nEmail: ${formData.email}\nMotivo: ${formData.motivo}`
-      
-      console.log('📤 Enviando mensagem:', messageText)
-      
-      const response = await fetch('/api/chat/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageText })
-      })
-
-      console.log('📥 Resposta do servidor:', response.status, response.ok)
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error('❌ Erro na resposta:', errorData)
-        throw new Error(errorData.error || 'Erro ao enviar mensagem')
-      }
-
-      const responseData = await response.json()
-      console.log('✅ Mensagem enviada com sucesso:', responseData)
-
-      // Aguardar um pouco antes de enviar a mensagem automática
-      await new Promise(resolve => setTimeout(resolve, 300))
-
-      // Enviar mensagem de confirmação do suporte
       const confirmMessage = `Olá ${formData.nome}! 👋\n\nObrigado pelas informações! Recebemos sua solicitação:\n\n📧 Email: ${formData.email}\n📝 Motivo: ${formData.motivo}\n\nNossa equipe de suporte irá atendê-lo o mais breve possível. Aguarde um momento! 😊`
-      
-      console.log('📤 Enviando mensagem automática de confirmação...')
-      
-      const autoResponse = await fetch('/api/chat/send-automatic', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'info',
-          message: confirmMessage
-        })
-      })
 
-      if (!autoResponse.ok) {
-        console.error('❌ Erro ao enviar mensagem automática:', await autoResponse.json())
+      if (!isAuthenticated) {
+        // Fluxo visitante (sem login)
+        console.log('📤 Enviando como visitante...')
+        const response = await fetch('/api/chat/guest/start', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nome: formData.nome, email: formData.email, motivo: formData.motivo })
+        })
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || 'Erro ao iniciar chat')
+        }
+        await new Promise(resolve => setTimeout(resolve, 300))
+        await fetch('/api/chat/guest/send-automatic', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'info', message: confirmMessage })
+        })
       } else {
-        console.log('✅ Mensagem automática enviada com sucesso')
+        // Fluxo usuário logado
+        const response = await fetch('/api/chat/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: messageText })
+        })
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Erro ao enviar mensagem')
+        }
+        await new Promise(resolve => setTimeout(resolve, 300))
+        const autoResponse = await fetch('/api/chat/send-automatic', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'info', message: confirmMessage })
+        })
+        if (!autoResponse.ok) {
+          console.error('❌ Erro ao enviar mensagem automática:', await autoResponse.json())
+        }
       }
 
-      // Ocultar formulário, resetar estado e carregar mensagens
       setShowForm(false)
       setHasStartedChat(true)
       setIsChatClosed(false)
       setFormData({ nome: '', email: '', motivo: '' })
-      lastSupportMessageIdRef.current = null // Resetar referência ao iniciar nova conversa
-      
-      console.log('🔄 Carregando mensagens...')
-      
-      // Aguardar um pouco mais antes de carregar mensagens
+      lastSupportMessageIdRef.current = null
       setTimeout(() => {
-        loadMessages()
+        if (isAuthenticated) loadMessages()
+        else loadGuestMessages()
       }, 1000)
     } catch (error: any) {
       console.error('❌ Erro ao enviar formulário:', error)
@@ -556,30 +609,47 @@ export default function ChatWidget() {
 
   useEffect(() => {
     if (isOpen && !isMinimized && isAuthenticated) {
-      // Só carregar mensagens quando não estiver mostrando o formulário (evita que "Iniciar Nova Conversa" seja anulado)
-      if (!showForm) {
-        loadMessages()
-      }
+      if (!showForm) loadMessages()
       if (hasStartedChat && !showForm && !isChatClosed && messages.length > 0) {
-        // Atualizar mensagens a cada 3 segundos quando o chat estiver aberto e já iniciado
         const interval = setInterval(loadMessages, 3000)
-        
-        // Iniciar timer de inatividade
         resetInactivityTimer()
-        
         return () => {
           clearInterval(interval)
-          if (inactivityTimerRef.current) {
-            clearTimeout(inactivityTimerRef.current)
-          }
-          if (closeTimerRef.current) {
-            clearTimeout(closeTimerRef.current)
-          }
+          if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current)
+          if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
           if (responseTimeoutRef.current) {
             clearTimeout(responseTimeoutRef.current)
             responseTimeoutRef.current = null
           }
         }
+      }
+    } else if (isOpen && !isMinimized && !isAuthenticated) {
+      if (!guestRestoreAttemptedRef.current) {
+        guestRestoreAttemptedRef.current = true
+        fetch('/api/chat/guest/messages', { credentials: 'include' })
+          .then((res) => res.ok ? res.json() : null)
+          .then((data) => {
+            if (data?.messages?.length > 0) {
+              const formattedMessages: Message[] = (data.messages || []).map((msg: any) => ({
+                id: msg.id,
+                text: msg.message,
+                sender: msg.sender_type === 'support' ? 'support' : 'user',
+                timestamp: new Date(msg.created_at),
+                isRead: !!msg.is_read
+              }))
+              setMessages(formattedMessages)
+              setHasStartedChat(true)
+              setShowForm(false)
+              setIsChatClosed(data.isClosed || false)
+              setAssignedAgentName(data.assignedAgentName ?? null)
+            }
+          })
+          .catch(() => { guestRestoreAttemptedRef.current = false })
+      }
+      if (hasStartedChat && !showForm) {
+        loadGuestMessages()
+        const interval = setInterval(loadGuestMessages, 3000)
+        return () => clearInterval(interval)
       }
     } else {
       // Limpar timers quando o chat estiver fechado ou minimizado
