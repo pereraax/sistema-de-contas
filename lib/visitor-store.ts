@@ -25,15 +25,18 @@ export function getStats() {
   const startOfToday = new Date(now)
   startOfToday.setHours(0, 0, 0, 0)
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+  const startOfWeek = now - 7 * 24 * 60 * 60 * 1000 // últimos 7 dias
   const onlineCutoff = now - ONLINE_THRESHOLD_MS
 
   let online = 0
   let hoje = 0
+  let semana = 0
   let mes = 0
   for (let i = VISITORS.length - 1; i >= 0; i--) {
     const { ts } = VISITORS[i]
     if (ts >= onlineCutoff) online++
     if (ts >= startOfToday.getTime()) hoje++
+    if (ts >= startOfWeek) semana++
     if (ts >= startOfMonth) mes++
   }
 
@@ -41,7 +44,7 @@ export function getStats() {
     total: VISITORS.length,
     online,
     hoje,
-    semana: 0, // opcional
+    semana,
     mes,
   }
 }
