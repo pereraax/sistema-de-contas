@@ -555,19 +555,23 @@ export default function LandingPage() {
           </div>
 
           <div className="relative max-w-6xl mx-auto">
-            {/* Overlay translúcido esquerda */}
+            {/* Overlay translúcido esquerda — escuro no dark mode */}
             <div
               className="absolute left-0 top-0 bottom-0 w-20 md:w-32 z-10 pointer-events-none"
               style={{
-                background: 'linear-gradient(to right, rgb(255 255 255) 0%, rgba(255,255,255,0.5) 70%, transparent 100%)',
+                background: isDarkMode
+                  ? 'linear-gradient(to right, rgb(15 15 15) 0%, rgba(15,15,15,0.6) 70%, transparent 100%)'
+                  : 'linear-gradient(to right, rgb(255 255 255) 0%, rgba(255,255,255,0.5) 70%, transparent 100%)',
               }}
               aria-hidden
             />
-            {/* Overlay translúcido direita */}
+            {/* Overlay translúcido direita — escuro no dark mode */}
             <div
               className="absolute right-0 top-0 bottom-0 w-20 md:w-32 z-10 pointer-events-none"
               style={{
-                background: 'linear-gradient(to left, rgb(255 255 255) 0%, rgba(255,255,255,0.5) 70%, transparent 100%)',
+                background: isDarkMode
+                  ? 'linear-gradient(to left, rgb(15 15 15) 0%, rgba(15,15,15,0.6) 70%, transparent 100%)'
+                  : 'linear-gradient(to left, rgb(255 255 255) 0%, rgba(255,255,255,0.5) 70%, transparent 100%)',
               }}
               aria-hidden
             />

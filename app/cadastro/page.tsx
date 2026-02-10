@@ -250,40 +250,38 @@ function CadastroContent() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      {/* Header - Igual à página principal */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 max-w-6xl">
-          <Link href="/" className="flex items-center flex-shrink-0">
-            <Image 
-              src="/logo-header.png" 
-              alt="PLENIPAY" 
-              width={120}
-              height={40}
-              className="h-9 md:h-10 w-auto object-contain"
-              priority
-            />
-          </Link>
-        </div>
-      </header>
-
+    <div className="min-h-screen bg-neutral-50 dark:bg-[#1A1A1A]">
       {/* Conteúdo - Centralizado, clean */}
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-md py-8 sm:py-12">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-md py-6 sm:py-10">
+        <div className="bg-white dark:bg-[#252525] rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-6 sm:p-8">
+          {/* Logo centralizado no topo da janela Criar Conta */}
+          <div className="flex justify-center mb-6">
+            <Link href="/" className="block">
+              <Image
+                src="/logo-header.png"
+                alt="PLENIPAY"
+                width={140}
+                height={48}
+                className="h-10 sm:h-12 w-auto object-contain"
+                priority
+              />
+            </Link>
+          </div>
+
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1e4976] transition-colors mb-5"
+            className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-[#1e4976] dark:hover:text-brand-aqua transition-colors mb-5"
           >
             <ArrowLeft size={18} />
             Voltar
           </Link>
 
           <div className="mb-6">
-            <h1 className="text-2xl font-semibold text-[#0D1B2A] mb-1">
+            <h1 className="text-2xl font-semibold text-[#0D1B2A] dark:text-white mb-1">
               Criar Conta
             </h1>
-            <p className="text-sm text-gray-500">
-              Plano: <Link href="/planos" className="text-[#1e4976] hover:text-[#163a5f] font-medium">{planosNomes[plano]}</Link>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Plano: <Link href="/planos" className="text-[#1e4976] dark:text-brand-aqua hover:text-[#163a5f] dark:hover:text-brand-aqua/80 font-medium">{planosNomes[plano]}</Link>
             </p>
           </div>
 
@@ -302,7 +300,7 @@ function CadastroContent() {
             data-form-type="other"
           >
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Nome Completo *
               </label>
               <input
@@ -310,13 +308,13 @@ function CadastroContent() {
                 required
                 value={formData.nome}
                 onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all"
+                className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#1e4976] dark:focus:border-brand-aqua focus:ring-2 focus:ring-[#1e4976]/10 dark:focus:ring-brand-aqua/20 transition-all"
                 placeholder="Seu nome completo"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Email *
               </label>
               <input
@@ -326,13 +324,13 @@ function CadastroContent() {
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 autoComplete="email"
                 data-form-type="other"
-                className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all"
+                className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#1e4976] dark:focus:border-brand-aqua focus:ring-2 focus:ring-[#1e4976]/10 dark:focus:ring-brand-aqua/20 transition-all"
                 placeholder="seu@email.com"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Senha *
               </label>
               <div className="relative">
@@ -343,45 +341,45 @@ function CadastroContent() {
                   onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
                   autoComplete="new-password"
                   data-form-type="other"
-                  className={`w-full px-3 py-2.5 bg-white border rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none transition-all pr-10 ${
+                  className={`w-full px-3 py-2.5 bg-white dark:bg-white/10 border rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none transition-all pr-10 ${
                     formData.senha && !senhaValida
                       ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/10'
                       : formData.senha && senhaValida
                       ? 'border-green-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/10'
-                      : 'border-gray-200 focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10'
+                      : 'border-gray-200 dark:border-white/20 focus:border-[#1e4976] dark:focus:border-brand-aqua focus:ring-2 focus:ring-[#1e4976]/10 dark:focus:ring-brand-aqua/20'
                   }`}
                   placeholder="Digite sua senha"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#1e4976] transition-colors"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-[#1e4976] dark:hover:text-brand-aqua transition-colors"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
               
               {/* Lista de requisitos da senha - Compacta em grid */}
-              <div className="mt-1.5 p-3 bg-neutral-50 rounded-xl border border-gray-100">
-                <p className="text-xs font-semibold text-gray-700 mb-1.5">Requisitos da senha:</p>
+              <div className="mt-1.5 p-3 bg-neutral-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/10">
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Requisitos da senha:</p>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                  <li className={`flex items-center gap-1.5 text-xs list-none ${requisitosSenha.minimo ? 'text-green-600' : 'text-gray-500'}`}>
+                  <li className={`flex items-center gap-1.5 text-xs list-none ${requisitosSenha.minimo ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
                     <span className="text-xs">{requisitosSenha.minimo ? '✓' : '○'}</span>
                     <span>8+ caracteres</span>
                   </li>
-                  <li className={`flex items-center gap-1.5 text-xs list-none ${requisitosSenha.maiuscula ? 'text-green-600' : 'text-gray-500'}`}>
+                  <li className={`flex items-center gap-1.5 text-xs list-none ${requisitosSenha.maiuscula ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
                     <span className="text-xs">{requisitosSenha.maiuscula ? '✓' : '○'}</span>
                     <span>Maiúscula (A-Z)</span>
                   </li>
-                  <li className={`flex items-center gap-1.5 text-xs list-none ${requisitosSenha.minuscula ? 'text-green-600' : 'text-gray-500'}`}>
+                  <li className={`flex items-center gap-1.5 text-xs list-none ${requisitosSenha.minuscula ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
                     <span className="text-xs">{requisitosSenha.minuscula ? '✓' : '○'}</span>
                     <span>Minúscula (a-z)</span>
                   </li>
-                  <li className={`flex items-center gap-1.5 text-xs list-none ${requisitosSenha.numero ? 'text-green-600' : 'text-gray-500'}`}>
+                  <li className={`flex items-center gap-1.5 text-xs list-none ${requisitosSenha.numero ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
                     <span className="text-xs">{requisitosSenha.numero ? '✓' : '○'}</span>
                     <span>Número (0-9)</span>
                   </li>
-                  <li className={`flex items-center gap-1.5 text-xs list-none col-span-2 ${requisitosSenha.especial ? 'text-green-600' : 'text-gray-500'}`}>
+                  <li className={`flex items-center gap-1.5 text-xs list-none col-span-2 ${requisitosSenha.especial ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
                     <span className="text-xs">{requisitosSenha.especial ? '✓' : '○'}</span>
                     <span>Caractere especial (!@#$%...)</span>
                   </li>
@@ -390,7 +388,7 @@ function CadastroContent() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Confirmar Senha *
               </label>
               <input
@@ -400,18 +398,18 @@ function CadastroContent() {
                 onChange={(e) => setFormData({ ...formData, confirmarSenha: e.target.value })}
                 autoComplete="new-password"
                 data-form-type="other"
-                className={`w-full px-3 py-2.5 bg-white border rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none transition-all ${
+                className={`w-full px-3 py-2.5 bg-white dark:bg-white/10 border rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none transition-all ${
                   senhasNaoCoincidem
                     ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/10'
                     : senhasCoincidem
                     ? 'border-green-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/10'
-                    : 'border-gray-200 focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10'
+                    : 'border-gray-200 dark:border-white/20 focus:border-[#1e4976] dark:focus:border-brand-aqua focus:ring-2 focus:ring-[#1e4976]/10 dark:focus:ring-brand-aqua/20'
                 }`}
                 placeholder="Confirme sua senha"
               />
               {senhasNaoCoincidem && (
-                <div className="mt-1.5 p-3 bg-red-50 border border-red-200 rounded-xl">
-                  <p className="text-xs text-red-700 flex items-start gap-2 font-medium">
+                <div className="mt-1.5 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl">
+                  <p className="text-xs text-red-700 dark:text-red-300 flex items-start gap-2 font-medium">
                     <span className="text-sm flex-shrink-0">⚠️</span>
                     <span className="flex-1">
                       <strong>As senhas não coincidem!</strong>
@@ -420,8 +418,8 @@ function CadastroContent() {
                 </div>
               )}
               {senhasCoincidem && (
-                <div className="mt-1.5 p-3 bg-green-50 border border-green-200 rounded-xl">
-                  <p className="text-xs text-green-700 flex items-center gap-1.5 font-semibold">
+                <div className="mt-1.5 p-3 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-xl">
+                  <p className="text-xs text-green-700 dark:text-green-300 flex items-center gap-1.5 font-semibold">
                     <span className="text-sm">✓</span>
                     <span>Senhas coincidem</span>
                   </p>
@@ -430,7 +428,7 @@ function CadastroContent() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 WhatsApp *
               </label>
               <input
@@ -446,10 +444,10 @@ function CadastroContent() {
                   }
                 }}
                 maxLength={15}
-                className={`w-full px-3 py-2.5 bg-white border rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 transition-all ${
+                className={`w-full px-3 py-2.5 bg-white dark:bg-white/10 border rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 transition-all ${
                   mostrarAvisoCampos && (!formData.whatsapp || formData.whatsapp.replace(/\D/g, '').length < 10)
                     ? 'border-amber-500 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10'
-                    : 'border-gray-200 focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10'
+                    : 'border-gray-200 dark:border-white/20 focus:border-[#1e4976] dark:focus:border-brand-aqua focus:ring-2 focus:ring-[#1e4976]/10 dark:focus:ring-brand-aqua/20'
                 }`}
                 placeholder="(00) 00000-0000"
               />
@@ -457,14 +455,14 @@ function CadastroContent() {
 
             {/* Mensagem de aviso na parte inferior */}
             {mostrarAvisoCampos && (
-              <div className="bg-amber-50 rounded-xl px-4 py-3 border border-amber-100">
+              <div className="bg-amber-50 dark:bg-amber-500/10 rounded-xl px-4 py-3 border border-amber-100 dark:border-amber-500/30">
                 <div className="flex items-start gap-2.5">
-                  <AlertCircle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                  <AlertCircle size={18} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-amber-800 mb-1">
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">
                       Complete todos os campos obrigatórios
                     </p>
-                    <p className="text-xs text-amber-700 leading-relaxed">
+                    <p className="text-xs text-amber-700 dark:text-amber-300/90 leading-relaxed">
                       Por favor, preencha todos os campos marcados com * antes de continuar. Verifique especialmente o campo de WhatsApp.
                     </p>
                   </div>
@@ -508,16 +506,16 @@ function CadastroContent() {
               )}
             </button>
 
-            <p className="text-center text-xs text-gray-500 leading-tight">
+            <p className="text-center text-xs text-gray-500 dark:text-gray-400 leading-tight">
               Ao criar uma conta, você concorda com nossos{' '}
-              <Link href="/termos" className="text-[#1e4976] hover:text-[#163a5f] font-medium">Termos</Link>
+              <Link href="/termos" className="text-[#1e4976] dark:text-brand-aqua hover:text-[#163a5f] dark:hover:text-brand-aqua/80 font-medium">Termos</Link>
               {' '}e{' '}
-              <Link href="/privacidade" className="text-[#1e4976] hover:text-[#163a5f] font-medium">Política</Link>
+              <Link href="/privacidade" className="text-[#1e4976] dark:text-brand-aqua hover:text-[#163a5f] dark:hover:text-brand-aqua/80 font-medium">Política</Link>
             </p>
 
-            <p className="text-center text-xs text-gray-600">
+            <p className="text-center text-xs text-gray-600 dark:text-gray-400">
               Já tem uma conta?{' '}
-              <Link href="/login" className="text-[#1e4976] hover:text-[#163a5f] font-medium">
+              <Link href="/login" className="text-[#1e4976] dark:text-brand-aqua hover:text-[#163a5f] dark:hover:text-brand-aqua/80 font-medium">
                 Fazer login
               </Link>
             </p>
@@ -584,8 +582,8 @@ function CadastroContent() {
 export default function CadastroPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-[#1e4976]" size={48} />
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-[#1A1A1A]">
+        <Loader2 className="animate-spin text-[#1e4976] dark:text-brand-aqua" size={48} />
       </div>
     }>
       <CadastroContent />

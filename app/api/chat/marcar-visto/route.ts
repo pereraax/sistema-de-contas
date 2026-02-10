@@ -24,6 +24,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Serviço indisponível' }, { status: 503 })
     }
 
+    const GUEST_PREFIX = 'guest:'
+    const isGuest = userId.startsWith(GUEST_PREFIX)
+    const guestEmail = isGuest ? userId.slice(GUEST_PREFIX.length) : null
+
+    if (isGuest && guestEmail) {
+      const { error } = await supabase
+        .from('chat_messages')
+        .update({ is_read: true })
+        .eq('guest_email', guestEmail)
+        .eq('sender_type', 'user')
+      if (error) {
+        console.error('[chat/marcar-visto] Erro:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      return NextResponse.json({ success: true })
+    }
+
     const { error } = await supabase
       .from('chat_messages')
       .update({ is_read: true })

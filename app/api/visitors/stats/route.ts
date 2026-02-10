@@ -4,10 +4,25 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Estatísticas por IP único: cada pessoa (IP) conta uma vez.
+ * Visitantes Hoje e Visitantes Online ficam em sincronia (mesmo critério de unicidade).
+ */
 export async function GET() {
   try {
     const supabase = createAdminClient()
     if (supabase) {
+      const { data: rpcRows, error } = await supabase.rpc('get_visitor_stats_by_ip')
+      if (!error && rpcRows && rpcRows.length > 0) {
+        const row = rpcRows[0]
+        const total = Number(row?.total ?? 0)
+        const online = Number(row?.online ?? 0)
+        const hoje = Number(row?.hoje ?? 0)
+        const semana = Number(row?.semana ?? 0)
+        const mes = Number(row?.mes ?? 0)
+        return NextResponse.json({ total, online, hoje, semana, mes })
+      }
+
       const now = new Date()
       const nowMs = now.getTime()
       const startOfToday = new Date(now)
@@ -15,7 +30,6 @@ export async function GET() {
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
       const twoMinAgo = new Date(nowMs - 2 * 60 * 1000)
       const sevenDaysAgo = new Date(nowMs - 7 * 24 * 60 * 60 * 1000)
-
       const isoToday = startOfToday.toISOString()
       const isoMonth = startOfMonth.toISOString()
       const isoTwoMin = twoMinAgo.toISOString()
@@ -34,7 +48,6 @@ export async function GET() {
       const hoje = hojeRes.count ?? 0
       const semana = semanaRes.count ?? 0
       const mes = mesRes.count ?? 0
-
       return NextResponse.json({ total, online, hoje, semana, mes })
     }
   } catch (err) {

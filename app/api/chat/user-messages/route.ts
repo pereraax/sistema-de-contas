@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { verifyAdminToken } from '@/lib/admin-middleware'
 import { createAdminClient } from '@/lib/supabase/server'
 
+const GUEST_PREFIX = 'guest:'
+
 export async function GET(request: Request) {
   try {
     const admin = await verifyAdminToken()
@@ -20,26 +22,53 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Serviço indisponível' }, { status: 503 })
     }
 
-    const { data: messages, error } = await supabase
-      .from('chat_messages')
-      .select('id, user_id, message, sender_type, is_read, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
+    const isGuest = userId.startsWith(GUEST_PREFIX)
+    const guestEmail = isGuest ? userId.slice(GUEST_PREFIX.length) : null
 
-    if (error) {
-      console.error('[chat/user-messages] Erro:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    let messages: any[] = []
+    let is_closed = false
+
+    if (isGuest && guestEmail) {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('id, user_id, guest_email, message, sender_type, is_read, created_at')
+        .eq('guest_email', guestEmail)
+        .order('created_at', { ascending: true })
+      if (error) {
+        console.error('[chat/user-messages] Erro:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      messages = data || []
+      const { data: conv } = await supabase
+        .from('chat_conversations')
+        .select('is_closed')
+        .eq('guest_email', guestEmail)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      is_closed = conv?.is_closed ?? false
+    } else {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('id, user_id, guest_email, message, sender_type, is_read, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+      if (error) {
+        console.error('[chat/user-messages] Erro:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      messages = data || []
+      const { data: conv } = await supabase
+        .from('chat_conversations')
+        .select('is_closed')
+        .eq('user_id', userId)
+        .single()
+      is_closed = conv?.is_closed ?? false
     }
 
-    const { data: conv } = await supabase
-      .from('chat_conversations')
-      .select('is_closed')
-      .eq('user_id', userId)
-      .single()
-
     return NextResponse.json({
-      messages: messages || [],
-      is_closed: conv?.is_closed ?? false
+      messages,
+      is_closed
     })
   } catch (err: any) {
     console.error('[chat/user-messages] Erro:', err)

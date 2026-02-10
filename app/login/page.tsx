@@ -322,14 +322,13 @@ function LoginContent() {
   }
 
   return (
-    <div className="login-page-wrap min-h-screen flex flex-col md:flex-row bg-gray-50 md:bg-white" style={{ backgroundColor: 'var(--login-bg, #f8fafc)' }}>
-      {/* Área do login: fundo claro no mobile (globals.css força .login-page-wrap claro mesmo em dark) */}
+    <div className="login-page-wrap min-h-screen flex flex-col md:flex-row bg-gray-50 md:bg-white dark:bg-[#1A1A1A]">
+      {/* Área do login */}
       <div
         ref={sectionRef}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
-        className="login-page-inner w-full md:w-1/2 relative overflow-hidden bg-gray-50 md:bg-white flex items-center justify-center p-4 md:p-6 lg:p-8 min-h-screen md:min-h-0"
-        style={{ backgroundColor: 'var(--login-bg, #f8fafc)' }}
+        className="login-page-inner w-full md:w-1/2 relative overflow-hidden bg-gray-50 md:bg-white dark:bg-[#1A1A1A] flex items-center justify-center p-4 md:p-6 lg:p-8 min-h-screen md:min-h-0"
       >
         {/* Grade que aparece ao passar o mouse (apenas desktop) — mesmo efeito da página inicial */}
         <div
@@ -350,7 +349,7 @@ function LoginContent() {
           }}
           aria-hidden
         />
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-8 relative z-10">
+        <div className="w-full max-w-md bg-white dark:bg-[#252525] rounded-2xl shadow-lg border border-gray-100 dark:border-white/10 p-6 sm:p-8 relative z-10">
           {/* Logo centralizado acima do login — apenas mobile */}
           <div className="md:hidden flex justify-center mb-5">
             <Image
@@ -363,30 +362,30 @@ function LoginContent() {
           </div>
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1e4976] transition-colors mb-5"
+            className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-[#1e4976] dark:hover:text-brand-aqua transition-colors mb-5"
           >
             <ArrowLeft size={18} />
             Voltar
           </Link>
 
           <div className="mb-6">
-            <h1 className="text-2xl font-semibold text-[#0D1B2A] mb-1">
+            <h1 className="text-2xl font-semibold text-[#0D1B2A] dark:text-white mb-1">
               Entrar
             </h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Acesse sua conta para continuar
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3">
             {errorMessage && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3">
-                <p className="text-xs text-red-600 font-medium">{errorMessage}</p>
+              <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-3">
+                <p className="text-xs text-red-600 dark:text-red-300 font-medium">{errorMessage}</p>
               </div>
             )}
             
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Email *
               </label>
               <input
@@ -394,14 +393,14 @@ function LoginContent() {
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all"
+                className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#1e4976] dark:focus:border-brand-aqua focus:ring-2 focus:ring-[#1e4976]/10 dark:focus:ring-brand-aqua/20 transition-all"
                 placeholder="seu@email.com"
                 style={{ fontSize: '16px' }}
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Senha *
               </label>
               <div className="relative">
@@ -410,14 +409,14 @@ function LoginContent() {
                   required
                   value={formData.senha}
                   onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#1e4976] focus:ring-2 focus:ring-[#1e4976]/10 transition-all pr-10"
+                  className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#1e4976] dark:focus:border-brand-aqua focus:ring-2 focus:ring-[#1e4976]/10 dark:focus:ring-brand-aqua/20 transition-all pr-10"
                   placeholder="Sua senha"
                   style={{ fontSize: '16px' }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#1e4976] transition-colors"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-[#1e4976] dark:hover:text-brand-aqua transition-colors"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -425,7 +424,7 @@ function LoginContent() {
             </div>
 
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer group">
+              <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer group">
                 <div className="relative">
                   <input 
                     type="checkbox" 
@@ -436,8 +435,8 @@ function LoginContent() {
                   />
                   <div className={`w-4 h-4 border-2 rounded transition-all duration-200 flex items-center justify-center ${
                     rememberMe 
-                      ? 'bg-[#1e4976] border-[#1e4976] shadow-sm' 
-                      : 'border-gray-300 group-hover:border-[#1e4976]'
+                      ? 'bg-[#1e4976] dark:bg-brand-aqua border-[#1e4976] dark:border-brand-aqua shadow-sm' 
+                      : 'border-gray-300 dark:border-gray-500 group-hover:border-[#1e4976] dark:group-hover:border-brand-aqua'
                   }`}>
                     {rememberMe && (
                       <svg 
@@ -454,12 +453,12 @@ function LoginContent() {
                     )}
                   </div>
                 </div>
-                <span className="select-none group-hover:text-[#1e4976] transition-colors">Lembrar-me</span>
+                <span className="select-none group-hover:text-[#1e4976] dark:group-hover:text-brand-aqua transition-colors">Lembrar-me</span>
               </label>
               <button
                 type="button"
                 onClick={() => setShowModalEsqueceuSenha(true)}
-                className="text-xs text-[#1e4976] hover:text-[#163a5f] font-medium"
+                className="text-xs text-[#1e4976] dark:text-brand-aqua hover:text-[#163a5f] dark:hover:text-brand-aqua/80 font-medium"
               >
                 Esqueceu a senha?
               </button>
@@ -480,11 +479,11 @@ function LoginContent() {
               )}
             </button>
 
-            <p className="text-center text-xs text-gray-500 leading-tight">
+            <p className="text-center text-xs text-gray-500 dark:text-gray-400 leading-tight">
               Não tem uma conta?{' '}
               <Link 
                 href="/cadastro?plano=teste"
-                className="text-[#1e4976] hover:text-[#163a5f] font-medium"
+                className="text-[#1e4976] dark:text-brand-aqua hover:text-[#163a5f] dark:hover:text-brand-aqua/80 font-medium"
                 onClick={(e) => {
                   e.preventDefault()
                   router.push('/cadastro?plano=teste')
@@ -536,8 +535,8 @@ function LoginContent() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-[#1e4976]" size={48} />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#1A1A1A]">
+        <Loader2 className="animate-spin text-[#1e4976] dark:text-brand-aqua" size={48} />
       </div>
     }>
       <LoginContent />

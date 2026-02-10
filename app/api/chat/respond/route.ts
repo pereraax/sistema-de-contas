@@ -3,13 +3,13 @@ import { verifyAdminToken } from '@/lib/admin-middleware'
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendEmailNovaMensagemSuporte } from '@/lib/chat-emails'
 
-// Nomes fictícios para exibir ao usuário (nunca o nome real do administrador)
+const GUEST_PREFIX = 'guest:'
 const NOMES_ATENDENTES = ['Ana Silva', 'Carlos Santos', 'Mariana Costa', 'Rafael Oliveira', 'Julia Mendes']
 
-function nomeFicticioAtendente(userId: string): string {
+function nomeFicticioAtendente(seed: string): string {
   let hash = 0
-  for (let i = 0; i < userId.length; i++) {
-    hash = (hash << 5) - hash + userId.charCodeAt(i)
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i)
     hash |= 0
   }
   const index = Math.abs(hash) % NOMES_ATENDENTES.length
@@ -36,7 +36,49 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Serviço indisponível' }, { status: 503 })
     }
 
+    const isGuest = userId.startsWith(GUEST_PREFIX)
+    const guestEmail = isGuest ? userId.slice(GUEST_PREFIX.length) : null
+
     const nomeExibido = nomeFicticioAtendente(userId)
+
+    if (isGuest && guestEmail) {
+      const { data: existing } = await supabase
+        .from('chat_conversations')
+        .select('id')
+        .eq('guest_email', guestEmail)
+        .eq('is_closed', false)
+        .maybeSingle()
+      if (existing) {
+        await supabase
+          .from('chat_conversations')
+          .update({ assigned_agent_name: nomeExibido, updated_at: new Date().toISOString() })
+          .eq('id', existing.id)
+      } else {
+        await supabase.from('chat_conversations').insert({
+          user_id: null,
+          guest_email: guestEmail,
+          is_closed: false,
+          assigned_agent_name: nomeExibido,
+          updated_at: new Date().toISOString()
+        })
+      }
+      const { error } = await supabase.from('chat_messages').insert({
+        user_id: null,
+        guest_email: guestEmail,
+        message,
+        sender_type: 'support'
+      })
+      if (error) {
+        console.error('[chat/respond] Erro:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      const nome = (guestEmail || '').split('@')[0] || 'Visitante'
+      sendEmailNovaMensagemSuporte(guestEmail, nome).catch((e) =>
+        console.error('[chat/respond] Email de notificação falhou:', e)
+      )
+      return NextResponse.json({ ok: true })
+    }
+
     await supabase.from('chat_conversations').upsert(
       { user_id: userId, is_closed: false, assigned_agent_name: nomeExibido, updated_at: new Date().toISOString() },
       { onConflict: 'user_id' }
@@ -53,7 +95,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Notificar o usuário por email (não bloqueia a resposta)
     const { data: profile } = await supabase
       .from('profiles')
       .select('email, nome')
