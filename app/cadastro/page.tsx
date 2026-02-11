@@ -14,6 +14,7 @@ import { createClient } from '@/lib/supabase/client'
 export const dynamic = 'force-dynamic'
 
 const AFFILIATE_REF_COOKIE = 'plenipay_ref'
+const CONFIRM_EMAIL_MODAL_KEY = 'plenipay_confirm_email_modal'
 
 function CadastroContent() {
   const router = useRouter()
@@ -29,6 +30,7 @@ function CadastroContent() {
   const [signUpResult, setSignUpResult] = useState<any>(null) // Armazenar resultado do signUp
   const [erroRateLimit, setErroRateLimit] = useState<string | null>(null) // Armazenar erro de rate limiting
   const [mostrarAvisoCampos, setMostrarAvisoCampos] = useState(false) // Controlar exibição do aviso de campos incompletos
+  const restoredModalRef = useRef(false)
   const [formData, setFormData] = useState({
     nome: '',
     email: '',
@@ -59,6 +61,32 @@ function CadastroContent() {
       setCodigoPreenchidoPeloLink(true)
     }
   }, [])
+
+  // Restaurar modal de confirmação de email se o usuário fechou o popup "Salvar senha?" (iOS/Safari)
+  // e o estado do React foi perdido — persistimos em sessionStorage e reabrimos ao recuperar foco
+  const restoreConfirmEmailModal = useCallback(() => {
+    if (typeof sessionStorage === 'undefined' || restoredModalRef.current) return
+    try {
+      const raw = sessionStorage.getItem(CONFIRM_EMAIL_MODAL_KEY)
+      if (!raw) return
+      const data = JSON.parse(raw) as { open?: boolean; email?: string; emailEnviado?: boolean }
+      if (!data.open || !data.email) return
+      restoredModalRef.current = true
+      setEmailCadastrado(data.email)
+      setShowModalConfirmacao(true)
+      setSignUpResult((prev: any) => ({ ...prev, emailEnviado: data.emailEnviado ?? false }))
+    } catch {
+      sessionStorage.removeItem(CONFIRM_EMAIL_MODAL_KEY)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    restoreConfirmEmailModal()
+    const onVisible = () => restoreConfirmEmailModal()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [restoreConfirmEmailModal])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const el = sectionRef.current
@@ -259,6 +287,16 @@ function CadastroContent() {
           console.log('📧 Email não confirmado - mostrando modal')
           setEmailCadastrado(formData.email)
           setShowModalConfirmacao(true)
+          restoredModalRef.current = false
+          try {
+            sessionStorage.setItem(CONFIRM_EMAIL_MODAL_KEY, JSON.stringify({
+              open: true,
+              email: formData.email,
+              emailEnviado: result.emailEnviado ?? false,
+            }))
+          } catch {
+            // ignore
+          }
           
           // Mensagem diferente se email não foi enviado
           if (result.emailEnviado === false) {
@@ -636,6 +674,8 @@ function CadastroContent() {
           onConfirmado={async () => {
             console.log('✅ Email confirmado via callback - fazendo login automático...')
             setShowModalConfirmacao(false)
+            try { sessionStorage.removeItem(CONFIRM_EMAIL_MODAL_KEY) } catch { /* ignore */ }
+            restoredModalRef.current = false
             
             // Verificar se já está logado (o callback cria sessão automaticamente)
             const supabase = createClient()
@@ -653,6 +693,8 @@ function CadastroContent() {
           }}
           onClose={() => {
             setShowModalConfirmacao(false)
+            try { sessionStorage.removeItem(CONFIRM_EMAIL_MODAL_KEY) } catch { /* ignore */ }
+            restoredModalRef.current = false
             createNotification('Verifique seu email e confirme sua conta antes de fazer login.', 'info')
             setTimeout(() => {
               router.push('/login?mensagem=Verifique seu email para confirmar a conta.')

@@ -333,8 +333,95 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(loginUrl.toString(), { status: 303 })
     }
 
-    console.log('✅ [Callback] Sessão criada via code - redirecionando:', redirectUrl.toString())
-    const response = NextResponse.redirect(redirectUrl.toString(), { status: 303 })
+    // No Safari/iPhone, cookies definidos em resposta de redirect (303) podem não ser persistidos.
+    // Retornar 200 com HTML e redirecionar via JS após ~2s para o navegador gravar os cookies.
+    console.log('✅ [Callback] Sessão criada via code - retornando 200 e redirecionando em 2s (Safari fix)')
+    const finalRedirectUrl = redirectUrl.toString()
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#00C2FF">
+  <title>Email confirmado - PleniPay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      background: linear-gradient(135deg, #00C2FF 0%, #0099CC 50%, #007A99 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      color: #0D1B2A;
+    }
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.2);
+      padding: 2.5rem 2rem;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+    }
+    .spinner {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 1.5rem;
+      border: 4px solid #E5E7EB;
+      border-top-color: #00C2FF;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h1 { font-size: 1.35rem; font-weight: 700; color: #0D1B2A; margin-bottom: 0.5rem; }
+    .sub { font-size: 0.9375rem; color: #6B7280; margin-bottom: 1.75rem; line-height: 1.5; }
+    .link { display: inline-block; font-size: 0.875rem; font-weight: 500; color: #00C2FF; text-decoration: none; padding: 0.5rem 0; }
+    .link:hover { text-decoration: underline; }
+  </style>
+  <script>
+    (function() {
+      var url = ${JSON.stringify(finalRedirectUrl)};
+      var delay = 2000;
+      setTimeout(function() { window.location.replace(url); }, delay);
+    })();
+  </script>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner" aria-hidden="true"></div>
+    <h1>Email confirmado!</h1>
+    <p class="sub">Redirecionando em instantes...</p>
+    <a class="link" href="${finalRedirectUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">Clique aqui se não redirecionar</a>
+  </div>
+</body>
+</html>`
+    const response = new NextResponse(html, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': 'inline',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    })
+    // Repassar os cookies que o Supabase setou no cookieStore para a resposta 200
+    // (No Safari/iPhone, cookies em redirect 303 podem não ser gravados; 200 + delay evita isso.)
+    const allCookies = cookieStore.getAll()
+    allCookies.forEach((c) => {
+      response.cookies.set(c.name, c.value, {
+        path: '/',
+        secure: true,
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7, // 7 dias para auth
+      })
+    })
     response.cookies.set('callback_recently_processed', 'true', {
       httpOnly: true,
       secure: true,

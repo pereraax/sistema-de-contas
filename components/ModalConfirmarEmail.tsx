@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Mail, AlertCircle, Send } from 'lucide-react'
 import { createNotification } from './NotificationBell'
 
@@ -221,9 +222,10 @@ export default function ModalConfirmarEmail({
     }
   }
 
-  return (
+  const modalContent = (
     <div 
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 min-h-[100dvh] min-h-[100vh] safe-area-inset"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}
       onClick={(e) => {
         if (obrigatorio && e.target === e.currentTarget) {
           e.preventDefault()
@@ -232,7 +234,7 @@ export default function ModalConfirmarEmail({
       }}
     >
       <div 
-        className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-gray-100 animate-slide-up"
+        className="bg-white rounded-2xl rounded-b-none sm:rounded-b-2xl max-w-md w-full max-h-[90dvh] max-h-[90vh] shadow-2xl overflow-hidden border border-gray-100 animate-slide-up flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -262,8 +264,8 @@ export default function ModalConfirmarEmail({
           </div>
         </div>
 
-        {/* Conteúdo */}
-        <div className="p-6 space-y-5">
+        {/* Conteúdo - scrollável no mobile para não cortar */}
+        <div className="p-6 space-y-5 overflow-y-auto flex-1 overscroll-contain">
           {/* Ícone e mensagem principal */}
           <div className="text-center space-y-4">
             <div className="w-20 h-20 bg-gradient-to-br from-[#1e4976]/10 to-[#163a5f]/10 rounded-2xl flex items-center justify-center mx-auto">
@@ -392,4 +394,7 @@ export default function ModalConfirmarEmail({
       </div>
     </div>
   )
+
+  if (typeof document === 'undefined') return modalContent
+  return createPortal(modalContent, document.body)
 }
