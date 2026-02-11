@@ -73,16 +73,40 @@ export default function MobileMenu() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isChecking, setIsChecking] = useState(true)
   const sidebarRef = useRef<HTMLElement>(null)
-  const touchStartX = useRef<number>(0)
+  const touchStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
 
-  // Fechar sidebar ao deslizar para a esquerda (swipe left)
+  // Fechar sidebar só com swipe horizontal para a esquerda (não fechar ao rolar para cima/baixo)
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
   }
   const handleTouchEnd = (e: React.TouchEvent) => {
     const endX = e.changedTouches[0].clientX
-    if (touchStartX.current - endX > 50) setIsOpen(false)
+    const endY = e.changedTouches[0].clientY
+    const deltaX = touchStart.current.x - endX
+    const deltaY = touchStart.current.y - endY
+    // Só fecha se o gesto for claramente horizontal (esquerda) e não rolagem vertical
+    const isSwipeLeft = deltaX > 50 && Math.abs(deltaX) > Math.abs(deltaY)
+    if (isSwipeLeft) setIsOpen(false)
   }
+
+  // Travar scroll do body quando o menu está aberto (evita que o fundo role e “puxe” o sidebar no mobile)
+  useEffect(() => {
+    if (!isOpen) return
+    const prevOverflow = document.body.style.overflow
+    const prevPosition = document.body.style.position
+    const prevWidth = document.body.style.width
+    const prevTop = document.body.style.top
+    document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.width = '100%'
+    document.body.style.top = '0'
+    return () => {
+      document.body.style.overflow = prevOverflow
+      document.body.style.position = prevPosition
+      document.body.style.width = prevWidth
+      document.body.style.top = prevTop
+    }
+  }, [isOpen])
 
   // Verificar autenticação
   useEffect(() => {
@@ -132,19 +156,32 @@ export default function MobileMenu() {
       {isOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/50 dark:bg-brand-midnight/50 z-40 lg:hidden animate-fade-in"
+            className="fixed inset-0 bg-black/50 dark:bg-brand-midnight/50 z-[45] lg:hidden animate-fade-in touch-none"
             onClick={() => setIsOpen(false)}
+            style={{ touchAction: 'none' }}
+            aria-hidden
           />
           <aside
             ref={sidebarRef}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
-            className="fixed left-0 top-0 h-screen w-64 bg-white dark:bg-[#1A1A1A] border-r border-gray-200 dark:border-white/10 shadow-lg z-40 lg:hidden animate-slide-in-from-left flex flex-col overflow-hidden"
+            className="fixed left-0 top-0 w-64 bg-white dark:bg-[#1A1A1A] border-r border-gray-200 dark:border-white/10 shadow-lg z-50 lg:hidden animate-slide-in-from-left flex flex-col overflow-hidden"
+            style={{
+              height: '100dvh',
+              height: '100vh',
+              touchAction: 'pan-y',
+            }}
           >
-            {/* Área rolável: permite deslizar para cima e para baixo no celular */}
+            {/* Área rolável: altura fixa para scroll nativo no iOS; só este elemento rola */}
             <div
-              className="flex-1 min-h-0 overflow-y-scroll overflow-x-hidden overscroll-contain p-6 touch-pan-y"
-              style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+              className="overflow-y-auto overflow-x-hidden overscroll-contain p-6"
+              style={{
+                height: '100%',
+                minHeight: 0,
+                WebkitOverflowScrolling: 'touch',
+                touchAction: 'pan-y',
+                overscrollBehavior: 'contain',
+              }}
             >
               {/* Logo menor, menos espaço em cima e embaixo (igual ao desktop) */}
               <div className="mb-5 flex items-center justify-center shrink-0 max-h-12 [&_a]:!block [&_img]:!h-10 [&_img]:!w-auto [&_img]:!object-contain">
