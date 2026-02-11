@@ -319,6 +319,20 @@ function CadastroContent() {
     }
   }
 
+  // Garantir que, depois do signUp, se o usuário foi criado mas o email NÃO está confirmado,
+  // o modal de confirmação fique visível mesmo que algum estado tenha sido perdido no mobile.
+  useEffect(() => {
+    if (
+      signUpResult?.userCreated &&
+      !signUpResult?.emailConfirmado &&
+      emailCadastrado &&
+      !showModalConfirmacao
+    ) {
+      console.log('📧 [Cadastro] Reabrindo modal de confirmação automaticamente após signUp')
+      setShowModalConfirmacao(true)
+    }
+  }, [signUpResult, emailCadastrado, showModalConfirmacao])
+
   const planosNomes = {
     teste: 'Teste Grátis',
     basico: 'Plano Básico',
@@ -658,7 +672,7 @@ function CadastroContent() {
       </div>
 
       {/* PARTE 3 & 4: Modal de Confirmação de Email */}
-      {showModalConfirmacao && emailCadastrado && (
+      {(showModalConfirmacao || (signUpResult?.userCreated && !signUpResult?.emailConfirmado)) && emailCadastrado && (
         <ModalConfirmarEmail
           email={emailCadastrado}
           obrigatorio={false}
