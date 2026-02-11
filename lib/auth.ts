@@ -60,7 +60,15 @@ export async function getSiteUrl(): Promise<string> {
   return productionUrl
 }
 
-export async function signUp(email: string, password: string, nome: string, telefone: string, whatsapp: string, plano: 'teste' | 'basico' | 'premium') {
+export async function signUp(
+  email: string,
+  password: string,
+  nome: string,
+  telefone: string,
+  whatsapp: string,
+  plano: 'teste' | 'basico' | 'premium',
+  referredByCode?: string | null
+) {
   try {
     logInfo('📝 ========== CRIAR CONTA ==========', 'SIGNUP')
     logInfo(`📧 Email: ${email}`, 'SIGNUP')
@@ -264,6 +272,21 @@ export async function signUp(email: string, password: string, nome: string, tele
     }, { onConflict: 'id' })
 
     logSuccess('✅ Perfil criado', 'SIGNUP')
+
+    // Registrar indicação de afiliado se veio por link (ref=)
+    if (referredByCode && referredByCode.trim() && supabaseAdmin) {
+      try {
+        const { getReferrerIdByCode, registerReferral } = await import('@/lib/affiliates')
+        const referrerId = await getReferrerIdByCode(referredByCode.trim())
+        if (referrerId && referrerId !== userToUse.id) {
+          const refResult = await registerReferral(referrerId, userToUse.id)
+          if (refResult.success) logInfo('✅ Indicação de afiliado registrada', 'SIGNUP')
+          else logWarn(`⚠️ Indicação não registrada: ${refResult.error}`, 'SIGNUP')
+        }
+      } catch (refErr: any) {
+        logWarn(`⚠️ Erro ao registrar indicação: ${refErr?.message}`, 'SIGNUP')
+      }
+    }
     
     // Verificar status do email
     const emailConfirmado = !!userToUse.email_confirmed_at || !!authData?.session

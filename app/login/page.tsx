@@ -328,16 +328,35 @@ function LoginContent() {
         ref={sectionRef}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
+        onTouchStart={(e) => {
+          const el = sectionRef.current
+          if (!el || !e.touches[0]) return
+          const rect = el.getBoundingClientRect()
+          setMousePos({
+            x: e.touches[0].clientX - rect.left,
+            y: e.touches[0].clientY - rect.top,
+          })
+        }}
+        onTouchMove={(e) => {
+          const el = sectionRef.current
+          if (!el || !e.touches[0]) return
+          const rect = el.getBoundingClientRect()
+          setMousePos({
+            x: e.touches[0].clientX - rect.left,
+            y: e.touches[0].clientY - rect.top,
+          })
+        }}
+        onTouchEnd={() => setMousePos(null)}
         className="login-page-inner w-full md:w-1/2 relative overflow-hidden bg-gray-50 md:bg-white dark:bg-[#1A1A1A] flex items-center justify-center p-4 md:p-6 lg:p-8 min-h-screen md:min-h-0"
       >
-        {/* Grade que aparece ao passar o mouse (apenas desktop) — mesmo efeito da página inicial */}
+        {/* Grade com linhas brancas ao passar o mouse (mobile: toque; desktop: hover) — igual página inicial */}
         <div
-          className="hidden md:block pointer-events-none absolute inset-0 z-0 transition-opacity duration-300"
+          className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-300"
           style={{
-            opacity: mousePos ? 0.85 : 0,
+            opacity: mousePos ? 0.9 : 0,
             backgroundImage: `
-              linear-gradient(to right, rgba(0,0,0,0.14) 1px, transparent 1px),
-              linear-gradient(to bottom, rgba(0,0,0,0.14) 1px, transparent 1px)
+              linear-gradient(to right, rgba(255,255,255,0.18) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(255,255,255,0.18) 1px, transparent 1px)
             `,
             backgroundSize: '32px 32px',
             WebkitMaskImage: mousePos

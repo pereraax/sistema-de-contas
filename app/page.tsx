@@ -208,7 +208,7 @@ export default function LandingPage() {
             {isAuthenticated ? (
               <Link
                 href="/home"
-                className="px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] rounded-lg transition-all duration-300 shadow-md"
+                className="px-4 py-2.5 text-sm font-medium text-white btn-gradient-animated rounded-2xl transition-all duration-300 shadow-md hover:brightness-110"
               >
                 Dashboard
               </Link>
@@ -217,7 +217,7 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={toggleDarkMode}
-                  className="p-2.5 rounded-lg transition-colors border border-transparent hover:border-gray-300 dark:hover:border-white/20"
+                  className="p-2.5 rounded-2xl transition-colors border border-transparent hover:border-gray-300 dark:hover:border-white/20"
                   title={isDarkMode ? 'Modo claro' : 'Modo escuro'}
                   aria-label={isDarkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
                 >
@@ -239,7 +239,7 @@ export default function LandingPage() {
                     e.preventDefault()
                     document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }}
-                  className="px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] rounded-lg transition-all duration-300 shadow-md"
+                  className="px-4 py-2.5 text-sm font-medium text-white btn-gradient-animated rounded-2xl transition-all duration-300 shadow-md hover:brightness-110"
                 >
                   Cadastrar
                 </Link>
@@ -256,14 +256,19 @@ export default function LandingPage() {
         onMouseLeave={handleHeroMouseLeave}
         className={`relative overflow-hidden pt-16 sm:pt-20 md:pt-24 pb-12 md:pb-20 transition-colors ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-neutral-50'}`}
       >
-        {/* Grade que aparece ao passar o mouse - não bloqueia cliques */}
+        {/* Grade que aparece ao passar o mouse — modo claro: linhas pretas; modo dark: linhas brancas */}
         <div
           className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-300"
           style={{
             opacity: mousePos ? 0.85 : 0,
-            backgroundImage: `
-              linear-gradient(to right, rgba(0,0,0,0.14) 1px, transparent 1px),
-              linear-gradient(to bottom, rgba(0,0,0,0.14) 1px, transparent 1px)
+            backgroundImage: isDarkMode
+              ? `
+              linear-gradient(to right, rgba(255,255,255,0.18) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(255,255,255,0.18) 1px, transparent 1px)
+            `
+              : `
+              linear-gradient(to right, rgba(0,0,0,0.12) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(0,0,0,0.12) 1px, transparent 1px)
             `,
             backgroundSize: '32px 32px',
             WebkitMaskImage: mousePos
@@ -279,17 +284,17 @@ export default function LandingPage() {
           <div className="max-w-2xl mx-auto">
             {/* Conteúdo do hero */}
             <div className={`text-center transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-              <p className={`text-xs font-medium uppercase tracking-wider mb-4 ${isDarkMode ? 'text-cyan-400' : 'text-[#1e4976]'}`}>Plataforma #1 em Controle Financeiro</p>
-              <h1 className={`text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-semibold mb-6 leading-[1.1] ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
+              <p className={`text-xs font-medium uppercase tracking-wider mb-4 ${isDarkMode ? 'text-cyan-400' : 'text-[#163a5f]'}`}>Plataforma #1 em Controle Financeiro</p>
+              <h1 className={`text-4xl sm:text-5xl md:text-5xl lg:text-6xl font-semibold mb-6 leading-[1.1] ${isDarkMode ? 'text-white' : 'text-[#080f14]'}`}>
                 Controle financeiro simplificado no WhatsApp.
               </h1>
-              <p className={`text-base max-w-lg mx-auto mb-8 leading-relaxed ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+              <p className={`text-base max-w-lg mx-auto mb-8 leading-relaxed ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 Gerencie finanças, dívidas e metas de forma inteligente. Tudo em um só lugar, via WhatsApp.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-[220px] sm:max-w-none mx-auto">
                 <a
                   href="#planos"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-white bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] rounded-xl transition-all duration-300 shadow-md"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-white btn-gradient-animated rounded-2xl transition-all duration-300 shadow-md hover:brightness-110"
                 >
                   Crie sua conta gratuita
                   <ArrowRight size={18} strokeWidth={2} />
@@ -300,7 +305,7 @@ export default function LandingPage() {
                     e.preventDefault()
                     document.getElementById('funcionalidades')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }}
-                  className={`w-full sm:w-auto inline-flex items-center justify-center px-5 py-3 text-sm font-medium rounded-xl transition-colors font-sans ${isDarkMode ? 'text-cyan-400 border border-cyan-400 hover:border-cyan-300 hover:text-cyan-300' : 'text-[#1e4976] border border-[#1e4976] hover:border-[#163a5f]'}`}
+                  className={`w-full sm:w-auto inline-flex items-center justify-center px-5 py-3 text-sm font-medium rounded-2xl transition-colors font-sans ${isDarkMode ? 'text-cyan-400 border border-cyan-400 hover:border-cyan-300 hover:text-cyan-300' : 'text-[#1e4976] border border-[#1e4976] hover:border-[#163a5f]'}`}
                 >
                   Ver funcionalidades
                 </a>
@@ -440,21 +445,21 @@ export default function LandingPage() {
 
               <div className="space-y-6 max-w-xl mx-auto md:mx-0">
                 <div className="flex gap-4 items-start">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm flex-shrink-0">1</div>
+                  <div className="w-8 h-8 rounded-2xl btn-gradient-animated text-white flex items-center justify-center font-semibold text-sm flex-shrink-0">1</div>
                   <div>
                     <h3 className={`font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>Fale com o PLEN</h3>
                     <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Mensagem, foto, áudio ou PDF. O PLEN entende tudo.</p>
                   </div>
                 </div>
                 <div className="flex gap-4 items-start">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm flex-shrink-0">2</div>
+                  <div className="w-8 h-8 rounded-2xl btn-gradient-animated text-white flex items-center justify-center font-semibold text-sm flex-shrink-0">2</div>
                   <div>
                     <h3 className={`font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>Interpretação automática</h3>
                     <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Valor, tipo e categoria identificados na hora.</p>
                   </div>
                 </div>
                 <div className="flex gap-4 items-start">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm flex-shrink-0">3</div>
+                  <div className="w-8 h-8 rounded-2xl btn-gradient-animated text-white flex items-center justify-center font-semibold text-sm flex-shrink-0">3</div>
                   <div>
                     <h3 className={`font-semibold mb-1 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>Registro em tempo real</h3>
                     <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Movimentação sincronizada no painel e relatórios.</p>
@@ -465,7 +470,7 @@ export default function LandingPage() {
               <div className="flex justify-center md:justify-start mt-8">
                 <a
                   href="#planos"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] rounded-lg transition-all duration-300 shadow-md"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-medium text-white btn-gradient-animated rounded-2xl transition-all duration-300 shadow-md hover:brightness-110"
                 >
                   Testar Agora
                   <ArrowRight size={18} strokeWidth={2} />
@@ -490,7 +495,7 @@ export default function LandingPage() {
             {/* Bloco 1 */}
             <AnimateOnScroll delay={100} direction="up">
               <div className={`rounded-2xl p-6 shadow-sm border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm mb-3">1</div>
+              <div className="w-8 h-8 rounded-2xl btn-gradient-animated text-white flex items-center justify-center font-semibold text-sm mb-3">1</div>
               <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                 O dinheiro simplesmente some
               </h3>
@@ -503,7 +508,7 @@ export default function LandingPage() {
             {/* Bloco 2 */}
             <AnimateOnScroll delay={200} direction="up">
               <div className={`rounded-2xl p-6 shadow-sm border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm mb-3">2</div>
+              <div className="w-8 h-8 rounded-2xl btn-gradient-animated text-white flex items-center justify-center font-semibold text-sm mb-3">2</div>
               <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                 Não sabe onde gastou
               </h3>
@@ -516,7 +521,7 @@ export default function LandingPage() {
             {/* Bloco 3 */}
             <AnimateOnScroll delay={300} direction="up">
               <div className={`rounded-2xl p-6 shadow-sm border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm mb-3">3</div>
+              <div className="w-8 h-8 rounded-2xl btn-gradient-animated text-white flex items-center justify-center font-semibold text-sm mb-3">3</div>
               <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                 Quer simplificar sua vida
               </h3>
@@ -529,7 +534,7 @@ export default function LandingPage() {
             {/* Bloco 4 */}
             <AnimateOnScroll delay={400} direction="up">
               <div className={`rounded-2xl p-6 shadow-sm border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white flex items-center justify-center font-semibold text-sm mb-3">4</div>
+              <div className="w-8 h-8 rounded-2xl btn-gradient-animated text-white flex items-center justify-center font-semibold text-sm mb-3">4</div>
               <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
                 Quer ter controle total
               </h3>
@@ -555,23 +560,22 @@ export default function LandingPage() {
           </div>
 
           <div className="relative max-w-6xl mx-auto">
-            {/* Overlay translúcido esquerda — escuro no dark mode */}
+            {/* Overlay lateral: cor de fundo da seção para fade suave (claro e escuro), discreto e profissional */}
             <div
-              className="absolute left-0 top-0 bottom-0 w-20 md:w-32 z-10 pointer-events-none"
+              className="absolute left-0 top-0 bottom-0 w-12 md:w-20 z-10 pointer-events-none"
               style={{
                 background: isDarkMode
-                  ? 'linear-gradient(to right, rgb(15 15 15) 0%, rgba(15,15,15,0.6) 70%, transparent 100%)'
-                  : 'linear-gradient(to right, rgb(255 255 255) 0%, rgba(255,255,255,0.5) 70%, transparent 100%)',
+                  ? 'linear-gradient(to right, rgba(15,15,15,0.88) 0%, rgba(15,15,15,0.22) 50%, transparent 100%)'
+                  : 'linear-gradient(to right, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.2) 50%, transparent 100%)',
               }}
               aria-hidden
             />
-            {/* Overlay translúcido direita — escuro no dark mode */}
             <div
-              className="absolute right-0 top-0 bottom-0 w-20 md:w-32 z-10 pointer-events-none"
+              className="absolute right-0 top-0 bottom-0 w-12 md:w-20 z-10 pointer-events-none"
               style={{
                 background: isDarkMode
-                  ? 'linear-gradient(to left, rgb(15 15 15) 0%, rgba(15,15,15,0.6) 70%, transparent 100%)'
-                  : 'linear-gradient(to left, rgb(255 255 255) 0%, rgba(255,255,255,0.5) 70%, transparent 100%)',
+                  ? 'linear-gradient(to left, rgba(15,15,15,0.88) 0%, rgba(15,15,15,0.22) 50%, transparent 100%)'
+                  : 'linear-gradient(to left, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.2) 50%, transparent 100%)',
               }}
               aria-hidden
             />
@@ -585,7 +589,7 @@ export default function LandingPage() {
                       key={`a-${f.numero}`}
                       className="w-[300px] sm:w-[380px] flex-shrink-0 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
                     >
-                      <div className="bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] px-6 py-4">
+                      <div className="btn-gradient-animated px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
                             <span className="text-white font-semibold text-sm">{f.numero}</span>
@@ -618,7 +622,7 @@ export default function LandingPage() {
                       key={`b-${f.numero}`}
                       className="w-[300px] sm:w-[380px] flex-shrink-0 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
                     >
-                      <div className="bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] px-6 py-4">
+                      <div className="btn-gradient-animated px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
                             <span className="text-white font-semibold text-sm">{f.numero}</span>
@@ -748,7 +752,7 @@ export default function LandingPage() {
               </div>
             </div>
             {/* Imagem do relatório */}
-            <div className="rounded-xl overflow-hidden mb-6 shadow-lg border border-gray-200">
+            <div className="rounded-2xl overflow-hidden mb-12 shadow-lg border border-gray-200">
               <Image
                 src="/SCR-20251214-lzon.png"
                 alt="Relatório financeiro detalhado do PLENIPAY mostrando receitas, despesas e gráficos"
@@ -760,10 +764,10 @@ export default function LandingPage() {
                 unoptimized
               />
             </div>
-            <div className="text-center">
+            <div className="text-center mt-14 mb-2 flex flex-col items-center justify-center">
               <a
                 href="#planos"
-                className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-lg transition-all duration-300 shadow-md"
+                className="inline-flex items-center justify-center gap-2 px-10 py-4 text-base md:text-lg font-semibold text-white btn-gradient-animated rounded-2xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.02] hover:brightness-110 ring-2 ring-white/20 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 min-w-[240px]"
               >
                 Começar Agora
               </a>
@@ -775,33 +779,45 @@ export default function LandingPage() {
       {/* Depoimentos/Clientes - Carrossel contínuo deslizando para a esquerda */}
       <section className={`py-16 md:py-24 overflow-hidden transition-colors ${isDarkMode ? 'bg-[#1A1A1A]' : 'bg-neutral-50'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
-          <div className="text-center mb-12">
+          <div className="text-center mb-10">
             <h2 className={`text-2xl md:text-3xl font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>
               Transforme você também a sua relação com o dinheiro
             </h2>
-            <p className={`text-sm max-w-xl mx-auto ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            <p className={`text-sm max-w-xl mx-auto mb-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               Veja o que nossos usuários dizem sobre o PLENIPAY
             </p>
+            {/* CTA Cadastre gratuitamente */}
+            <div className="flex flex-col items-center justify-center gap-4 max-w-xl mx-auto">
+              <p className={`text-sm md:text-base font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                Cadastre gratuitamente e veja por que tantos já mudaram
+              </p>
+              <a
+                href="/cadastro"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 text-base md:text-lg font-semibold text-white btn-gradient-cyan-animated rounded-2xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.03] hover:brightness-110 ring-2 ring-cyan-400/30 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 min-w-[260px]"
+              >
+                Cadastre gratuitamente
+                <ArrowRight size={20} strokeWidth={2} />
+              </a>
+            </div>
           </div>
 
-          <div className="relative max-w-6xl mx-auto">
-            {/* Overlay translúcido esquerda */}
+          <div className="relative max-w-6xl mx-auto mt-12">
+            {/* Overlay lateral: cor de fundo da seção para fade suave (claro e escuro), discreto e profissional */}
             <div
-              className="absolute left-0 top-0 bottom-0 w-20 md:w-32 z-10 pointer-events-none"
+              className="absolute left-0 top-0 bottom-0 w-12 md:w-20 z-10 pointer-events-none"
               style={{
                 background: isDarkMode
-                  ? 'linear-gradient(to right, #1A1A1A 0%, rgba(26,26,26,0.5) 70%, transparent 100%)'
-                  : 'linear-gradient(to right, rgb(250 250 250) 0%, rgba(250,250,250,0.5) 70%, transparent 100%)',
+                  ? 'linear-gradient(to right, rgba(26,26,26,0.88) 0%, rgba(26,26,26,0.22) 50%, transparent 100%)'
+                  : 'linear-gradient(to right, rgba(250,250,250,0.9) 0%, rgba(250,250,250,0.2) 50%, transparent 100%)',
               }}
               aria-hidden
             />
-            {/* Overlay translúcido direita */}
             <div
-              className="absolute right-0 top-0 bottom-0 w-20 md:w-32 z-10 pointer-events-none"
+              className="absolute right-0 top-0 bottom-0 w-12 md:w-20 z-10 pointer-events-none"
               style={{
                 background: isDarkMode
-                  ? 'linear-gradient(to left, #1A1A1A 0%, rgba(26,26,26,0.5) 70%, transparent 100%)'
-                  : 'linear-gradient(to left, rgb(250 250 250) 0%, rgba(250,250,250,0.5) 70%, transparent 100%)',
+                  ? 'linear-gradient(to left, rgba(26,26,26,0.88) 0%, rgba(26,26,26,0.22) 50%, transparent 100%)'
+                  : 'linear-gradient(to left, rgba(250,250,250,0.9) 0%, rgba(250,250,250,0.2) 50%, transparent 100%)',
               }}
               aria-hidden
             />
@@ -887,7 +903,7 @@ export default function LandingPage() {
             {/* Plano Gratuito */}
             <AnimateOnScroll delay={0} direction="up">
               <div className={`rounded-2xl p-6 shadow-sm border hover:shadow-md transition-shadow ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
-              <div className={`rounded-xl py-1.5 sm:py-2 px-2 sm:px-3 mb-3 sm:mb-4 text-center ${isDarkMode ? 'bg-white/10 text-white' : 'bg-gray-100 text-[#0D1B2A]'}`}>
+              <div className={`rounded-2xl py-1.5 sm:py-2 px-2 sm:px-3 mb-3 sm:mb-4 text-center ${isDarkMode ? 'bg-white/10 text-white' : 'bg-gray-100 text-[#0D1B2A]'}`}>
                 <h3 className="text-base sm:text-lg font-bold">Plano Gratuito</h3>
               </div>
               <div className="mb-3 sm:mb-4">
@@ -924,7 +940,7 @@ export default function LandingPage() {
                   e.stopPropagation()
                   router.push('/cadastro?plano=teste')
                 }}
-                className={`block w-full text-center py-3 text-sm sm:text-base rounded-xl font-bold transition-all duration-300 ${isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-100 hover:bg-gray-200 text-[#0D1B2A]'}`}
+                className={`block w-full text-center py-3 text-sm sm:text-base rounded-2xl font-bold transition-all duration-300 ${isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-100 hover:bg-gray-200 text-[#0D1B2A]'}`}
               >
                 Começar Grátis
               </button>
@@ -934,7 +950,7 @@ export default function LandingPage() {
             {/* Plano Básico */}
             <AnimateOnScroll delay={150} direction="up">
               <div className={`rounded-2xl p-6 shadow-sm border hover:shadow-md transition-shadow ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
-              <div className="bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white rounded-xl py-1.5 sm:py-2 px-2 sm:px-3 mb-3 sm:mb-4 text-center">
+              <div className="btn-gradient-animated text-white rounded-2xl py-1.5 sm:py-2 px-2 sm:px-3 mb-3 sm:mb-4 text-center">
                 <h3 className="text-base sm:text-lg font-bold">Plano Básico</h3>
               </div>
               <div className="mb-3 sm:mb-4">
@@ -980,7 +996,7 @@ export default function LandingPage() {
               </div>
               <button
                 onClick={() => handleSelecionarPlano('basico')}
-                className="block w-full text-center py-3 text-sm sm:text-base bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-[#1e4976]/40 transform hover:scale-105 active:scale-100"
+                className="block w-full text-center py-3 text-sm sm:text-base text-white btn-gradient-animated rounded-2xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-[#1e4976]/40 transform hover:scale-105 hover:brightness-110 active:scale-100"
               >
                 Assinar Agora
               </button>
@@ -994,7 +1010,7 @@ export default function LandingPage() {
                 <Sparkles size={12} className="text-[#0D1B2A] sm:w-3.5 sm:h-3.5 flex-shrink-0" />
                 <span className="whitespace-nowrap">MAIS POPULAR</span>
               </div>
-              <div className="bg-white/20 backdrop-blur-sm text-white rounded-xl py-2 sm:py-3 px-3 sm:px-4 mb-4 sm:mb-5 text-center border border-white/30">
+              <div className="bg-white/20 backdrop-blur-sm text-white rounded-2xl py-2 sm:py-3 px-3 sm:px-4 mb-4 sm:mb-5 text-center border border-white/30">
                 <h3 className="text-lg sm:text-xl md:text-2xl font-bold">Plano Premium</h3>
               </div>
               <div className="mb-4 sm:mb-5">
@@ -1040,7 +1056,7 @@ export default function LandingPage() {
               </div>
               <button
                 onClick={() => handleSelecionarPlano('premium')}
-                className="block w-full text-center py-3 text-sm sm:text-base bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-[#1e4976]/40 transform hover:scale-105"
+                className="block w-full text-center py-3 text-sm sm:text-base text-white btn-gradient-animated rounded-2xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-[#1e4976]/40 transform hover:scale-105 hover:brightness-110"
               >
                 Assinar Agora
               </button>
@@ -1054,7 +1070,7 @@ export default function LandingPage() {
                 <DollarSign size={12} className="text-[#0D1B2A] flex-shrink-0 sm:w-3.5 sm:h-3.5" />
                 <span className="leading-tight">Economia: R$ 120</span>
               </div>
-              <div className="bg-white/20 backdrop-blur-sm text-white rounded-xl py-2 sm:py-3 px-3 sm:px-4 mb-4 sm:mb-5 text-center border border-white/30">
+              <div className="bg-white/20 backdrop-blur-sm text-white rounded-2xl py-2 sm:py-3 px-3 sm:px-4 mb-4 sm:mb-5 text-center border border-white/30">
                 <h3 className="text-lg sm:text-xl md:text-2xl font-bold">Plano Anual</h3>
               </div>
               <div className="mb-4 sm:mb-5">
@@ -1091,7 +1107,7 @@ export default function LandingPage() {
               </div>
               <button
                 onClick={() => handleSelecionarPlano('anual')}
-                className="block w-full text-center py-3 text-sm sm:text-base bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-[#1e4976]/40 transform hover:scale-105"
+                className="block w-full text-center py-3 text-sm sm:text-base text-white btn-gradient-animated rounded-2xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-[#1e4976]/40 transform hover:scale-105 hover:brightness-110"
               >
                 Assinar Anual
               </button>
@@ -1217,7 +1233,7 @@ export default function LandingPage() {
                 href="https://wa.me/message/PLHJUVZSV2B5O1"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 text-sm"
+                className="inline-flex items-center justify-center gap-2 text-white font-medium py-3 px-6 btn-gradient-animated rounded-2xl transition-all duration-300 text-sm hover:brightness-110"
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" fill="currentColor"/>
@@ -1255,7 +1271,7 @@ export default function LandingPage() {
                   href="https://instagram.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`w-8 h-8 md:w-7 md:h-7 rounded-lg md:rounded border flex items-center justify-center transition-colors ${isDarkMode ? 'border-white/30 text-gray-300 hover:border-cyan-400 hover:text-cyan-400' : 'border-gray-700 text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976]'}`}
+                  className={`w-8 h-8 md:w-7 md:h-7 rounded-2xl border flex items-center justify-center transition-colors ${isDarkMode ? 'border-white/30 text-gray-300 hover:border-cyan-400 hover:text-cyan-400' : 'border-gray-700 text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976]'}`}
                   aria-label="Instagram"
                 >
                   <Instagram size={14} strokeWidth={1.5} />
@@ -1264,7 +1280,7 @@ export default function LandingPage() {
                   href="https://twitter.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`w-8 h-8 md:w-7 md:h-7 rounded-lg md:rounded border flex items-center justify-center transition-colors ${isDarkMode ? 'border-white/30 text-gray-300 hover:border-cyan-400 hover:text-cyan-400' : 'border-gray-700 text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976]'}`}
+                  className={`w-8 h-8 md:w-7 md:h-7 rounded-2xl border flex items-center justify-center transition-colors ${isDarkMode ? 'border-white/30 text-gray-300 hover:border-cyan-400 hover:text-cyan-400' : 'border-gray-700 text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976]'}`}
                   aria-label="Twitter/X"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -1273,7 +1289,7 @@ export default function LandingPage() {
                 </a>
                 <a
                   href="mailto:contato@plenipay.com"
-                  className={`w-8 h-8 md:w-7 md:h-7 rounded-lg md:rounded border flex items-center justify-center transition-colors ${isDarkMode ? 'border-white/30 text-gray-300 hover:border-cyan-400 hover:text-cyan-400' : 'border-gray-700 text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976]'}`}
+                  className={`w-8 h-8 md:w-7 md:h-7 rounded-2xl border flex items-center justify-center transition-colors ${isDarkMode ? 'border-white/30 text-gray-300 hover:border-cyan-400 hover:text-cyan-400' : 'border-gray-700 text-gray-700 hover:border-[#1e4976] hover:text-[#1e4976]'}`}
                   aria-label="E-mail"
                 >
                   <Mail size={14} strokeWidth={1.5} />

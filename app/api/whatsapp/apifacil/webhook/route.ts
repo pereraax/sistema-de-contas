@@ -22,16 +22,30 @@ function buildPlenMessage(from: string, text: string): {
   }
 }
 
-/** Extrair from e text do body em vários formatos (API Fácil / Meta / genérico) */
+/** Extrair from e text do body em vários formatos (API Fácil / Meta / genérico). Só mensagens RECEBIDAS. */
 function parseWebhookBody(body: unknown): { from: string; text: string } | null {
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
 
+  // Ignorar mensagens enviadas por nós (só processar MENSAGEM_RECEBIDA)
+  const tipoEnvio = (b.tipo_envio as string) || ''
+  if (tipoEnvio === 'MENSAGEM_ENVIADA') return null
+
   // Formato real da API Fácil: event "whatsapp_insert" com origem e mensagem no topo
   // Doc: https://apifacil.dev/documentacao/whatsapp
-  if (b.event === 'whatsapp_insert' || b.tipo_envio === 'MENSAGEM_RECEBIDA') {
+  if (b.event === 'whatsapp_insert' || b.tipo_envio === 'MENSAGEM_RECEBIDA' || tipoEnvio === 'MENSAGEM_RECEBIDA') {
     const from = (b.origem ?? b.from) as string | undefined
     const text = (b.mensagem ?? b.text) as string | undefined
+    if (from && text) {
+      return { from: String(from).replace(/\D/g, ''), text: String(text) }
+    }
+  }
+
+  // Formato com dados dentro de "data" (algumas configs da API Fácil)
+  if (b.data && typeof b.data === 'object') {
+    const data = b.data as Record<string, unknown>
+    const from = (data.origem ?? data.from ?? data.telefone ?? data.numero) as string | undefined
+    const text = (data.mensagem ?? data.text ?? (data as any)?.body) as string | undefined
     if (from && text) {
       return { from: String(from).replace(/\D/g, ''), text: String(text) }
     }
@@ -76,9 +90,13 @@ export async function GET() {
 async function processarEmBackground(parsed: { from: string; text: string }) {
   const { from, text } = parsed
   try {
+    if (!isApifacilConfigured()) {
+      console.warn('⚠️ [Apifacil Webhook] APIFACIL_INSTANCE_ID ou APIFACIL_TOKEN não configurados. Resposta não será enviada ao WhatsApp.')
+      return
+    }
     const plenMessage = buildPlenMessage(from, text)
     const result = await processWhatsAppMessage(plenMessage as any)
-    if (result?.message && typeof result.message === 'string' && isApifacilConfigured()) {
+    if (result?.message && typeof result.message === 'string') {
       const phone = from.startsWith('55') ? from : `55${from}`
       const send = await sendTextMessage(phone, result.message)
       if (send.success) {
@@ -87,6 +105,8 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
       } else {
         console.error('❌ [Apifacil Webhook] Falha ao enviar resposta:', send.error)
       }
+    } else if (result === null) {
+      console.log('📨 [Apifacil Webhook] Mensagem processada mas sem resposta (assistente desativado ou ignorado).')
     }
   } catch (err) {
     console.error('❌ [Apifacil Webhook] Erro no processamento em background:', err)
@@ -107,7 +127,8 @@ export async function POST(request: NextRequest) {
 
     const parsed = parseWebhookBody(body)
     if (!parsed) {
-      console.log('📨 [Apifacil Webhook] Payload sem from/text. Raw body:', JSON.stringify(body).slice(0, 500))
+      const rawPreview = JSON.stringify(body).slice(0, 600)
+      console.log('📨 [Apifacil Webhook] Payload não reconhecido (sem from/text). Verifique o formato em Config. Webhook. Body:', rawPreview)
       return NextResponse.json({ success: true, message: 'Payload ignorado (sem from/text)' })
     }
 

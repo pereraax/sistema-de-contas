@@ -184,6 +184,24 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   font-weight: 500 !important; /* Médio quando explicitamente solicitado */
 }
 
+/* Gradiente em movimento leve para botões (página inicial) */
+@keyframes gradient-move {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.btn-gradient-animated {
+  background: linear-gradient(90deg, #2c5aa0, #1e4976, #163a5f, #1e4976, #2c5aa0);
+  background-size: 200% 100%;
+  animation: gradient-move 6s ease infinite;
+}
+
+.btn-gradient-cyan-animated {
+  background: linear-gradient(90deg, #06b6d4, #1e4976, #163a5f, #1e4976, #06b6d4);
+  background-size: 200% 100%;
+  animation: gradient-move 6s ease infinite;
+}
+
 /* Títulos h1, h2, h3 com font-display - permitir bold quando necessário */
 h1.font-display,
 h2.font-display,

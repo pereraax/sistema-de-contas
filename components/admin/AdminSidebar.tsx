@@ -12,7 +12,8 @@ import {
   PlayCircle,
   Image as ImageIcon,
   TrendingUp,
-  Terminal
+  Terminal,
+  Wallet
 } from 'lucide-react'
 import Image from 'next/image'
 
@@ -20,6 +21,7 @@ const menuItems = [
   { href: '/administracaosecr/dashboard', label: 'Dashboard', icon: BarChart3 },
   { href: '/administracaosecr/usuarios', label: 'Todos os Usuários', icon: Users },
   { href: '/administracaosecr/assinantes', label: 'Usuários Assinantes', icon: CreditCard },
+  { href: '/administracaosecr/afiliados-saques', label: 'Saques Afiliados', icon: Wallet },
   { href: '/administracaosecr/avisos', label: 'Central de Avisos', icon: Bell },
   { href: '/administracaosecr/banners', label: 'Banners', icon: ImageIcon },
   { href: '/administracaosecr/chat', label: 'Chat de Suporte', icon: MessageCircle },

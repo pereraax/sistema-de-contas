@@ -354,10 +354,10 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
     addLog('info', '🔄 [PLEN WhatsApp] PROCESSANDO MENSAGEM WHATSAPP')
     addLog('info', `🔄 [PLEN WhatsApp] Message: ${JSON.stringify(message, null, 2).substring(0, 200)}`)
     
-    const phoneNumber = extractPhoneNumber(message.key.remoteJid)
+    const phoneNumber = normalizePhoneNumber(extractPhoneNumber(message.key.remoteJid))
     let text = extractMessageText(message)
     
-    console.log('📱 [WhatsApp PLEN] Phone Number:', phoneNumber)
+    console.log('📱 [WhatsApp PLEN] Phone Number (normalizado):', phoneNumber)
     console.log('📱 [WhatsApp PLEN] Text extraído:', text ? text.substring(0, 100) : 'null')
     
     // CRÍTICO: Logar no sistema de logs também
@@ -548,37 +548,9 @@ Estou por aqui pra começarmos 🚀`,
       }
     }
     
-    // NOVA LÓGICA: Verificar se o assistente está ativado
-    // Se não estiver ativado, verificar se a mensagem é uma chamada para ativar
-    const isActivated = await isPlenActivated(phoneNumber)
-    const isActivation = isActivationMessage(text)
-    
-    console.log('🔍 [WhatsApp PLEN] Verificando status do assistente:', {
-      phoneNumber,
-      isActivated,
-      isActivation,
-      isDeactivation: false, // Já verificamos acima
-    })
-    
-    // PRIORIDADE 3: Se é mensagem de ativação, ativar o assistente
-    if (isActivation) {
-      await activatePlen(phoneNumber)
-      console.log('✅ [WhatsApp PLEN] Assistente ativado! Respondendo com mensagem de boas-vindas')
-      
-      // Retornar mensagem de boas-vindas
-      return {
-        success: true,
-        message: `👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n• "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n• "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n• "gastei 30 reais de ônibus hoje"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais do cliente"\n• "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯\n\n📧 Para começar, me envie seu email de cadastro para eu identificar sua conta...`,
-      }
-    }
-    
-    // PRIORIDADE 3: Se não está ativado e não é mensagem de ativação/desativação, ignorar completamente
-    if (!isActivated) {
-      console.log('⚠️ [WhatsApp PLEN] Assistente não está ativado e mensagem não é de ativação/desativação - ignorando')
-      return null // Não retorna nada, silenciosamente ignora
-    }
-
-    // Verificar se usuário está autenticado via WhatsApp
+    // CRÍTICO: Verificar contexto do usuário PRIMEIRO para que qualquer contato novo receba resposta
+    // (pedindo email/key). Antes checávamos isPlenActivated antes de getUserContext, e novos
+    // contatos nunca chegavam ao fluxo de autenticação.
     console.log('🔍 [WhatsApp PLEN] Buscando contexto do usuário...')
     const userContext = await getUserContext(phoneNumber)
     console.log('👤 [WhatsApp PLEN] ==========================================')
@@ -589,22 +561,52 @@ Estou por aqui pra começarmos 🚀`,
     console.log('👤 [WhatsApp PLEN] Phone Number:', phoneNumber)
     console.log('👤 [WhatsApp PLEN] ==========================================')
 
-    // Se não está autenticado via WhatsApp, pedir email e key
+    // Contato novo ou não autenticado: responder sempre com fluxo de email/key
     if (!userContext.whatsappAuthenticated) {
-      console.log('⚠️ [WhatsApp PLEN] Usuário não autenticado via WhatsApp, iniciando autenticação...')
-      
-      // Processar autenticação normalmente
+      console.log('📧 [WhatsApp PLEN] Contato não autenticado - iniciando fluxo de email/key')
       const authResult = await handleWhatsAppAuthentication(phoneNumber, text, userContext)
       console.log('📤 [WhatsApp PLEN] Resultado da autenticação:', authResult ? `success: ${authResult.success}` : 'null')
       return authResult
     }
 
-    // Se está autenticado, verificar se assistente está ativado
+    // A partir daqui: usuário já está autenticado via WhatsApp
+    const isActivated = await isPlenActivated(phoneNumber)
+    const isActivation = isActivationMessage(text)
+    
+    console.log('🔍 [WhatsApp PLEN] Verificando status do assistente (usuário autenticado):', {
+      phoneNumber,
+      isActivated,
+      isActivation,
+    })
+    
+    // Se é mensagem de ativação, ativar o assistente e dar boas-vindas
+    if (isActivation) {
+      await activatePlen(phoneNumber)
+      console.log('✅ [WhatsApp PLEN] Assistente ativado! Respondendo com mensagem de boas-vindas')
+      return {
+        success: true,
+        message: `👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n• "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n• "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n• "gastei 30 reais de ônibus hoje"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais do cliente"\n• "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯\n\nPronto para começar! Envie algo como "gastei 50 reais no mercado" ou "quanto gastei no mês?"`,
+      }
+    }
+    
+    // Autenticado mas assistente não ativado: pedir "Assistente PLEN"
+    if (!isActivated) {
+      console.log('⚠️ [WhatsApp PLEN] Assistente não está ativado (usuário autenticado) - enviando instrução')
+      return {
+        success: true,
+        message: '👋 Você já está autenticado! Para usar o assistente financeiro, envie:\n\n**Assistente PLEN**\n\nAssim você poderá registrar gastos, consultar saldo e muito mais!',
+      }
+    }
+
+    // Se está autenticado e assistente ativado, verificar se assistente continua ativado (redundante mas seguro)
     // NOTA: Não ativamos automaticamente aqui porque o usuário pode ter desativado explicitamente
     // A ativação automática só acontece após autenticação bem-sucedida (no handleWhatsAppAuthentication)
     if (!(await isPlenActivated(phoneNumber))) {
-      console.log('⚠️ [WhatsApp PLEN] Assistente não está ativado para usuário autenticado - ignorando mensagem')
-      return null // Não processa se não estiver ativado
+      console.log('⚠️ [WhatsApp PLEN] Assistente não está ativado para usuário autenticado - enviando instrução')
+      return {
+        success: true,
+        message: '👋 Você já está autenticado! Para usar o assistente financeiro, envie:\n\n**Assistente PLEN**\n\nAssim você poderá registrar gastos, consultar saldo e muito mais.',
+      }
     }
     
     // Processar com assistente PLEN
@@ -680,6 +682,18 @@ Estou por aqui pra começarmos 🚀`,
 function extractPhoneNumber(remoteJid: string): string {
   // Formato: 5511999999999@s.whatsapp.net
   return remoteJid.split('@')[0]
+}
+
+/**
+ * Normalizar número para formato único (DDI 55 + DDD + número).
+ * Garante que 11999999999 e 5511999999999 sejam tratados como o mesmo contato.
+ */
+function normalizePhoneNumber(phone: string): string {
+  const digits = (phone || '').replace(/\D/g, '')
+  if (!digits.length) return phone
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) return digits
+  return digits
 }
 
 /**

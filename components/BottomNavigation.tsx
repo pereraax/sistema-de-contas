@@ -31,6 +31,7 @@ export default function BottomNavigation() {
                                pathname?.startsWith('/minhas-metas') ||
                                pathname?.startsWith('/dashboard') ||
                                pathname?.startsWith('/categorias') ||
+                               pathname?.startsWith('/ganhe-indicando') ||
                                pathname?.startsWith('/tutoriais') ||
                                pathname?.startsWith('/configuracoes') ||
                                pathname?.startsWith('/gastos-por-banco') ||

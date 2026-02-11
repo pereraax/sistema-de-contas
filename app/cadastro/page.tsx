@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signUp } from '@/lib/auth'
 import { createNotification } from '@/components/NotificationBell'
@@ -13,11 +13,14 @@ import { createClient } from '@/lib/supabase/client'
 
 export const dynamic = 'force-dynamic'
 
+const AFFILIATE_REF_COOKIE = 'plenipay_ref'
+
 function CadastroContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const plano = (searchParams?.get('plano') as 'teste' | 'basico' | 'premium') || 'teste'
-  
+  const refFromUrl = searchParams?.get('ref') || null
+
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showModalConfirmacao, setShowModalConfirmacao] = useState(false)
@@ -32,7 +35,38 @@ function CadastroContent() {
     senha: '',
     confirmarSenha: '',
     whatsapp: '',
+    codigoIndicacao: '',
   })
+  const [codigoPreenchidoPeloLink, setCodigoPreenchidoPeloLink] = useState(false)
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
+  const sectionRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (refFromUrl && typeof document !== 'undefined') {
+      document.cookie = `${AFFILIATE_REF_COOKIE}=${encodeURIComponent(refFromUrl)}; path=/; max-age=2592000`
+      setFormData((prev) => ({ ...prev, codigoIndicacao: refFromUrl.trim() }))
+      setCodigoPreenchidoPeloLink(true)
+    }
+  }, [refFromUrl])
+
+  useEffect(() => {
+    if (refFromUrl || formData.codigoIndicacao) return
+    if (typeof document === 'undefined') return
+    const match = document.cookie.match(new RegExp(`(^| )${AFFILIATE_REF_COOKIE}=([^;]+)`))
+    const cookieRef = match ? decodeURIComponent(match[2]) : null
+    if (cookieRef && cookieRef.trim()) {
+      setFormData((prev) => ({ ...prev, codigoIndicacao: cookieRef.trim() }))
+      setCodigoPreenchidoPeloLink(true)
+    }
+  }, [])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = sectionRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+  }, [])
+  const handleMouseLeave = useCallback(() => setMousePos(null), [])
 
   // Estrutura de verificação de email removida temporariamente
 
@@ -166,12 +200,15 @@ function CadastroContent() {
 
     console.log('✅ Todas as validações passaram, criando conta...')
 
+    const refCode = (formData.codigoIndicacao?.trim() || refFromUrl || (typeof document !== 'undefined' ? document.cookie.match(new RegExp(`(^| )${AFFILIATE_REF_COOKIE}=([^;]+)`))?.[2] : null) || '').trim() || undefined
+
     try {
       console.log('📞 Chamando signUp com:', {
         email: formData.email,
         nome: formData.nome,
         whatsapp: whatsappLimpo,
-        plano: plano
+        plano: plano,
+        ref: refCode || '(nenhum)',
       })
       
       const result = await signUp(
@@ -180,7 +217,8 @@ function CadastroContent() {
         formData.nome,
         '', // telefone removido - passar string vazia
         whatsappLimpo,
-        plano
+        plano,
+        refCode || undefined
       )
 
       console.log('📥 Resultado do signUp recebido:', JSON.stringify(result, null, 2))
@@ -250,9 +288,46 @@ function CadastroContent() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-[#1A1A1A]">
+    <div
+      ref={sectionRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      onTouchStart={(e) => {
+        const el = sectionRef.current
+        if (!el || !e.touches[0]) return
+        const rect = el.getBoundingClientRect()
+        setMousePos({ x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top })
+      }}
+      onTouchMove={(e) => {
+        const el = sectionRef.current
+        if (!el || !e.touches[0]) return
+        const rect = el.getBoundingClientRect()
+        setMousePos({ x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top })
+      }}
+      onTouchEnd={() => setMousePos(null)}
+      className="min-h-screen bg-neutral-50 dark:bg-[#1A1A1A] relative overflow-hidden"
+    >
+      {/* Efeito de fundo: grade com linhas brancas ao passar o mouse/toque (igual página inicial) */}
+      <div
+        className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-300"
+        style={{
+          opacity: mousePos ? 0.9 : 0,
+          backgroundImage: `
+            linear-gradient(to right, rgba(255,255,255,0.18) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255,255,255,0.18) 1px, transparent 1px)
+          `,
+          backgroundSize: '32px 32px',
+          WebkitMaskImage: mousePos
+            ? `radial-gradient(circle 220px at ${mousePos.x}px ${mousePos.y}px, black 0%, transparent 100%)`
+            : 'none',
+          maskImage: mousePos
+            ? `radial-gradient(circle 220px at ${mousePos.x}px ${mousePos.y}px, black 0%, transparent 100%)`
+            : 'none',
+        }}
+        aria-hidden
+      />
       {/* Conteúdo - Centralizado, clean */}
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-md py-6 sm:py-10">
+      <div className="container relative z-10 mx-auto px-4 sm:px-6 lg:px-8 max-w-md py-6 sm:py-10">
         <div className="bg-white dark:bg-[#252525] rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-6 sm:p-8">
           {/* Logo centralizado no topo da janela Criar Conta */}
           <div className="flex justify-center mb-6">
@@ -451,6 +526,27 @@ function CadastroContent() {
                 }`}
                 placeholder="(00) 00000-0000"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Código de indicação <span className="text-gray-400 dark:text-gray-500 font-normal">(opcional)</span>
+              </label>
+              <input
+                type="text"
+                value={formData.codigoIndicacao}
+                onChange={(e) => {
+                  setFormData({ ...formData, codigoIndicacao: e.target.value.toUpperCase().replace(/\s/g, '') })
+                  if (!e.target.value) setCodigoPreenchidoPeloLink(false)
+                }}
+                className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#1e4976] dark:focus:border-brand-aqua focus:ring-2 focus:ring-[#1e4976]/10 dark:focus:ring-brand-aqua/20 transition-all uppercase"
+                placeholder="Ex: ABC12XYZ"
+              />
+              {codigoPreenchidoPeloLink && formData.codigoIndicacao && (
+                <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                  ✓ Preenchido pelo link de indicação
+                </p>
+              )}
             </div>
 
             {/* Mensagem de aviso na parte inferior */}

@@ -2,17 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { addVisit } from '@/lib/visitor-store'
 import { createAdminClient } from '@/lib/supabase/server'
 
-/** Obtém IP do visitante (uma pessoa = um IP para contagem única). */
+/** Obtém IP do visitante (Vercel, Railway, Cloudflare, etc.). */
 function getVisitorIp(request: NextRequest): string | null {
   const forwarded = request.headers.get('x-forwarded-for')
   if (forwarded) {
     const first = forwarded.split(',')[0]?.trim()
-    if (first) return first.slice(0, 45) // limite razoável
+    if (first) return first.slice(0, 45)
   }
   const real = request.headers.get('x-real-ip')
   if (real) return real.slice(0, 45)
   const cf = request.headers.get('cf-connecting-ip')
   if (cf) return cf.slice(0, 45)
+  const vercel = request.headers.get('x-vercel-forwarded-for')
+  if (vercel) {
+    const first = vercel.split(',')[0]?.trim()
+    if (first) return first.slice(0, 45)
+  }
   return null
 }
 
@@ -33,7 +38,7 @@ export async function POST(request: NextRequest) {
       await supabase.from('visitor_hits').insert({
         path,
         ts: new Date().toISOString(),
-        ...(visitor_ip && { visitor_ip }),
+        visitor_ip: visitor_ip || `hit-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
       })
     }
 

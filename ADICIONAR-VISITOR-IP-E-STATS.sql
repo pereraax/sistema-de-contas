@@ -41,6 +41,10 @@ BEGIN
 END;
 $$;
 
+-- 3. (Opcional) Incluir visitas antigas na contagem
+--    Se você já tinha dados em visitor_hits, rode o script BACKFILL-VISITOR-IP.sql
+--    para que Total / Hoje / Semana voltem a refletir o histórico.
+
 -- ============================================
 -- Pronto. O painel passará a usar contagem por IP único.
 -- ============================================

@@ -17,7 +17,8 @@ import {
   Tag,
   ChevronLeft,
   ChevronRight,
-  Landmark
+  Landmark,
+  Gift
 } from 'lucide-react'
 import Logo from './Logo'
 
@@ -33,6 +34,7 @@ const menuItems = [
   { href: '/calendario', label: 'Calendário', icon: Calendar },
   { href: '/dashboard', label: 'Dashboard', icon: BarChart3 },
   { href: '/categorias', label: 'Categorias', icon: Tag },
+  { href: '/ganhe-indicando', label: 'Ganhe indicando', icon: Gift },
   { href: '/tutoriais', label: 'Tutoriais', icon: PlayCircle },
   { href: '/configuracoes', label: 'Configurações', icon: Settings },
 ]
