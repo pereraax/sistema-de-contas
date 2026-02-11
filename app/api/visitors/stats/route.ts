@@ -18,7 +18,8 @@ function getStartOfTodayBrasiliaISO(): string {
 }
 
 /**
- * Estatísticas de visitantes: cada acesso gera um hit. "Visitantes Hoje" = desde 0h (Brasília), em tempo real.
+ * Estatísticas de visitantes: "Visitantes Hoje" = desde 0h (Brasília), em tempo real.
+ * Preferência: RPC get_visitor_stats_by_ip (conta por IP único + linhas sem IP). Fallback: contagem por linhas.
  */
 export async function GET() {
   try {
@@ -34,6 +35,22 @@ export async function GET() {
       const isoTwoMin = twoMinAgo.toISOString()
       const isoWeek = sevenDaysAgo.toISOString()
 
+      // 1) Tentar RPC que conta por IP único (e linhas sem IP) — atualiza corretamente com as visitas
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_visitor_stats_by_ip')
+      if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
+        const row = rpcData[0] as { total?: number; online?: number; hoje?: number; semana?: number; mes?: number }
+        const total = Number(row?.total ?? 0)
+        const online = Number(row?.online ?? 0)
+        const hoje = Number(row?.hoje ?? 0)
+        const semana = Number(row?.semana ?? 0)
+        const mes = Number(row?.mes ?? 0)
+        return NextResponse.json(
+          { total, online, hoje, semana, mes },
+          { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+        )
+      }
+
+      // 2) Fallback: contagem por linhas (ts >= início do dia Brasília)
       const [totalRes, onlineRes, hojeRes, semanaRes, mesRes] = await Promise.all([
         supabase.from('visitor_hits').select('id', { count: 'exact', head: true }),
         supabase.from('visitor_hits').select('id', { count: 'exact', head: true }).gte('ts', isoTwoMin),

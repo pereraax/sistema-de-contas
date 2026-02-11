@@ -35,11 +35,14 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient()
     if (supabase) {
-      await supabase.from('visitor_hits').insert({
+      const { error: insertError } = await supabase.from('visitor_hits').insert({
         path,
         ts: new Date().toISOString(),
-        visitor_ip: visitor_ip || `hit-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+        visitor_ip: visitor_ip ?? null,
       })
+      if (insertError) {
+        console.error('❌ [VISITOR] Erro ao inserir hit no Supabase:', insertError.message, insertError.code)
+      }
     }
 
     return NextResponse.json({ success: true })

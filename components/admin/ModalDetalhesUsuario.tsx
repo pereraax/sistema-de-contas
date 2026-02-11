@@ -1,6 +1,6 @@
 'use client'
 
-import { X, Mail, Phone, Calendar, CreditCard, Key, User, Send, Loader2, Crown, Settings, AlertTriangle, FileText, Trash2, RefreshCw, MessageCircle, Power } from 'lucide-react'
+import { X, Mail, Phone, Calendar, CreditCard, Key, User, Send, Loader2, Crown, Settings, AlertTriangle, FileText, Trash2, RefreshCw, MessageCircle, Power, Gift, Users, Circle } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import { useState, useEffect } from 'react'
@@ -44,9 +44,25 @@ interface RegistrosCount {
   registrosDivida: number
 }
 
+interface ReferralItem {
+  referredUserId: string
+  referredName: string
+  referredEmail: string
+  createdAt: string
+}
+
+interface ReferralsData {
+  total: number
+  totalEarned: number
+  totalWithdrawn: number
+  availableBalance: number
+  referrals: ReferralItem[]
+}
+
 export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado, onUsuarioDeletado }: ModalDetalhesUsuarioProps) {
   const [enviando, setEnviando] = useState(false)
   const [alterandoPlano, setAlterandoPlano] = useState(false)
+  const [erroAlterarPlano, setErroAlterarPlano] = useState<string | null>(null)
   const [mostrarAlterarPlano, setMostrarAlterarPlano] = useState(false)
   const [novoPlano, setNovoPlano] = useState<'teste' | 'basico' | 'premium'>(usuario?.plano || 'teste')
   const [novoStatus, setNovoStatus] = useState<'trial' | 'ativo' | 'cancelado' | 'expirado'>('ativo')
@@ -59,6 +75,8 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
   const [plenActivated, setPlenActivated] = useState<boolean | null>(null)
   const [carregandoPlenStatus, setCarregandoPlenStatus] = useState(false)
   const [alterandoPlenStatus, setAlterandoPlenStatus] = useState(false)
+  const [referralsData, setReferralsData] = useState<ReferralsData | null>(null)
+  const [carregandoReferrals, setCarregandoReferrals] = useState(false)
 
   // Atualizar usuário local quando prop usuario mudar
   useEffect(() => {
@@ -150,6 +168,51 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
     }
 
     buscarStatusPlen()
+  }, [usuarioLocal?.id])
+
+  // Buscar last_sign_in_at do auth ao abrir o modal (garante dados corretos para Online/Deslogado)
+  useEffect(() => {
+    const buscarAuthInfo = async () => {
+      if (!usuarioLocal?.id) return
+      try {
+        const response = await fetch(`/api/admin/usuario/${usuarioLocal.id}/auth-info`)
+        const data = await response.json()
+        if (response.ok && data?.last_sign_in_at !== undefined) {
+          setUsuarioLocal(prev => prev ? { ...prev, last_sign_in_at: data.last_sign_in_at } : null)
+        }
+      } catch {
+        // manter last_sign_in_at que veio da lista
+      }
+    }
+    buscarAuthInfo()
+  }, [usuarioLocal?.id])
+
+  // Buscar indicações (pessoas que este usuário indicou) quando o usuário mudar
+  useEffect(() => {
+    const buscarIndicacoes = async () => {
+      if (!usuarioLocal?.id) return
+      setCarregandoReferrals(true)
+      try {
+        const response = await fetch(`/api/admin/usuario/${usuarioLocal.id}/referrals`)
+        const data = await response.json()
+        if (response.ok && data) {
+          setReferralsData({
+            total: data.total ?? 0,
+            totalEarned: data.totalEarned ?? 0,
+            totalWithdrawn: data.totalWithdrawn ?? 0,
+            availableBalance: data.availableBalance ?? 0,
+            referrals: data.referrals ?? [],
+          })
+        } else {
+          setReferralsData(null)
+        }
+      } catch {
+        setReferralsData(null)
+      } finally {
+        setCarregandoReferrals(false)
+      }
+    }
+    buscarIndicacoes()
   }, [usuarioLocal?.id])
 
   // Resetar novoPlano quando usuario mudar ou quando abrir modal de alteração
@@ -429,6 +492,7 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
 
     setAlterandoPlano(true)
     setMensagem(null)
+    setErroAlterarPlano(null)
 
     try {
       // Ajustar status baseado no plano selecionado
@@ -442,6 +506,7 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
 
       const requestBody = {
         userId: usuarioLocal.id,
+        idCurto: usuarioLocal.id_curto ?? undefined,
         plano: novoPlano,
         planoStatus: statusEnviar,
       }
@@ -450,6 +515,7 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
 
       const response = await fetch('/api/admin/alterar-plano', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -466,24 +532,24 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
       console.log('📥 [ALTERAR PLANO] Dados da resposta:', data)
 
       if (!response.ok) {
-        console.error('❌ [ALTERAR PLANO] Erro na resposta:', data)
-        const errorMessage = data.error || 'Erro ao alterar plano'
+        console.error('❌ [ALTERAR PLANO] Erro na resposta:', response.status, data)
+        const errorMessage = data?.error || `Erro ao alterar plano (${response.status})`
+        setErroAlterarPlano(errorMessage)
         setMensagem({ tipo: 'error', texto: errorMessage })
+        setTimeout(() => { setMensagem(null); setErroAlterarPlano(null) }, 8000)
       } else {
-        console.log('✅ [ALTERAR PLANO] Plano alterado com sucesso!')
-        console.log('✅ [ALTERAR PLANO] Dados atualizados:', data.usuario)
+        const planoSalvo = data?.usuario?.plano ?? novoPlano
+        console.log('✅ [ALTERAR PLANO] Plano alterado com sucesso!', { planoSalvo })
+        setErroAlterarPlano(null)
+        setUsuarioLocal(prev => prev ? { ...prev, plano: planoSalvo } : null)
         
-        // Atualizar plano do usuário localmente no estado
-        setUsuarioLocal(prev => prev ? { ...prev, plano: novoPlano } : null)
-        
-        // Chamar callback para atualizar lista no componente pai
         if (onPlanoAlterado && usuarioLocal) {
-          onPlanoAlterado(usuarioLocal.id, novoPlano)
+          onPlanoAlterado(usuarioLocal.id, planoSalvo as 'teste' | 'basico' | 'premium')
         }
         
         setMensagem({ 
           tipo: 'success', 
-          texto: `Plano alterado para ${planoLabels[novoPlano]} com sucesso!` 
+          texto: `Plano alterado para ${planoLabels[planoSalvo as keyof typeof planoLabels]} com sucesso!` 
         })
         
         // Fechar modal de alteração
@@ -644,6 +710,111 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
               </div>
             </div>
 
+            {/* Plano - alteração de plano (visível logo após contatos) */}
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <CreditCard size={16} className="text-brand-aqua" />
+                  <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Plano Atual</label>
+                </div>
+                <button
+                  onClick={() => {
+                    setNovoPlano(usuarioLocal?.plano || 'teste')
+                    if (usuarioLocal?.plano === 'teste') {
+                      setNovoStatus('trial')
+                    } else {
+                      setNovoStatus('ativo')
+                    }
+                    setMostrarAlterarPlano(!mostrarAlterarPlano)
+                    setMensagem(null)
+                    setErroAlterarPlano(null)
+                  }}
+                  className="px-2 py-1 bg-brand-aqua/20 text-brand-aqua rounded-lg hover:bg-brand-aqua/30 transition-smooth text-xs font-medium flex items-center gap-1"
+                >
+                  <Settings size={12} />
+                  Alterar
+                </button>
+              </div>
+              <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium border ${planoColors[usuarioLocal?.plano || 'teste']}`}>
+                {planoLabels[usuarioLocal?.plano || 'teste']}
+              </span>
+
+              {mostrarAlterarPlano && (
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/20 space-y-3">
+                  {erroAlterarPlano && (
+                    <div className="p-3 rounded-lg bg-red-900/30 border border-red-700/50 text-red-300 text-sm font-medium">
+                      {erroAlterarPlano}
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean/80 mb-2">
+                      Novo Plano
+                    </label>
+                    <select
+                      value={novoPlano}
+                      onChange={(e) => setNovoPlano(e.target.value as 'teste' | 'basico' | 'premium')}
+                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/30 rounded-lg text-sm text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua"
+                    >
+                      <option value="teste">Teste (Gratuito)</option>
+                      <option value="basico">Básico (R$ 29,90/mês)</option>
+                      <option value="premium">Premium (R$ 49,90/mês)</option>
+                    </select>
+                  </div>
+
+                  {(novoPlano === 'basico' || novoPlano === 'premium') && (
+                    <div>
+                      <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean/80 mb-2">
+                        Status do Plano
+                      </label>
+                      <select
+                        value={novoStatus}
+                        onChange={(e) => setNovoStatus(e.target.value as 'trial' | 'ativo' | 'cancelado' | 'expirado')}
+                        className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/30 rounded-lg text-sm text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua"
+                      >
+                        <option value="trial">Trial (Teste)</option>
+                        <option value="ativo">Ativo</option>
+                        <option value="cancelado">Cancelado</option>
+                        <option value="expirado">Expirado</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleAlterarPlano()
+                      }}
+                      disabled={alterandoPlano || novoPlano === usuarioLocal?.plano}
+                      className="flex-1 px-3 py-2 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {alterandoPlano ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin" />
+                          Alterando...
+                        </>
+                      ) : (
+                        <>
+                          <Crown size={14} />
+                          Confirmar Alteração
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMostrarAlterarPlano(false)
+                        setNovoPlano(usuarioLocal?.plano || 'teste')
+                      }}
+                      className="px-3 py-2 bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-gray-200 dark:hover:bg-white/20 transition-smooth text-sm font-medium border border-gray-200 dark:border-white/20"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Assistente PLEN */}
             <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center justify-between mb-2">
@@ -688,119 +859,6 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
               </p>
             </div>
 
-            {/* Plano */}
-            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <CreditCard size={16} className="text-brand-aqua" />
-                  <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Plano Atual</label>
-                </div>
-                <button
-                  onClick={() => {
-                    console.log('🔧 [MODAL] Botão Alterar clicado')
-                    console.log('🔧 [MODAL] Plano atual do usuário:', usuarioLocal?.plano)
-                    // Resetar para o plano atual antes de abrir o modal
-                    setNovoPlano(usuarioLocal?.plano || 'teste')
-                    // Resetar status baseado no plano atual
-                    if (usuarioLocal?.plano === 'teste') {
-                      setNovoStatus('trial')
-                    } else {
-                      setNovoStatus('ativo')
-                    }
-                    setMostrarAlterarPlano(!mostrarAlterarPlano)
-                    setMensagem(null) // Limpar mensagens anteriores
-                    console.log('🔧 [MODAL] Modal de alteração:', !mostrarAlterarPlano ? 'aberto' : 'fechado')
-                  }}
-                  className="px-2 py-1 bg-brand-aqua/20 text-brand-aqua rounded-lg hover:bg-brand-aqua/30 transition-smooth text-xs font-medium flex items-center gap-1"
-                >
-                  <Settings size={12} />
-                  Alterar
-                </button>
-              </div>
-              <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium border ${planoColors[usuarioLocal?.plano || 'teste']}`}>
-                {planoLabels[usuarioLocal?.plano || 'teste']}
-              </span>
-
-              {/* Formulário de Alteração de Plano */}
-              {mostrarAlterarPlano && (
-                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/20 space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean/80 mb-2">
-                      Novo Plano
-                    </label>
-                    <select
-                      value={novoPlano}
-                      onChange={(e) => setNovoPlano(e.target.value as 'teste' | 'basico' | 'premium')}
-                      className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/30 rounded-lg text-sm text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua"
-                    >
-                      <option value="teste">Teste (Gratuito)</option>
-                      <option value="basico">Básico (R$ 29,90/mês)</option>
-                      <option value="premium">Premium (R$ 49,90/mês)</option>
-                    </select>
-                  </div>
-
-                  {(novoPlano === 'basico' || novoPlano === 'premium') && (
-                    <div>
-                      <label className="block text-xs font-medium text-brand-midnight dark:text-brand-clean/80 mb-2">
-                        Status do Plano
-                      </label>
-                      <select
-                        value={novoStatus}
-                        onChange={(e) => setNovoStatus(e.target.value as 'trial' | 'ativo' | 'cancelado' | 'expirado')}
-                        className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/30 rounded-lg text-sm text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua"
-                      >
-                        <option value="trial">Trial (Teste)</option>
-                        <option value="ativo">Ativo</option>
-                        <option value="cancelado">Cancelado</option>
-                        <option value="expirado">Expirado</option>
-                      </select>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        console.log('🔘 [BOTÃO] Botão clicado!')
-                        console.log('🔘 [BOTÃO] Estado:', {
-                          alterandoPlano,
-                          novoPlano,
-                          usuarioPlano: usuarioLocal?.plano,
-                          mesmoPlano: novoPlano === usuarioLocal?.plano,
-                          desabilitado: alterandoPlano || novoPlano === usuarioLocal?.plano
-                        })
-                        handleAlterarPlano()
-                      }}
-                      disabled={alterandoPlano || novoPlano === usuarioLocal?.plano}
-                      className="flex-1 px-3 py-2 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {alterandoPlano ? (
-                        <>
-                          <Loader2 size={14} className="animate-spin" />
-                          Alterando...
-                        </>
-                      ) : (
-                        <>
-                          <Crown size={14} />
-                          Confirmar Alteração
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setMostrarAlterarPlano(false)
-                        setNovoPlano(usuarioLocal?.plano || 'teste')
-                      }}
-                      className="px-3 py-2 bg-gray-100 dark:bg-brand-midnight/50 text-brand-midnight dark:text-brand-clean rounded-lg hover:bg-gray-200 dark:hover:bg-white/20 transition-smooth text-sm font-medium border border-gray-200 dark:border-white/20"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* Data de Cadastro */}
             <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
               <div className="flex items-center gap-2 mb-1.5">
@@ -812,18 +870,45 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
               </p>
             </div>
 
-            {/* Último Login */}
+            {/* Último acesso e status Online/Deslogado */}
             <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
-              <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex items-center gap-2 mb-2">
                 <Calendar size={16} className="text-brand-aqua" />
-                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Último Login</label>
+                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Último acesso</label>
               </div>
-              <p className="text-sm text-brand-midnight dark:text-brand-clean">
-                {usuarioLocal?.last_sign_in_at 
-                  ? format(new Date(usuarioLocal.last_sign_in_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })
-                  : <span className="text-orange-600 dark:text-orange-400 font-medium">Nunca fez login</span>
-                }
-              </p>
+              {!usuarioLocal?.last_sign_in_at ? (
+                <p className="text-sm text-brand-midnight dark:text-brand-clean">
+                  <span className="text-orange-600 dark:text-orange-400 font-medium">Nunca fez login</span>
+                </p>
+              ) : (() => {
+                const lastSignIn = new Date(usuarioLocal.last_sign_in_at)
+                const now = new Date()
+                const diffMs = now.getTime() - lastSignIn.getTime()
+                const diffMin = Math.floor(diffMs / (1000 * 60))
+                const isOnline = diffMin < 5
+                return (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      {isOnline ? (
+                        <>
+                          <Circle size={12} className="text-green-500 fill-green-500 flex-shrink-0" aria-hidden />
+                          <span className="text-sm font-medium text-green-600 dark:text-green-400">Online</span>
+                        </>
+                      ) : (
+                        <>
+                          <Circle size={12} className="text-gray-400 dark:text-brand-clean/50 flex-shrink-0" aria-hidden />
+                          <span className="text-sm text-brand-midnight/70 dark:text-brand-clean/70">Deslogado</span>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">
+                      {isOnline
+                        ? `Acesso há ${diffMin <= 0 ? 'agora' : diffMin === 1 ? '1 minuto' : `${diffMin} minutos`}`
+                        : format(lastSignIn, "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
+                    </p>
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Contagem de Registros */}
@@ -980,6 +1065,60 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
                       </div>
                     </div>
                   </div>
+                </div>
+              ) : (
+                <span className="text-xs text-brand-midnight/40 dark:text-brand-clean/40">Não foi possível carregar</span>
+              )}
+            </div>
+
+            {/* Indicações: pessoas que este usuário indicou */}
+            <div className="bg-gray-50 dark:bg-brand-midnight/80 rounded-lg p-3 border border-gray-200 dark:border-white/20">
+              <div className="flex items-center gap-2 mb-2">
+                <Gift size={16} className="text-brand-aqua" />
+                <label className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Indicações</label>
+              </div>
+              {carregandoReferrals ? (
+                <div className="flex items-center gap-2 py-2">
+                  <Loader2 size={14} className="animate-spin text-brand-aqua" />
+                  <span className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">Carregando...</span>
+                </div>
+              ) : referralsData ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                    <span className="font-semibold text-brand-midnight dark:text-brand-clean">
+                      <Users size={14} className="inline mr-1 align-middle" />
+                      {referralsData.total} {referralsData.total === 1 ? 'pessoa indicada' : 'pessoas indicadas'}
+                    </span>
+                    {referralsData.total > 0 && (
+                      <span className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">
+                        (ganho total: R$ {referralsData.totalEarned.toFixed(2).replace('.', ',')})
+                      </span>
+                    )}
+                  </div>
+                  {referralsData.referrals.length > 0 ? (
+                    <ul className="space-y-2 max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-brand-royal/50 p-2">
+                      {referralsData.referrals.map((ref) => (
+                        <li
+                          key={ref.referredUserId}
+                          className="flex flex-col gap-0.5 py-2 px-2 rounded-lg border border-gray-100 dark:border-white/10 text-left"
+                        >
+                          <span className="text-sm font-medium text-brand-midnight dark:text-brand-clean truncate">
+                            {ref.referredName}
+                          </span>
+                          <span className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 truncate">
+                            {ref.referredEmail}
+                          </span>
+                          <span className="text-xs text-brand-midnight/50 dark:text-brand-clean/50">
+                            Indicado em {format(new Date(ref.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-brand-midnight/50 dark:text-brand-clean/50">
+                      Este usuário ainda não indicou ninguém.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <span className="text-xs text-brand-midnight/40 dark:text-brand-clean/40">Não foi possível carregar</span>

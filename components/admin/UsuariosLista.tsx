@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Search, Mail, Phone, Calendar, CreditCard, Key, Crown, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
@@ -31,24 +31,29 @@ export default function UsuariosLista({ usuarios: usuariosIniciais, error }: Usu
   const [menuAberto, setMenuAberto] = useState<string | null>(null)
   const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error'; texto: string } | null>(null)
   const [usuarios, setUsuarios] = useState<Usuario[]>(usuariosIniciais)
+  // Overrides de plano feitos nesta sessão — evita que o useEffect apague a alteração
+  const planOverridesRef = useRef<Record<string, 'teste' | 'basico' | 'premium'>>({})
 
-  // Atualizar usuários quando usuariosIniciais mudar
+  // Sincronizar com a lista do servidor preservando alterações de plano feitas nesta sessão
   useEffect(() => {
-    setUsuarios(usuariosIniciais)
+    const overrides = planOverridesRef.current
+    setUsuarios(usuariosIniciais.map(u => ({
+      ...u,
+      plano: (overrides[u.id] ?? u.plano) as 'teste' | 'basico' | 'premium',
+    })))
   }, [usuariosIniciais])
 
   // Função para atualizar o plano de um usuário
   const handlePlanoAlterado = (usuarioId: string, novoPlano: 'teste' | 'basico' | 'premium') => {
-    setUsuarios(prevUsuarios => 
-      prevUsuarios.map(usuario => 
+    planOverridesRef.current[usuarioId] = novoPlano
+    setUsuarios(prevUsuarios =>
+      prevUsuarios.map(usuario =>
         usuario.id === usuarioId ? { ...usuario, plano: novoPlano } : usuario
       )
     )
-    
-    // Atualizar usuário selecionado também
-    if (usuarioSelecionado && usuarioSelecionado.id === usuarioId) {
-      setUsuarioSelecionado({ ...usuarioSelecionado, plano: novoPlano })
-    }
+    setUsuarioSelecionado(prev =>
+      prev && prev.id === usuarioId ? { ...prev, plano: novoPlano } : prev
+    )
   }
 
   // Filtrar usuários
@@ -87,11 +92,13 @@ export default function UsuariosLista({ usuarios: usuariosIniciais, error }: Usu
     try {
       const response = await fetch('/api/admin/alterar-plano', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           userId: usuario.id,
+          idCurto: usuario.id_curto ?? undefined,
           plano: novoPlano,
           planoStatus: novoPlano === 'teste' ? 'trial' : 'ativo',
         }),

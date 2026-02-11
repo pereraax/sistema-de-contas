@@ -113,15 +113,55 @@ export async function getCurrentAdmin(): Promise<AdminUser | null> {
   return null
 }
 
+// Limite alto para garantir que todos os usuários apareçam (PostgREST default é 1000)
+const MAX_PROFILES = 10000
+
 // Função para obter todos os usuários da plataforma
 export async function obterTodosUsuarios() {
   console.log('🔍 [obterTodosUsuarios] Iniciando busca de usuários...')
   
-  // PRIMEIRO: Tentar usar função RPC (funciona mesmo sem service role key)
-  // NOTA: A função RPC pode retornar usuários deletados, então vamos filtrar depois
+  // PRIMEIRO: Tentar cliente admin (bypassa RLS e retorna TODOS os perfis; não depende de RPC)
+  const supabaseAdmin = createAdminClient()
+  if (supabaseAdmin) {
+    try {
+      console.log('✅ [obterTodosUsuarios] Usando cliente admin (bypassa RLS)')
+      const { data: profiles, error: profilesError } = await supabaseAdmin
+        .from('profiles')
+        .select('id, id_curto, email, nome, telefone, whatsapp, plano, created_at')
+        .order('created_at', { ascending: false })
+        .range(0, MAX_PROFILES - 1)
+      
+      if (!profilesError && profiles && profiles.length >= 0) {
+        let lastSignInMap = new Map<string, string | null>()
+        try {
+          const { data: authUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+          if (authUsers?.users && !authError) {
+            (authUsers.users as any[]).forEach((user: any) => {
+              lastSignInMap.set(user.id, user.last_sign_in_at || null)
+            })
+          }
+        } catch (authErr) {
+          console.warn('⚠️ [obterTodosUsuarios] Não foi possível buscar auth.users para last_sign_in_at:', authErr)
+        }
+        const data = profiles.map((profile: any) => ({
+          ...profile,
+          last_sign_in_at: lastSignInMap.get(profile.id) || null
+        }))
+        console.log(`✅ [obterTodosUsuarios] Retornando ${data.length} usuários via cliente admin`)
+        return { data, error: null }
+      }
+      if (profilesError) {
+        console.error('❌ [obterTodosUsuarios] Erro ao buscar profiles:', profilesError)
+      }
+    } catch (error: any) {
+      console.error('❌ [obterTodosUsuarios] Erro ao usar cliente admin:', error?.message || error)
+    }
+  }
+  
+  // SEGUNDO: Tentar função RPC (quando service role key não está configurada)
   try {
     const supabasePublic = createPublicClient()
-    console.log('🔄 [obterTodosUsuarios] Tentando função RPC get_all_profiles (prioridade)...')
+    console.log('🔄 [obterTodosUsuarios] Tentando função RPC get_all_profiles...')
     const { data: rpcData, error: rpcError } = await supabasePublic.rpc('get_all_profiles')
 
     if (!rpcError && rpcData && Array.isArray(rpcData)) {
@@ -172,70 +212,8 @@ export async function obterTodosUsuarios() {
   } catch (rpcErr) {
     console.error('❌ [obterTodosUsuarios] Erro ao tentar RPC:', rpcErr)
   }
-  
-  // SEGUNDO: Tentar usar cliente admin (bypassa RLS se service role key estiver configurada)
-  const supabaseAdmin = createAdminClient()
-  
-  if (supabaseAdmin) {
-    try {
-      console.log('✅ [obterTodosUsuarios] Usando cliente admin (bypassa RLS)')
-      
-      // PRIMEIRO: Buscar dados dos profiles (SEM filtrar primeiro)
-      const { data: profiles, error: profilesError } = await supabaseAdmin
-        .from('profiles')
-        .select('id, id_curto, email, nome, telefone, whatsapp, plano, created_at')
-        .order('created_at', { ascending: false })
-      
-      if (profilesError) {
-        console.error('❌ [obterTodosUsuarios] Erro ao buscar profiles:', profilesError)
-        console.error('❌ [obterTodosUsuarios] Detalhes profiles:', {
-          message: profilesError.message,
-          code: profilesError.code,
-          details: profilesError.details,
-          hint: profilesError.hint
-        })
-        // Continuar para tentar outros métodos
-      } else if (profiles && profiles.length > 0) {
-        console.log(`✅ [obterTodosUsuarios] Encontrados ${profiles.length} perfis na tabela profiles`)
-        
-        // IMPORTANTE: Retornar TODOS os perfis sem filtrar por auth.users
-        // Isso garante que todos os usuários cadastrados apareçam no painel admin
-        console.log(`✅ [obterTodosUsuarios] Retornando TODOS os ${profiles.length} perfis (sem filtrar)`)
-        
-        // Buscar último login de cada usuário do auth.users apenas para enriquecer dados
-        let lastSignInMap = new Map<string, string | null>()
-        try {
-          const { data: authUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers()
-          if (authUsers?.users && !authError) {
-            (authUsers.users as any[]).forEach((user: any) => {
-              lastSignInMap.set(user.id, user.last_sign_in_at || null)
-            })
-          }
-        } catch (authErr) {
-          console.warn('⚠️ [obterTodosUsuarios] Erro ao buscar auth.users para last_sign_in_at:', authErr)
-          }
-          
-        // Retornar TODOS os perfis, enriquecidos com last_sign_in_at quando disponível
-        const data = profiles.map(profile => ({
-            ...profile,
-            last_sign_in_at: lastSignInMap.get(profile.id) || null
-          }))
-          
-        console.log(`✅ [obterTodosUsuarios] Encontrados ${data.length} usuários via cliente admin (todos os perfis)`)
-          return { data, error: null }
-      } else {
-        console.log('✅ [obterTodosUsuarios] Nenhum profile encontrado via cliente admin - retornando array vazio')
-        return { data: [], error: null }
-      }
-    } catch (error: any) {
-      console.error('❌ [obterTodosUsuarios] Erro ao usar cliente admin:', error?.message || error)
-      // Continuar para tentar outros métodos
-    }
-  } else {
-    console.log('⚠️ [obterTodosUsuarios] Service role key não configurada - tentando outros métodos')
-  }
 
-  // Último fallback: tentar buscar diretamente usando cliente normal (pode funcionar se RLS permitir)
+  // Último fallback: tentar buscar diretamente usando cliente admin ou normal (pode funcionar se RLS permitir)
   // NOTA: Este método não pode filtrar usuários deletados porque não tem acesso ao auth.admin
   // Mas vamos tentar usar o admin client se disponível
   try {
@@ -246,6 +224,7 @@ export async function obterTodosUsuarios() {
         .from('profiles')
         .select('id, id_curto, email, nome, telefone, whatsapp, plano, created_at')
         .order('created_at', { ascending: false })
+        .range(0, MAX_PROFILES - 1)
       
       if (fallbackError) {
         console.error('❌ [obterTodosUsuarios] Erro ao buscar usuários diretamente:', fallbackError)
@@ -271,6 +250,7 @@ export async function obterTodosUsuarios() {
         .from('profiles')
         .select('id, id_curto, email, nome, telefone, whatsapp, plano, created_at')
         .order('created_at', { ascending: false })
+        .range(0, MAX_PROFILES - 1)
       
       if (fallbackError) {
         console.error('❌ [obterTodosUsuarios] Erro ao buscar usuários diretamente:', fallbackError)
