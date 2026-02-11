@@ -502,7 +502,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       }
     }
 
-    // PRIORIDADE 2a: "Olá! Quero utilizar a Plenipay" — resposta específica (apenas texto, sem preview de link)
+    // PRIORIDADE 2a: "Olá! Quero utilizar a Plenipay" — resposta com link completo para cadastro
     const msgUtilizar = text.toLowerCase().trim().replace(/\s+/g, ' ')
     const isQueroUtilizarPlenipay =
       msgUtilizar.includes('quero utilizar a plenipay') ||
@@ -527,7 +527,7 @@ E eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!
 
 Antes da gente começar, cria sua conta rapidinho lá no site 🌐
 
-👉 plenipay . com
+👉 https://plenipay.com/
 
 É bem rápido mesmo, prometo! ⏱️💙
 
@@ -572,7 +572,7 @@ Eu sou a Plen, sua assistente financeira 🤖💙
 Estou aqui pra te ajudar a registrar seus gastos e ganhos de forma simples e acompanhar como está o seu controle financeiro no dia a dia, sem planilhas e sem complicação.
 
 ✨ Você pode começar gratuitamente agora mesmo
-👉 Crie sua conta aqui: plenipay . com
+👉 Crie sua conta aqui: https://plenipay.com/
 
 Depois do cadastro, é só me mandar mensagens pelo WhatsApp que eu te ajudo a registrar tudo de forma rápida e organizada 📊💬
 
@@ -829,6 +829,52 @@ async function getUserContext(phoneNumber: string): Promise<UserContext> {
         console.log('ℹ️ [WhatsApp PLEN] Tabela whatsapp_sessions não existe ainda. Execute o SQL ADICIONAR-WHATSAPP-KEY.sql')
       } else {
         console.error('❌ [WhatsApp PLEN] Erro ao verificar sessão:', sessionErr)
+      }
+    }
+
+    // Sem sessão: verificar se o número pertence a um usuário com PLEN ativado pelo admin
+    try {
+      const { data: profilesWithPlenAdmin } = await supabaseAdmin
+        .from('profiles')
+        .select('id, nome, email, telefone, whatsapp, plen_activated_by_admin')
+        .eq('plen_activated_by_admin', true)
+
+      if (profilesWithPlenAdmin && profilesWithPlenAdmin.length > 0) {
+        const normalizedIncoming = normalizePhoneNumber(phoneNumber)
+        const digitsIncoming = (normalizedIncoming || '').replace(/\D/g, '')
+        for (const p of profilesWithPlenAdmin as any[]) {
+          const tel = (p.telefone || '').replace(/\D/g, '')
+          const wa = (p.whatsapp || '').replace(/\D/g, '')
+          const matchTel = tel.length >= 10 && (digitsIncoming === tel || digitsIncoming === `55${tel}` || tel === digitsIncoming || tel === digitsIncoming.slice(-10) || tel === digitsIncoming.slice(-11))
+          const matchWa = wa.length >= 10 && (digitsIncoming === wa || digitsIncoming === `55${wa}` || wa === digitsIncoming || wa === digitsIncoming.slice(-10) || wa === digitsIncoming.slice(-11))
+          if (matchTel || matchWa) {
+            const expiresAt = new Date()
+            expiresAt.setDate(expiresAt.getDate() + 365)
+            await supabaseAdmin.from('whatsapp_sessions').upsert({
+              phone_number: phoneNumber,
+              user_id: p.id,
+              plen_activated: true,
+              expires_at: expiresAt.toISOString(),
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'phone_number' })
+            plenActivated.set(phoneNumber, true)
+            console.log('✅ [WhatsApp PLEN] Usuário identificado por cadastro (PLEN ativado pelo admin):', { userId: p.id, phoneNumber })
+            return {
+              userId: p.id,
+              phoneNumber,
+              nome: p.nome,
+              email: p.email,
+              registered: true,
+              whatsappAuthenticated: true,
+            }
+          }
+        }
+      }
+    } catch (adminPlenErr: any) {
+      if (adminPlenErr?.message?.includes('plen_activated_by_admin') || adminPlenErr?.code === '42703') {
+        // Coluna não existe, ignorar
+      } else {
+        console.warn('⚠️ [WhatsApp PLEN] Erro ao verificar PLEN ativado por admin:', adminPlenErr?.message)
       }
     }
 

@@ -847,15 +847,22 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
                     )}
                   </button>
                 ) : (
-                  <span className="text-xs text-brand-midnight/40 dark:text-brand-clean/40">Sem sessão WhatsApp</span>
+                  <button
+                    onClick={() => handleTogglePlenAssistant()}
+                    disabled={alterandoPlenStatus}
+                    className="px-3 py-1.5 rounded-lg bg-brand-aqua/20 text-brand-aqua hover:bg-brand-aqua/30 text-xs font-medium flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {alterandoPlenStatus ? <Loader2 size={12} className="animate-spin" /> : <Power size={12} />}
+                    {alterandoPlenStatus ? 'Ativando...' : 'Ativar assistente PLEN'}
+                  </button>
                 )}
               </div>
               <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60">
                 {plenActivated === null
-                  ? 'Usuário precisa autenticar via WhatsApp primeiro'
+                  ? 'Ative para que o usuário seja atendido quando enviar mensagem do número cadastrado (telefone/WhatsApp).'
                   : plenActivated
-                  ? 'O assistente PLEN está ativo e responderá mensagens do usuário no WhatsApp'
-                  : 'O assistente PLEN está desativado e não responderá mensagens do usuário'}
+                  ? 'O assistente PLEN está ativo e responderá mensagens do usuário no WhatsApp (ou pelo número cadastrado).'
+                  : 'O assistente PLEN está desativado. Ative para o usuário ser atendido pelo número cadastrado.'}
               </p>
             </div>
 
