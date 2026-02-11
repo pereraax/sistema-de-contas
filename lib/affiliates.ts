@@ -42,16 +42,46 @@ export async function getOrCreateAffiliateCode(userId: string): Promise<{ code: 
   return { code: code!, link }
 }
 
-/** Lista indicações do usuário com dados do indicado e data. */
+export type ReferralItem = {
+  referredUserId: string
+  referredName: string
+  referredEmail: string
+  createdAt: string
+  emailVerified: boolean
+  usedPlen: boolean
+  plano: string | null
+}
+
+export type MissionStats = {
+  totalReferrals: number
+  basicSubscribers: number
+  verifiedAndUsedPlen: number
+  mission1Done: boolean
+  mission2Done: boolean
+  mission3Done: boolean
+  allMissionsDone: boolean
+}
+
+/** Lista indicações do usuário com dados do indicado, verificação de conta e uso do Plen. */
 export async function getMyReferrals(userId: string): Promise<{
-  referrals: { referredUserId: string; referredName: string; referredEmail: string; createdAt: string }[]
+  referrals: ReferralItem[]
   totalEarned: number
   totalWithdrawn: number
   availableBalance: number
   canWithdraw: boolean
+  mission: MissionStats
 }> {
   const admin = createAdminClient()
-  if (!admin) return { referrals: [], totalEarned: 0, totalWithdrawn: 0, availableBalance: 0, canWithdraw: false }
+  const emptyMission: MissionStats = {
+    totalReferrals: 0,
+    basicSubscribers: 0,
+    verifiedAndUsedPlen: 0,
+    mission1Done: false,
+    mission2Done: false,
+    mission3Done: false,
+    allMissionsDone: false,
+  }
+  if (!admin) return { referrals: [], totalEarned: 0, totalWithdrawn: 0, availableBalance: 0, canWithdraw: false, mission: emptyMission }
 
   const { data: referrals } = await admin
     .from('referrals')
@@ -60,23 +90,61 @@ export async function getMyReferrals(userId: string): Promise<{
     .order('created_at', { ascending: false })
 
   const refIds = (referrals || []).map((r: any) => r.referred_id)
-  const refList: { referredUserId: string; referredName: string; referredEmail: string; createdAt: string }[] = []
+  const refList: ReferralItem[] = []
 
   if (refIds.length > 0) {
-    const { data: profiles } = await admin.from('profiles').select('id, nome, email').in('id', refIds)
-    const map = new Map((profiles || []).map((p: any) => [p.id, p]))
+    const { data: profiles } = await admin.from('profiles').select('id, nome, email, plano').in('id', refIds)
+    const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]))
+
+    let emailConfirmedMap = new Map<string, boolean>()
+    try {
+      const { data: authList } = await admin.auth.admin.listUsers({ perPage: 1000 })
+      if (authList?.users) {
+        authList.users.forEach((u: any) => {
+          emailConfirmedMap.set(u.id, !!u.email_confirmed_at)
+        })
+      }
+    } catch (_) {}
+
+    let plenMap = new Map<string, boolean>()
+    try {
+      const { data: sessions } = await admin.from('whatsapp_sessions').select('user_id, plen_activated').in('user_id', refIds)
+      if (sessions) {
+        sessions.forEach((s: any) => {
+          if (s.plen_activated) plenMap.set(s.user_id, true)
+        })
+      }
+    } catch (_) {}
+
     for (const r of referrals || []) {
-      const p = map.get(r.referred_id)
+      const p = profileMap.get(r.referred_id)
+      const emailVerified = emailConfirmedMap.get(r.referred_id) ?? false
+      const usedPlen = plenMap.get(r.referred_id) ?? false
       refList.push({
         referredUserId: r.referred_id,
         referredName: p?.nome || '—',
         referredEmail: p?.email || '—',
         createdAt: r.created_at,
+        emailVerified,
+        usedPlen,
+        plano: p?.plano ?? null,
       })
     }
   }
 
   const totalEarned = refList.length * VALUE_PER_REFERRAL
+  const basicSubscribers = refList.filter((r) => r.plano === 'basico').length
+  const verifiedAndUsedPlen = refList.filter((r) => r.emailVerified && r.usedPlen).length
+
+  const mission: MissionStats = {
+    totalReferrals: refList.length,
+    basicSubscribers,
+    verifiedAndUsedPlen,
+    mission1Done: refList.length >= 10,
+    mission2Done: basicSubscribers >= 1,
+    mission3Done: verifiedAndUsedPlen >= 10,
+    allMissionsDone: refList.length >= 10 && basicSubscribers >= 1 && verifiedAndUsedPlen >= 10,
+  }
 
   const { data: withdrawals } = await admin
     .from('affiliate_withdrawal_requests')
@@ -94,6 +162,7 @@ export async function getMyReferrals(userId: string): Promise<{
     totalWithdrawn,
     availableBalance,
     canWithdraw,
+    mission,
   }
 }
 

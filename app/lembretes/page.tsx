@@ -631,6 +631,16 @@ export default function LembretesPage() {
     return !isPast(dataLembrete) && !isToday(dataLembrete) && !isTomorrow(dataLembrete)
   })
 
+  // Label de status para exibição em lista/tabela (desktop)
+  const getStatusLabel = (lembrete: Lembrete): string => {
+    if (lembrete.status === 'concluido') return 'Concluído'
+    const dataLembrete = new Date(lembrete.data_lembrete)
+    if (isPast(dataLembrete)) return 'Atrasado'
+    if (isToday(dataLembrete)) return 'Hoje'
+    if (isTomorrow(dataLembrete)) return 'Amanhã'
+    return 'Próximos'
+  }
+
   return (
     <div className="min-h-screen bg-brand-clean dark:bg-[#1A1A1A]">
       <Sidebar />
@@ -674,43 +684,45 @@ export default function LembretesPage() {
             </div>
           ) : (
             <div className="space-y-4 sm:space-y-5">
-              {/* Estatísticas: grade 2x2 — apenas ícones com cores leves para identificar */}
-              <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                <div className="rounded-xl p-3 sm:p-4 bg-white dark:bg-brand-midnight/60 border border-gray-200 dark:border-white/10 shadow-sm">
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                      <Clock className="text-amber-500 dark:text-amber-400" size={18} strokeWidth={2} />
+              {/* Estatísticas: grade 2x2 centralizada, painéis com largura reduzida */}
+              <div className="flex justify-center">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full max-w-[280px] sm:max-w-[320px]">
+                  <div className="rounded-xl p-2.5 sm:p-3 bg-white dark:bg-brand-midnight/60 border border-gray-200 dark:border-white/10 shadow-sm">
+                    <div className="flex items-center justify-between gap-1.5 mb-1">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
+                        <Clock className="text-amber-500 dark:text-amber-400" size={16} strokeWidth={2} />
+                      </div>
+                      <span className="text-[11px] sm:text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70 truncate">Pendentes</span>
                     </div>
-                    <span className="text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70">Pendentes</span>
+                    <p className="text-base sm:text-lg font-bold text-brand-midnight dark:text-brand-clean tabular-nums">{lembretesPendentes.length}</p>
                   </div>
-                  <p className="text-lg sm:text-xl font-bold text-brand-midnight dark:text-brand-clean tabular-nums">{lembretesPendentes.length}</p>
-                </div>
-                <div className="rounded-xl p-3 sm:p-4 bg-white dark:bg-brand-midnight/60 border border-gray-200 dark:border-white/10 shadow-sm">
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                      <AlertCircle className="text-orange-500 dark:text-orange-400" size={18} strokeWidth={2} />
+                  <div className="rounded-xl p-2.5 sm:p-3 bg-white dark:bg-brand-midnight/60 border border-gray-200 dark:border-white/10 shadow-sm">
+                    <div className="flex items-center justify-between gap-1.5 mb-1">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center shrink-0">
+                        <AlertCircle className="text-orange-500 dark:text-orange-400" size={16} strokeWidth={2} />
+                      </div>
+                      <span className="text-[11px] sm:text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70 truncate">Atrasados</span>
                     </div>
-                    <span className="text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70">Atrasados</span>
+                    <p className="text-base sm:text-lg font-bold text-brand-midnight dark:text-brand-clean tabular-nums">{lembretesAtrasados.length}</p>
                   </div>
-                  <p className="text-lg sm:text-xl font-bold text-brand-midnight dark:text-brand-clean tabular-nums">{lembretesAtrasados.length}</p>
-                </div>
-                <div className="rounded-xl p-3 sm:p-4 bg-white dark:bg-brand-midnight/60 border border-gray-200 dark:border-white/10 shadow-sm">
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                      <CheckCircle2 className="text-emerald-500 dark:text-emerald-400" size={18} strokeWidth={2} />
+                  <div className="rounded-xl p-2.5 sm:p-3 bg-white dark:bg-brand-midnight/60 border border-gray-200 dark:border-white/10 shadow-sm">
+                    <div className="flex items-center justify-between gap-1.5 mb-1">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="text-emerald-500 dark:text-emerald-400" size={16} strokeWidth={2} />
+                      </div>
+                      <span className="text-[11px] sm:text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70 truncate">Concluídos</span>
                     </div>
-                    <span className="text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70">Concluídos</span>
+                    <p className="text-base sm:text-lg font-bold text-brand-midnight dark:text-brand-clean tabular-nums">{lembretesConcluidos.length}</p>
                   </div>
-                  <p className="text-lg sm:text-xl font-bold text-brand-midnight dark:text-brand-clean tabular-nums">{lembretesConcluidos.length}</p>
-                </div>
-                <div className="rounded-xl p-3 sm:p-4 bg-white dark:bg-brand-midnight/60 border border-gray-200 dark:border-white/10 shadow-sm">
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
-                      <Calendar className="text-sky-500 dark:text-sky-400" size={18} strokeWidth={2} />
+                  <div className="rounded-xl p-2.5 sm:p-3 bg-white dark:bg-brand-midnight/60 border border-gray-200 dark:border-white/10 shadow-sm">
+                    <div className="flex items-center justify-between gap-1.5 mb-1">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center shrink-0">
+                        <Calendar className="text-sky-500 dark:text-sky-400" size={16} strokeWidth={2} />
+                      </div>
+                      <span className="text-[11px] sm:text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70 truncate">Total</span>
                     </div>
-                    <span className="text-xs font-medium text-brand-midnight/70 dark:text-brand-clean/70">Total</span>
+                    <p className="text-base sm:text-lg font-bold text-brand-midnight dark:text-brand-clean tabular-nums">{lembretes.length}</p>
                   </div>
-                  <p className="text-lg sm:text-xl font-bold text-brand-midnight dark:text-brand-clean tabular-nums">{lembretes.length}</p>
                 </div>
               </div>
 
@@ -762,6 +774,95 @@ export default function LembretesPage() {
                 </div>
               </div>
 
+              {/* Desktop: lista em formato planilha (tabela) */}
+              <div className="hidden md:block overflow-hidden rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-brand-midnight/60 shadow-sm">
+                {lembretesFiltrados.length === 0 ? (
+                  <div className="p-8 text-center text-brand-midnight/60 dark:text-brand-clean/60 text-sm">Nenhum lembrete para exibir.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 dark:bg-white/5 text-left text-brand-midnight/70 dark:text-brand-clean/70 border-b border-gray-200 dark:border-white/10">
+                          <th className="px-4 py-3 font-medium">Descrição</th>
+                          <th className="px-4 py-3 font-medium whitespace-nowrap">Data</th>
+                          <th className="px-4 py-3 font-medium whitespace-nowrap">Hora</th>
+                          <th className="px-4 py-3 font-medium whitespace-nowrap">Status</th>
+                          <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lembretesFiltrados.map((lembrete) => {
+                          const dataLembrete = new Date(lembrete.data_lembrete)
+                          const dataParaExibir = lembrete.is_recorrente_mensal && lembrete.recorrencia_dia_mes
+                            ? new Date(dataLembrete.getFullYear(), dataLembrete.getMonth(), Math.min(lembrete.recorrencia_dia_mes, new Date(dataLembrete.getFullYear(), dataLembrete.getMonth() + 1, 0).getDate()))
+                            : dataLembrete
+                          const dataFormatada = format(dataParaExibir, 'dd/MM/yyyy', { locale: ptBR })
+                          const horarioFormatado = (lembrete.horario || '10:00:00').slice(0, 5)
+                          const statusLabel = getStatusLabel(lembrete)
+                          const isAtrasado = statusLabel === 'Atrasado'
+                          const isConcluido = lembrete.status === 'concluido'
+                          return (
+                            <tr
+                              key={lembrete.id}
+                              onClick={() => !isConcluido && abrirModalDetalhes(lembrete)}
+                              className={`border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${!isConcluido ? 'cursor-pointer' : ''}`}
+                            >
+                              <td className="px-4 py-3">
+                                <span className={`font-medium text-brand-midnight dark:text-brand-clean ${isConcluido ? 'line-through text-brand-midnight/60 dark:text-brand-clean/60' : ''}`}>
+                                  {lembrete.descricao}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-brand-midnight/70 dark:text-brand-clean/70 whitespace-nowrap">{dataFormatada}</td>
+                              <td className="px-4 py-3 text-brand-midnight/70 dark:text-brand-clean/70 whitespace-nowrap">{horarioFormatado}</td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${
+                                  isAtrasado ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' :
+                                  statusLabel === 'Hoje' ? 'bg-brand-aqua/15 dark:bg-brand-aqua/25 text-brand-aqua' :
+                                  statusLabel === 'Concluído' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' :
+                                  'bg-gray-100 dark:bg-white/10 text-brand-midnight/70 dark:text-brand-clean/70'
+                                }`}>
+                                  {statusLabel}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center justify-end gap-1">
+                                  {!isConcluido && (
+                                    <button
+                                      onClick={() => marcarComoConcluido(lembrete.id)}
+                                      className="p-2 rounded-lg bg-brand-aqua hover:bg-brand-aqua/90 text-white transition-colors"
+                                      title="Concluir"
+                                    >
+                                      <CheckCircle2 size={16} />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => abrirModalEditar(lembrete)}
+                                    className="p-2 rounded-lg bg-gray-100 dark:bg-white/10 text-brand-midnight dark:text-brand-clean hover:bg-brand-aqua/15 transition-colors"
+                                    title="Editar"
+                                  >
+                                    <Pencil size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => abrirModalDeletar(lembrete.id, lembrete.descricao)}
+                                    disabled={deletingId === lembrete.id}
+                                    className="p-2 rounded-lg bg-gray-100 dark:bg-white/10 text-brand-midnight/70 dark:text-brand-clean/70 hover:bg-white/20 transition-colors disabled:opacity-50"
+                                    title="Excluir"
+                                  >
+                                    {deletingId === lembrete.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile: cards por seção (Atrasados, Hoje, etc.) */}
+              <div className="md:hidden space-y-4 sm:space-y-5">
               {/* Lembretes Atrasados — design clean Plenipay */}
               {lembretesAtrasados.length > 0 && (
                 <div className="animate-fade-in">
@@ -1152,9 +1253,12 @@ export default function LembretesPage() {
                 </div>
               )}
 
-              {/* Mensagem quando não há lembretes */}
+              </div>
+              {/* fim md:hidden (cards mobile) */}
+
+              {/* Mensagem quando não há lembretes (apenas mobile; no desktop a tabela já mostra o vazio) */}
               {lembretesFiltrados.length === 0 && !loading && (
-                <div className="flex flex-col items-center justify-center py-20 px-4">
+                <div className="md:hidden flex flex-col items-center justify-center py-20 px-4">
                   <div className="w-24 h-24 rounded-full bg-gradient-to-br from-brand-aqua/20 to-blue-500/20 flex items-center justify-center mb-6">
                     <Clock className="text-brand-aqua dark:text-blue-400" size={48} />
                   </div>

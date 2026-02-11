@@ -349,10 +349,42 @@ export async function processPlenWhatsAppMessage(
       return { response: text }
     }
 
+    const msgNaoEntendi = `Oops! não entendi 🥹
+Estou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!
+
+💼 O que eu posso fazer por você:
+
+📝 REGISTRAR:
+• Gastos: "paguei 50 reais no mercado"
+• Entradas: "recebi 1000 reais"
+• Dívidas: "tenho uma dívida de 200 reais"
+• Salários: "meu salário é 3000 reais"
+
+📊 CONSULTAR:
+• "quais são minhas dívidas?"
+• "quanto gastei na semana?"
+• "quanto gastei no mês?"
+• "quanto tenho de saldo?"
+• "quanto recebi este mês?"
+
+📈 RELATÓRIOS:
+• "me mostre o relatório"
+• "quero ver meu relatório financeiro"
+• "mostre meu resumo do mês"
+• "como estão minhas finanças?"
+
+💡 Como eu entendo você:
+
+Você pode falar de forma natural! Por exemplo:
+• "gastei 30 reais de ônibus hoje"
+• "paguei 150 reais de conta de luz"
+• "recebi 500 reais do cliente"
+• "tenho uma dívida de 2000 no cartão"
+
+Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
+
     if (t.includes('oi') || t.includes('olá') || t.includes('ola')) {
-      return {
-        response: 'Oi! 👋 Pode dizer um gasto ou entrada, por exemplo: "Gastei 30 reais de ônibus" ou "Recebi 500".',
-      }
+      return { response: msgNaoEntendi }
     }
     if (t.includes('ajuda') || t.includes('como usar')) {
       return {
@@ -370,10 +402,7 @@ export async function processPlenWhatsAppMessage(
       return { response: llmReply }
     }
 
-    return {
-      response:
-        'Não entendi. Tente: "Gastei 30 reais de ônibus", "Ganhei 20", "Recebi 500 reais", "Quanto gastei na semana?" ou "Me mostre o relatório".',
-    }
+    return { response: msgNaoEntendi }
   } catch (err: any) {
     const msg = err?.message ?? String(err)
     console.error('[PLEN whatsapp-chat] Exceção:', err)

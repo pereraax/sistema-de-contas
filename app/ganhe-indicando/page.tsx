@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import { MenuButton } from '@/components/MobileMenu'
@@ -14,13 +15,16 @@ import {
   Link2,
   Check,
   Loader2,
-  Gift,
   ArrowRight,
   FileText,
   Banknote,
   AlertCircle,
+  Target,
+  UserCheck,
+  Sparkles,
 } from 'lucide-react'
 import { createNotification } from '@/components/NotificationBell'
+import bannerAfiliados from '@/assets/banner.png'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,11 +34,28 @@ const VALUE_PER_REFERRAL = 3
 type AffiliateData = {
   code: string
   link: string
-  referrals: { referredUserId: string; referredName: string; referredEmail: string; createdAt: string }[]
+  referrals: {
+    referredUserId: string
+    referredName: string
+    referredEmail: string
+    createdAt: string
+    emailVerified: boolean
+    usedPlen: boolean
+    plano: string | null
+  }[]
   totalEarned: number
   totalWithdrawn: number
   availableBalance: number
   canWithdraw: boolean
+  mission: {
+    totalReferrals: number
+    basicSubscribers: number
+    verifiedAndUsedPlen: number
+    mission1Done: boolean
+    mission2Done: boolean
+    mission3Done: boolean
+    allMissionsDone: boolean
+  }
 }
 
 function formatDate(iso: string) {
@@ -171,15 +192,14 @@ export default function GanheIndicandoPage() {
             </div>
           </div>
 
-          {/* Hero */}
-          <div className="rounded-2xl bg-gradient-to-br from-brand-aqua/15 to-brand-midnight/10 dark:from-brand-aqua/20 dark:to-brand-midnight/20 border border-brand-aqua/20 p-6 sm:p-8 mb-6">
-            <div className="flex items-center gap-3 mb-2">
-              <Gift className="w-8 h-8 text-brand-aqua" />
-              <h2 className="text-lg font-semibold text-brand-midnight dark:text-white">Programa de Afiliados PleniPay</h2>
-            </div>
-            <p className="text-gray-600 dark:text-gray-300 text-sm sm:text-base">
-              Indique amigos e ganhe <strong>R$ 3,00</strong> por cada cadastro realizado pelo seu link. Quanto mais indicar, mais você ganha!
-            </p>
+          {/* Banner Programa de Afiliados */}
+          <div className="rounded-2xl overflow-hidden shadow-lg mb-6">
+            <Image
+              src={bannerAfiliados}
+              alt="Programa de Afiliados PleniPay - Indique amigos e ganhe R$ 3,00 por cada cadastro"
+              className="w-full h-auto object-cover"
+              priority
+            />
           </div>
 
           {/* Link + Copy */}
@@ -230,6 +250,157 @@ export default function GanheIndicandoPage() {
             </div>
           </div>
 
+          {/* Missão para seus ganhos — layout clean, ícones em destaque, efeito água */}
+          {data.mission != null && (
+            <div className="relative mb-6 overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-950/20 via-white dark:via-[#0c1929] to-cyan-900/10 dark:to-[#051018] p-5 sm:p-6 shadow-xl shadow-cyan-500/10 ring-1 ring-cyan-400/20">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(6,182,212,0.12),transparent_60%)] pointer-events-none" />
+              <div className="absolute top-0 right-0 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+              <div className="relative flex flex-col gap-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/25 text-cyan-300 shadow-[0_0_24px_rgba(6,182,212,0.4)] ring-2 ring-cyan-400/30">
+                    <Target className="h-6 w-6" strokeWidth={2} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-brand-midnight dark:text-white flex items-center gap-2 text-lg">
+                      Missão para seus ganhos
+                      <Sparkles className="h-5 w-5 text-cyan-400 animate-pulse drop-shadow-[0_0_6px_rgba(6,182,212,0.6)]" />
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Conclua as etapas para desbloquear seu potencial</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Card 1: 10 pessoas */}
+                  {(() => {
+                    const done = data.mission.mission1Done
+                    const current = Math.min(data.mission.totalReferrals, 10)
+                    const total = 10
+                    const percent = total ? Math.round((current / total) * 100) : 0
+                    return (
+                      <div
+                        className={`relative min-h-[140px] overflow-hidden rounded-xl border-2 transition-all duration-300 ${
+                          done
+                            ? 'border-emerald-500/60 bg-emerald-500/10 shadow-[0_0_28px_rgba(34,197,94,0.25)]'
+                            : 'border-cyan-500/40 bg-white/80 dark:bg-white/5 shadow-[0_0_20px_rgba(6,182,212,0.15)]'
+                        }`}
+                      >
+                        {/* Efeito água enchendo */}
+                        <div
+                          className="absolute bottom-0 left-0 right-0 rounded-t-xl transition-all duration-700 ease-out"
+                          style={{
+                            height: `${percent}%`,
+                            background: done
+                              ? 'linear-gradient(to top, rgba(34,197,94,0.35), rgba(34,197,94,0.15))'
+                              : 'linear-gradient(to top, rgba(6,182,212,0.4), rgba(6,182,212,0.12))',
+                          }}
+                        />
+                        <div className="relative z-10 flex flex-col h-full min-h-[140px] p-4">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl mb-3 ${
+                            done ? 'bg-emerald-500 text-white shadow-lg' : 'bg-cyan-500 text-cyan-950 shadow-[0_0_16px_rgba(6,182,212,0.5)]'
+                          }`}>
+                            {done ? <Check className="h-5 w-5" strokeWidth={2.5} /> : <Users className="h-5 w-5" strokeWidth={2} />}
+                          </div>
+                          <p className={`font-semibold text-sm uppercase tracking-wide ${done ? 'text-emerald-600 dark:text-emerald-400' : 'text-brand-midnight dark:text-white'}`}>
+                            10 pessoas
+                          </p>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 uppercase tracking-wider">
+                            indicados
+                          </p>
+                          <p className="mt-auto pt-2 text-xl font-bold tabular-nums text-brand-midnight dark:text-white">
+                            {current}/{total}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                  {/* Card 2: 1 assinante básico */}
+                  {(() => {
+                    const done = data.mission.mission2Done
+                    const current = data.mission.basicSubscribers
+                    const total = 1
+                    const percent = total ? Math.min(100, current * 100) : 0
+                    return (
+                      <div
+                        className={`relative min-h-[140px] overflow-hidden rounded-xl border-2 transition-all duration-300 ${
+                          done
+                            ? 'border-emerald-500/60 bg-emerald-500/10 shadow-[0_0_28px_rgba(34,197,94,0.25)]'
+                            : 'border-cyan-500/40 bg-white/80 dark:bg-white/5 shadow-[0_0_20px_rgba(6,182,212,0.15)]'
+                        }`}
+                      >
+                        <div
+                          className="absolute bottom-0 left-0 right-0 rounded-t-xl transition-all duration-700 ease-out"
+                          style={{
+                            height: `${percent}%`,
+                            background: done
+                              ? 'linear-gradient(to top, rgba(34,197,94,0.35), rgba(34,197,94,0.15))'
+                              : 'linear-gradient(to top, rgba(6,182,212,0.4), rgba(6,182,212,0.12))',
+                          }}
+                        />
+                        <div className="relative z-10 flex flex-col h-full min-h-[140px] p-4">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl mb-3 ${
+                            done ? 'bg-emerald-500 text-white shadow-lg' : 'bg-cyan-500 text-cyan-950 shadow-[0_0_16px_rgba(6,182,212,0.5)]'
+                          }`}>
+                            {done ? <Check className="h-5 w-5" strokeWidth={2.5} /> : <UserCheck className="h-5 w-5" strokeWidth={2} />}
+                          </div>
+                          <p className={`font-semibold text-sm uppercase tracking-wide ${done ? 'text-emerald-600 dark:text-emerald-400' : 'text-brand-midnight dark:text-white'}`}>
+                            1 assinante básico
+                          </p>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 uppercase tracking-wider">
+                            com plano básico
+                          </p>
+                          <p className="mt-auto pt-2 text-xl font-bold tabular-nums text-brand-midnight dark:text-white">
+                            {current}/{total}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                  {/* Card 3: 10 verificaram e usaram Plen */}
+                  {(() => {
+                    const done = data.mission.mission3Done
+                    const current = Math.min(data.mission.verifiedAndUsedPlen, 10)
+                    const total = 10
+                    const percent = total ? Math.round((current / total) * 100) : 0
+                    return (
+                      <div
+                        className={`relative min-h-[140px] overflow-hidden rounded-xl border-2 transition-all duration-300 ${
+                          done
+                            ? 'border-emerald-500/60 bg-emerald-500/10 shadow-[0_0_28px_rgba(34,197,94,0.25)]'
+                            : 'border-cyan-500/40 bg-white/80 dark:bg-white/5 shadow-[0_0_20px_rgba(6,182,212,0.15)]'
+                        }`}
+                      >
+                        <div
+                          className="absolute bottom-0 left-0 right-0 rounded-t-xl transition-all duration-700 ease-out"
+                          style={{
+                            height: `${percent}%`,
+                            background: done
+                              ? 'linear-gradient(to top, rgba(34,197,94,0.35), rgba(34,197,94,0.15))'
+                              : 'linear-gradient(to top, rgba(6,182,212,0.4), rgba(6,182,212,0.12))',
+                          }}
+                        />
+                        <div className="relative z-10 flex flex-col h-full min-h-[140px] p-4">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl mb-3 ${
+                            done ? 'bg-emerald-500 text-white shadow-lg' : 'bg-cyan-500 text-cyan-950 shadow-[0_0_16px_rgba(6,182,212,0.5)]'
+                          }`}>
+                            {done ? <Check className="h-5 w-5" strokeWidth={2.5} /> : <Sparkles className="h-5 w-5" strokeWidth={2} />}
+                          </div>
+                          <p className={`font-semibold text-sm uppercase tracking-wide leading-tight ${done ? 'text-emerald-600 dark:text-emerald-400' : 'text-brand-midnight dark:text-white'}`}>
+                            10 verificaram e usaram Plen
+                          </p>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 uppercase tracking-wider">
+                            conta + assistente
+                          </p>
+                          <p className="mt-auto pt-2 text-xl font-bold tabular-nums text-brand-midnight dark:text-white">
+                            {current}/{total}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Lista de indicados */}
           <div className="bg-white dark:bg-[#252525] rounded-xl border border-gray-200 dark:border-white/10 shadow-sm overflow-hidden mb-6">
             <div className="px-4 py-3 border-b border-gray-200 dark:border-white/10 flex items-center gap-2">
@@ -248,6 +419,8 @@ export default function GanheIndicandoPage() {
                       <th className="px-4 py-3 font-medium">Nome</th>
                       <th className="px-4 py-3 font-medium hidden sm:table-cell">Email</th>
                       <th className="px-4 py-3 font-medium">Data e hora</th>
+                      <th className="px-4 py-3 font-medium text-center whitespace-nowrap">Verificou conta</th>
+                      <th className="px-4 py-3 font-medium text-center whitespace-nowrap">Usou Plen</th>
                       <th className="px-4 py-3 font-medium text-right">Ganho</th>
                     </tr>
                   </thead>
@@ -257,6 +430,20 @@ export default function GanheIndicandoPage() {
                         <td className="px-4 py-3 text-brand-midnight dark:text-white">{r.referredName}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-300 hidden sm:table-cell">{r.referredEmail}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{formatDate(r.createdAt)}</td>
+                        <td className="px-4 py-3 text-center">
+                          {r.emailVerified ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-green-500/20 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">Sim</span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-gray-200 dark:bg-white/10 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400">Não</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {r.usedPlen ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-green-500/20 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">Sim</span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-gray-200 dark:bg-white/10 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400">Não</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-right font-medium text-green-600 dark:text-green-400">+ R$ 3,00</td>
                       </tr>
                     ))}
@@ -350,6 +537,7 @@ export default function GanheIndicandoPage() {
             <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
               <li>• Você recebe <strong>R$ 3,00</strong> por cada pessoa que se cadastrar na PleniPay através do seu link único.</li>
               <li>• O saque está disponível a partir de <strong>R$ 30,00</strong> (equivalente a 10 indicações).</li>
+              <li>• <strong>Missão para seus ganhos:</strong> (1) Indicar <strong>10 pessoas</strong>; (2) Ter pelo menos <strong>1 assinante básico</strong> entre seus indicados; (3) Ter <strong>10 indicados</strong> que já verificaram a conta e utilizaram a assistente Plen.</li>
               <li>• Ao solicitar o saque, informe a chave PIX (CPF, telefone ou e-mail) e o nome do titular. O pagamento é processado manualmente pela nossa equipe.</li>
               <li>• Indicações válidas são apenas de novos cadastros que utilizarem seu link de indicação.</li>
               <li>• A PleniPay reserva-se o direito de cancelar indicações em caso de fraude ou abuso do programa.</li>

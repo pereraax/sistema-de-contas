@@ -113,25 +113,37 @@ export async function getCurrentAdmin(): Promise<AdminUser | null> {
   return null
 }
 
-// Limite alto para garantir que todos os usuários apareçam (PostgREST default é 1000)
-const MAX_PROFILES = 10000
+// Chunk size: PostgREST/Supabase podem limitar a 1000 linhas por request
+const CHUNK_SIZE = 1000
+const MAX_CHUNKS = 20
 
 // Função para obter todos os usuários da plataforma
 export async function obterTodosUsuarios() {
   console.log('🔍 [obterTodosUsuarios] Iniciando busca de usuários...')
   
-  // PRIMEIRO: Tentar cliente admin (bypassa RLS e retorna TODOS os perfis; não depende de RPC)
+  // PRIMEIRO: Tentar cliente admin (bypassa RLS; buscar em chunks para evitar limite 1000)
   const supabaseAdmin = createAdminClient()
   if (supabaseAdmin) {
     try {
       console.log('✅ [obterTodosUsuarios] Usando cliente admin (bypassa RLS)')
-      const { data: profiles, error: profilesError } = await supabaseAdmin
-        .from('profiles')
-        .select('id, id_curto, email, nome, telefone, whatsapp, plano, created_at')
-        .order('created_at', { ascending: false })
-        .range(0, MAX_PROFILES - 1)
-      
-      if (!profilesError && profiles && profiles.length >= 0) {
+      const allProfiles: any[] = []
+      for (let chunk = 0; chunk < MAX_CHUNKS; chunk++) {
+        const from = chunk * CHUNK_SIZE
+        const to = from + CHUNK_SIZE - 1
+        const { data: chunkData, error: profilesError } = await supabaseAdmin
+          .from('profiles')
+          .select('id, id_curto, email, nome, telefone, whatsapp, plano, created_at')
+          .order('created_at', { ascending: false })
+          .range(from, to)
+        if (profilesError) {
+          console.error('❌ [obterTodosUsuarios] Erro ao buscar profiles:', profilesError)
+          break
+        }
+        if (!chunkData || chunkData.length === 0) break
+        allProfiles.push(...chunkData)
+        if (chunkData.length < CHUNK_SIZE) break
+      }
+      if (allProfiles.length >= 0) {
         let lastSignInMap = new Map<string, string | null>()
         try {
           const { data: authUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
@@ -143,15 +155,12 @@ export async function obterTodosUsuarios() {
         } catch (authErr) {
           console.warn('⚠️ [obterTodosUsuarios] Não foi possível buscar auth.users para last_sign_in_at:', authErr)
         }
-        const data = profiles.map((profile: any) => ({
+        const data = allProfiles.map((profile: any) => ({
           ...profile,
           last_sign_in_at: lastSignInMap.get(profile.id) || null
         }))
         console.log(`✅ [obterTodosUsuarios] Retornando ${data.length} usuários via cliente admin`)
         return { data, error: null }
-      }
-      if (profilesError) {
-        console.error('❌ [obterTodosUsuarios] Erro ao buscar profiles:', profilesError)
       }
     } catch (error: any) {
       console.error('❌ [obterTodosUsuarios] Erro ao usar cliente admin:', error?.message || error)
@@ -220,55 +229,55 @@ export async function obterTodosUsuarios() {
     const supabaseAdmin = createAdminClient()
     if (supabaseAdmin) {
       console.log('🔄 [obterTodosUsuarios] Tentando busca direta com cliente admin (fallback)...')
-      const { data: fallbackData, error: fallbackError } = await supabaseAdmin
-        .from('profiles')
-        .select('id, id_curto, email, nome, telefone, whatsapp, plano, created_at')
-        .order('created_at', { ascending: false })
-        .range(0, MAX_PROFILES - 1)
-      
-      if (fallbackError) {
-        console.error('❌ [obterTodosUsuarios] Erro ao buscar usuários diretamente:', fallbackError)
-        // Continuar para tentar outros métodos em vez de retornar erro
-        console.log('ℹ️ [obterTodosUsuarios] Continuando para tentar outros métodos...')
-      } else if (fallbackData && fallbackData.length > 0) {
-        // IMPORTANTE: Retornar TODOS os perfis sem filtrar
-        console.log(`✅ [obterTodosUsuarios] Retornando TODOS os ${fallbackData.length} perfis via busca direta (sem filtrar)`)
-        
-        const data = fallbackData.map(profile => ({
-              ...profile,
-              last_sign_in_at: null
-            }))
-            
-            console.log(`✅ [obterTodosUsuarios] Encontrados ${data.length} usuários via busca direta`)
-            return { data, error: null }
+      const allFallback: any[] = []
+      for (let chunk = 0; chunk < MAX_CHUNKS; chunk++) {
+        const from = chunk * CHUNK_SIZE
+        const to = from + CHUNK_SIZE - 1
+        const { data: fallbackChunk, error: fallbackError } = await supabaseAdmin
+          .from('profiles')
+          .select('id, id_curto, email, nome, telefone, whatsapp, plano, created_at')
+          .order('created_at', { ascending: false })
+          .range(from, to)
+        if (fallbackError) {
+          console.error('❌ [obterTodosUsuarios] Erro ao buscar usuários diretamente:', fallbackError)
+          break
+        }
+        if (!fallbackChunk || fallbackChunk.length === 0) break
+        allFallback.push(...fallbackChunk)
+        if (fallbackChunk.length < CHUNK_SIZE) break
       }
-    } else {
-      // Se não tiver admin client, tentar com cliente normal (pode falhar por RLS)
-      const supabase = await createClient()
-      console.log('🔄 [obterTodosUsuarios] Tentando busca direta com cliente autenticado (sem filtro de deletados)...')
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from('profiles')
-        .select('id, id_curto, email, nome, telefone, whatsapp, plano, created_at')
-        .order('created_at', { ascending: false })
-        .range(0, MAX_PROFILES - 1)
-      
-      if (fallbackError) {
-        console.error('❌ [obterTodosUsuarios] Erro ao buscar usuários diretamente:', fallbackError)
-        return { error: `Não foi possível carregar usuários: ${fallbackError.message}`, data: [] }
-      }
-      
-      if (fallbackData && fallbackData.length > 0) {
-        const data = fallbackData.map(profile => ({
+      if (allFallback.length > 0) {
+        const data = allFallback.map(profile => ({
           ...profile,
           last_sign_in_at: null
         }))
-        
-        console.log(`✅ [obterTodosUsuarios] Encontrados ${data.length} usuários via busca direta (sem filtro)`)
+        console.log(`✅ [obterTodosUsuarios] Retornando ${data.length} perfis via busca direta (fallback)`)
         return { data, error: null }
-      } else {
-        console.log('✅ [obterTodosUsuarios] Nenhum usuário encontrado via busca direta - retornando array vazio')
-        return { data: [], error: null }
       }
+    } else {
+      // Se não tiver admin client, tentar com cliente normal (RLS pode limitar aos perfis visíveis)
+      const supabase = await createClient()
+      console.log('🔄 [obterTodosUsuarios] Tentando busca direta com cliente autenticado...')
+      const allAuthed: any[] = []
+      for (let chunk = 0; chunk < MAX_CHUNKS; chunk++) {
+        const from = chunk * CHUNK_SIZE
+        const to = from + CHUNK_SIZE - 1
+        const { data: authedChunk, error: fallbackError } = await supabase
+          .from('profiles')
+          .select('id, id_curto, email, nome, telefone, whatsapp, plano, created_at')
+          .order('created_at', { ascending: false })
+          .range(from, to)
+        if (fallbackError) {
+          console.error('❌ [obterTodosUsuarios] Erro ao buscar usuários:', fallbackError)
+          return { error: `Não foi possível carregar usuários: ${fallbackError.message}`, data: [] }
+        }
+        if (!authedChunk || authedChunk.length === 0) break
+        allAuthed.push(...authedChunk)
+        if (authedChunk.length < CHUNK_SIZE) break
+      }
+      const data = allAuthed.map(profile => ({ ...profile, last_sign_in_at: null }))
+      console.log(`✅ [obterTodosUsuarios] Encontrados ${data.length} usuários via cliente autenticado`)
+      return { data, error: null }
     }
   } catch (fallbackErr: any) {
     console.error('❌ [obterTodosUsuarios] Erro ao tentar busca direta:', fallbackErr?.message || fallbackErr)
@@ -327,7 +336,7 @@ export async function obterUsuariosAssinantes() {
 }
 
 // Preços mensais por plano (para cálculo de receita no dashboard)
-const PRECO_PLANO_BASICO = 29.9
+const PRECO_PLANO_BASICO = 19.9
 const PRECO_PLANO_PREMIUM = 49.9
 
 // Função para obter estatísticas de usuários

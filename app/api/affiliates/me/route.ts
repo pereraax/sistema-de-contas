@@ -27,6 +27,7 @@ export async function GET() {
       totalWithdrawn: referralsResult.totalWithdrawn,
       availableBalance: referralsResult.availableBalance,
       canWithdraw: referralsResult.canWithdraw,
+      mission: referralsResult.mission,
     })
   } catch (err) {
     console.error('[affiliates/me]', err)

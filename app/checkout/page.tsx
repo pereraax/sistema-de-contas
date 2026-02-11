@@ -254,7 +254,7 @@ function CheckoutContent() {
   }
 
   const valores = {
-    basico: 29.90,
+    basico: 19.90,
     premium: 49.90,
     anual: 197.00,
   }
@@ -310,6 +310,9 @@ function CheckoutContent() {
             </h1>
             <p className="text-gray-600 text-sm mb-6">
               Plano {planosNomes[plano!]} - R$ {valores[plano!].toFixed(2).replace('.', ',')}{plano === 'anual' ? '/ano' : '/mês'}
+              {plano === 'basico' && (
+                <span className="block mt-1 text-[#1e4976] font-medium">7 dias grátis. Cobrança apenas após o período de teste.</span>
+              )}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">

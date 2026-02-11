@@ -16,7 +16,7 @@ interface UpgradeModalProps {
 const planos = {
   basico: {
     nome: 'Plano Básico',
-    preco: 'R$ 29,90',
+    preco: 'R$ 19,90',
     periodo: 'por mês',
     features: [
       'Registros ilimitados',

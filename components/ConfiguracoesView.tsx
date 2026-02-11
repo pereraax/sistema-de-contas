@@ -1494,9 +1494,11 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                                   <span className={`px-2 py-1 text-xs rounded-lg font-medium ${
                                     userProfile.profile.plano_status === 'ativo' 
                                       ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                      : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                                      : userProfile.profile.plano_status === 'trial'
+                                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                        : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                                   }`}>
-                                    {userProfile.profile.plano_status}
+                                    {userProfile.profile.plano_status === 'trial' ? 'Período de teste' : userProfile.profile.plano_status}
                                   </span>
                                 )}
                               </div>

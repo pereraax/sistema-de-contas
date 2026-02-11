@@ -502,8 +502,48 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       }
     }
 
-    // PRIORIDADE 2: Verificar mensagem de boas-vindas específica
-    // Esta mensagem deve ser respondida ANTES de qualquer outra verificação
+    // PRIORIDADE 2a: "Olá! Quero utilizar a Plenipay" — resposta específica (apenas texto, sem preview de link)
+    const msgUtilizar = text.toLowerCase().trim().replace(/\s+/g, ' ')
+    const isQueroUtilizarPlenipay =
+      msgUtilizar.includes('quero utilizar a plenipay') ||
+      msgUtilizar === 'olá! quero utilizar a plenipay' ||
+      msgUtilizar === 'olá quero utilizar a plenipay' ||
+      msgUtilizar === 'ola! quero utilizar a plenipay' ||
+      msgUtilizar === 'ola quero utilizar a plenipay'
+
+    if (isQueroUtilizarPlenipay) {
+      console.log('👋 [WhatsApp PLEN] ==========================================')
+      console.log('👋 [WhatsApp PLEN] MENSAGEM "QUERO UTILIZAR A PLENIPAY" DETECTADA!')
+      console.log('👋 [WhatsApp PLEN] Text:', text)
+      console.log('👋 [WhatsApp PLEN] ==========================================')
+      addLog('info', `👋 [PLEN WhatsApp] QUERO UTILIZAR PLENIPAY: ${text}`)
+
+      // Site apenas como texto (com espaço) para NÃO gerar miniatura de visualização no WhatsApp
+      return {
+        success: true,
+        message: `Oiii 👋💙
+Eu sou a Plen, sua assistente financeira 🤖✨
+E eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!
+
+Antes da gente começar, cria sua conta rapidinho lá no site 🌐
+
+👉 plenipay . com
+
+É bem rápido mesmo, prometo! ⏱️💙
+
+Assim que finalizar o cadastro, me envia seu e-mail aqui 📩
+Vou verificar tudo certinho e já te liberar pra começar a registrar seus gastos e colocar suas economias em ordem 💸📊✨
+
+Eu fico responsável por anotar tudo pra você direto pelo WhatsApp, combinado? 😉
+
+Enquanto isso… vou tomar meu cafezinho ☕😄
+Mas já estou te esperando por aqui!
+
+Vamos começar? 🚀💙`,
+      }
+    }
+
+    // PRIORIDADE 2b: Verificar mensagem de boas-vindas "quero começar a usar"
     const welcomeMessage = text.toLowerCase().trim()
     const isWelcomeMessage = 
       welcomeMessage === 'olá! quero começar a usar a plenipay, pode me explicar?' ||
@@ -523,12 +563,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       addLog('info', `👋 [PLEN WhatsApp] MENSAGEM DE BOAS-VINDAS DETECTADA: ${text}`)
       process.stdout.write(`\n👋 MENSAGEM DE BOAS-VINDAS DETECTADA: ${text}\n`)
       
-      // Retornar mensagem de boas-vindas exata
-      // CRÍTICO: Quebrar o link para evitar pré-visualização do WhatsApp
-      // Usando zero-width space (U+200B) antes do link para desabilitar preview
-      const zeroWidthSpace = '\u200B'
-      const link = `${zeroWidthSpace}https://plenipay.com/`
-      
+      // Site apenas como texto para não mostrar miniatura de visualização
       return {
         success: true,
         message: `👋 Oi! Seja bem-vindo(a) à PleniPay
@@ -537,7 +572,7 @@ Eu sou a Plen, sua assistente financeira 🤖💙
 Estou aqui pra te ajudar a registrar seus gastos e ganhos de forma simples e acompanhar como está o seu controle financeiro no dia a dia, sem planilhas e sem complicação.
 
 ✨ Você pode começar gratuitamente agora mesmo
-👉 Crie sua conta aqui: ${link}
+👉 Crie sua conta aqui: plenipay . com
 
 Depois do cadastro, é só me mandar mensagens pelo WhatsApp que eu te ajudo a registrar tudo de forma rápida e organizada 📊💬
 

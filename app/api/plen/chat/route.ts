@@ -228,10 +228,42 @@ export async function POST(request: NextRequest) {
 
     // Respostas simples para consultas comuns (sem criar registro)
     const t = message.toLowerCase()
+    const msgNaoEntendi = `Oops! não entendi 🥹
+Estou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!
+
+💼 O que eu posso fazer por você:
+
+📝 REGISTRAR:
+• Gastos: "paguei 50 reais no mercado"
+• Entradas: "recebi 1000 reais"
+• Dívidas: "tenho uma dívida de 200 reais"
+• Salários: "meu salário é 3000 reais"
+
+📊 CONSULTAR:
+• "quais são minhas dívidas?"
+• "quanto gastei na semana?"
+• "quanto gastei no mês?"
+• "quanto tenho de saldo?"
+• "quanto recebi este mês?"
+
+📈 RELATÓRIOS:
+• "me mostre o relatório"
+• "quero ver meu relatório financeiro"
+• "mostre meu resumo do mês"
+• "como estão minhas finanças?"
+
+💡 Como eu entendo você:
+
+Você pode falar de forma natural! Por exemplo:
+• "gastei 30 reais de ônibus hoje"
+• "paguei 150 reais de conta de luz"
+• "recebi 500 reais do cliente"
+• "tenho uma dívida de 2000 no cartão"
+
+Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
+
     if (t.includes('oi') || t.includes('olá') || t.includes('ola')) {
-      return jsonResponse({
-        response: 'Oi! 👋 Pode me dizer um gasto ou entrada em texto, por exemplo:\n• "Gastei 30 reais de ônibus"\n• "Recebi 500 do cliente"',
-      })
+      return jsonResponse({ response: msgNaoEntendi })
     }
     if (t.includes('ajuda') || t.includes('como usar')) {
       return jsonResponse({
@@ -248,9 +280,7 @@ export async function POST(request: NextRequest) {
       return jsonResponse({ response: llmReply })
     }
 
-    return jsonResponse({
-      response: 'Não entendi. Tente: "Gastei 30 reais de ônibus", "Ganhei 20", "Recebi 500 reais" ou "Tenho uma dívida de 200 no cartão".',
-    })
+    return jsonResponse({ response: msgNaoEntendi })
   } catch (err: any) {
     const msg = err?.message ?? String(err)
     plenLog(requestId, 'catch', 'Exceção não tratada', { error: msg, stack: err?.stack?.slice(0, 300) }, 'error')

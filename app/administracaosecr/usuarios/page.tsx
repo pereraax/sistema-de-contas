@@ -1,3 +1,4 @@
+import { unstable_noStore } from 'next/cache'
 import { obterTodosUsuarios } from '@/lib/admin-auth'
 import UsuariosLista from '@/components/admin/UsuariosLista'
 import { Suspense } from 'react'
@@ -6,6 +7,7 @@ import { Loader2 } from 'lucide-react'
 export const dynamic = 'force-dynamic'
 
 async function UsuariosContent() {
+  unstable_noStore()
   const resultado = await obterTodosUsuarios()
   
   if (resultado.error) {

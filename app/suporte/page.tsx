@@ -14,7 +14,7 @@ export default function SuportePage() {
     },
     {
       pergunta: 'Quais são os planos disponíveis?',
-      resposta: 'Oferecemos três planos: Teste (gratuito com funcionalidades limitadas), Básico (R$ 29,90/mês) e Premium (R$ 49,90/mês) com acesso completo a todas as funcionalidades.'
+      resposta: 'Oferecemos três planos: Teste (gratuito com funcionalidades limitadas), Básico (R$ 19,90/mês, 7 dias grátis) e Premium (R$ 49,90/mês) com acesso completo a todas as funcionalidades.'
     },
     {
       pergunta: 'Como cancelar minha assinatura?',

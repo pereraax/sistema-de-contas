@@ -8,14 +8,16 @@ import {
 } from '@/lib/asaas'
 
 const PLANOS = {
-  basico: { valor: 29.9, ciclo: 'MONTHLY' as const, descricao: 'Plano Básico' },
-  premium: { valor: 49.9, ciclo: 'MONTHLY' as const, descricao: 'Plano Premium' },
-  anual: { valor: 197, ciclo: 'YEARLY' as const, descricao: 'Plano Anual' },
+  basico: { valor: 19.9, ciclo: 'MONTHLY' as const, descricao: 'Plano Básico', trialDias: 7 },
+  premium: { valor: 49.9, ciclo: 'MONTHLY' as const, descricao: 'Plano Premium', trialDias: 0 },
+  anual: { valor: 197, ciclo: 'YEARLY' as const, descricao: 'Plano Anual', trialDias: 0 },
 }
 
-function getNextDueDate(cycle: 'MONTHLY' | 'YEARLY'): string {
+function getNextDueDate(cycle: 'MONTHLY' | 'YEARLY', trialDias: number): string {
   const d = new Date()
-  if (cycle === 'MONTHLY') {
+  if (trialDias > 0) {
+    d.setDate(d.getDate() + trialDias)
+  } else if (cycle === 'MONTHLY') {
     d.setMonth(d.getMonth() + 1)
   } else {
     d.setFullYear(d.getFullYear() + 1)
@@ -104,17 +106,31 @@ export async function POST(request: NextRequest) {
     }
 
     const config = PLANOS[plano]
+    const trialDias = config.trialDias ?? 0
+    const nextDue = getNextDueDate(config.ciclo, trialDias)
     const subscription = await criarAssinaturaAsaas({
       customer: customerId,
       billingType,
       value: config.valor,
-      nextDueDate: getNextDueDate(config.ciclo),
+      nextDueDate: nextDue,
       cycle: config.ciclo,
-      description: config.descricao,
+      description: config.descricao + (trialDias > 0 ? ` (${trialDias} dias grátis)` : ''),
       externalReference: user.id,
     })
 
     const subscriptionId = subscription.id
+
+    if (plano === 'basico' && trialDias > 0) {
+      await supabase
+        .from('profiles')
+        .update({
+          plano: 'basico',
+          plano_status: 'trial',
+          asaas_subscription_id: subscriptionId,
+          plano_data_inicio: new Date().toISOString(),
+        })
+        .eq('id', user.id)
+    }
 
     let pixQrCode: string | undefined
     let pixCopyPaste: string | undefined

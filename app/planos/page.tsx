@@ -34,7 +34,7 @@ const planos = [
     id: 'basico' as const,
     nome: 'Plano Básico',
     descricao: 'Ideal para uso pessoal',
-    preco: 'R$ 29,90',
+    preco: 'R$ 19,90',
     periodo: 'por mês',
     testeGratis: '7 dias grátis',
     features: [
@@ -316,7 +316,7 @@ export default function PlanosPage() {
             </div>
             <div className="mb-6">
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-bold text-[#0D1B2A]">R$ 29,90</span>
+                <span className="text-4xl font-bold text-[#0D1B2A]">R$ 19,90</span>
                 <span className="text-gray-600">/mês</span>
               </div>
               <p className="text-xs text-[#1e4976] font-semibold mt-2">7 dias grátis</p>

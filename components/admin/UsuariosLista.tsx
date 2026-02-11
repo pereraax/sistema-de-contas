@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { Search, Mail, Phone, Calendar, CreditCard, Key, Crown, Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Search, Mail, Phone, Calendar, CreditCard, Key, Crown, Loader2, RefreshCw } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import ModalDetalhesUsuario from './ModalDetalhesUsuario'
@@ -24,8 +25,10 @@ interface UsuariosListaProps {
 }
 
 export default function UsuariosLista({ usuarios: usuariosIniciais, error }: UsuariosListaProps) {
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPlano, setFilterPlano] = useState<string>('todos')
+  const [atualizando, setAtualizando] = useState(false)
   const [usuarioSelecionado, setUsuarioSelecionado] = useState<Usuario | null>(null)
   const [alterandoPlano, setAlterandoPlano] = useState<string | null>(null)
   const [menuAberto, setMenuAberto] = useState<string | null>(null)
@@ -161,8 +164,23 @@ export default function UsuariosLista({ usuarios: usuariosIniciais, error }: Usu
             <option value="premium">Premium</option>
           </select>
         </div>
-        <div className="mt-4 text-sm text-brand-clean/70">
-          Mostrando {usuariosFiltrados.length} de {usuarios.length} usuários
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <span className="text-sm text-brand-clean/70">
+            Mostrando {usuariosFiltrados.length} de {usuarios.length} usuários
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setAtualizando(true)
+              router.refresh()
+              setTimeout(() => setAtualizando(false), 1500)
+            }}
+            disabled={atualizando}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-aqua/20 text-brand-aqua hover:bg-brand-aqua/30 transition-smooth text-sm font-medium disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={atualizando ? 'animate-spin' : ''} />
+            {atualizando ? 'Atualizando...' : 'Atualizar lista'}
+          </button>
         </div>
       </div>
 

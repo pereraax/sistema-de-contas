@@ -122,18 +122,17 @@ export async function obterPlanoUsuario(): Promise<Plano> {
     return 'teste'
   }
 
-  // Para planos pagos (basico/premium), verificar se está ativo e não expirado
+  // Para planos pagos (basico/premium), verificar se está ativo (ou em trial) e não expirado
   if (profile.plano === 'basico' || profile.plano === 'premium') {
-    // Só retornar o plano se status for 'ativo' e não expirado
-    if (profile.plano_status === 'ativo') {
+    const ativoOuTrial = profile.plano_status === 'ativo' || profile.plano_status === 'trial'
+    if (ativoOuTrial) {
       const dataFim = profile.plano_data_fim ? new Date(profile.plano_data_fim) : null
-      if (dataFim && dataFim > new Date()) {
+      if (!dataFim || dataFim > new Date()) {
         return profile.plano as Plano
       }
     }
   }
 
-  // Se expirado, cancelado, trial ou qualquer outro caso, retornar teste
   return 'teste'
 }
 
