@@ -527,7 +527,7 @@ E eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!
 
 Antes da gente começar, cria sua conta rapidinho lá no site 🌐
 
-👉 https://plenipay.com/
+👉 https://plenipay.com/\u200B
 
 É bem rápido mesmo, prometo! ⏱️💙
 
@@ -572,7 +572,7 @@ Eu sou a Plen, sua assistente financeira 🤖💙
 Estou aqui pra te ajudar a registrar seus gastos e ganhos de forma simples e acompanhar como está o seu controle financeiro no dia a dia, sem planilhas e sem complicação.
 
 ✨ Você pode começar gratuitamente agora mesmo
-👉 Crie sua conta aqui: https://plenipay.com/
+👉 Crie sua conta aqui: https://plenipay.com/\u200B
 
 Depois do cadastro, é só me mandar mensagens pelo WhatsApp que eu te ajudo a registrar tudo de forma rápida e organizada 📊💬
 
