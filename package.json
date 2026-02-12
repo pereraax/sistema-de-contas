@@ -12,7 +12,7 @@
     "start:server": "node server.js",
     "lint": "next lint",
     "tunnel": "npx localtunnel --port 3000",
-    "tunnel:ngrok": "./configurar-ngrok.sh",
+    "tunnel:ngrok": "ngrok http 3000",
     "tunnel:cloudflare": "./configurar-cloudflare-tunnel.sh",
     "tunnel:fixo": "./iniciar-tunnel-fixo.sh",
     "tunnel:cloudflare-fixo": "./configurar-cloudflare-url-fixa.sh",
@@ -58,6 +58,7 @@
     "utf-8-validate": "^5.0.10"
   },
   "devDependencies": {
+    "ngrok": "^5.0.0-beta.2",
     "pm2": "^6.0.14"
   }
 }

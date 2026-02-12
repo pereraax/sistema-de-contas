@@ -22,6 +22,25 @@ function buildPlenMessage(from: string, text: string): {
   }
 }
 
+/** Números permitidos em modo teste (localhost). Variável: WHATSAPP_TEST_NUMBERS=5511999999999 ou 5511999999999,5511888888888 */
+function getTestNumbers(): string[] {
+  const raw = process.env.WHATSAPP_TEST_NUMBERS || ''
+  if (!raw.trim()) return []
+  return raw
+    .split(',')
+    .map((n) => n.replace(/\D/g, '').trim())
+    .filter(Boolean)
+    .map((n) => (n.startsWith('55') ? n : `55${n}`))
+}
+
+/** Verifica se o número está na lista de teste (quando em modo teste). */
+function isAllowedTestNumber(from: string, testNumbers: string[]): boolean {
+  if (testNumbers.length === 0) return true
+  const normalized = from.replace(/\D/g, '')
+  const with55 = normalized.startsWith('55') ? normalized : `55${normalized}`
+  return testNumbers.some((t) => t === with55 || t === normalized)
+}
+
 /** Extrair from e text do body em vários formatos (API Fácil / Meta / genérico). Só mensagens RECEBIDAS. */
 function parseWebhookBody(body: unknown): { from: string; text: string } | null {
   if (!body || typeof body !== 'object') return null
@@ -86,6 +105,8 @@ export async function GET() {
   })
 }
 
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
 /** Processar mensagem e enviar resposta em background (não bloqueia a resposta do webhook) */
 async function processarEmBackground(parsed: { from: string; text: string }) {
   const { from, text } = parsed
@@ -96,8 +117,22 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
     }
     const plenMessage = buildPlenMessage(from, text)
     const result = await processWhatsAppMessage(plenMessage as any)
-    if (result?.message && typeof result.message === 'string') {
-      const phone = from.startsWith('55') ? from : `55${from}`
+    const phone = from.startsWith('55') ? from : `55${from}`
+
+    if (result?.messages && Array.isArray(result.messages) && result.messages.length > 0) {
+      for (let i = 0; i < result.messages.length; i++) {
+        const msg = result.messages[i]
+        if (typeof msg !== 'string' || !msg.trim()) continue
+        const send = await sendTextMessage(phone, msg)
+        if (send.success) {
+          registerSentMessage(phone, msg)
+          console.log('✅ [Apifacil Webhook] Mensagem', i + 1, '/', result.messages.length, 'enviada para:', phone)
+        } else {
+          console.error('❌ [Apifacil Webhook] Falha ao enviar mensagem', i + 1, ':', send.error)
+        }
+        if (i < result.messages.length - 1) await delay(1500)
+      }
+    } else if (result?.message && typeof result.message === 'string') {
       const send = await sendTextMessage(phone, result.message)
       if (send.success) {
         registerSentMessage(phone, result.message)
@@ -134,6 +169,17 @@ export async function POST(request: NextRequest) {
 
     const { from, text } = parsed
     console.log('📨 [Apifacil Webhook] MENSAGEM RECEBIDA:', { from, textPreview: text.slice(0, 80) })
+
+    // Em localhost: só processar se WHATSAPP_TEST_NUMBERS estiver definido e o número estiver na lista
+    const isDev = process.env.NODE_ENV === 'development'
+    const testNumbers = getTestNumbers()
+    if (isDev && testNumbers.length > 0) {
+      if (!isAllowedTestNumber(from, testNumbers)) {
+        console.log('🔒 [Apifacil Webhook] Modo teste: ignorando número não autorizado.', { from, allowed: testNumbers })
+        return NextResponse.json({ success: true, message: 'Modo teste: número ignorado' })
+      }
+      console.log('✅ [Apifacil Webhook] Modo teste: número autorizado, processando.', { from })
+    }
 
     // Responder 200 IMEDIATAMENTE para a API Fácil não marcar webhook como Pendente (timeout ~10s)
     processarEmBackground(parsed).catch((err) => {

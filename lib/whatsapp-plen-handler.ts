@@ -518,28 +518,15 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       console.log('👋 [WhatsApp PLEN] ==========================================')
       addLog('info', `👋 [PLEN WhatsApp] QUERO UTILIZAR PLENIPAY: ${text}`)
 
-      // Site apenas como texto (com espaço) para NÃO gerar miniatura de visualização no WhatsApp
+      const linkSemPreview = 'https://plenipay.com/\u200B'
       return {
         success: true,
-        message: `Oiii 👋💙
-Eu sou a Plen, sua assistente financeira 🤖✨
-E eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!
-
-Antes da gente começar, cria sua conta rapidinho lá no site 🌐
-
-👉 https://plenipay.com/\u200B
-
-É bem rápido mesmo, prometo! ⏱️💙
-
-Assim que finalizar o cadastro, me envia seu e-mail aqui 📩
-Vou verificar tudo certinho e já te liberar pra começar a registrar seus gastos e colocar suas economias em ordem 💸📊✨
-
-Eu fico responsável por anotar tudo pra você direto pelo WhatsApp, combinado? 😉
-
-Enquanto isso… vou tomar meu cafezinho ☕😄
-Mas já estou te esperando por aqui!
-
-Vamos começar? 🚀💙`,
+        messages: [
+          `Oiii 👋💙\nEu sou a Plen, sua assistente financeira 🤖✨\nE eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!\n\nAntes da gente começar, cria sua conta rapidinho lá no site 🌐\n\nÉ bem rápido mesmo, prometo! ⏱️💙`,
+          `👉 CADASTRAR:\n${linkSemPreview}`,
+          `Assim que finalizar o cadastro, me envia seu e-mail aqui 📩\nVou verificar tudo certinho e já te liberar pra começar a registrar seus gastos e colocar suas economias em ordem 💸📊✨\n\nEu fico responsável por anotar tudo pra você direto pelo WhatsApp, combinado? 😉`,
+          `Enquanto isso… vou tomar meu cafezinho ☕😄\nMas já estou te esperando por aqui!\n\nDigite *JÁ CADASTREI* quando tiver criado a conta (aí eu peço seu e-mail pra liberar) ou *CADASTRAR* para abrir o link do site. 🚀💙`,
+        ],
       }
     }
 
@@ -907,6 +894,22 @@ async function handleWhatsAppAuthentication(
   const lowerText = text.toLowerCase().trim()
   const trimmedText = text.trim()
 
+  // Botão "JÁ CADASTREI" — usuário avisou que já se cadastrou; pedir e-mail
+  if (lowerText === 'já cadastrei' || lowerText === 'ja cadastrei' || lowerText === 'já cadastrei.' || lowerText === 'ja cadastrei.' || lowerText.includes('já cadastrei') || lowerText.includes('ja cadastrei')) {
+    return {
+      success: true,
+      message: `📩 Beleza! Agora me envia seu *e-mail* de cadastro aqui que eu verifico e já te libero pra usar tudo pelo WhatsApp. 💙`,
+    }
+  }
+
+  // Botão "CADASTRAR" — reenviar link sem preview
+  if (lowerText === 'cadastrar') {
+    return {
+      success: true,
+      message: `👉 Link para cadastro: https://plenipay.com/\u200B\n\nDepois que criar a conta, digite *JÁ CADASTREI* aqui que eu peço seu e-mail pra liberar. 🚀`,
+    }
+  }
+
   // Verificar se é primeira mensagem (oi, olá, etc)
   if (lowerText === 'oi' || lowerText === 'olá' || lowerText === 'ola' || lowerText === 'hello' || lowerText === 'hi' || lowerText === 'bom dia' || lowerText === 'boa tarde' || lowerText === 'boa noite') {
     // Limpar qualquer email pendente anterior
@@ -1003,12 +1006,30 @@ async function handleWhatsAppAuthentication(
         success: true,
         message: `✅ Email recebido: ${email}\n\n🔑 Me envie sua chave key agora:\n\n(Encontre seu código key em: https://plenipay.com/configuracoes)`,
       }
-    } else {
-      // Não tem email válido, pedir novamente
-      return {
-        success: true,
-        message: `📧 Me envie seu email de cadastro...`,
-      }
+    }
+
+    // Parece pergunta sobre o produto (preço, como funciona, etc.) — responder com IA
+    const parecePergunta =
+      trimmedText.includes('?') ||
+      /quanto|qual valor|como funciona|custa|paga|preço|preco|valor|planos|assinatura|grátis|gratis|cadastr|fulano|me deve|vai me pagar/i.test(trimmedText) ||
+      (trimmedText.length > 15 && !trimmedText.includes('@'))
+    if (parecePergunta) {
+      try {
+        const { getPlenLLMResponse } = await import('@/lib/plen-llm-fallback')
+        const llmReply = await getPlenLLMResponse({
+          userMessage: trimmedText,
+          context: 'O usuário ainda não está logado. Está perguntando sobre a PleniPay (preços, como funciona, etc.).',
+          productMode: true,
+        })
+        if (llmReply && llmReply.trim()) {
+          return { success: true, message: llmReply.trim() }
+        }
+      } catch (_) {}
+    }
+
+    return {
+      success: true,
+      message: `📧 Me envie seu email de cadastro para eu te liberar aqui no WhatsApp. Se tiver dúvidas sobre planos ou como funciona, pode perguntar! 💙`,
     }
   }
 }
