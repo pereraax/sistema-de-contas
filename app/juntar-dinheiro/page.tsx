@@ -20,7 +20,10 @@ async function JuntarDinheiroContent({ metaId }: { metaId?: string }) {
     }
     
     if (resultado.error) {
-      console.error('Erro ao obter metas:', resultado.error)
+      // "Não autenticado" é esperado quando alguém acessa sem login; não logar como erro
+      if (resultado.error !== 'Não autenticado') {
+        console.error('Erro ao obter metas:', resultado.error)
+      }
       return <JuntarDinheiroView metasIniciais={[]} metaId={metaId} />
     }
     
