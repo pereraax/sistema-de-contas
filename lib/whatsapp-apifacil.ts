@@ -51,36 +51,33 @@ export async function sendReplyButtons(
   }
   const baseUrl = 'https://apifacil.dev/api/v1'
 
-  // Endpoint oficial para botões: /enviar-botao (confirmado pelo suporte API Fácil)
+  // Formato da documentação API Fácil: telefone, text, buttons (id + text), instancia (máx. 3 botões)
   const urlButtons = `${baseUrl}/whatsapp/enviar-botao`
-  const payloads = [
-    { para: cleanPhone, telefone: cleanPhone, instancia: config.instanceId, mensagem: bodyText, botoes: buttons.map((b) => ({ id: b.id, titulo: b.title })) },
-    { numero: cleanPhone, instancia: config.instanceId, mensagem: bodyText, botoes: buttons.map((b) => ({ id: b.id, titulo: b.title })) },
-    { para: cleanPhone, instancia: config.instanceId, texto: bodyText, botoes: buttons.map((b) => b.title) },
-  ]
-  for (let i = 0; i < payloads.length; i++) {
+  const payload = {
+    telefone: cleanPhone,
+    text: bodyText,
+    buttons: buttons.slice(0, 3).map((b) => ({ id: b.id, text: b.title })),
+    instancia: config.instanceId,
+  }
+  try {
+    const res = await fetch(urlButtons, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: config.token },
+      body: JSON.stringify(payload),
+    })
+    let data: any = {}
     try {
-      const res = await fetch(urlButtons, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: config.token },
-        body: JSON.stringify(payloads[i]),
-      })
-      let data: any = {}
-      try {
-        data = await res.json()
-      } catch {
-        // resposta não é JSON
-      }
-      if (res.ok && !data?.error) {
-        console.log('✅ [Apifacil] enviar-botao OK (formato', i + 1, '), botões enviados para', cleanPhone)
-        return { success: true, messageId: data?.data?.id ?? data?.messageId ?? data?.id }
-      }
-      if (i === 0) {
-        console.warn('⚠️ [Apifacil] enviar-botao falhou. Status:', res.status, 'Resposta:', JSON.stringify(data).slice(0, 300))
-      }
-    } catch (e) {
-      if (i === 0) console.warn('⚠️ [Apifacil] Erro ao chamar enviar-botao:', e)
+      data = await res.json()
+    } catch {
+      // resposta não é JSON
     }
+    if (res.ok && !data?.error) {
+      console.log('✅ [Apifacil] enviar-botao OK, botões enviados para', cleanPhone)
+      return { success: true, messageId: data?.data?.notificacao_id ?? data?.data?.id ?? data?.messageId }
+    }
+    console.warn('⚠️ [Apifacil] enviar-botao falhou. Status:', res.status, 'Resposta:', JSON.stringify(data).slice(0, 300))
+  } catch (e) {
+    console.warn('⚠️ [Apifacil] Erro ao chamar enviar-botao:', e)
   }
 
   // Fallback: enviar como texto (opções em negrito)
