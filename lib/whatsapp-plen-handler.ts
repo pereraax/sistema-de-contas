@@ -518,14 +518,21 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       console.log('👋 [WhatsApp PLEN] ==========================================')
       addLog('info', `👋 [PLEN WhatsApp] QUERO UTILIZAR PLENIPAY: ${text}`)
 
-      const linkSemPreview = 'https://plenipay.com/\u200B'
+      // Sem link na mensagem para não gerar preview. Segunda mensagem com botões (quando a API suportar).
       return {
         success: true,
         messages: [
-          `Oiii 👋💙\nEu sou a Plen, sua assistente financeira 🤖✨\nE eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!\n\nAntes da gente começar, cria sua conta rapidinho lá no site 🌐\n\nÉ bem rápido mesmo, prometo! ⏱️💙`,
-          `👉 CADASTRAR:\n${linkSemPreview}`,
+          `Oiii 👋💙\nEu sou a Plen, sua assistente financeira 🤖✨\nE eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!\n\nAntes da gente começar, cria sua conta rapidinho lá no site 🌐\nÉ bem rápido mesmo, prometo! ⏱️💙`,
+          {
+            type: 'buttons' as const,
+            body: 'Escolha abaixo:',
+            buttons: [
+              { id: 'cadastrar', title: 'CADASTRAR' },
+              { id: 'ja_cadastrei', title: 'JÁ CADASTREI' },
+            ],
+          },
           `Assim que finalizar o cadastro, me envia seu e-mail aqui 📩\nVou verificar tudo certinho e já te liberar pra começar a registrar seus gastos e colocar suas economias em ordem 💸📊✨\n\nEu fico responsável por anotar tudo pra você direto pelo WhatsApp, combinado? 😉`,
-          `Enquanto isso… vou tomar meu cafezinho ☕😄\nMas já estou te esperando por aqui!\n\nDigite *JÁ CADASTREI* quando tiver criado a conta (aí eu peço seu e-mail pra liberar) ou *CADASTRAR* para abrir o link do site. 🚀💙`,
+          `Enquanto isso… vou tomar meu cafezinho ☕😄\nMas já estou te esperando por aqui! 🚀💙`,
         ],
       }
     }
@@ -550,7 +557,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       addLog('info', `👋 [PLEN WhatsApp] MENSAGEM DE BOAS-VINDAS DETECTADA: ${text}`)
       process.stdout.write(`\n👋 MENSAGEM DE BOAS-VINDAS DETECTADA: ${text}\n`)
       
-      // Site apenas como texto para não mostrar miniatura de visualização
+      // Sem link na mensagem para não mostrar preview. Usuário digita CADASTRAR para receber o link.
       return {
         success: true,
         message: `👋 Oi! Seja bem-vindo(a) à PleniPay
@@ -559,14 +566,13 @@ Eu sou a Plen, sua assistente financeira 🤖💙
 Estou aqui pra te ajudar a registrar seus gastos e ganhos de forma simples e acompanhar como está o seu controle financeiro no dia a dia, sem planilhas e sem complicação.
 
 ✨ Você pode começar gratuitamente agora mesmo
-👉 Crie sua conta aqui: https://plenipay.com/\u200B
+👉 Digite *CADASTRAR* que eu te mando o link do site
 
 Depois do cadastro, é só me mandar mensagens pelo WhatsApp que eu te ajudo a registrar tudo de forma rápida e organizada 📊💬
 
 Se tiver qualquer dúvida, pode falar comigo por aqui. E, se precisar, eu chamo nosso suporte humano pra te ajudar 😉
 
-Pronto(a) pra começar a entender melhor para onde seu dinheiro está indo e organizar sua vida financeira com mais clareza?
-Estou por aqui pra começarmos 🚀`,
+Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a conta. 🚀`,
       }
     }
     
@@ -902,11 +908,17 @@ async function handleWhatsAppAuthentication(
     }
   }
 
-  // Botão "CADASTRAR" — reenviar link sem preview
+  // Botão "CADASTRAR" — enviar como botão que abre o link (Z-API) ou texto com link (fallback)
   if (lowerText === 'cadastrar') {
     return {
       success: true,
-      message: `👉 Link para cadastro: https://plenipay.com/\u200B\n\nDepois que criar a conta, digite *JÁ CADASTREI* aqui que eu peço seu e-mail pra liberar. 🚀`,
+      messages: [
+        {
+          type: 'button_actions' as const,
+          body: '👉 Abra o site para cadastro abaixo. Depois que criar a conta, digite *JÁ CADASTREI* aqui que eu peço seu e-mail pra liberar. 🚀',
+          buttonActions: [{ type: 'URL' as const, url: 'https://plenipay.com', label: 'Abrir site de cadastro' }],
+        },
+      ],
     }
   }
 

@@ -16,14 +16,13 @@ ZAPI_TOKEN=cole_aqui_o_token_da_instancia
 
 - **ZAPI_INSTANCE_ID:** copie o **ID da instância** da tela “Dados da instância” (campo “ID da instância”).
 - **ZAPI_TOKEN:** copie o **Token da instância** (campo “Token da instância”). Se gerar um novo token, atualize aqui.
-
-Opcional (se a Z-API pedir nas requisições):
+- **ZAPI_CLIENT_TOKEN (obrigatório se ativou na Z-API):** No painel Z-API, vá em **Segurança** → **Token de segurança da conta**. Se você ativou esse token, **todas** as requisições (incluindo envio de mensagens) precisam do header `Client-Token`. Copie o token e adicione no Railway e no `.env.local`:
 
 ```env
-ZAPI_CLIENT_TOKEN=seu_client_token_aqui
+ZAPI_CLIENT_TOKEN=cole_aqui_o_token_de_seguranca_da_conta
 ```
 
-O **Client-Token** fica em Segurança / Token de segurança da conta no painel Z-API. Só coloque se aparecer erro 401 ou se a documentação da sua conta exigir.
+Se aparecer nos logs **"Falha ao enviar: your client-token is not configured"**, é porque essa variável não está definida ou o token está ativado na Z-API e não foi colocado aqui.
 
 ---
 
@@ -75,7 +74,7 @@ Assim, toda mensagem e todo clique em botão serão enviados para essa URL e o a
 
 | Onde              | O que fazer |
 |-------------------|-------------|
-| **.env.local / Railway** | `ZAPI_INSTANCE_ID` e `ZAPI_TOKEN` (e opcionalmente `ZAPI_CLIENT_TOKEN`) |
+| **.env.local / Railway** | `ZAPI_INSTANCE_ID`, `ZAPI_TOKEN` e `ZAPI_CLIENT_TOKEN` (se ativou Token de segurança na Z-API) |
 | **Painel Z-API**  | Conectar número (QR Code) e configurar webhook “Ao receber” → `https://plenipay.com/api/whatsapp/zapi/webhook` |
 | **Código**        | Já integrado: webhook em `/api/whatsapp/zapi/webhook` e envio de texto + botões em `lib/whatsapp-zapi.ts` |
 
@@ -105,10 +104,13 @@ Se o webhook estiver correto e as variáveis certas no ambiente que responde pel
 3. **Número conectado na Z-API**  
    O WhatsApp que recebe as mensagens deve ser o que está conectado à **instância Z-API** (QR Code lido na Z-API). Se o número estiver em outro serviço (ex.: API Fácil), as mensagens não chegam na Z-API.
 
-4. **Deploy**  
+4. **Client-Token (Falha ao enviar)**  
+   Se nos logs aparecer **"Falha ao enviar: your client-token is not configured"** (ou "client-token"), a Z-API está exigindo o **Token de segurança da conta**. No painel Z-API: **Segurança** → **Token de segurança da conta** → copie o token. No Railway (e no `.env.local`), crie a variável **ZAPI_CLIENT_TOKEN** com esse valor e faça **Redeploy**.
+
+5. **Deploy**  
    Depois de alterar variáveis no Railway, é preciso dar **Redeploy** para o novo valor passar a valer.
 
-5. **Logs no Railway**  
+6. **Logs no Railway**  
    Em **Deployments** → último deploy → **View logs**, ao enviar uma mensagem para o número você deve ver algo como:
    ```text
    📨 [Z-API Webhook] Mensagem recebida: { from: '55...', textPreview: '...' }

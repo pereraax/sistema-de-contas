@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
-import { sendTextMessage, sendButtonList, isZapiConfigured } from '@/lib/whatsapp-zapi'
+import { sendTextMessage, sendButtonList, sendButtonActions, isZapiConfigured } from '@/lib/whatsapp-zapi'
 
 function buildPlenMessage(from: string, text: string) {
   const remoteJid = from.includes('@') ? from : `${from.replace(/\D/g, '')}@s.whatsapp.net`
@@ -80,6 +80,15 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
             console.log('✅ [Z-API Webhook] Botões', i + 1, '/', result.messages.length, 'enviados para:', phone)
           } else {
             console.error('❌ [Z-API Webhook] Falha ao enviar botões:', send.error)
+          }
+        } else if (typeof msg === 'object' && msg !== null && (msg as any).type === 'button_actions') {
+          const { body, buttonActions } = msg as { type: 'button_actions'; body: string; buttonActions: { type: string; url?: string; label: string }[] }
+          const send = await sendButtonActions(phone, body, buttonActions as any)
+          if (send.success) {
+            registerSentMessage(phone, `${body} [botão link]`)
+            console.log('✅ [Z-API Webhook] Botão link', i + 1, '/', result.messages.length, 'enviado para:', phone)
+          } else {
+            console.error('❌ [Z-API Webhook] Falha ao enviar botão link:', send.error)
           }
         } else if (typeof msg === 'string' && msg.trim()) {
           const send = await sendTextMessage(phone, msg)

@@ -32,6 +32,67 @@ export function isApifacilConfigured(): boolean {
 }
 
 /**
+ * Enviar mensagem com botões de resposta (reply buttons).
+ * Usa o endpoint /enviar-botao da API Fácil (confirmado pelo suporte).
+ * Fallback: texto com opções em negrito se o endpoint falhar.
+ */
+export async function sendReplyButtons(
+  phoneNumber: string,
+  bodyText: string,
+  buttons: { id: string; title: string }[]
+): Promise<{ success: boolean; messageId?: string; error?: string; usedFallback?: boolean }> {
+  const config = getApifacilConfig()
+  if (!config) {
+    return { success: false, error: 'Apifacil não está configurado' }
+  }
+  let cleanPhone = phoneNumber.replace(/\D/g, '')
+  if (!cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
+    cleanPhone = `55${cleanPhone}`
+  }
+  const baseUrl = 'https://apifacil.dev/api/v1'
+
+  // Endpoint oficial para botões: /enviar-botao (confirmado pelo suporte API Fácil)
+  const urlButtons = `${baseUrl}/whatsapp/enviar-botao`
+  const payloads = [
+    { para: cleanPhone, telefone: cleanPhone, instancia: config.instanceId, mensagem: bodyText, botoes: buttons.map((b) => ({ id: b.id, titulo: b.title })) },
+    { numero: cleanPhone, instancia: config.instanceId, mensagem: bodyText, botoes: buttons.map((b) => ({ id: b.id, titulo: b.title })) },
+    { para: cleanPhone, instancia: config.instanceId, texto: bodyText, botoes: buttons.map((b) => b.title) },
+  ]
+  for (let i = 0; i < payloads.length; i++) {
+    try {
+      const res = await fetch(urlButtons, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: config.token },
+        body: JSON.stringify(payloads[i]),
+      })
+      let data: any = {}
+      try {
+        data = await res.json()
+      } catch {
+        // resposta não é JSON
+      }
+      if (res.ok && !data?.error) {
+        console.log('✅ [Apifacil] enviar-botao OK (formato', i + 1, '), botões enviados para', cleanPhone)
+        return { success: true, messageId: data?.data?.id ?? data?.messageId ?? data?.id }
+      }
+      if (i === 0) {
+        console.warn('⚠️ [Apifacil] enviar-botao falhou. Status:', res.status, 'Resposta:', JSON.stringify(data).slice(0, 300))
+      }
+    } catch (e) {
+      if (i === 0) console.warn('⚠️ [Apifacil] Erro ao chamar enviar-botao:', e)
+    }
+  }
+
+  // Fallback: enviar como texto (opções em negrito)
+  console.log('📝 [Apifacil] Usando fallback (texto + negrito) para botões em', cleanPhone)
+  const textWithOptions = buttons.length
+    ? `${bodyText}\n\n${buttons.map((b) => `*${b.title}*`).join('\n')}`
+    : bodyText
+  const result = await sendTextMessage(phoneNumber, textWithOptions)
+  return { ...result, usedFallback: true }
+}
+
+/**
  * Enviar mensagem de texto via apifacil.dev
  */
 export async function sendTextMessage(
@@ -77,6 +138,7 @@ export async function sendTextMessage(
         'Authorization': config.token,
       },
       body: JSON.stringify({
+        para: cleanPhone,
         telefone: cleanPhone,
         mensagem: message,
         instancia: config.instanceId,

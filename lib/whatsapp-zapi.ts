@@ -45,6 +45,16 @@ function defaultHeaders(): Record<string, string> {
   return h
 }
 
+/** Mensagem clara quando a Z-API exige Client-Token e não está configurado */
+function normalizeZapiError(err: string | undefined): string {
+  if (!err) return 'Erro ao enviar'
+  const lower = err.toLowerCase()
+  if (lower.includes('client-token') || lower.includes('client_token') || lower.includes('null not allowed')) {
+    return 'Z-API exige Client-Token. Configure ZAPI_CLIENT_TOKEN no Railway (painel Z-API: Segurança → Token de segurança da conta).'
+  }
+  return err
+}
+
 /**
  * Enviar mensagem de texto.
  */
@@ -63,7 +73,8 @@ export async function sendTextMessage(
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      return { success: false, error: data?.message || data?.error || `Erro ${res.status}` }
+      const msg = data?.message || data?.error || `Erro ${res.status}`
+      return { success: false, error: normalizeZapiError(msg) }
     }
     return { success: true, messageId: data.messageId || data.id }
   } catch (e: any) {
@@ -93,10 +104,58 @@ export async function sendButtonList(
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      return { success: false, error: data?.message || data?.error || `Erro ${res.status}` }
+      const msg = data?.message || data?.error || `Erro ${res.status}`
+      return { success: false, error: normalizeZapiError(msg) }
     }
     return { success: true, messageId: data.messageId || data.id }
   } catch (e: any) {
     return { success: false, error: e?.message || 'Erro ao enviar botões' }
+  }
+}
+
+/** Ações de botão: URL (abre link), CALL (liga), REPLY (resposta). */
+export type ButtonAction = { type: 'URL'; url: string; label: string; id?: string } | { type: 'CALL'; phone: string; label: string; id?: string } | { type: 'REPLY'; label: string; id?: string }
+
+/**
+ * Enviar mensagem com botões de ação (URL, CALL, REPLY).
+ * Doc: https://developer.z-api.io/en/message/send-button-actions
+ * Não misturar REPLY com URL/CALL na mesma mensagem (limitação do WhatsApp).
+ */
+export async function sendButtonActions(
+  phoneNumber: string,
+  message: string,
+  buttonActions: ButtonAction[],
+  options?: { title?: string; footer?: string }
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const base = getBaseUrl()
+  if (!base) return { success: false, error: 'Z-API não configurado' }
+  const phone = cleanPhone(phoneNumber)
+  const payload: Record<string, unknown> = {
+    phone,
+    message,
+    buttonActions: buttonActions.slice(0, 3).map((b) => {
+      const item: Record<string, string> = { type: b.type, label: b.label }
+      if (b.id) item.id = b.id
+      if (b.type === 'URL' && b.url) item.url = b.url
+      if (b.type === 'CALL' && b.phone) item.phone = b.phone.replace(/\D/g, '')
+      return item
+    }),
+  }
+  if (options?.title) payload.title = options.title
+  if (options?.footer) payload.footer = options.footer
+  try {
+    const res = await fetch(`${base}/send-button-actions`, {
+      method: 'POST',
+      headers: defaultHeaders(),
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const msg = data?.message || data?.error || `Erro ${res.status}`
+      return { success: false, error: normalizeZapiError(msg) }
+    }
+    return { success: true, messageId: data.messageId || data.id }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Erro ao enviar botões de ação' }
   }
 }

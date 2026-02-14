@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
-import { sendTextMessage, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
+import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 
 /** Formato esperado pelo processWhatsAppMessage (Baileys/Evolution style) */
 function buildPlenMessage(from: string, text: string): {
@@ -120,15 +120,39 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
     const phone = from.startsWith('55') ? from : `55${from}`
 
     if (result?.messages && Array.isArray(result.messages) && result.messages.length > 0) {
+      console.log('📤 [Apifacil Webhook] Enviando', result.messages.length, 'mensagem(ns) para', phone)
       for (let i = 0; i < result.messages.length; i++) {
         const msg = result.messages[i]
-        if (typeof msg !== 'string' || !msg.trim()) continue
-        const send = await sendTextMessage(phone, msg)
-        if (send.success) {
-          registerSentMessage(phone, msg)
-          console.log('✅ [Apifacil Webhook] Mensagem', i + 1, '/', result.messages.length, 'enviada para:', phone)
-        } else {
-          console.error('❌ [Apifacil Webhook] Falha ao enviar mensagem', i + 1, ':', send.error)
+        if (typeof msg === 'object' && msg !== null && (msg as any).type === 'buttons') {
+          const { body, buttons } = msg as { type: 'buttons'; body: string; buttons: { id: string; title: string }[] }
+          const send = await sendReplyButtons(phone, body, buttons)
+          if (send.success) {
+            const textFallback = `${body}\n\n${buttons.map((b) => b.title).join(' / ')}`
+            registerSentMessage(phone, textFallback)
+            console.log('✅ [Apifacil Webhook] Botões', i + 1, '/', result.messages.length, 'enviados para:', phone, send.usedFallback ? '(fallback texto)' : '')
+          } else {
+            console.error('❌ [Apifacil Webhook] Falha ao enviar botões', i + 1, ':', send.error)
+          }
+        } else if (typeof msg === 'object' && msg !== null && (msg as any).type === 'button_actions') {
+          // API Fácil não suporta botão URL; envio como texto + link
+          const { body, buttonActions } = msg as { type: 'button_actions'; body: string; buttonActions: { type: string; url?: string; label: string }[] }
+          const urlBtn = buttonActions?.find((a) => a.type === 'URL' && a.url)
+          const text = urlBtn ? `${body}\n\n🔗 ${urlBtn.label}: ${urlBtn.url}` : body
+          const send = await sendTextMessage(phone, text)
+          if (send.success) {
+            registerSentMessage(phone, text)
+            console.log('✅ [Apifacil Webhook] Link (fallback texto)', i + 1, '/', result.messages.length, 'enviado para:', phone)
+          } else {
+            console.error('❌ [Apifacil Webhook] Falha ao enviar link', i + 1, ':', send.error)
+          }
+        } else if (typeof msg === 'string' && msg.trim()) {
+          const send = await sendTextMessage(phone, msg)
+          if (send.success) {
+            registerSentMessage(phone, msg)
+            console.log('✅ [Apifacil Webhook] Mensagem', i + 1, '/', result.messages.length, 'enviada para:', phone)
+          } else {
+            console.error('❌ [Apifacil Webhook] Falha ao enviar mensagem', i + 1, ':', send.error)
+          }
         }
         if (i < result.messages.length - 1) await delay(1500)
       }
@@ -169,6 +193,7 @@ export async function POST(request: NextRequest) {
 
     const { from, text } = parsed
     console.log('📨 [Apifacil Webhook] MENSAGEM RECEBIDA:', { from, textPreview: text.slice(0, 80) })
+    console.log('📨 [Apifacil Webhook] Texto completo (primeiros 120 chars):', text.slice(0, 120))
 
     // Em localhost: só processar se WHATSAPP_TEST_NUMBERS estiver definido e o número estiver na lista
     const isDev = process.env.NODE_ENV === 'development'
