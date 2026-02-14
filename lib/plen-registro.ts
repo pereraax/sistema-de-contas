@@ -110,7 +110,7 @@ function categoriaInteligente(nome: string, tipo: TipoRegistro): string {
     gasolina: 'Transporte',
     combustivel: 'Transporte',
     onibus: 'Transporte',
-    conta de luz: 'Contas',
+    'conta de luz': 'Contas',
     luz: 'Contas',
     agua: 'Contas',
     internet: 'Contas',
