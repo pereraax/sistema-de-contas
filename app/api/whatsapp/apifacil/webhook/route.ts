@@ -2,11 +2,14 @@
  * Webhook da API Fácil (apifacil.dev) para mensagens WhatsApp.
  * A API Fácil chama esta URL quando uma mensagem é recebida na instância conectada.
  * Sem esta rota, o assistente PLEN nunca recebe as mensagens (404).
+ * Suporta texto e áudio (transcrição para processar pelo PLEN).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
+import { detectMedia, transcribeAudio } from '@/lib/whatsapp-media-processor'
+import { RESPOSTA_AUDIO_NAO_ENTENDI } from '@/lib/plen-whatsapp-chat'
 
 /** Formato esperado pelo processWhatsAppMessage (Baileys/Evolution style) */
 function buildPlenMessage(from: string, text: string): {
@@ -97,6 +100,34 @@ function parseWebhookBody(body: unknown): { from: string; text: string } | null 
   return null
 }
 
+/** Extrai from e opcionalmente text ou mídia (áudio). Para áudio, text virá da transcrição depois. */
+function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string; media?: { type: 'audio'; url: string; mimetype: string } } | null {
+  if (!body || typeof body !== 'object') return null
+  const b = body as Record<string, unknown>
+  const tipoEnvio = (b.tipo_envio as string) || ''
+  if (tipoEnvio === 'MENSAGEM_ENVIADA') return null
+
+  const data = (b.data && typeof b.data === 'object' ? b.data : b) as Record<string, unknown>
+  const from = (data.origem ?? data.from ?? b.origem ?? b.from ?? data.telefone ?? data.numero ?? b.telefone ?? b.numero) as string | undefined
+  if (!from) return null
+
+  const fromClean = String(from).replace(/\D/g, '')
+  const text = (data.mensagem ?? data.text ?? b.mensagem ?? b.text ?? (data as any)?.body) as string | undefined
+  if (text && String(text).trim()) {
+    return { from: fromClean, text: String(text).trim() }
+  }
+
+  const media = detectMedia(body as any)
+  if (media?.type === 'audio' && media.url) {
+    return { from: fromClean, media: { type: 'audio', url: media.url, mimetype: media.mimetype || 'audio/ogg' } }
+  }
+
+  if (text !== undefined && text !== null) {
+    return { from: fromClean, text: String(text) }
+  }
+  return null
+}
+
 export async function GET() {
   return NextResponse.json({
     success: true,
@@ -108,9 +139,42 @@ export async function GET() {
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 /** Processar mensagem e enviar resposta em background (não bloqueia a resposta do webhook) */
-async function processarEmBackground(parsed: { from: string; text: string }) {
-  const { from, text } = parsed
+async function processarEmBackground(parsed: {
+  from: string
+  text?: string
+  media?: { type: 'audio'; url: string; mimetype: string }
+}) {
+  const { from, text: textInicial, media } = parsed
+  let text = textInicial
   try {
+    if (media?.type === 'audio') {
+      try {
+        const res = await fetch(media.url, { method: 'GET' })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const buffer = Buffer.from(await res.arrayBuffer())
+        const transcribed = await transcribeAudio(buffer, media.mimetype)
+        text = (transcribed || '').trim()
+        if (!text) {
+          if (isApifacilConfigured()) {
+            const phone = from.startsWith('55') ? from : `55${from}`
+            await sendTextMessage(phone, RESPOSTA_AUDIO_NAO_ENTENDI)
+            registerSentMessage(phone, RESPOSTA_AUDIO_NAO_ENTENDI)
+          }
+          return
+        }
+        console.log('🎤 [Apifacil Webhook] Áudio transcrito:', text.slice(0, 80))
+      } catch (err) {
+        console.error('🎤 [Apifacil Webhook] Erro ao transcrever áudio:', err)
+        if (isApifacilConfigured()) {
+          const phone = from.startsWith('55') ? from : `55${from}`
+          await sendTextMessage(phone, RESPOSTA_AUDIO_NAO_ENTENDI)
+          registerSentMessage(phone, RESPOSTA_AUDIO_NAO_ENTENDI)
+        }
+        return
+      }
+    }
+    if (!text) return
+
     if (!isApifacilConfigured()) {
       console.warn('⚠️ [Apifacil Webhook] APIFACIL_INSTANCE_ID ou APIFACIL_TOKEN não configurados. Resposta não será enviada ao WhatsApp.')
       return
@@ -184,16 +248,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 })
     }
 
-    const parsed = parseWebhookBody(body)
+    let parsed = parseWebhookBodyWithMedia(body)
+    if (!parsed) {
+      const fallback = parseWebhookBody(body)
+      if (fallback) parsed = { from: fallback.from, text: fallback.text }
+    }
     if (!parsed) {
       const rawPreview = JSON.stringify(body).slice(0, 600)
-      console.log('📨 [Apifacil Webhook] Payload não reconhecido (sem from/text). Verifique o formato em Config. Webhook. Body:', rawPreview)
+      console.log('📨 [Apifacil Webhook] Payload não reconhecido (sem from/text/áudio). Body:', rawPreview)
       return NextResponse.json({ success: true, message: 'Payload ignorado (sem from/text)' })
     }
 
-    const { from, text } = parsed
-    console.log('📨 [Apifacil Webhook] MENSAGEM RECEBIDA:', { from, textPreview: text.slice(0, 80) })
-    console.log('📨 [Apifacil Webhook] Texto completo (primeiros 120 chars):', text.slice(0, 120))
+    const { from } = parsed
+    const textPreview = parsed.text ? parsed.text.slice(0, 80) : parsed.media ? '[áudio]' : ''
+    console.log('📨 [Apifacil Webhook] MENSAGEM RECEBIDA:', { from, textPreview, isAudio: !!parsed.media })
 
     // Em localhost: só processar se WHATSAPP_TEST_NUMBERS estiver definido e o número estiver na lista
     const isDev = process.env.NODE_ENV === 'development'

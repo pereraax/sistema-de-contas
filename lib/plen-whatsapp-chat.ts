@@ -13,6 +13,26 @@ import {
   RESPOSTA_NAO_SEI,
 } from '@/lib/plen-llm-fallback'
 
+/** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
+const MSG_ENTENDER_MELHOR = `Para te entender melhor, você pode começar dizendo o que deseja:
+
+📌 Lembrete
+💸 Dívida
+📤 Gastos
+📥 Recebeu
+
+Em seguida explique: o que foi, qual data e horário (se for lembrete). Exemplos:
+
+• "Lembrete: pagar conta de luz dia 7 de março"
+• "Me lembre de pagar conta de água amanhã"
+• "Gastei 50 reais no mercado"
+• "Tenho uma dívida de 200 reais no cartão"`
+
+/** Resposta quando áudio não foi entendido. */
+export const RESPOSTA_AUDIO_NAO_ENTENDI = `Oops, não consegui entender o áudio 😅
+
+Diga com mais clareza e perto do microfone para eu entender melhor seu pedido. Se preferir, pode digitar a mensagem.`
+
 export type ProcessPlenWhatsAppResult = { response: string }
 
 /** Estatísticas por conta (para consultas/relatórios no WhatsApp). */
@@ -115,6 +135,48 @@ async function obterEstatisticasPlen(
   }
 }
 
+const MESES_PT: Record<string, number> = {
+  janeiro: 0, fevereiro: 1, março: 2, marco: 2, abril: 3, maio: 4, junho: 5,
+  julho: 6, agosto: 7, setembro: 8, outubro: 9, novembro: 10, dezembro: 11,
+}
+
+/** Interpreta "dia 7 de março", "07 de março", "dia 15/03" no texto e retorna Date ou null. */
+function parseDataNoTexto(t: string): { dia: number; mes: number; ano: number } | null {
+  const hoje = new Date()
+  const ano = hoje.getFullYear()
+  // "dia 7 de março" ou "dia 07 de março"
+  const diaDeMes = t.match(/\bdia\s+(\d{1,2})\s+de\s+(janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i)
+  if (diaDeMes) {
+    const dia = parseInt(diaDeMes[1], 10)
+    const nomeMes = diaDeMes[2].toLowerCase().replace('ç', 'c')
+    const mes = MESES_PT[nomeMes]
+    if (mes !== undefined && dia >= 1 && dia <= 31) {
+      const anoRel = mes < hoje.getMonth() ? ano + 1 : ano
+      return { dia, mes, ano: anoRel }
+    }
+  }
+  // "7 de março" ou "07 de março" (sem "dia")
+  const numDeMes = t.match(/\b(\d{1,2})\s+de\s+(janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i)
+  if (numDeMes) {
+    const dia = parseInt(numDeMes[1], 10)
+    const nomeMes = numDeMes[2].toLowerCase().replace('ç', 'c')
+    const mes = MESES_PT[nomeMes]
+    if (mes !== undefined && dia >= 1 && dia <= 31) {
+      const anoRel = mes < hoje.getMonth() ? ano + 1 : ano
+      return { dia, mes, ano: anoRel }
+    }
+  }
+  // "dia 15" ou "dia 15/03"
+  const diaSimples = t.match(/\bdia\s+(\d{1,2})(?:\/(\d{1,2}))?\s*$/i)
+  if (diaSimples) {
+    const dia = parseInt(diaSimples[1], 10)
+    const mesRel = diaSimples[2] ? parseInt(diaSimples[2], 10) - 1 : hoje.getMonth()
+    const anoRel = mesRel < hoje.getMonth() ? ano + 1 : ano
+    if (dia >= 1 && dia <= 31) return { dia, mes: mesRel, ano: anoRel }
+  }
+  return null
+}
+
 /** Interpreta mensagem de lembrete e retorna { descricao, data_lembrete } ou null. */
 function interpretarLembrete(texto: string): { descricao: string; data_lembrete: string } | null {
   const t = texto.trim().toLowerCase()
@@ -122,13 +184,19 @@ function interpretarLembrete(texto: string): { descricao: string; data_lembrete:
   const ano = hoje.getFullYear()
   const mes = hoje.getMonth()
 
-  const pad = (n: number) => String(n).padStart(2, '0')
   const toISO = (d: Date) => {
     d.setHours(10, 0, 0, 0)
     return d.toISOString()
   }
+  const toDate = (dia: number, mesIdx: number, anoVal: number) => {
+    const d = new Date(anoVal, mesIdx, dia)
+    return isNaN(d.getTime()) ? null : d
+  }
 
-  // "me lembre de X amanhã" / "lembrete: X amanhã" / "lembrar de X amanhã"
+  // Qualquer data no texto (dia 7 de março, 07 de março, dia 15/03)
+  const dataParse = parseDataNoTexto(t)
+
+  // "me lembre de X amanhã" / "lembrete: X amanhã"
   const amanhaMatch = t.match(/(?:me\s+)?lembr(e|ar)\s+(?:de\s+)?(.+?)\s+amanh[ãa]\s*$/i)
   if (amanhaMatch) {
     const desc = amanhaMatch[2].trim().substring(0, 500)
@@ -150,25 +218,68 @@ function interpretarLembrete(texto: string): { descricao: string; data_lembrete:
     return { descricao: hojeMatch[2].trim().substring(0, 500), data_lembrete: toISO(new Date(hoje)) }
   }
 
+  // "me lembre de pagar conta de luz dia 7 de março" / "me lembre de X dia DD de MÊS"
+  if (dataParse && /(?:me\s+)?lembr(e|ar)\s+(?:de\s+)?(.+?)\s+dia\s+\d{1,2}\s+de\s+/i.test(t)) {
+    const descMatch = t.match(/(?:me\s+)?lembr(e|ar)\s+(?:de\s+)?(.+?)\s+dia\s+\d{1,2}(\s+de\s+\w+)?/i)
+    if (descMatch) {
+      const desc = descMatch[2].replace(/\s+dia\s+\d{1,2}(\s+de\s+\w+)?\s*$/i, '').trim().substring(0, 500)
+      const d = toDate(dataParse.dia, dataParse.mes, dataParse.ano)
+      if (d) return { descricao: desc || 'Lembrete', data_lembrete: toISO(d) }
+    }
+  }
+
+  // "lembrete para pagar conta de luz dia 07 de março" / "lembrete para X dia DD de MÊS"
+  if (dataParse && /lembrete\s+para\s+.+?\s+dia\s+\d{1,2}\s+de\s+/i.test(t)) {
+    const descMatch = t.match(/lembrete\s+para\s+(.+?)\s+dia\s+\d{1,2}(\s+de\s+\w+)?/i)
+    if (descMatch) {
+      const desc = descMatch[1].replace(/\s+dia\s+\d{1,2}(\s+de\s+\w+)?\s*$/i, '').trim().substring(0, 500)
+      const d = toDate(dataParse.dia, dataParse.mes, dataParse.ano)
+      if (d) return { descricao: desc || 'Lembrete', data_lembrete: toISO(d) }
+    }
+  }
+
   // "lembrete: X dia 15" ou "dia 15/03" ou "dia 15"
   const diaMatch = t.match(/(?:me\s+)?lembr(e|ar)\s+(?:de\s+)?(.+?)\s+dia\s+(\d{1,2})(?:\/(\d{1,2}))?\s*$/i)
   if (diaMatch) {
     const dia = parseInt(diaMatch[3], 10)
     const mesRel = diaMatch[4] ? parseInt(diaMatch[4], 10) - 1 : mes
     const anoRel = mesRel < mes ? ano + 1 : ano
-    const d = new Date(anoRel, mesRel, dia)
-    if (!isNaN(d.getTime())) {
-      return { descricao: diaMatch[2].trim().substring(0, 500), data_lembrete: toISO(d) }
-    }
+    const d = toDate(dia, mesRel, anoRel)
+    if (d) return { descricao: diaMatch[2].trim().substring(0, 500), data_lembrete: toISO(d) }
   }
   const dia2 = t.match(/lembrete\s*:?\s*(.+?)\s+dia\s+(\d{1,2})(?:\/(\d{1,2}))?\s*$/i)
   if (dia2) {
     const dia = parseInt(dia2[2], 10)
     const mesRel = dia2[3] ? parseInt(dia2[3], 10) - 1 : mes
     const anoRel = mesRel < mes ? ano + 1 : ano
-    const d = new Date(anoRel, mesRel, dia)
-    if (!isNaN(d.getTime())) {
-      return { descricao: dia2[1].trim().substring(0, 500), data_lembrete: toISO(d) }
+    const d = toDate(dia, mesRel, anoRel)
+    if (d) return { descricao: dia2[1].trim().substring(0, 500), data_lembrete: toISO(d) }
+  }
+
+  // "pagar conta de luz dia 07 de março" / "pagar X dia DD de MÊS" (sem valor = lembrete, não dívida)
+  if (dataParse && !/[\d.,]+\s*(?:reais?|r\$)/i.test(t)) {
+    const pagarMatch = t.match(/(pagar\s+.+?)\s+dia\s+\d{1,2}(\s+de\s+\w+)?/i)
+    if (pagarMatch) {
+      const desc = pagarMatch[1].replace(/\s+dia\s+\d{1,2}(\s+de\s+\w+)?\s*$/i, '').trim().substring(0, 500)
+      const d = toDate(dataParse.dia, dataParse.mes, dataParse.ano)
+      if (d && desc.length >= 3) return { descricao: desc, data_lembrete: toISO(d) }
+    }
+    // "conta de luz dia 7 de março" (ação implícita)
+    const contaMatch = t.match(/(conta\s+de\s+(?:luz|água|agua|internet|\w+))\s+dia\s+\d{1,2}(\s+de\s+\w+)?/i)
+    if (contaMatch) {
+      const desc = `Pagar ${contaMatch[1].trim()}`
+      const d = toDate(dataParse.dia, dataParse.mes, dataParse.ano)
+      if (d) return { descricao: desc, data_lembrete: toISO(d) }
+    }
+  }
+
+  // "me lembre de X dia 7 de março" (ordem alternativa: descrição antes de "dia DD de mês")
+  if (dataParse && /(?:me\s+)?lembr(e|ar)\s+(?:de\s+)?.+\s+dia\s+\d{1,2}\s+de\s+/.test(t)) {
+    const descMatch = t.match(/(?:me\s+)?lembr(e|ar)\s+(?:de\s+)?(.+?)\s+dia\s+(\d{1,2})\s+de\s+(janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/i)
+    if (descMatch) {
+      const desc = descMatch[2].trim().substring(0, 500)
+      const d = toDate(dataParse.dia, dataParse.mes, dataParse.ano)
+      if (d && desc.length >= 2) return { descricao: desc, data_lembrete: toISO(d) }
     }
   }
 
@@ -228,7 +339,7 @@ export async function processPlenWhatsAppMessage(
       return { response: RESPOSTA_OPEN_FINANCE }
     }
 
-    // Lembrete — "me lembre de X amanhã", "lembrete: X dia 15", "lembrar de X"
+    // Lembrete — "me lembre de X amanhã", "lembrete para X dia 7 de março", "pagar conta dia 07 de março"
     const lembreteResult = interpretarLembrete(rawMessage)
     if (lembreteResult) {
       const { descricao, data_lembrete } = lembreteResult
@@ -247,6 +358,15 @@ export async function processPlenWhatsAppMessage(
       return {
         response: `✅ Lembrete registrado!\n\n📌 ${descricao}\n📅 ${dataBr}\n\nConfira em plenipay.com na área Lembretes.`,
       }
+    }
+
+    // Intenção de lembrete mas não conseguimos interpretar — não confundir com dívida
+    const isLembreteIntent =
+      /\b(lembrete|lembrar|me\s+lembre)\b/i.test(t) ||
+      (/pagar\s+.+\s+dia\s+\d{1,2}/i.test(t) && !/[\d.,]+\s*(?:reais?|r\$)/i.test(t)) ||
+      /conta\s+de\s+(luz|água|agua|internet)\s+dia\s+\d/i.test(t)
+    if (isLembreteIntent) {
+      return { response: MSG_ENTENDER_MELHOR }
     }
 
     // Suporte a "gastei 30 usuario NOME" na mesma linha OU segunda linha = nome do usuário
