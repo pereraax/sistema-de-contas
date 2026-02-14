@@ -5,13 +5,35 @@
 
 import type { TipoRegistro } from '@/lib/types'
 
+/** Aceita 50, 1.500,00 (BR), 1,500.00 (US), 50 reais, R$ 1.234,56 */
 function extrairValor(texto: string): number | null {
-  const match = texto.match(/(\d+)(?:[.,](\d+))?/)
+  const raw = texto.replace(/\s*(reais?|r\$|r\b)\s*/gi, '').trim()
+  const match = raw.match(/[\d.,]+/)
   if (!match) return null
-  const inteiro = match[1]
-  const decimal = match[2] || '00'
-  const valor = parseFloat(`${inteiro}.${decimal}`)
-  return isNaN(valor) ? null : valor
+  const s = match[0]
+  const hasComma = s.includes(',')
+  const hasDot = s.includes('.')
+  let num: number
+  if (hasComma && hasDot) {
+    const lastSep = s.lastIndexOf(',') > s.lastIndexOf('.') ? ',' : '.'
+    const parts = s.split(lastSep)
+    const decimalPart = parts[parts.length - 1].replace(/\D/g, '')
+    const intPart = parts.slice(0, -1).join('').replace(/\D/g, '')
+    num = parseFloat(`${intPart}.${decimalPart}`)
+  } else if (hasComma) {
+    const parts = s.split(',')
+    const decimalPart = (parts[1] || '00').replace(/\D/g, '').slice(0, 2)
+    const intPart = (parts[0] || '0').replace(/\D/g, '')
+    num = parseFloat(`${intPart}.${decimalPart}`)
+  } else if (hasDot) {
+    const parts = s.split('.')
+    const decimalPart = (parts[parts.length - 1] || '00').replace(/\D/g, '').slice(0, 2)
+    const intPart = parts.slice(0, -1).join('').replace(/\D/g, '')
+    num = parseFloat(`${intPart}.${decimalPart}`)
+  } else {
+    num = parseFloat(s.replace(/\D/g, ''))
+  }
+  return isNaN(num) || num <= 0 ? null : num
 }
 
 /**
@@ -70,10 +92,52 @@ export type InterpretadoPlen = {
 /**
  * Interpreta mensagem em linguagem natural e retorna tipo, valor, nome, data e categoria.
  */
+/** Mapeia nome/descrição para categoria inteligente: compras→Supermercado, nomes de pessoas→Pessoas, etc. */
+function categoriaInteligente(nome: string, tipo: TipoRegistro): string {
+  const n = nome.trim().toLowerCase()
+  if (!n || n === 'gasto' || n === 'entrada') return 'Outros'
+  const categoriasGasto: Record<string, string> = {
+    mercado: 'Supermercado',
+    supermercado: 'Supermercado',
+    compras: 'Supermercado',
+    feira: 'Supermercado',
+    alimentacao: 'Alimentação',
+    comida: 'Alimentação',
+    restaurante: 'Alimentação',
+    lanche: 'Alimentação',
+    uber: 'Transporte',
+    transporte: 'Transporte',
+    gasolina: 'Transporte',
+    combustivel: 'Transporte',
+    onibus: 'Transporte',
+    conta de luz: 'Contas',
+    luz: 'Contas',
+    agua: 'Contas',
+    internet: 'Contas',
+    telefone: 'Contas',
+    cartao: 'Cartão',
+    cartão: 'Cartão',
+    emprestimo: 'Empréstimo',
+    empréstimo: 'Empréstimo',
+    carro: 'Carro',
+    saude: 'Saúde',
+    remedio: 'Saúde',
+    farmacia: 'Saúde',
+    farmácia: 'Saúde',
+    roupas: 'Vestuário',
+    roupa: 'Vestuário',
+  }
+  const cat = categoriasGasto[n] || Object.keys(categoriasGasto).find((k) => n.includes(k))
+  if (cat) return categoriasGasto[cat] || cat
+  if (tipo === 'entrada') return n.length <= 2 || /^(da|do|de|do\s|da\s)/.test(n) ? 'Outros' : 'Pessoas'
+  if (tipo === 'divida') return n === 'dívida' ? 'Outros' : 'Pessoas'
+  return 'Outros'
+}
+
 export function interpretarMensagem(texto: string): InterpretadoPlen | null {
   const t = texto.trim().toLowerCase()
-  const valorMatch = t.match(/(\d+)(?:[.,](\d+))?\s*(?:reais?|r\$|r\b)?/i)
-  const valorNum = valorMatch ? extrairValor(valorMatch[0]) : null
+  const valorStr = t.match(/[\d.,]+\s*(?:reais?|r\$|r\b)?/i)?.[0] || t.match(/[\d.,]+/)?.[0]
+  const valorNum = valorStr ? extrairValor(valorStr) : null
   if (valorNum == null || valorNum <= 0) return null
 
   let tipo: TipoRegistro
@@ -86,7 +150,7 @@ export function interpretarMensagem(texto: string): InterpretadoPlen | null {
     nome = nomeDivida.substring(0, 200)
     nome = nome.replace(/\s*(hoje|ontem|dia\s+\d{1,2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*$/gi, '').trim() || 'Dívida'
     const data_registro = parseDataDoTexto(t)
-    const categoria = nome !== 'Dívida' ? nome : 'Outros'
+    const categoria = categoriaInteligente(nome, 'divida')
     return { tipo: 'divida', valor: valorNum, nome, data_registro, categoria }
   }
 
@@ -152,7 +216,7 @@ export function interpretarMensagem(texto: string): InterpretadoPlen | null {
     .trim()
   nome = nome.substring(0, 200) || (tipo === 'saida' ? 'Gasto' : 'Entrada')
   const data_registro = parseDataDoTexto(t)
-  const categoria = nome && nome !== 'Gasto' && nome !== 'Entrada' ? nome : 'Outros'
+  const categoria = categoriaInteligente(nome, tipo)
 
   return { tipo, valor: valorNum, nome, data_registro, categoria }
 }
@@ -232,7 +296,7 @@ export function formatarRespostaRegistro(params: {
     mensagemSucesso,
     '',
     'Confira todos os seus registros acessando sua conta',
-    getSiteUrlSemPreview(),
+    'plenipay.com',
   )
   return linhas.join('\n')
 }

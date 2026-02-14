@@ -6,7 +6,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/server'
 import { interpretarMensagem, formatarRespostaRegistro } from '@/lib/plen-registro'
-import { getPlenLLMResponse } from '@/lib/plen-llm-fallback'
+import {
+  getPlenLLMResponse,
+  getRespostaPlanos,
+  RESPOSTA_OPEN_FINANCE,
+  RESPOSTA_NAO_SEI,
+} from '@/lib/plen-llm-fallback'
 
 export type ProcessPlenWhatsAppResult = { response: string }
 
@@ -110,6 +115,82 @@ async function obterEstatisticasPlen(
   }
 }
 
+/** Interpreta mensagem de lembrete e retorna { descricao, data_lembrete } ou null. */
+function interpretarLembrete(texto: string): { descricao: string; data_lembrete: string } | null {
+  const t = texto.trim().toLowerCase()
+  const hoje = new Date()
+  const ano = hoje.getFullYear()
+  const mes = hoje.getMonth()
+
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const toISO = (d: Date) => {
+    d.setHours(10, 0, 0, 0)
+    return d.toISOString()
+  }
+
+  // "me lembre de X amanhã" / "lembrete: X amanhã" / "lembrar de X amanhã"
+  const amanhaMatch = t.match(/(?:me\s+)?lembr(e|ar)\s+(?:de\s+)?(.+?)\s+amanh[ãa]\s*$/i)
+  if (amanhaMatch) {
+    const desc = amanhaMatch[2].trim().substring(0, 500)
+    const d = new Date(hoje)
+    d.setDate(d.getDate() + 1)
+    return { descricao: desc, data_lembrete: toISO(d) }
+  }
+  const amanha2 = t.match(/lembrete\s*:?\s*(.+?)\s+amanh[ãa]\s*$/i)
+  if (amanha2) {
+    const desc = amanha2[1].trim().substring(0, 500)
+    const d = new Date(hoje)
+    d.setDate(d.getDate() + 1)
+    return { descricao: desc, data_lembrete: toISO(d) }
+  }
+
+  // "me lembre de X hoje"
+  const hojeMatch = t.match(/(?:me\s+)?lembr(e|ar)\s+(?:de\s+)?(.+?)\s+hoje\s*$/i)
+  if (hojeMatch) {
+    return { descricao: hojeMatch[2].trim().substring(0, 500), data_lembrete: toISO(new Date(hoje)) }
+  }
+
+  // "lembrete: X dia 15" ou "dia 15/03" ou "dia 15"
+  const diaMatch = t.match(/(?:me\s+)?lembr(e|ar)\s+(?:de\s+)?(.+?)\s+dia\s+(\d{1,2})(?:\/(\d{1,2}))?\s*$/i)
+  if (diaMatch) {
+    const dia = parseInt(diaMatch[3], 10)
+    const mesRel = diaMatch[4] ? parseInt(diaMatch[4], 10) - 1 : mes
+    const anoRel = mesRel < mes ? ano + 1 : ano
+    const d = new Date(anoRel, mesRel, dia)
+    if (!isNaN(d.getTime())) {
+      return { descricao: diaMatch[2].trim().substring(0, 500), data_lembrete: toISO(d) }
+    }
+  }
+  const dia2 = t.match(/lembrete\s*:?\s*(.+?)\s+dia\s+(\d{1,2})(?:\/(\d{1,2}))?\s*$/i)
+  if (dia2) {
+    const dia = parseInt(dia2[2], 10)
+    const mesRel = dia2[3] ? parseInt(dia2[3], 10) - 1 : mes
+    const anoRel = mesRel < mes ? ano + 1 : ano
+    const d = new Date(anoRel, mesRel, dia)
+    if (!isNaN(d.getTime())) {
+      return { descricao: dia2[1].trim().substring(0, 500), data_lembrete: toISO(d) }
+    }
+  }
+
+  // "me lembre de X" ou "lembrete: X" (sem data -> amanhã)
+  const simplesMatch = t.match(/(?:me\s+)?lembr(e|ar)\s+(?:de\s+)?(.+)\s*$/i)
+  if (simplesMatch && simplesMatch[2].trim().length >= 2 && !/amanh[ãa]|hoje|dia\s+\d/.test(simplesMatch[2])) {
+    const desc = simplesMatch[2].trim().substring(0, 500)
+    const d = new Date(hoje)
+    d.setDate(d.getDate() + 1)
+    return { descricao: desc, data_lembrete: toISO(d) }
+  }
+  const simples2 = t.match(/^lembrete\s*:?\s*(.+)\s*$/i)
+  if (simples2 && simples2[1].trim().length >= 2 && !/amanh[ãa]|hoje|dia\s+\d/.test(simples2[1])) {
+    const desc = simples2[1].trim().substring(0, 500)
+    const d = new Date(hoje)
+    d.setDate(d.getDate() + 1)
+    return { descricao: desc, data_lembrete: toISO(d) }
+  }
+
+  return null
+}
+
 /**
  * Processa uma mensagem do usuário no contexto WhatsApp (userId = id do profile/account_owner).
  * Não usa cookies; usa Admin Client. Retorna sempre { response } (nunca lança).
@@ -130,6 +211,42 @@ export async function processPlenWhatsAppMessage(
     }
     if (!rawMessage) {
       return { response: 'Envie uma mensagem. Ex.: "Gastei 50 reais" ou "Recebi 200".' }
+    }
+
+    const t = rawMessage.toLowerCase()
+
+    // Planos / preço — mensagem dinâmica sem valor real
+    const isPlanos =
+      /\b(plano|planos|pre[cç]o|quanto\s+custa|valor\s+do\s+plano|assinatura|mensalidade)\b/.test(t)
+    if (isPlanos) {
+      return { response: getRespostaPlanos() }
+    }
+
+    // Open Finance — em produção
+    const isOpenFinance = /\b(open\s+finance|open\s+banking|conectar\s+banco|integrar\s+banco)\b/i.test(t)
+    if (isOpenFinance) {
+      return { response: RESPOSTA_OPEN_FINANCE }
+    }
+
+    // Lembrete — "me lembre de X amanhã", "lembrete: X dia 15", "lembrar de X"
+    const lembreteResult = interpretarLembrete(rawMessage)
+    if (lembreteResult) {
+      const { descricao, data_lembrete } = lembreteResult
+      const horario = '10:00:00'
+      const { error } = await supabase.from('lembretes').insert({
+        account_owner_id: userId,
+        descricao,
+        data_lembrete,
+        horario,
+        status: 'pendente',
+      })
+      if (error) {
+        return { response: `Não consegui salvar o lembrete: ${error.message}. Tente de novo ou cadastre em plenipay.com na área Lembretes.` }
+      }
+      const dataBr = new Date(data_lembrete).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      return {
+        response: `✅ Lembrete registrado!\n\n📌 ${descricao}\n📅 ${dataBr}\n\nConfira em plenipay.com na área Lembretes.`,
+      }
     }
 
     // Suporte a "gastei 30 usuario NOME" na mesma linha OU segunda linha = nome do usuário
@@ -278,8 +395,6 @@ export async function processPlenWhatsAppMessage(
       }
     }
 
-    const t = rawMessage.toLowerCase()
-
     // CONSULTAR / RELATÓRIOS: reconhece as frases da mensagem de boas-vindas do PLEN
     const isRelatorio =
       /\b(relat[oó]rio|resumo|finan[cç]as|como estão)\b/.test(t) ||
@@ -396,13 +511,13 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
     // Fallback com LLM: resposta natural e amigável, só sobre Plenipay
     const llmReply = await getPlenLLMResponse({
       userMessage: rawMessage,
-      context: 'O usuário enviou uma mensagem que não foi reconhecida como comando de registro ou consulta. Responda de forma amigável e, se fizer sentido, sugira frases que funcionam (ex.: "Ganhei 40 reais", "Recebi 100", "Me mostre o relatório").',
+      context: 'O usuário enviou uma mensagem que não foi reconhecida como comando de registro ou consulta. Responda de forma amigável e, se fizer sentido, sugira frases que funcionam (ex.: "Ganhei 40 reais", "Recebi 100", "Me mostre o relatório"). Se for pergunta fora do escopo ou você não souber, use a mensagem exata de suporte humano (Parar assistente Plen).',
     })
     if (llmReply) {
       return { response: llmReply }
     }
 
-    return { response: msgNaoEntendi }
+    return { response: RESPOSTA_NAO_SEI }
   } catch (err: any) {
     const msg = err?.message ?? String(err)
     console.error('[PLEN whatsapp-chat] Exceção:', err)
