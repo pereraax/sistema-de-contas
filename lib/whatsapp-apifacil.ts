@@ -51,12 +51,26 @@ export async function sendReplyButtons(
   }
   const baseUrl = 'https://apifacil.dev/api/v1'
 
-  // Formato da documentação API Fácil: telefone, text, buttons (id + text), instancia (máx. 3 botões)
+  // Formato da doc API Fácil: botão simples (id + text) ou URL (name: cta_url + buttonParamsJson).
+  // CADASTRAR = abre plenipay.com; JÁ CADASTREI = botão de resposta (webhook continua o fluxo de verificação).
   const urlButtons = `${baseUrl}/whatsapp/enviar-botao`
+  const buttonsForApi = buttons.slice(0, 3).map((b) => {
+    const idLower = (b.id || '').toLowerCase()
+    if (idLower === 'cadastrar') {
+      return {
+        name: 'cta_url',
+        buttonParamsJson: JSON.stringify({
+          display_text: b.title || 'CADASTRAR',
+          url: 'https://plenipay.com',
+        }),
+      }
+    }
+    return { id: b.id, text: b.title }
+  })
   const payload = {
     telefone: cleanPhone,
     text: bodyText,
-    buttons: buttons.slice(0, 3).map((b) => ({ id: b.id, text: b.title })),
+    buttons: buttonsForApi,
     instancia: config.instanceId,
   }
   try {
