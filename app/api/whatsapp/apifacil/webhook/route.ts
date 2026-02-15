@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
-import { detectMedia, transcribeAudio, processComprovanteImage } from '@/lib/whatsapp-media-processor'
+import { detectMedia, transcribeAudio, processComprovanteImage, downloadMedia } from '@/lib/whatsapp-media-processor'
 import { RESPOSTA_AUDIO_NAO_ENTENDI } from '@/lib/plen-whatsapp-chat'
 
 /** Formato esperado pelo processWhatsAppMessage (Baileys/Evolution style) */
@@ -114,11 +114,10 @@ function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string
   if (!from) return null
 
   const fromClean = String(from).replace(/\D/g, '')
-  const text = (data.mensagem ?? data.text ?? b.mensagem ?? b.text ?? (data as any)?.body) as string | undefined
-  if (text && String(text).trim()) {
-    return { from: fromClean, text: String(text).trim() }
-  }
+  const textRaw = (data.mensagem ?? data.text ?? b.mensagem ?? b.text ?? (data as any)?.body) as string | undefined
+  const text = textRaw != null ? String(textRaw).trim() : ''
 
+  // IMPORTANTE: Detectar mídia ANTES de tratar como texto. API Fácil pode enviar URL em "mensagem" ou tipo em data.
   const media = detectMedia(body as any)
   if (media?.type === 'audio' && media.url) {
     return { from: fromClean, media: { type: 'audio', url: media.url, mimetype: media.mimetype || 'audio/ogg' } }
@@ -127,9 +126,7 @@ function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string
     return { from: fromClean, media: { type: 'image', url: media.url, mimetype: media.mimetype || 'image/jpeg', caption: media.caption } }
   }
 
-  if (text !== undefined && text !== null) {
-    return { from: fromClean, text: String(text) }
-  }
+  if (text) return { from: fromClean, text }
   return null
 }
 
@@ -192,9 +189,9 @@ async function processarEmBackground(parsed: {
       }
     } else if (media?.type === 'image') {
       try {
-        const res = await fetch(media.url, { method: 'GET', headers: getMediaFetchHeaders() })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const buffer = Buffer.from(await res.arrayBuffer())
+        console.log('🖼️ [Apifacil Webhook] Processando imagem/comprovante:', media.url?.slice(0, 80))
+        const buffer = await downloadMedia(media.url, getMediaFetchHeaders())
+        if (!buffer || buffer.length === 0) throw new Error('Falha ao baixar imagem')
         const comando = await processComprovanteImage(buffer, media.caption)
         text = (comando || '').trim()
         if (!text) {
@@ -303,8 +300,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { from } = parsed
-    const textPreview = parsed.text ? parsed.text.slice(0, 80) : parsed.media ? '[áudio]' : ''
-    console.log('📨 [Apifacil Webhook] MENSAGEM RECEBIDA:', { from, textPreview, isAudio: !!parsed.media })
+    const textPreview = parsed.text ? parsed.text.slice(0, 80) : parsed.media ? `[${parsed.media.type}]` : ''
+    console.log('📨 [Apifacil Webhook] MENSAGEM RECEBIDA:', { from, textPreview, mediaType: parsed.media?.type })
 
     // Em localhost: só processar se WHATSAPP_TEST_NUMBERS estiver definido e o número estiver na lista
     const isDev = process.env.NODE_ENV === 'development'

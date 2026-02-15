@@ -13,18 +13,24 @@ export interface MediaInfo {
 /**
  * Detectar se a mensagem contém mídia
  */
-/** Normaliza body para API Fácil: tipo e URL podem estar em body.data */
+/** Normaliza body para API Fácil: tipo e URL podem estar em body.data ou com nomes variados */
 function normalizeBody(body: any): any {
   if (!body || typeof body !== 'object') return body
   const data = body.data && typeof body.data === 'object' ? body.data : {}
+  const urlMedia =
+    body.url_media ?? data.url_media ?? data.url_midia ?? data.url_mídia
+    ?? body.media_url ?? data.media_url
+    ?? body.url ?? data.url
+    ?? body.arquivo ?? data.arquivo ?? body.file ?? data.file
+    ?? body.link_midia ?? data.link_midia ?? body.media ?? data.media
   return {
     ...body,
-    tipo_mensagem: body.tipo_mensagem ?? data.tipo_mensagem,
+    tipo_mensagem: body.tipo_mensagem ?? data.tipo_mensagem ?? data.tipo,
     type: body.type ?? data.type,
-    mimetype: body.mimetype ?? data.mimetype,
-    url_media: body.url_media ?? data.url_media ?? data.url_midia,
-    media_url: body.media_url ?? data.media_url,
-    url: body.url ?? data.url,
+    mimetype: body.mimetype ?? data.mimetype ?? data.mime_type,
+    url_media: urlMedia,
+    media_url: urlMedia,
+    url: urlMedia,
     origem: body.origem ?? data.origem,
     from: body.from ?? data.from,
   }
@@ -113,12 +119,14 @@ export function detectMedia(body: any): MediaInfo | null {
     // Verificar URLs do apifacil.dev ou S3 que podem ser mídia (sem extensão)
     const apifacilUrlPattern = /https?:\/\/(apifacil|apifacilv2|s3|amazonaws)[^\s]+/i
     if (apifacilUrlPattern.test(field)) {
-      console.log('🔍 [Media Processor] URL suspeita de mídia (apifacil/S3) encontrada:', field.substring(0, 100))
+      const url = field.trim()
+      const isAudioByType = b.tipo_mensagem === 'audio' || b.tipo_mensagem === 'voice' || b.type === 'audio'
+      console.log('🔍 [Media Processor] URL suspeita de mídia (apifacil/S3) encontrada:', url.substring(0, 100), 'tipo_mensagem:', b.tipo_mensagem)
       return {
-        type: 'image',
-        url: field.trim(),
-        mimetype: 'image/jpeg',
-        caption: '',
+        type: isAudioByType ? 'audio' : 'image',
+        url,
+        mimetype: isAudioByType ? 'audio/ogg' : 'image/jpeg',
+        caption: field.replace(url, '').trim() || '',
       }
     }
   }
@@ -182,14 +190,16 @@ export function detectMedia(body: any): MediaInfo | null {
     }
   }
   
-  // Verificar se há URL de mídia mesmo sem tipo explícito (pode ser imagem)
-  const hasMediaUrlAlt = body.url_media || body.media_url || body.mediaUrl || body.url
-  if (hasMediaUrlAlt && !body.mensagem && !body.text && !body.message && !isImage && !isAudio && !isDocument) {
-    console.log('📎 [Media Processor] URL de mídia encontrada sem tipo explícito, assumindo imagem')
+  // Verificar se há URL de mídia mesmo sem tipo explícito (pode ser imagem ou áudio)
+  const hasMediaUrlAlt = b.url_media || b.media_url || body.mediaUrl || b.url
+  if (hasMediaUrlAlt && !isImage && !isAudio && !isDocument) {
+    const isAudioByType = b.tipo_mensagem === 'audio' || b.tipo_mensagem === 'voice' || b.type === 'audio'
+    const asAudio = isAudioByType || (b.tipo_mensagem === 'audio' || b.tipo_mensagem === 'voice')
+    console.log('📎 [Media Processor] URL de mídia encontrada, tipo:', asAudio ? 'audio' : 'image')
     return {
-      type: 'image',
+      type: asAudio ? 'audio' : 'image',
       url: hasMediaUrlAlt,
-      mimetype: body.mimetype || 'image/jpeg',
+      mimetype: body.mimetype || (asAudio ? 'audio/ogg' : 'image/jpeg'),
       caption: body.caption || body.legenda || '',
     }
   }
@@ -252,13 +262,12 @@ export function detectMedia(body: any): MediaInfo | null {
 }
 
 /**
- * Baixar mídia do apifacil.dev
+ * Baixar mídia (apifacil.dev ou qualquer URL). Headers opcionais para autenticação (ex.: Bearer token).
  */
-export async function downloadMedia(mediaUrl: string): Promise<Buffer | null> {
+export async function downloadMedia(mediaUrl: string, headers?: HeadersInit): Promise<Buffer | null> {
   try {
     console.log('📥 [Media Processor] Baixando mídia:', mediaUrl.substring(0, 100))
     
-    // Se for base64, converter diretamente
     if (mediaUrl.startsWith('data:')) {
       console.log('📥 [Media Processor] Detectado base64, convertendo...')
       const base64Match = mediaUrl.match(/base64,(.+)/)
@@ -272,20 +281,21 @@ export async function downloadMedia(mediaUrl: string): Promise<Buffer | null> {
       }
     }
     
-    // Se não começar com http, pode ser um caminho relativo ou ID
     if (!mediaUrl.startsWith('http')) {
       console.log('⚠️ [Media Processor] URL não parece ser válida:', mediaUrl)
       return null
     }
     
-    const response = await fetch(mediaUrl)
+    const response = await fetch(mediaUrl, { method: 'GET', headers: headers || {} })
     if (!response.ok) {
       console.error('❌ [Media Processor] Erro ao baixar mídia:', response.status, response.statusText)
       return null
     }
     
     const arrayBuffer = await response.arrayBuffer()
-    return Buffer.from(arrayBuffer)
+    const buf = Buffer.from(arrayBuffer)
+    console.log('📥 [Media Processor] Baixado', buf.length, 'bytes')
+    return buf
   } catch (error: any) {
     console.error('❌ [Media Processor] Erro ao baixar mídia:', error.message)
     return null
