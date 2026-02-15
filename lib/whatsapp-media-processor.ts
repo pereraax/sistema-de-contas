@@ -13,35 +13,53 @@ export interface MediaInfo {
 /**
  * Detectar se a mensagem contém mídia
  */
+/** Normaliza body para API Fácil: tipo e URL podem estar em body.data */
+function normalizeBody(body: any): any {
+  if (!body || typeof body !== 'object') return body
+  const data = body.data && typeof body.data === 'object' ? body.data : {}
+  return {
+    ...body,
+    tipo_mensagem: body.tipo_mensagem ?? data.tipo_mensagem,
+    type: body.type ?? data.type,
+    mimetype: body.mimetype ?? data.mimetype,
+    url_media: body.url_media ?? data.url_media ?? data.url_midia,
+    media_url: body.media_url ?? data.media_url,
+    url: body.url ?? data.url,
+    origem: body.origem ?? data.origem,
+    from: body.from ?? data.from,
+  }
+}
+
 export function detectMedia(body: any): MediaInfo | null {
+  const b = normalizeBody(body)
   console.log('🔍 [Media Processor] Detectando mídia no body:', {
     keys: Object.keys(body),
-    tipo_mensagem: body.tipo_mensagem,
-    type: body.type,
-    mimetype: body.mimetype,
-    has_url_media: !!body.url_media,
-    has_media_url: !!body.media_url,
-    has_url: !!body.url,
+    tipo_mensagem: b.tipo_mensagem,
+    type: b.type,
+    mimetype: b.mimetype,
+    has_url_media: !!b.url_media,
+    has_media_url: !!b.media_url,
+    has_url: !!b.url,
   })
-  
+
   // ESTRATÉGIA 1: Verificar campos de tipo de mensagem
-  const isImage = 
-    body.tipo_mensagem === 'image' || 
-    body.tipo_mensagem === 'imagem' ||
-    body.type === 'image' || 
-    body.mimetype?.startsWith('image/') ||
+  const isImage =
+    b.tipo_mensagem === 'image' ||
+    b.tipo_mensagem === 'imagem' ||
+    b.type === 'image' ||
+    b.mimetype?.startsWith('image/') ||
     body.tipo === 'image' ||
     body.tipo === 'imagem' ||
     body.messageType === 'image' ||
     body.mediaType === 'image'
-  
+
   // ESTRATÉGIA 2: Verificar se há URL de mídia E o campo mensagem está vazio ou parece ser URL
-  const hasMediaUrl = body.url_media || body.media_url || body.url || body.image_url || body.mediaUrl || body.media
+  const hasMediaUrl = b.url_media || b.media_url || b.url || body.image_url || body.mediaUrl || body.media
   const hasText = body.mensagem || body.message || body.text || body.body
   const isLikelyMedia = hasMediaUrl && (!hasText || (typeof hasText === 'string' && hasText.match(/^https?:\/\//)))
-  
+
   if (isImage || isLikelyMedia) {
-    const imageUrl = body.url_media || body.media_url || body.url || body.image_url || body.mediaUrl || body.media
+    const imageUrl = b.url_media || b.media_url || b.url || body.image_url || body.mediaUrl || body.media
     if (imageUrl) {
       console.log('🖼️ [Media Processor] Imagem detectada:', imageUrl)
       return {
@@ -105,17 +123,17 @@ export function detectMedia(body: any): MediaInfo | null {
     }
   }
   
-  const isAudio = 
-    body.tipo_mensagem === 'audio' || 
-    body.tipo_mensagem === 'voice' ||
-    body.type === 'audio' || 
-    body.mimetype?.startsWith('audio/') ||
+  const isAudio =
+    b.tipo_mensagem === 'audio' ||
+    b.tipo_mensagem === 'voice' ||
+    b.type === 'audio' ||
+    b.mimetype?.startsWith('audio/') ||
     body.tipo === 'audio' ||
     body.messageType === 'audio' ||
     body.mediaType === 'audio'
-  
+
   if (isAudio) {
-    const audioUrl = body.url_media || body.media_url || body.url || body.audio_url || body.mediaUrl || body.media
+    const audioUrl = b.url_media || b.media_url || b.url || body.audio_url || body.mediaUrl || body.media
     if (audioUrl) {
       console.log('🎤 [Media Processor] Áudio detectado:', audioUrl)
       return {

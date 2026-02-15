@@ -187,12 +187,13 @@ export function interpretarMensagem(texto: string): InterpretadoPlen | null {
   }
 
   // Verbos de GASTO: gastei, gasteu, paguei, pagou, etc.
+  // \b nas preposições evita "com" em "comida" virar preposição e sobrar "ida"
   const verbosGasto = /(?:gastei|gasteu|gastou|paguei|pagou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?/i
-  const despesaMatch = t.match(/(?:gastei|gasteu|gastou|paguei|pagou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|em|com|para|no|na)?\s*(.*)/i)
+  const despesaMatch = t.match(/(?:gastei|gasteu|gastou|paguei|pagou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:\b(?:de|em|com|para|no|na)\b\s+)?(.*)/i)
 
   // Verbos de ENTRADA: recebi, recebeu, ganhei, ganhou, entrei com, entrada de, etc.
   const verbosEntrada = /(?:recebi|recebeu|ganhei|ganhou|ganhamos|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?/i
-  const entradaMatch = t.match(/(?:recebi|recebeu|ganhei|ganhou|ganhamos|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|do|da|com)?\s*(.*)/i)
+  const entradaMatch = t.match(/(?:recebi|recebeu|ganhei|ganhou|ganhamos|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:\b(?:de|do|da|com)\b\s+)?(.*)/i)
 
   if (despesaMatch && verbosGasto.test(t)) {
     nome = (despesaMatch[1] || '').trim() || 'Gasto'

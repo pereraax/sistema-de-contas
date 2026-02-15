@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
-import { detectMedia, transcribeAudio } from '@/lib/whatsapp-media-processor'
+import { detectMedia, transcribeAudio, processComprovanteImage } from '@/lib/whatsapp-media-processor'
 import { RESPOSTA_AUDIO_NAO_ENTENDI } from '@/lib/plen-whatsapp-chat'
 
 /** Formato esperado pelo processWhatsAppMessage (Baileys/Evolution style) */
@@ -100,8 +100,10 @@ function parseWebhookBody(body: unknown): { from: string; text: string } | null 
   return null
 }
 
-/** Extrai from e opcionalmente text ou mídia (áudio). Para áudio, text virá da transcrição depois. */
-function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string; media?: { type: 'audio'; url: string; mimetype: string } } | null {
+type MediaPayload = { type: 'audio'; url: string; mimetype: string } | { type: 'image'; url: string; mimetype: string; caption?: string }
+
+/** Extrai from e opcionalmente text ou mídia (áudio/imagem). Para áudio, text virá da transcrição; para imagem, do comprovante. */
+function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string; media?: MediaPayload } | null {
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
   const tipoEnvio = (b.tipo_envio as string) || ''
@@ -121,6 +123,9 @@ function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string
   if (media?.type === 'audio' && media.url) {
     return { from: fromClean, media: { type: 'audio', url: media.url, mimetype: media.mimetype || 'audio/ogg' } }
   }
+  if (media?.type === 'image' && media.url) {
+    return { from: fromClean, media: { type: 'image', url: media.url, mimetype: media.mimetype || 'image/jpeg', caption: media.caption } }
+  }
 
   if (text !== undefined && text !== null) {
     return { from: fromClean, text: String(text) }
@@ -138,18 +143,31 @@ export async function GET() {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/** Headers para fetch de mídia (API Fácil pode exigir token). */
+function getMediaFetchHeaders(): HeadersInit {
+  const token = process.env.APIFACIL_TOKEN?.trim()
+  if (token) {
+    return { Authorization: `Bearer ${token}` }
+  }
+  return {}
+}
+
+const MSG_COMPROVANTE_NAO_LEU = `Não consegui ler o comprovante da imagem 😅
+
+Envie a foto com boa iluminação e o comprovante visível, ou descreva em texto: valor e descrição (ex.: "gastei 50 no mercado").`
+
 /** Processar mensagem e enviar resposta em background (não bloqueia a resposta do webhook) */
 async function processarEmBackground(parsed: {
   from: string
   text?: string
-  media?: { type: 'audio'; url: string; mimetype: string }
+  media?: { type: 'audio'; url: string; mimetype: string } | { type: 'image'; url: string; mimetype: string; caption?: string }
 }) {
   const { from, text: textInicial, media } = parsed
   let text = textInicial
   try {
     if (media?.type === 'audio') {
       try {
-        const res = await fetch(media.url, { method: 'GET' })
+        const res = await fetch(media.url, { method: 'GET', headers: getMediaFetchHeaders() })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const buffer = Buffer.from(await res.arrayBuffer())
         const transcribed = await transcribeAudio(buffer, media.mimetype)
@@ -169,6 +187,31 @@ async function processarEmBackground(parsed: {
           const phone = from.startsWith('55') ? from : `55${from}`
           await sendTextMessage(phone, RESPOSTA_AUDIO_NAO_ENTENDI)
           registerSentMessage(phone, RESPOSTA_AUDIO_NAO_ENTENDI)
+        }
+        return
+      }
+    } else if (media?.type === 'image') {
+      try {
+        const res = await fetch(media.url, { method: 'GET', headers: getMediaFetchHeaders() })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const buffer = Buffer.from(await res.arrayBuffer())
+        const comando = await processComprovanteImage(buffer, media.caption)
+        text = (comando || '').trim()
+        if (!text) {
+          if (isApifacilConfigured()) {
+            const phone = from.startsWith('55') ? from : `55${from}`
+            await sendTextMessage(phone, MSG_COMPROVANTE_NAO_LEU)
+            registerSentMessage(phone, MSG_COMPROVANTE_NAO_LEU)
+          }
+          return
+        }
+        console.log('🖼️ [Apifacil Webhook] Comprovante processado:', text.slice(0, 80))
+      } catch (err) {
+        console.error('🖼️ [Apifacil Webhook] Erro ao processar imagem:', err)
+        if (isApifacilConfigured()) {
+          const phone = from.startsWith('55') ? from : `55${from}`
+          await sendTextMessage(phone, MSG_COMPROVANTE_NAO_LEU)
+          registerSentMessage(phone, MSG_COMPROVANTE_NAO_LEU)
         }
         return
       }
