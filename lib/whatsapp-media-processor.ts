@@ -304,26 +304,23 @@ export async function downloadMedia(mediaUrl: string, headers?: HeadersInit): Pr
       return null
     }
 
-    const isApifacil = /apifacil|apifacilv2/i.test(mediaUrl)
     const token = process.env.APIFACIL_TOKEN?.trim()
+    const hasAuth = headers && typeof headers === 'object' && Object.keys(headers as object).length > 0
 
-    // Para API Fácil: tentar primeiro sem auth (URL pode vir pré-assinada); 400 é comum quando enviamos Authorization.
-    let response: Response
-    if (isApifacil) {
-      response = await fetch(mediaUrl, { method: 'GET' })
-      if (!response.ok && response.status === 401 && token) {
+    // Sempre tentar primeiro SEM auth: muitas URLs de mídia (API Fácil, CDN) são pré-assinadas e devolvem 400 se enviarmos Authorization.
+    let response = await fetch(mediaUrl, { method: 'GET' })
+    if (!response.ok && hasAuth && token) {
+      if (response.status === 401) {
         response = await fetch(mediaUrl, { method: 'GET', headers: { Authorization: token } })
       }
-      if (!response.ok && (response.status === 400 || response.status === 401) && token) {
+      if (!response.ok && (response.status === 400 || response.status === 401)) {
         const sep = mediaUrl.includes('?') ? '&' : '?'
         response = await fetch(`${mediaUrl}${sep}token=${encodeURIComponent(token)}`, { method: 'GET' })
       }
-      if (!response.ok && response.status === 401 && token) {
+      if (!response.ok && response.status === 401) {
         const authHeader = token.startsWith('Bearer ') ? token : `Bearer ${token}`
         response = await fetch(mediaUrl, { method: 'GET', headers: { Authorization: authHeader } })
       }
-    } else {
-      response = await fetch(mediaUrl, { method: 'GET', headers: headers || {} })
     }
     if (!response.ok) {
       console.error('❌ [Media Processor] Erro ao baixar mídia:', response.status, response.statusText)
@@ -343,11 +340,22 @@ export async function downloadMedia(mediaUrl: string, headers?: HeadersInit): Pr
 /**
  * Processar imagem de comprovante usando IA
  */
+function looksLikeImage(buffer: Buffer): boolean {
+  if (!buffer || buffer.length < 50) return false
+  const h = buffer.subarray(0, 8)
+  if (h[0] === 0xff && h[1] === 0xd8) return true // JPEG
+  if (h[0] === 0x89 && h[1] === 0x50 && h[2] === 0x4e && h[3] === 0x47) return true // PNG
+  if (h[0] === 0x3c || h[0] === 0x7b) return false // HTML ou JSON (erro)
+  return true
+}
+
 export async function processComprovanteImage(imageBuffer: Buffer, caption?: string): Promise<string | null> {
   try {
     console.log('🔍 [Media Processor] Processando comprovante de imagem...')
-    
-    // Converter imagem para base64
+    if (!looksLikeImage(imageBuffer)) {
+      console.error('❌ [Media Processor] Buffer não parece imagem (pode ser HTML/erro do servidor)')
+      return null
+    }
     const base64Image = imageBuffer.toString('base64')
     
     // Prioridade: Gemini (Gratuito) → OpenAI GPT-4o Vision → Google Cloud Vision → Azure Vision
@@ -435,44 +443,14 @@ async function processImageWithGemini(base64Image: string, caption?: string): Pr
   console.log('🔍 [Media Processor] Gemini API Key configurada:', process.env.GEMINI_API_KEY.substring(0, 10) + '...')
   console.log('🔍 [Media Processor] Tamanho da imagem base64:', base64Image.length, 'caracteres')
 
-  const prompt = `Analise esta imagem de comprovante de pagamento PIX, boleto, ou comprovante de compra e extraia TODAS as informações disponíveis em formato JSON:
+  const prompt = `Analise esta imagem de comprovante (PIX, boleto, recibo). Extraia em JSON.
 
-IMPORTANTE: Para comprovantes PIX, identifique:
-- "Quem recebeu" / "Recebedor" = nome_beneficiario (para quem você PAGOU)
-- "Quem pagou" / "Pagador" = nome_pagador (você ou quem pagou)
-- "Valor" = valor da transação
-- "Data" = data da transação
+PIX enviado (você pagou): "Quem recebeu" = nome_beneficiario, valor em reais. tipo = "pix".
+PIX recebido (você recebeu): "Quem pagou" = nome_pagador, valor. tipo = "recebimento".
+Valor: use número (ex: R$ 80,00 → 80). Data: YYYY-MM-DD se possível.
 
-Para outros comprovantes, identifique:
-- Valor pago/recebido
-- Nome da pessoa/empresa
-- Data
-- Descrição do pagamento
-
-Retorne JSON com esta estrutura:
-{
-  "tipo": "pix" | "boleto" | "comprovante_compra" | "pagamento" | "recebimento" | "outro",
-  "valor": número em reais (ex: 150.50),
-  "data": "YYYY-MM-DD" ou null,
-  "descricao": "descrição do pagamento",
-  "nome_beneficiario": "nome de QUEM RECEBEU (se você pagou) ou quem você vai pagar",
-  "nome_pagador": "nome de QUEM PAGOU (você ou outro pagador)",
-  "observacoes": "outras informações relevantes"
-}
-
-${caption ? `Legenda do usuário: "${caption}"` : ''}
-
-Se for um PIX onde você PAGOU para alguém:
-- tipo: "pix"
-- nome_beneficiario: nome de quem recebeu
-- valor: valor que você pagou
-
-Se for um PIX onde você RECEBEU de alguém:
-- tipo: "recebimento"  
-- nome_pagador: nome de quem pagou para você
-- valor: valor que você recebeu
-
-Retorne APENAS o JSON válido, sem markdown, sem explicações, sem texto adicional.`
+Retorne SOMENTE um JSON válido, sem markdown: {"tipo":"pix"|"recebimento","valor":número,"data":null ou "YYYY-MM-DD","nome_beneficiario":"","nome_pagador":"","descricao":""}
+${caption ? ` Legenda: ${caption}` : ''}`
 
   try {
     console.log('🔍 [Media Processor] Chamando Gemini API...')
@@ -605,44 +583,12 @@ async function processImageWithOpenAI(base64Image: string, caption?: string): Pr
     return null
   }
 
-  const prompt = `Analise esta imagem de comprovante de pagamento PIX, boleto, ou comprovante de compra e extraia TODAS as informações disponíveis em formato JSON:
-
-IMPORTANTE: Para comprovantes PIX, identifique:
-- "Quem recebeu" / "Recebedor" = nome_beneficiario (para quem você PAGOU)
-- "Quem pagou" / "Pagador" = nome_pagador (você ou quem pagou)
-- "Valor" = valor da transação
-- "Data" = data da transação
-
-Para outros comprovantes, identifique:
-- Valor pago/recebido
-- Nome da pessoa/empresa
-- Data
-- Descrição do pagamento
-
-Retorne JSON com esta estrutura:
-{
-  "tipo": "pix" | "boleto" | "comprovante_compra" | "pagamento" | "recebimento" | "outro",
-  "valor": número em reais (ex: 150.50),
-  "data": "YYYY-MM-DD" ou null,
-  "descricao": "descrição do pagamento",
-  "nome_beneficiario": "nome de QUEM RECEBEU (se você pagou) ou quem você vai pagar",
-  "nome_pagador": "nome de QUEM PAGOU (você ou outro pagador)",
-  "observacoes": "outras informações relevantes"
-}
-
-${caption ? `Legenda do usuário: "${caption}"` : ''}
-
-Se for um PIX onde você PAGOU para alguém:
-- tipo: "pix"
-- nome_beneficiario: nome de quem recebeu
-- valor: valor que você pagou
-
-Se for um PIX onde você RECEBEU de alguém:
-- tipo: "recebimento"  
-- nome_pagador: nome de quem pagou para você
-- valor: valor que você recebeu
-
-Retorne APENAS o JSON válido, sem markdown, sem explicações, sem texto adicional.`
+  const prompt = `Analise esta imagem de comprovante (PIX, boleto, recibo). Extraia em JSON.
+PIX enviado (você pagou): "Quem recebeu" = nome_beneficiario, valor em reais. tipo = "pix".
+PIX recebido (você recebeu): "Quem pagou" = nome_pagador, valor. tipo = "recebimento".
+Valor: número (ex: R$ 80,00 → 80). Data: YYYY-MM-DD se possível.
+Retorne SOMENTE um JSON válido: {"tipo":"pix"|"recebimento","valor":número,"data":null ou "YYYY-MM-DD","nome_beneficiario":"","nome_pagador":"","descricao":""}
+${caption ? ` Legenda: ${caption}` : ''}`
 
   try {
     console.log('🔍 [Media Processor] Chamando OpenAI GPT-4o Vision...')
