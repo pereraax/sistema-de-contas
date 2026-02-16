@@ -524,26 +524,18 @@ ${caption ? ` Legenda: ${caption}` : ''}`
           if (extractedText) {
             console.log(`✅ [Media Processor] Gemini modelo ${model} funcionou!`)
             console.log('📝 [Media Processor] Resposta do Gemini:', extractedText.substring(0, 500))
-            
-            // Tentar extrair JSON da resposta
-            const jsonMatch = extractedText.match(/\{[\s\S]*\}/)
-            if (jsonMatch) {
-              try {
-                const jsonData = JSON.parse(jsonMatch[0])
-                console.log('✅ [Media Processor] JSON extraído:', JSON.stringify(jsonData))
-                return formatarComprovante(jsonData)
-              } catch (parseError: any) {
-                console.error('❌ [Media Processor] Erro ao fazer parse do JSON:', parseError.message)
-                console.error('❌ [Media Processor] Texto que falhou no parse:', extractedText.substring(0, 200))
-                // Retornar texto mesmo assim
-                return extractedText
-              }
+            const jsonData = extrairJsonDaResposta(extractedText)
+            if (jsonData && typeof jsonData === 'object') {
+              const cmd = formatarComprovante(jsonData)
+              if (cmd) return cmd
             }
-            
-            return extractedText
+            const cmdTexto = extrairComandoDeTexto(extractedText)
+            if (cmdTexto) return cmdTexto
+            if (extractedText.length <= 200) return extractedText.trim()
+            return null
           } else {
             console.log('⚠️ [Media Processor] Gemini retornou resposta vazia')
-            console.log('⚠️ [Media Processor] Data completa:', JSON.stringify(data))
+            if (data.candidates?.[0]?.finishReason) console.log('⚠️ [Media Processor] finishReason:', data.candidates[0].finishReason)
           }
         } else {
           const errorText = await response.text()
@@ -644,23 +636,16 @@ ${caption ? ` Legenda: ${caption}` : ''}`
       console.error('❌ [Media Processor] OpenAI não retornou texto')
       return null
     }
-    
     console.log('📝 [Media Processor] Resposta do OpenAI:', extractedText.substring(0, 200))
-    
-    // Tentar extrair JSON da resposta
-    const jsonMatch = extractedText.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      try {
-        const jsonData = JSON.parse(jsonMatch[0])
-        console.log('✅ [Media Processor] JSON extraído:', jsonData)
-        return formatarComprovante(jsonData)
-      } catch (parseError: any) {
-        console.error('❌ [Media Processor] Erro ao fazer parse do JSON:', parseError.message)
-        return extractedText
-      }
+    const jsonData = extrairJsonDaResposta(extractedText)
+    if (jsonData && typeof jsonData === 'object') {
+      const cmd = formatarComprovante(jsonData)
+      if (cmd) return cmd
     }
-    
-    return extractedText
+    const cmdTexto = extrairComandoDeTexto(extractedText)
+    if (cmdTexto) return cmdTexto
+    if (extractedText.length <= 200) return extractedText.trim()
+    return null
   } catch (error: any) {
     console.error('❌ [Media Processor] Erro ao processar com OpenAI:', error.message)
     return null
@@ -961,6 +946,42 @@ function formatarComprovante(dados: any): string {
   
   console.log('📝 [Media Processor] Comando formatado:', comando)
   return comando
+}
+
+/** Extrai comando de texto livre quando a IA não retorna JSON */
+function extrairComandoDeTexto(texto: string): string | null {
+  if (!texto || typeof texto !== 'string') return null
+  const t = texto.trim()
+  if (t.length < 3) return null
+  const valorMatch = t.match(/R\$\s*(\d+)[.,]?(\d*)/i) || t.match(/valor[:\s]+(\d+)[.,]?(\d*)/i) || t.match(/(\d+)[.,](\d{2})/)
+  const numValor = valorMatch ? parseFloat((valorMatch[1] || '0') + '.' + (valorMatch[2] || '00').padEnd(2, '0')) : null
+  const valorOk = numValor != null && !isNaN(numValor) && numValor > 0
+  const quemRecebeu = t.match(/(?:quem\s+recebeu|recebedor|beneficiário|nome_beneficiario)\s*[:\s]*([A-Za-z0-9\s.-]+?)(?:\n|,|\.|$)/i)?.[1]?.trim() || t.match(/para\s+([A-Za-z0-9\s.-]{2,}?)(?:\s*\.|$|\n)/i)?.[1]?.trim()
+  const quemPagou = t.match(/(?:quem\s+pagou|pagador|nome_pagador)\s*[:\s]*([A-Za-z0-9\s.-]+?)(?:\n|,|\.|$)/i)?.[1]?.trim()
+  const recebido = /recebido|recebi|recebeu\s+de/i.test(t) || (!!quemPagou && !quemRecebeu)
+  if (valorOk) {
+    if (recebido && quemPagou) return `recebi ${numValor!.toFixed(2)} de ${quemPagou}`
+    if (quemRecebeu) return `paguei ${numValor!.toFixed(2)} para ${quemRecebeu}`
+    if (quemPagou) return `recebi ${numValor!.toFixed(2)} de ${quemPagou}`
+    return `paguei ${numValor!.toFixed(2)}`
+  }
+  if (quemRecebeu) return `paguei para ${quemRecebeu}`
+  if (quemPagou) return `recebi de ${quemPagou}`
+  return null
+}
+
+/** Extrai objeto JSON de texto (suporta ```json ... ``` e { ... }) */
+function extrairJsonDaResposta(texto: string): any | null {
+  if (!texto || typeof texto !== 'string') return null
+  const t = texto.trim()
+  const codeBlock = t.match(/```(?:json)?\s*([\s\S]*?)```/)
+  const jsonStr = codeBlock ? codeBlock[1].trim() : t.match(/\{[\s\S]*\}/)?.[0]
+  if (!jsonStr) return null
+  try {
+    return JSON.parse(jsonStr)
+  } catch {
+    return null
+  }
 }
 
 /** Extensão e MIME para Whisper (Groq/OpenAI aceitam: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm) */
