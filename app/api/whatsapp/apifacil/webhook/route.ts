@@ -154,6 +154,23 @@ gastei 50 no mercado
 paguei 80 para João
 recebi 100 de Maria`
 
+/** Quando o valor lido é suspeito (ex.: R$ 2 em vez de R$ 80), pedir legenda para não registrar errado. */
+const MSG_VALOR_BAIXO = `Não consegui identificar o valor certo no comprovante (evitar registrar valor errado).
+
+Para registrar certo, reenvie a foto *com legenda* dizendo o valor e para quem. Exemplos:
+• paguei 80 para Pagsmile
+• gastei 50 no mercado
+• recebi 100 de Maria`
+
+/** Extrai o valor em reais de um comando tipo "paguei 2.00 para X" ou "recebi 80.00 de Y". */
+function valorDoComando(comando: string): number | null {
+  const m = comando.match(/paguei\s+([\d.,]+)|recebi\s+([\d.,]+)/i)
+  const s = m?.[1] ?? m?.[2]
+  if (!s) return null
+  const n = parseFloat(s.replace(',', '.'))
+  return Number.isFinite(n) ? n : null
+}
+
 /** Processar mensagem e enviar resposta em background (não bloqueia a resposta do webhook) */
 async function processarEmBackground(parsed: {
   from: string
@@ -205,6 +222,17 @@ async function processarEmBackground(parsed: {
             const phone = from.startsWith('55') ? from : `55${from}`
             await sendTextMessage(phone, MSG_COMPROVANTE_NAO_LEU)
             registerSentMessage(phone, MSG_COMPROVANTE_NAO_LEU)
+          }
+          return
+        }
+        // Solução definitiva: NUNCA registrar valor suspeito (<= 20). Pedir reenvio com legenda.
+        const valor = valorDoComando(text)
+        if (valor != null && valor <= 20) {
+          console.warn('🖼️ [Apifacil Webhook] Valor suspeito no comprovante:', valor, '→ pedindo reenvio com legenda')
+          if (isApifacilConfigured()) {
+            const phone = from.startsWith('55') ? from : `55${from}`
+            await sendTextMessage(phone, MSG_VALOR_BAIXO)
+            registerSentMessage(phone, MSG_VALOR_BAIXO)
           }
           return
         }
