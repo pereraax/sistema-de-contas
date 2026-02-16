@@ -147,9 +147,12 @@ function getMediaFetchHeaders(): HeadersInit {
   return {}
 }
 
-const MSG_COMPROVANTE_NAO_LEU = `Não consegui ler o comprovante da imagem 😅
+const MSG_COMPROVANTE_NAO_LEU = `Não consegui ler o comprovante 😅
 
-Envie a foto com boa iluminação e o comprovante visível, ou descreva em texto: valor e descrição (ex.: "gastei 50 no mercado").`
+Envie a foto de novo com uma legenda, por exemplo:
+gastei 50 no mercado
+paguei 80 para João
+recebi 100 de Maria`
 
 /** Processar mensagem e enviar resposta em background (não bloqueia a resposta do webhook) */
 async function processarEmBackground(parsed: {

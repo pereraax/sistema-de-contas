@@ -357,57 +357,103 @@ function looksLikeImage(buffer: Buffer): boolean {
   return true
 }
 
-/** OCR puro: pede só o texto da imagem (sem IA interpretar). Depois extraímos comando com regras. */
-async function ocrImageSóTexto(base64Image: string): Promise<string | null> {
-  if (!process.env.GEMINI_API_KEY || !base64Image || base64Image.length < 100) return null
+/** Google Vision: só OCR, retorna texto puro (sem IA). */
+async function getOcrTextGoogleVision(base64Image: string): Promise<string | null> {
+  if (!process.env.GOOGLE_CLOUD_VISION_API_KEY || !base64Image) return null
   try {
-    const apiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`
-    const res = await fetch(apiUrl, {
+    const res = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${process.env.GOOGLE_CLOUD_VISION_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: 'Transcreva todo o texto visível nesta imagem, na ordem. Apenas o texto, linha por linha, sem explicação nem JSON.' }, { inline_data: { mime_type: 'image/jpeg', data: base64Image } }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 1024 },
+        requests: [{ image: { content: base64Image }, features: [{ type: 'TEXT_DETECTION', maxResults: 1 }] }],
       }),
     })
     if (!res.ok) return null
     const data = await res.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
-    return text || null
+    return data.responses?.[0]?.textAnnotations?.[0]?.description?.trim() || null
   } catch {
     return null
   }
+}
+
+/** Gemini: só transcrever texto da imagem (sem pedir JSON). */
+async function ocrImageSóTexto(base64Image: string): Promise<string | null> {
+  if (!process.env.GEMINI_API_KEY || !base64Image || base64Image.length < 100) return null
+  const prompts = [
+    'Transcreva todo o texto visível nesta imagem. Apenas o texto, sem explicação.',
+    'Liste todo o texto que aparece nesta imagem, na ordem.',
+  ]
+  for (const prompt of prompts) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'image/jpeg', data: base64Image } }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 1024 },
+        }),
+      })
+      if (!res.ok) continue
+      const data = await res.json()
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
+      if (text) return text
+    } catch {
+      continue
+    }
+  }
+  return null
 }
 
 export async function processComprovanteImage(imageBuffer: Buffer, caption?: string): Promise<string | null> {
   try {
     console.log('🔍 [Media Processor] Processando comprovante de imagem...')
     if (!looksLikeImage(imageBuffer)) {
-      console.error('❌ [Media Processor] Buffer não parece imagem (pode ser HTML/erro do servidor)')
+      console.error('❌ [Media Processor] Buffer não parece imagem')
       return null
     }
     const base64Image = imageBuffer.toString('base64')
 
-    // 1) OCR primeiro (só texto, sem pedir JSON à IA) → nossas regras extraem valor/nome
+    // 0) Legenda do usuário (sem chamar nenhuma API)
+    if (caption && caption.trim().length > 2) {
+      const cmdCaption = extrairComandoDeTexto(caption.trim())
+      if (cmdCaption) {
+        console.log('✅ [Media Processor] Comando da legenda:', cmdCaption)
+        return cmdCaption
+      }
+    }
+
+    // 1) Google Vision só OCR (sem IA) → regras nossas
+    const ocrGoogle = await getOcrTextGoogleVision(base64Image)
+    if (ocrGoogle) {
+      const cmd = extrairComandoDeTexto(ocrGoogle)
+      if (cmd) {
+        console.log('✅ [Media Processor] Comando do OCR (Google Vision):', cmd)
+        return cmd
+      }
+      if (caption) {
+        const c = extrairComandoDeTexto(ocrGoogle + '\n' + caption)
+        if (c) return c
+      }
+    }
+
+    // 2) Gemini só texto (OCR) → regras nossas
     if (process.env.GEMINI_API_KEY) {
-      console.log('🔍 [Media Processor] Tentando OCR só texto (sem IA interpretar)...')
-      const ocrText = await ocrImageSóTexto(base64Image)
-      if (ocrText) {
-        const cmd = extrairComandoDeTexto(ocrText)
+      const ocrGemini = await ocrImageSóTexto(base64Image)
+      if (ocrGemini) {
+        const cmd = extrairComandoDeTexto(ocrGemini)
         if (cmd) {
-          console.log('✅ [Media Processor] Comando extraído do OCR:', cmd)
+          console.log('✅ [Media Processor] Comando do OCR (Gemini):', cmd)
           return cmd
         }
         if (caption) {
-          const cmdLegenda = extrairComandoDeTexto(ocrText + '\n' + caption)
-          if (cmdLegenda) return cmdLegenda
+          const c = extrairComandoDeTexto(ocrGemini + '\n' + caption)
+          if (c) return c
         }
       }
     }
 
-    // 2) Fallback: IA que tenta retornar JSON (pode falhar ou atrapalhar)
-    
-    // Tentar Gemini (gratuito)
+    // 3) IAs que tentam retornar JSON
+    // Gemini
     if (process.env.GEMINI_API_KEY) {
       try {
         console.log('🔍 [Media Processor] Tentando Gemini (gratuito)...')
@@ -463,8 +509,19 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
     
-    // Se nenhuma funcionou, retornar null
-    console.log('⚠️ [Media Processor] Nenhum provedor de IA funcionou. Configure GEMINI_API_KEY, OPENAI_API_KEY, GOOGLE_CLOUD_VISION_API_KEY ou AZURE_VISION_API_KEY.')
+    // Último recurso: legenda com número → "paguei X"
+    if (caption && caption.trim().length > 0) {
+      const num = caption.match(/(\d+)[.,]?(\d*)/)
+      if (num) {
+        const v = parseFloat((num[1] || '0') + '.' + (num[2] || '00').padEnd(2, '0'))
+        if (v > 0) {
+          console.log('✅ [Media Processor] Fallback: comando da legenda (valor)', v)
+          return `paguei ${v.toFixed(2)}`
+        }
+      }
+    }
+
+    console.log('⚠️ [Media Processor] Nenhum comando extraído. Dica: envie com legenda, ex: "gastei 50 no mercado".')
     return null
   } catch (error: any) {
     console.error('❌ [Media Processor] Erro ao processar imagem:', error.message)
@@ -987,12 +1044,29 @@ function formatarComprovante(dados: any): string {
   return comando
 }
 
-/** Extrai comando de texto livre quando a IA não retorna JSON */
+/** Extrai comando de texto livre (legenda, OCR, etc.) */
 function extrairComandoDeTexto(texto: string): string | null {
   if (!texto || typeof texto !== 'string') return null
   const t = texto.trim()
-  if (t.length < 3) return null
-  const valorMatch = t.match(/R\$\s*(\d+)[.,]?(\d*)/i) || t.match(/valor[:\s]+(\d+)[.,]?(\d*)/i) || t.match(/(\d+)[.,](\d{2})/)
+  if (t.length < 2) return null
+
+  // "gastei 50 no mercado", "gastei 50 em X", "paguei 50 no X"
+  const gasteiMatch = t.match(/gastei\s+(\d+)[.,]?(\d*)\s+(?:no|na|em|para)\s+([A-Za-z0-9\s]+?)(?:\s*\.|$|\n)/i)
+  if (gasteiMatch) {
+    const v = parseFloat((gasteiMatch[1] || '0') + '.' + (gasteiMatch[2] || '00').padEnd(2, '0'))
+    const nome = gasteiMatch[3]?.trim()
+    if (nome) return `paguei ${v.toFixed(2)} para ${nome}`
+    return `paguei ${v.toFixed(2)}`
+  }
+  const recebiMatch = t.match(/recebi\s+(\d+)[.,]?(\d*)\s+(?:de)\s+([A-Za-z0-9\s]+?)(?:\s*\.|$|\n)/i)
+  if (recebiMatch) {
+    const v = parseFloat((recebiMatch[1] || '0') + '.' + (recebiMatch[2] || '00').padEnd(2, '0'))
+    const nome = recebiMatch[3]?.trim()
+    if (nome) return `recebi ${v.toFixed(2)} de ${nome}`
+    return `recebi ${v.toFixed(2)}`
+  }
+
+  const valorMatch = t.match(/R\$\s*(\d+)[.,]?(\d*)/i) || t.match(/(\d+)[.,]?(\d*)\s*reais/i) || t.match(/valor[:\s]+(\d+)[.,]?(\d*)/i) || t.match(/(\d+)[.,](\d{2})/)
   const numValor = valorMatch ? parseFloat((valorMatch[1] || '0') + '.' + (valorMatch[2] || '00').padEnd(2, '0')) : null
   const valorOk = numValor != null && !isNaN(numValor) && numValor > 0
   const quemRecebeu = t.match(/(?:quem\s+recebeu|recebedor|beneficiário|nome_beneficiario)\s*[:\s]*([A-Za-z0-9\s.-]+?)(?:\n|,|\.|$)/i)?.[1]?.trim() || t.match(/para\s+([A-Za-z0-9\s.-]{2,}?)(?:\s*\.|$|\n)/i)?.[1]?.trim()
