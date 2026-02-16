@@ -2,6 +2,8 @@
  * Processamento de mídia (imagens e áudios) para WhatsApp
  */
 
+import { normalizarNumerosPorExtenso } from '@/lib/plen-registro'
+
 export interface MediaInfo {
   type: 'image' | 'audio' | 'document'
   url: string
@@ -404,6 +406,72 @@ async function ocrImageSóTexto(base64Image: string): Promise<string | null> {
   return null
 }
 
+/**
+ * Extrai valor principal e nomes do texto OCR do comprovante (PIX etc.).
+ * Prioriza valor em contexto "R$", "Valor", "Total" e o maior valor encontrado (evita pegar 2 de data/código).
+ * Retorna comando pronto "paguei X para Y" / "recebi X de Y" ou null.
+ */
+function extrairComprovanteOCR(texto: string): string | null {
+  if (!texto || typeof texto !== 'string' || texto.trim().length < 3) return null
+  const t = texto.trim()
+
+  // 1) Valor: preferir R$ X,XX ou Valor/Total; senão maior número no formato X,XX ou X.XX
+  const valorCandidatos: number[] = []
+  const reR$ = /R\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/g
+  const reValorTotal = /(?:valor|total)\s*[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/gi
+  const reNumeroDecimal = /(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/g
+
+  function parseValorBR(s: string): number {
+    const limpo = s.replace(/\s/g, '').replace(/\./g, '').replace(',', '.')
+    const n = parseFloat(limpo)
+    return isNaN(n) ? 0 : n
+  }
+
+  let m: RegExpExecArray | null
+  while ((m = reR$.exec(t)) !== null) valorCandidatos.push(parseValorBR(m[1]))
+  reValorTotal.lastIndex = 0
+  while ((m = reValorTotal.exec(t)) !== null) valorCandidatos.push(parseValorBR(m[1]))
+  reNumeroDecimal.lastIndex = 0
+  while ((m = reNumeroDecimal.exec(t)) !== null) valorCandidatos.push(parseValorBR(m[1]))
+
+  const valor = valorCandidatos.length > 0
+    ? Math.max(...valorCandidatos.filter((v) => v > 0 && v < 10_000_000))
+    : null
+  if (valor == null || valor <= 0) return null
+
+  // 2) Nomes: "Quem recebeu" → beneficiário (quem você pagou); "Quem pagou" → pagador (quem te pagou)
+  const quemRecebeuBlock = t.match(/(?:Quem\s+recebeu|recebedor|benefici[aá]rio)[\s\S]*?(?=Quem\s+pagou|pagador|$)/i)
+  const quemPagouBlock = t.match(/(?:Quem\s+pagou|pagador)[\s\S]*?(?=Valor|Total|R\$|$)/i)
+
+  const nomeDepoisDe = (bloco: string | null, label: string): string => {
+    if (!bloco) return ''
+    const r = new RegExp(`${label}\\s*[:\\s]*([A-Za-z0-9\\s.-]{2,}?)(?=\\n|\\s*CPF|\\s*CNPJ|Instituição|$)`, 'i')
+    const match = bloco.match(r)
+    return match ? match[1].replace(/\s+/g, ' ').trim().substring(0, 120) : ''
+  }
+
+  let nomeBeneficiario = nomeDepoisDe(quemRecebeuBlock?.[0] ?? null, 'Nome')
+  if (!nomeBeneficiario && quemRecebeuBlock) {
+    const linha = quemRecebeuBlock[0].split(/\n/).find((l) => /^[A-Za-z]/.test(l.trim()) && l.trim().length > 2)
+    if (linha) nomeBeneficiario = linha.trim().substring(0, 120)
+  }
+
+  let nomePagador = nomeDepoisDe(quemPagouBlock?.[0] ?? null, 'Nome')
+  if (!nomePagador && quemPagouBlock) {
+    const linha = quemPagouBlock[0].split(/\n/).find((l) => /^[A-Za-z]/.test(l.trim()) && l.trim().length > 2)
+    if (linha) nomePagador = linha.trim().substring(0, 120)
+  }
+
+  // 3) Direção: "Quem recebeu" = beneficiário (você pagou para ele). "Quem pagou" = quem te pagou (recebimento). Preferir beneficiário quando existir (comprovante de gasto).
+  if (nomeBeneficiario) {
+    return `paguei ${valor.toFixed(2)} para ${nomeBeneficiario}`
+  }
+  if (nomePagador) {
+    return `recebi ${valor.toFixed(2)} de ${nomePagador}`
+  }
+  return `paguei ${valor.toFixed(2)}`
+}
+
 export async function processComprovanteImage(imageBuffer: Buffer, caption?: string): Promise<string | null> {
   try {
     console.log('🔍 [Media Processor] Processando comprovante de imagem...')
@@ -422,37 +490,47 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
 
-    // 1) Google Vision só OCR (sem IA) → regras nossas
+    // 1) Google Vision só OCR → extração determinística (valor principal + nomes) tem prioridade
     const ocrGoogle = await getOcrTextGoogleVision(base64Image)
     if (ocrGoogle) {
+      const cmdOCR = extrairComprovanteOCR(ocrGoogle)
+      if (cmdOCR) {
+        console.log('✅ [Media Processor] Comando do OCR (Google Vision, extração valor/nome):', cmdOCR)
+        return cmdOCR
+      }
       const cmd = extrairComandoDeTexto(ocrGoogle)
       if (cmd) {
         console.log('✅ [Media Processor] Comando do OCR (Google Vision):', cmd)
         return cmd
       }
       if (caption) {
-        const c = extrairComandoDeTexto(ocrGoogle + '\n' + caption)
+        const c = extrairComprovanteOCR(ocrGoogle + '\n' + caption) || extrairComandoDeTexto(ocrGoogle + '\n' + caption)
         if (c) return c
       }
     }
 
-    // 2) Gemini só texto (OCR) → regras nossas
+    // 2) Gemini só texto (OCR) → mesma prioridade: extração valor/nome depois extrairComandoDeTexto
     if (process.env.GEMINI_API_KEY) {
       const ocrGemini = await ocrImageSóTexto(base64Image)
       if (ocrGemini) {
+        const cmdOCR = extrairComprovanteOCR(ocrGemini)
+        if (cmdOCR) {
+          console.log('✅ [Media Processor] Comando do OCR (Gemini, extração valor/nome):', cmdOCR)
+          return cmdOCR
+        }
         const cmd = extrairComandoDeTexto(ocrGemini)
         if (cmd) {
           console.log('✅ [Media Processor] Comando do OCR (Gemini):', cmd)
           return cmd
         }
         if (caption) {
-          const c = extrairComandoDeTexto(ocrGemini + '\n' + caption)
+          const c = extrairComprovanteOCR(ocrGemini + '\n' + caption) || extrairComandoDeTexto(ocrGemini + '\n' + caption)
           if (c) return c
         }
       }
     }
 
-    // 3) IAs que tentam retornar JSON
+    // 3) IAs que tentam retornar JSON (só se OCR não encontrou valor/nome)
     // Gemini
     if (process.env.GEMINI_API_KEY) {
       try {
@@ -547,11 +625,13 @@ async function processImageWithGemini(base64Image: string, caption?: string): Pr
   console.log('🔍 [Media Processor] Gemini API Key configurada:', process.env.GEMINI_API_KEY.substring(0, 10) + '...')
   console.log('🔍 [Media Processor] Tamanho da imagem base64:', base64Image.length, 'caracteres')
 
-  const prompt = `Analise esta imagem de comprovante (PIX, boleto, recibo). Extraia em JSON.
+  const prompt = `Analise esta imagem de comprovante (PIX, boleto, recibo) e extraia em JSON.
 
-PIX enviado (você pagou): "Quem recebeu" = nome_beneficiario, valor em reais. tipo = "pix".
+IMPORTANTE - Valor: use o valor PRINCIPAL da transação (o valor pago ou recebido, em reais). É o número em destaque, ex: R$ 80,00 → valor 80. NÃO use outros números que apareçam (data, código, ID, parcelas). Se houver um único valor em reais, use esse.
+PIX enviado (você pagou): "Quem recebeu" = nome_beneficiario (nome completo ou razão social), valor em reais. tipo = "pix".
 PIX recebido (você recebeu): "Quem pagou" = nome_pagador, valor. tipo = "recebimento".
-Valor: use número (ex: R$ 80,00 → 80). Data: YYYY-MM-DD se possível.
+Preencha nome_beneficiario ou nome_pagador com o nome real que aparece no comprovante (não deixe vazio se estiver visível).
+Data: YYYY-MM-DD se possível, senão null.
 
 Retorne SOMENTE um JSON válido, sem markdown: {"tipo":"pix"|"recebimento","valor":número,"data":null ou "YYYY-MM-DD","nome_beneficiario":"","nome_pagador":"","descricao":""}
 ${caption ? ` Legenda: ${caption}` : ''}`
@@ -622,6 +702,19 @@ ${caption ? ` Legenda: ${caption}` : ''}`
             console.log('📝 [Media Processor] Resposta do Gemini:', extractedText.substring(0, 500))
             const jsonData = extrairJsonDaResposta(extractedText)
             if (jsonData && typeof jsonData === 'object') {
+              const valorIA = typeof jsonData.valor === 'number' ? jsonData.valor : parseFloat(jsonData.valor)
+              // Se a IA retornou valor muito baixo (ex.: 2), preferir comando extraído do texto (valor/nome corretos)
+              if (valorIA <= 5 && extractedText) {
+                const cmdOCR = extrairComprovanteOCR(extractedText)
+                if (cmdOCR) {
+                  const vMatch = cmdOCR.match(/paguei\s+([\d.]+)|recebi\s+([\d.]+)/)
+                  const v = vMatch ? parseFloat(vMatch[1] ?? vMatch[2] ?? '0') : 0
+                  if (v > valorIA) {
+                    console.log('📝 [Media Processor] Preferindo comando do texto (valor IA era', valorIA, '):', cmdOCR)
+                    return cmdOCR
+                  }
+                }
+              }
               const cmd = formatarComprovante(jsonData)
               if (cmd) return cmd
             }
@@ -679,10 +772,13 @@ async function processImageWithOpenAI(base64Image: string, caption?: string): Pr
     return null
   }
 
-  const prompt = `Analise esta imagem de comprovante (PIX, boleto, recibo). Extraia em JSON.
-PIX enviado (você pagou): "Quem recebeu" = nome_beneficiario, valor em reais. tipo = "pix".
+  const prompt = `Analise esta imagem de comprovante (PIX, boleto, recibo) e extraia em JSON.
+
+IMPORTANTE - Valor: use o valor PRINCIPAL da transação em reais (o valor pago ou recebido, em destaque). Ex: R$ 80,00 → valor 80. NÃO use outros números (data, código, ID).
+PIX enviado (você pagou): "Quem recebeu" = nome_beneficiario (nome que aparece no comprovante). tipo = "pix".
 PIX recebido (você recebeu): "Quem pagou" = nome_pagador, valor. tipo = "recebimento".
-Valor: número (ex: R$ 80,00 → 80). Data: YYYY-MM-DD se possível.
+Preencha nome_beneficiario ou nome_pagador com o nome real do comprovante (não deixe vazio se estiver visível).
+Data: YYYY-MM-DD se possível, senão null.
 Retorne SOMENTE um JSON válido: {"tipo":"pix"|"recebimento","valor":número,"data":null ou "YYYY-MM-DD","nome_beneficiario":"","nome_pagador":"","descricao":""}
 ${caption ? ` Legenda: ${caption}` : ''}`
 
@@ -1047,7 +1143,7 @@ function formatarComprovante(dados: any): string {
 /** Extrai comando de texto livre (legenda, OCR, etc.) */
 function extrairComandoDeTexto(texto: string): string | null {
   if (!texto || typeof texto !== 'string') return null
-  const t = texto.trim()
+  const t = normalizarNumerosPorExtenso(texto.trim())
   if (t.length < 2) return null
 
   // "gastei 50 no mercado", "gastei 50 em X", "paguei 50 no X"
@@ -1066,9 +1162,28 @@ function extrairComandoDeTexto(texto: string): string | null {
     return `recebi ${v.toFixed(2)}`
   }
 
-  const valorMatch = t.match(/R\$\s*(\d+)[.,]?(\d*)/i) || t.match(/(\d+)[.,]?(\d*)\s*reais/i) || t.match(/valor[:\s]+(\d+)[.,]?(\d*)/i) || t.match(/(\d+)[.,](\d{2})/)
-  const numValor = valorMatch ? parseFloat((valorMatch[1] || '0') + '.' + (valorMatch[2] || '00').padEnd(2, '0')) : null
-  const valorOk = numValor != null && !isNaN(numValor) && numValor > 0
+  // Priorizar valor em contexto explícito (R$, Valor, Total) para não pegar número de data/código
+  const valorMatch =
+    t.match(/R\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+[.,]?\d*)/i) ||
+    t.match(/(?:valor|total)\s*[:\s]*R?\$?\s*(\d+[.,]?\d*)/i) ||
+    t.match(/(\d+)[.,]?(\d*)\s*reais/i) ||
+    t.match(/(\d+)[.,](\d{2})/)
+  let numValor: number | null = null
+  if (valorMatch) {
+    const g1 = valorMatch[1] ?? ''
+    const g2 = valorMatch[2] ?? ''
+    const s = g2 !== '' ? `${g1}.${g2.padEnd(2, '0')}` : g1.replace(/\s/g, '').replace(/\./g, '').replace(',', '.')
+    numValor = parseFloat(s)
+    if (isNaN(numValor) || numValor <= 0) numValor = null
+  }
+  if (numValor == null) {
+    const todosValores = [...t.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/g)].map((m) => {
+      const x = m[0].replace(/\./g, '').replace(',', '.')
+      return parseFloat(x)
+    }).filter((n) => !isNaN(n) && n > 0 && n < 10_000_000)
+    if (todosValores.length > 0) numValor = Math.max(...todosValores)
+  }
+  const valorOk = numValor != null && numValor > 0
   const quemRecebeu = t.match(/(?:quem\s+recebeu|recebedor|beneficiário|nome_beneficiario)\s*[:\s]*([A-Za-z0-9\s.-]+?)(?:\n|,|\.|$)/i)?.[1]?.trim() || t.match(/para\s+([A-Za-z0-9\s.-]{2,}?)(?:\s*\.|$|\n)/i)?.[1]?.trim()
   const quemPagou = t.match(/(?:quem\s+pagou|pagador|nome_pagador)\s*[:\s]*([A-Za-z0-9\s.-]+?)(?:\n|,|\.|$)/i)?.[1]?.trim()
   const recebido = /recebido|recebi|recebeu\s+de/i.test(t) || (!!quemPagou && !quemRecebeu)

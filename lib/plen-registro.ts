@@ -5,6 +5,33 @@
 
 import type { TipoRegistro } from '@/lib/types'
 
+/**
+ * Substitui números por extenso (pt-BR) por dígitos no texto, para áudio/OCR.
+ * Ex: "paguei oitenta reais" → "paguei 80 reais", "gastei dois" → "gastei 2"
+ * Exportado para uso em extrairComandoDeTexto (comprovante/legenda).
+ */
+export function normalizarNumerosPorExtenso(texto: string): string {
+  if (!texto || typeof texto !== 'string') return texto
+  const t = texto.trim().toLowerCase()
+  const map: Record<string, number> = {
+    um: 1, dois: 2, três: 3, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
+    onze: 11, doze: 12, treze: 13, catorze: 14, quinze: 15, dezesseis: 16, dezessete: 17, dezoito: 18, dezenove: 19,
+    vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, sessenta: 60, setenta: 70, oitenta: 80, noventa: 90,
+    cem: 100, duzentos: 200, trezentos: 300, quatrocentos: 400, quinhentos: 500, seiscentos: 600, setecentos: 700, oitocentos: 800, novecentos: 900,
+    mil: 1000,
+  }
+  let out = t
+  // Ordenar por tamanho decrescente para não substituir "trezentos" por "3entos"
+  const words = Object.keys(map).sort((a, b) => b.length - a.length)
+  for (const w of words) {
+    const re = new RegExp(`\\b${w}\\b`, 'gi')
+    out = out.replace(re, String(map[w]))
+  }
+  // "e X" após dezenas: "vinte e cinco" → 25 (simplificado: só "e N" onde N < 10)
+  out = out.replace(/\b(20|30|40|50|60|70|80|90)\s+e\s+([1-9])\b/gi, (_, dezena, un) => String(parseInt(dezena, 10) + parseInt(un, 10)))
+  return out
+}
+
 /** Aceita 50, 1.500,00 (BR), 1,500.00 (US), 50 reais, R$ 1.234,56 */
 function extrairValor(texto: string): number | null {
   const raw = texto.replace(/\s*(reais?|r\$|r\b)\s*/gi, '').trim()
@@ -126,6 +153,11 @@ function categoriaInteligente(nome: string, tipo: TipoRegistro): string {
     farmácia: 'Saúde',
     roupas: 'Vestuário',
     roupa: 'Vestuário',
+    pix: 'Transferência',
+    pagsmile: 'Transferência',
+    transferencia: 'Transferência',
+    transferência: 'Transferência',
+    pagamento: 'Transferência',
   }
   const cat = categoriasGasto[n] || Object.keys(categoriasGasto).find((k) => n.includes(k))
   if (cat) return categoriasGasto[cat] || cat
@@ -135,7 +167,7 @@ function categoriaInteligente(nome: string, tipo: TipoRegistro): string {
 }
 
 export function interpretarMensagem(texto: string): InterpretadoPlen | null {
-  const t = texto.trim().toLowerCase()
+  const t = normalizarNumerosPorExtenso(texto.trim().toLowerCase())
   const valorStr = t.match(/[\d.,]+\s*(?:reais?|r\$|r\b)?/i)?.[0] || t.match(/[\d.,]+/)?.[0]
   const valorNum = valorStr ? extrairValor(valorStr) : null
   if (valorNum == null || valorNum <= 0) return null
