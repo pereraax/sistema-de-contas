@@ -649,6 +649,37 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
 }
 
 /**
+ * Pergunta ao Gemini APENAS o valor em reais da transação (uma pergunta simples).
+ * Usado quando a IA retornou valor suspeito (ex.: 2) para corrigir.
+ */
+async function perguntarValorSoGemini(base64Image: string): Promise<number | null> {
+  if (!process.env.GEMINI_API_KEY || !base64Image) return null
+  const prompt = 'Na imagem do comprovante PIX, qual é o valor em reais da transação? É o número em destaque (ex.: R$ 80,00). Responda APENAS com o número, sem texto. Exemplo: 80'
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'image/jpeg', data: base64Image } }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: 20 },
+      }),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim()
+    const fromText = extrairValorPrincipalDoTexto(text)
+    if (fromText != null) return fromText
+    const num = text.match(/\d{1,6}(?:[.,]\d{2})?/)?.[0]?.replace(',', '.') || text.replace(/\D/g, '')
+    const v = num ? parseFloat(num) : NaN
+    if (Number.isFinite(v) && v > 0 && v < 10_000_000) {
+      console.log('📝 [Media Processor] Valor corrigido por pergunta direta ao Gemini:', v)
+      return v
+    }
+  } catch (_) {}
+  return null
+}
+
+/**
  * Processar imagem com Google Gemini (Gratuito e Funcional).
  * Se ocrText for passado, o valor do comando vem SEMPRE do OCR (nunca do JSON da IA), para evitar R$ 2 em vez de R$ 80.
  */
@@ -749,9 +780,17 @@ ${caption ? ` Legenda: ${caption}` : ''}`
               const valorOCR = ocrText ? extrairValorPrincipalDoTexto(ocrText) : null
               const valorDoTexto = extrairValorPrincipalDoTexto(extractedText)
               const valorIA = typeof jsonData.valor === 'number' ? jsonData.valor : parseFloat(jsonData.valor)
-              const valorFinal = valorOCR ?? valorDoTexto ?? (Number.isFinite(valorIA) ? valorIA : null)
+              let valorFinal = valorOCR ?? valorDoTexto ?? (Number.isFinite(valorIA) ? valorIA : null)
               if (valorOCR != null && valorOCR !== valorIA) {
                 console.log('📝 [Media Processor] Valor corrigido pelo OCR: IA=', valorIA, '→ OCR=', valorOCR)
+              }
+              // Se valor ainda suspeito (<= 10), perguntar ao Gemini só o valor (fallback definitivo)
+              if (valorFinal != null && valorFinal <= 10) {
+                const valorPergunta = await perguntarValorSoGemini(base64Image)
+                if (valorPergunta != null && valorPergunta > 10) {
+                  valorFinal = valorPergunta
+                  console.log('📝 [Media Processor] Valor substituído por pergunta direta: antigo=', jsonData.valor, '→ novo=', valorFinal)
+                }
               }
               if (valorFinal != null) jsonData.valor = valorFinal
               const cmd = formatarComprovante(jsonData)
