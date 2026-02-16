@@ -140,12 +140,10 @@ export async function GET() {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-/** Headers para fetch de mídia (API Fácil pode exigir token). */
+/** Headers para fetch de mídia. API Fácil usa "Authorization: token" (sem Bearer). */
 function getMediaFetchHeaders(): HeadersInit {
   const token = process.env.APIFACIL_TOKEN?.trim()
-  if (token) {
-    return { Authorization: `Bearer ${token}` }
-  }
+  if (token) return { Authorization: token }
   return {}
 }
 

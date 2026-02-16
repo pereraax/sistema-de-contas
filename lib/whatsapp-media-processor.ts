@@ -303,13 +303,33 @@ export async function downloadMedia(mediaUrl: string, headers?: HeadersInit): Pr
       console.log('⚠️ [Media Processor] URL não parece ser válida:', mediaUrl)
       return null
     }
-    
-    const response = await fetch(mediaUrl, { method: 'GET', headers: headers || {} })
+
+    const isApifacil = /apifacil|apifacilv2/i.test(mediaUrl)
+    const token = process.env.APIFACIL_TOKEN?.trim()
+
+    // Para API Fácil: tentar primeiro sem auth (URL pode vir pré-assinada); 400 é comum quando enviamos Authorization.
+    let response: Response
+    if (isApifacil) {
+      response = await fetch(mediaUrl, { method: 'GET' })
+      if (!response.ok && response.status === 401 && token) {
+        response = await fetch(mediaUrl, { method: 'GET', headers: { Authorization: token } })
+      }
+      if (!response.ok && (response.status === 400 || response.status === 401) && token) {
+        const sep = mediaUrl.includes('?') ? '&' : '?'
+        response = await fetch(`${mediaUrl}${sep}token=${encodeURIComponent(token)}`, { method: 'GET' })
+      }
+      if (!response.ok && response.status === 401 && token) {
+        const authHeader = token.startsWith('Bearer ') ? token : `Bearer ${token}`
+        response = await fetch(mediaUrl, { method: 'GET', headers: { Authorization: authHeader } })
+      }
+    } else {
+      response = await fetch(mediaUrl, { method: 'GET', headers: headers || {} })
+    }
     if (!response.ok) {
       console.error('❌ [Media Processor] Erro ao baixar mídia:', response.status, response.statusText)
       return null
     }
-    
+
     const arrayBuffer = await response.arrayBuffer()
     const buf = Buffer.from(arrayBuffer)
     console.log('📥 [Media Processor] Baixado', buf.length, 'bytes')
