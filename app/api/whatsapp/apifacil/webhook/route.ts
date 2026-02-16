@@ -187,12 +187,17 @@ async function processarEmBackground(parsed: {
       }
     } else if (media?.type === 'image') {
       try {
-        console.log('🖼️ [Apifacil Webhook] Processando imagem/comprovante:', media.url?.slice(0, 80))
+        console.log('🖼️ [Apifacil Webhook] Imagem detectada, baixando:', media.url?.slice(0, 90))
         const buffer = await downloadMedia(media.url, getMediaFetchHeaders())
-        if (!buffer || buffer.length === 0) throw new Error('Falha ao baixar imagem')
+        if (!buffer || buffer.length === 0) {
+          console.error('🖼️ [Apifacil Webhook] Download falhou (buffer vazio ou null)')
+          throw new Error('Falha ao baixar imagem')
+        }
+        console.log('🖼️ [Apifacil Webhook] Download OK,', buffer.length, 'bytes. Extraindo comprovante...')
         const comando = await processComprovanteImage(buffer, media.caption)
         text = (comando || '').trim()
         if (!text) {
+          console.error('🖼️ [Apifacil Webhook] Nenhum comando extraído da imagem (IA retornou vazio ou null)')
           if (isApifacilConfigured()) {
             const phone = from.startsWith('55') ? from : `55${from}`
             await sendTextMessage(phone, MSG_COMPROVANTE_NAO_LEU)
@@ -200,7 +205,7 @@ async function processarEmBackground(parsed: {
           }
           return
         }
-        console.log('🖼️ [Apifacil Webhook] Comprovante processado:', text.slice(0, 80))
+        console.log('🖼️ [Apifacil Webhook] Comprovante OK:', text.slice(0, 80))
       } catch (err) {
         console.error('🖼️ [Apifacil Webhook] Erro ao processar imagem:', err)
         if (isApifacilConfigured()) {
@@ -298,6 +303,18 @@ export async function POST(request: NextRequest) {
     if (!parsed) {
       const fallback = parseWebhookBody(body)
       if (fallback) parsed = { from: fallback.from, text: fallback.text }
+    }
+    if (parsed && !parsed.media) {
+      const data = (body as any).data || body
+      const te = ((body as any).tipo_envio ?? data?.tipo_envio) as string
+      const url = data?.url_media ?? data?.url_midia ?? data?.media_url ?? data?.url ?? data?.mensagem ?? (body as any).mensagem
+      if (te && typeof url === 'string' && url.startsWith('http')) {
+        const tipo = /AUDIO_RECEBIDO/i.test(te) ? 'audio' : /IMAGEM_RECEBIDA|IMAGE/i.test(te) ? 'image' : null
+        if (tipo) {
+          parsed = { ...parsed, media: { type: tipo as 'audio' | 'image', url, mimetype: tipo === 'audio' ? 'audio/ogg' : 'image/jpeg', caption: tipo === 'image' ? (data?.caption ?? data?.legenda ?? '') : undefined } }
+          console.log('📨 [Apifacil Webhook] Mídia obtida por fallback (tipo_envio + URL):', tipo, url.slice(0, 60))
+        }
+      }
     }
     if (!parsed) {
       const rawPreview = JSON.stringify(body).slice(0, 600)

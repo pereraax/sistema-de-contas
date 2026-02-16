@@ -307,29 +307,37 @@ export async function downloadMedia(mediaUrl: string, headers?: HeadersInit): Pr
     const token = process.env.APIFACIL_TOKEN?.trim()
     const hasAuth = headers && typeof headers === 'object' && Object.keys(headers as object).length > 0
 
-    // Sempre tentar primeiro SEM auth: muitas URLs de mídia (API Fácil, CDN) são pré-assinadas e devolvem 400 se enviarmos Authorization.
-    let response = await fetch(mediaUrl, { method: 'GET' })
+    const tryFetch = (opts: { headers?: HeadersInit; url?: string } = {}) =>
+      fetch(opts.url || mediaUrl, { method: 'GET', headers: opts.headers || {} })
+
+    let response = await tryFetch()
     if (!response.ok && hasAuth && token) {
-      if (response.status === 401) {
-        response = await fetch(mediaUrl, { method: 'GET', headers: { Authorization: token } })
-      }
-      if (!response.ok && (response.status === 400 || response.status === 401)) {
-        const sep = mediaUrl.includes('?') ? '&' : '?'
-        response = await fetch(`${mediaUrl}${sep}token=${encodeURIComponent(token)}`, { method: 'GET' })
-      }
-      if (!response.ok && response.status === 401) {
-        const authHeader = token.startsWith('Bearer ') ? token : `Bearer ${token}`
-        response = await fetch(mediaUrl, { method: 'GET', headers: { Authorization: authHeader } })
-      }
+      if (response.status === 401) response = await tryFetch({ headers: { Authorization: token } })
+      if (!response.ok && (response.status === 400 || response.status === 401))
+        response = await tryFetch({ url: `${mediaUrl}${mediaUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}` })
+      if (!response.ok && response.status === 401)
+        response = await tryFetch({ headers: { Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}` } })
     }
     if (!response.ok) {
       console.error('❌ [Media Processor] Erro ao baixar mídia:', response.status, response.statusText)
       return null
     }
 
-    const arrayBuffer = await response.arrayBuffer()
-    const buf = Buffer.from(arrayBuffer)
-    console.log('📥 [Media Processor] Baixado', buf.length, 'bytes')
+    let buf = Buffer.from(await response.arrayBuffer())
+    const isImage = buf.length >= 50 && ((buf[0] === 0xff && buf[1] === 0xd8) || (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47))
+    const isHtmlOrJson = buf.length > 0 && (buf[0] === 0x3c || buf[0] === 0x7b)
+    if (!isImage && isHtmlOrJson && hasAuth && token) {
+      console.log('📥 [Media Processor] Resposta parece HTML/JSON (não imagem); retentando com Authorization')
+      response = await tryFetch({ headers: { Authorization: token } })
+      if (response.ok) {
+        buf = Buffer.from(await response.arrayBuffer())
+        if (buf[0] === 0x3c || buf[0] === 0x7b) {
+          console.error('❌ [Media Processor] Ainda HTML/JSON após auth. URL pode exigir login no navegador.')
+          return null
+        }
+      }
+    }
+    console.log('📥 [Media Processor] Baixado', buf.length, 'bytes', isImage || buf[0] === 0xff || buf[0] === 0x89 ? '(imagem)' : '')
     return buf
   } catch (error: any) {
     console.error('❌ [Media Processor] Erro ao baixar mídia:', error.message)
