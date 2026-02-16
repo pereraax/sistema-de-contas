@@ -13,20 +13,38 @@ export interface MediaInfo {
 /**
  * Detectar se a mensagem contém mídia
  */
-/** Normaliza body para API Fácil: tipo e URL podem estar em body.data ou com nomes variados */
+/** Mapeia tipo_envio da API Fácil (AUDIO_RECEBIDO, IMAGEM_RECEBIDA) para tipo_mensagem */
+function tipoEnvioToTipoMensagem(tipoEnvio: string): string | null {
+  if (!tipoEnvio || typeof tipoEnvio !== 'string') return null
+  const t = tipoEnvio.toUpperCase()
+  if (t === 'AUDIO_RECEBIDO') return 'audio'
+  if (t === 'IMAGEM_RECEBIDA' || t === 'IMAGE_RECEBIDO') return 'image'
+  if (t === 'VIDEO_RECEBIDO') return 'video'
+  if (t === 'DOCUMENTO_RECEBIDO') return 'document'
+  return null
+}
+
+/** Normaliza body para API Fácil: tipo e URL podem estar em body.data, tipo_envio ou mensagem como URL */
 function normalizeBody(body: any): any {
   if (!body || typeof body !== 'object') return body
   const data = body.data && typeof body.data === 'object' ? body.data : {}
+  const tipoEnvio = (body.tipo_envio ?? data.tipo_envio) as string | undefined
+  const tipoFromEnvio = tipoEnvioToTipoMensagem(tipoEnvio || '')
+  const tipoMensagem = body.tipo_mensagem ?? data.tipo_mensagem ?? data.tipo ?? tipoFromEnvio
+  const mensagem = (body.mensagem ?? data.mensagem) as string | undefined
+  const mensagemIsUrl = typeof mensagem === 'string' && /^https?:\/\//i.test(mensagem.trim())
   const urlMedia =
     body.url_media ?? data.url_media ?? data.url_midia ?? data.url_mídia
     ?? body.media_url ?? data.media_url
     ?? body.url ?? data.url
     ?? body.arquivo ?? data.arquivo ?? body.file ?? data.file
     ?? body.link_midia ?? data.link_midia ?? body.media ?? data.media
+    ?? (mensagemIsUrl && tipoMensagem ? mensagem!.trim() : undefined)
   return {
     ...body,
-    tipo_mensagem: body.tipo_mensagem ?? data.tipo_mensagem ?? data.tipo,
-    type: body.type ?? data.type,
+    tipo_envio: tipoEnvio,
+    tipo_mensagem: tipoMensagem,
+    type: body.type ?? data.type ?? tipoMensagem,
     mimetype: body.mimetype ?? data.mimetype ?? data.mime_type,
     url_media: urlMedia,
     media_url: urlMedia,
@@ -971,9 +989,31 @@ function formatarComprovante(dados: any): string {
   return comando
 }
 
-/**
- * Transcrever áudio usando OpenAI Whisper
- */
+/** Extensão e MIME para Whisper (Groq/OpenAI aceitam: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm) */
+function getAudioFileInfo(mimeType: string): { ext: string; mime: string } {
+  const t = (mimeType || '').toLowerCase()
+  if (t.includes('ogg') || t.includes('opus')) return { ext: '.ogg', mime: 'audio/ogg' }
+  if (t.includes('webm')) return { ext: '.webm', mime: 'audio/webm' }
+  if (t.includes('wav')) return { ext: '.wav', mime: 'audio/wav' }
+  if (t.includes('mp4') || t.includes('m4a')) return { ext: '.m4a', mime: 'audio/mp4' }
+  if (t.includes('mpeg') || t.includes('mp3')) return { ext: '.mp3', mime: 'audio/mpeg' }
+  if (t.includes('flac')) return { ext: '.flac', mime: 'audio/flac' }
+  return { ext: '.ogg', mime: 'audio/ogg' }
+}
+
+/** Verifica se o buffer parece ser áudio (evita enviar HTML/JSON de erro para a API). */
+function looksLikeAudio(buffer: Buffer): boolean {
+  if (!buffer || buffer.length < 100) return false
+  const head = buffer.subarray(0, 12)
+  if (head[0] === 0x3c || head[0] === 0x7b) return false
+  if (head.toString('utf8', 0, 4) === 'OggS') return true
+  if (head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3) return true
+  if (head[0] === 0xff && (head[1] === 0xfb || head[1] === 0xfa)) return true
+  if (head.toString('utf8', 0, 3) === 'ID3') return true
+  if (head[4] === 0x66 && head[5] === 0x74 && head[6] === 0x79 && head[7] === 0x70) return true
+  return true
+}
+
 /**
  * Transcrever áudio usando Groq Whisper (GRATUITO)
  */
@@ -984,63 +1024,52 @@ async function transcribeAudioWithGroq(audioBuffer: Buffer, mimeType: string): P
   }
 
   try {
-    console.log('🎤 [Media Processor] ==========================================')
-    console.log('🎤 [Media Processor] Transcrevendo áudio com Groq Whisper...')
-    console.log('🎤 [Media Processor] API Key (primeiros 10 chars):', process.env.GROQ_API_KEY.substring(0, 10) + '...')
-    console.log('🎤 [Media Processor] Tamanho do buffer:', audioBuffer.length, 'bytes')
-    console.log('🎤 [Media Processor] MIME type:', mimeType)
-    
-    // Groq Whisper usa API compatível com OpenAI
-    // Modelos: whisper-large-v3-turbo (rápido) ou whisper-large-v3 (preciso)
-    const groqWhisperModels = [
-      'whisper-large-v3-turbo',  // Rápido
-      'whisper-large-v3'         // Preciso
-    ]
-    
+    if (!looksLikeAudio(audioBuffer)) {
+      console.warn('🎤 [Media Processor] Buffer não parece ser áudio válido (pode ser HTML/erro do servidor)')
+      return null
+    }
+
+    const { ext, mime } = getAudioFileInfo(mimeType)
+    console.log('🎤 [Media Processor] Transcrevendo com Groq Whisper, tamanho:', audioBuffer.length, 'mime:', mime, 'ext:', ext)
+
+    const groqWhisperModels = ['whisper-large-v3-turbo', 'whisper-large-v3']
+
     for (const model of groqWhisperModels) {
       try {
-        console.log(`🎤 [Media Processor] Tentando transcrever com Groq Whisper modelo: ${model}`)
-        
-        // Criar FormData para enviar arquivo (formato OpenAI-compatible)
         const formData = new FormData()
-        // Converter Buffer para Uint8Array para compatibilidade com Blob
         const uint8Array = new Uint8Array(audioBuffer)
-        const blob = new Blob([uint8Array], { type: mimeType || 'audio/webm' })
-        formData.append('file', blob, 'audio.webm')
+        const blob = new Blob([uint8Array], { type: mime })
+        formData.append('file', blob, `audio${ext}`)
         formData.append('model', model)
-        formData.append('language', 'pt') // Português
-        
+        formData.append('language', 'pt')
+        formData.append('response_format', 'json')
+
         const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-          },
+          headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
           body: formData,
         })
 
         if (!response.ok) {
           const errorText = await response.text()
-          console.error(`❌ [Media Processor] Groq Whisper modelo ${model} falhou:`, response.status, errorText.substring(0, 200))
-          continue // Tentar próximo modelo
+          console.error(`❌ [Media Processor] Groq Whisper ${model}:`, response.status, errorText.substring(0, 300))
+          continue
         }
 
         const data = await response.json()
-        const transcribedText = data.text || ''
-        
-        if (transcribedText) {
-          console.log(`✅ [Media Processor] Groq Whisper modelo ${model} transcreveu com sucesso:`, transcribedText.substring(0, 100))
-          return transcribedText.trim()
+        const text = (data.text || '').trim()
+        if (text) {
+          console.log('✅ [Media Processor] Groq transcreveu:', text.substring(0, 80))
+          return text
         }
-      } catch (error: any) {
-        console.error(`❌ [Media Processor] Erro ao chamar Groq Whisper modelo ${model}:`, error.message)
+      } catch (err: any) {
+        console.error(`❌ [Media Processor] Groq ${model}:`, err.message)
         continue
       }
     }
-    
-    console.error('❌ [Media Processor] Todos os modelos Groq Whisper falharam na transcrição')
     return null
-  } catch (error: any) {
-    console.error('❌ [Media Processor] Erro geral ao transcrever áudio com Groq:', error.message)
+  } catch (err: any) {
+    console.error('❌ [Media Processor] Erro Groq:', err.message)
     return null
   }
 }
@@ -1142,6 +1171,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   console.log('🎤 [Media Processor] Tamanho do áudio:', audioBuffer.length, 'bytes')
   console.log('🎤 [Media Processor] MIME type:', mimeType)
   console.log('🎤 [Media Processor] GROQ_API_KEY configurada?', !!process.env.GROQ_API_KEY)
+  console.log('🎤 [Media Processor] GEMINI_API_KEY configurada?', !!process.env.GEMINI_API_KEY)
   console.log('🎤 [Media Processor] OPENAI_API_KEY configurada?', !!process.env.OPENAI_API_KEY)
   console.log('🎤 [Media Processor] ==========================================')
   
@@ -1153,51 +1183,49 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
       console.log('✅ [Media Processor] Groq Whisper transcreveu áudio com sucesso!')
       return resultadoGroq
     }
-    console.log('⚠️ [Media Processor] Groq Whisper falhou, tentando OpenAI Whisper...')
+    console.log('⚠️ [Media Processor] Groq Whisper falhou, tentando próximo provedor (Gemini/OpenAI)...')
   } else {
     console.log('⚠️ [Media Processor] GROQ_API_KEY não configurada, pulando Groq')
   }
   
-  // PRIORIDADE 2: Fallback para OpenAI Whisper (se tiver créditos)
+  // PRIORIDADE 2: Tentar Gemini (aceita áudio inline, pode funcionar quando Whisper falha)
+  if (process.env.GEMINI_API_KEY) {
+    const resultadoGemini = await transcribeAudioWithGemini(audioBuffer, mimeType)
+    if (resultadoGemini) return resultadoGemini
+  }
+
+  // PRIORIDADE 3: OpenAI Whisper
   if (process.env.OPENAI_API_KEY) {
     try {
-      console.log('🎤 [Media Processor] Transcrevendo áudio com OpenAI Whisper...')
-      
-      // Criar FormData para enviar arquivo
+      if (!looksLikeAudio(audioBuffer)) return null
+      const { ext, mime } = getAudioFileInfo(mimeType)
       const formData = new FormData()
-      // Converter Buffer para Uint8Array para compatibilidade com Blob
       const uint8Array = new Uint8Array(audioBuffer)
-      const blob = new Blob([uint8Array], { type: mimeType || 'audio/webm' })
-      formData.append('file', blob, 'audio.webm')
+      const blob = new Blob([uint8Array], { type: mime })
+      formData.append('file', blob, `audio${ext}`)
       formData.append('model', 'whisper-1')
-      formData.append('language', 'pt') // Português
-      
+      formData.append('language', 'pt')
+
       const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
+        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
         body: formData,
       })
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('❌ [Media Processor] OpenAI Whisper error:', response.status, errorText.substring(0, 200))
+        console.error('❌ [Media Processor] OpenAI Whisper:', response.status, errorText.substring(0, 300))
         return null
       }
 
       const data = await response.json()
-      const transcribedText = data.text || ''
-      
-      if (transcribedText) {
-        console.log('✅ [Media Processor] Áudio transcrito com sucesso (OpenAI):', transcribedText.substring(0, 100))
-        return transcribedText
+      const text = (data.text || '').trim()
+      if (text) {
+        console.log('✅ [Media Processor] OpenAI transcreveu:', text.substring(0, 80))
+        return text
       }
-      
-      return null
-    } catch (error: any) {
-      console.error('❌ [Media Processor] Erro ao transcrever áudio com OpenAI:', error.message)
-      return null
+    } catch (err: any) {
+      console.error('❌ [Media Processor] Erro OpenAI Whisper:', err.message)
     }
   }
   

@@ -288,6 +288,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 })
     }
 
+    // Log resumido para debug de áudio/imagem (tipo_envio e se mensagem é URL)
+    const b = body as Record<string, unknown>
+    const tipoEnvio = (b.tipo_envio ?? (b.data && typeof b.data === 'object' ? (b.data as Record<string, unknown>).tipo_envio : null)) as string | undefined
+    const mensagemPreview = (b.mensagem ?? (b.data && typeof b.data === 'object' ? (b.data as Record<string, unknown>).mensagem : null)) as string | undefined
+    if (tipoEnvio || (typeof mensagemPreview === 'string' && mensagemPreview.startsWith('http'))) {
+      console.log('📨 [Apifacil Webhook] Payload (tipo_envio/mídia):', { tipo_envio: tipoEnvio, mensagem_eh_url: typeof mensagemPreview === 'string' && /^https?:\/\//i.test(mensagemPreview), from: b.origem ?? (b.data && typeof b.data === 'object' ? (b.data as Record<string, unknown>).origem : null) })
+    }
+
     let parsed = parseWebhookBodyWithMedia(body)
     if (!parsed) {
       const fallback = parseWebhookBody(body)
