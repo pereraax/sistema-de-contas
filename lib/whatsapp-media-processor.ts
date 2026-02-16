@@ -1005,13 +1005,21 @@ function getAudioFileInfo(mimeType: string): { ext: string; mime: string } {
 function looksLikeAudio(buffer: Buffer): boolean {
   if (!buffer || buffer.length < 100) return false
   const head = buffer.subarray(0, 12)
+  // Rejeitar HTML (<) e JSON ({)
   if (head[0] === 0x3c || head[0] === 0x7b) return false
+  // Ogg/Opus
   if (head.toString('utf8', 0, 4) === 'OggS') return true
+  // WebM/Matroska
   if (head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3) return true
-  if (head[0] === 0xff && (head[1] === 0xfb || head[1] === 0xfa)) return true
+  // MP3 (MPEG frame sync)
+  if (head[0] === 0xff && (head[1] === 0xfb || head[1] === 0xfa || head[1] === 0xf3)) return true
+  // ID3 tag
   if (head.toString('utf8', 0, 3) === 'ID3') return true
+  // MP4/M4A (ftyp at offset 4)
   if (head[4] === 0x66 && head[5] === 0x74 && head[6] === 0x79 && head[7] === 0x70) return true
-  return true
+  // WAV (RIFF....WAVE)
+  if (head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46 && head[8] === 0x57 && head[9] === 0x41 && head[10] === 0x56 && head[11] === 0x45) return true
+  return false
 }
 
 /**
