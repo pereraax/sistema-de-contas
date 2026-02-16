@@ -418,13 +418,26 @@ function extrairComprovanteOCR(texto: string): string | null {
   // 1) Valor: preferir R$ X,XX ou Valor/Total; senão maior número no formato X,XX ou X.XX
   const valorCandidatos: number[] = []
   const reR$ = /R\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/g
-  const reValorTotal = /(?:valor|total)\s*[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/gi
-  const reNumeroDecimal = /(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/g
+  const reValorTotal = /(?:valor|total|pix\s+enviado|pix\s+recebido)\s*[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/gi
+  const reNumeroDecimal = /(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})/g
 
+  /** Aceita 80,00 (BR), 80.00 (decimal), 1.500,00 (milhares BR). Nunca converte 80.00 em 8000. */
   function parseValorBR(s: string): number {
-    const limpo = s.replace(/\s/g, '').replace(/\./g, '').replace(',', '.')
-    const n = parseFloat(limpo)
-    return isNaN(n) ? 0 : n
+    const limpo = s.replace(/\s/g, '').trim()
+    if (!limpo) return 0
+    const temVirgula = limpo.includes(',')
+    const temPonto = limpo.includes('.')
+    if (temVirgula) {
+      const br = limpo.replace(/\./g, '').replace(',', '.')
+      const n = parseFloat(br)
+      return isNaN(n) ? 0 : n
+    }
+    if (temPonto) {
+      const partes = limpo.split('.')
+      if (partes.length === 2 && partes[1].length === 2) return parseFloat(limpo)
+      return parseFloat(limpo.replace(/\./g, ''))
+    }
+    return parseFloat(limpo) || 0
   }
 
   let m: RegExpExecArray | null
@@ -472,6 +485,31 @@ function extrairComprovanteOCR(texto: string): string | null {
   return `paguei ${valor.toFixed(2)}`
 }
 
+/** Extrai apenas o valor principal (maior R$ X,XX / X,XX) do texto. Usado para corrigir valor errado da IA. */
+function extrairValorPrincipalDoTexto(texto: string): number | null {
+  if (!texto || typeof texto !== 'string') return null
+  const t = texto.trim()
+  const candidatos: number[] = []
+  const reR$ = /R\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/g
+  const reValorTotal = /(?:valor|total|pix\s+enviado)\s*[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/gi
+  const reNumero = /(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})/g
+  function parse(s: string): number {
+    const limpo = s.replace(/\s/g, '').trim()
+    if (limpo.includes(',')) return parseFloat(limpo.replace(/\./g, '').replace(',', '.')) || 0
+    if (limpo.includes('.') && /^\d+\.\d{2}$/.test(limpo)) return parseFloat(limpo)
+    if (limpo.includes('.')) return parseFloat(limpo.replace(/\./g, '')) || 0
+    return parseFloat(limpo) || 0
+  }
+  let m: RegExpExecArray | null
+  while ((m = reR$.exec(t)) !== null) candidatos.push(parse(m[1]))
+  reValorTotal.lastIndex = 0
+  while ((m = reValorTotal.exec(t)) !== null) candidatos.push(parse(m[1]))
+  reNumero.lastIndex = 0
+  while ((m = reNumero.exec(t)) !== null) candidatos.push(parse(m[1]))
+  const validos = candidatos.filter((v) => v > 0 && v < 10_000_000)
+  return validos.length > 0 ? Math.max(...validos) : null
+}
+
 export async function processComprovanteImage(imageBuffer: Buffer, caption?: string): Promise<string | null> {
   try {
     console.log('🔍 [Media Processor] Processando comprovante de imagem...')
@@ -491,8 +529,10 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
     }
 
     // 1) Google Vision só OCR → extração determinística (valor principal + nomes) tem prioridade
+    let ocrTextAcumulado = ''
     const ocrGoogle = await getOcrTextGoogleVision(base64Image)
     if (ocrGoogle) {
+      ocrTextAcumulado = ocrGoogle
       const cmdOCR = extrairComprovanteOCR(ocrGoogle)
       if (cmdOCR) {
         console.log('✅ [Media Processor] Comando do OCR (Google Vision, extração valor/nome):', cmdOCR)
@@ -513,6 +553,7 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
     if (process.env.GEMINI_API_KEY) {
       const ocrGemini = await ocrImageSóTexto(base64Image)
       if (ocrGemini) {
+        ocrTextAcumulado = (ocrTextAcumulado ? ocrTextAcumulado + '\n' : '') + ocrGemini
         const cmdOCR = extrairComprovanteOCR(ocrGemini)
         if (cmdOCR) {
           console.log('✅ [Media Processor] Comando do OCR (Gemini, extração valor/nome):', cmdOCR)
@@ -530,12 +571,12 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
 
-    // 3) IAs que tentam retornar JSON (só se OCR não encontrou valor/nome)
+    // 3) IAs que tentam retornar JSON — valor SEMPRE do OCR quando houver texto (nunca confiar só na IA para número)
     // Gemini
     if (process.env.GEMINI_API_KEY) {
       try {
         console.log('🔍 [Media Processor] Tentando Gemini (gratuito)...')
-        const result = await processImageWithGemini(base64Image, caption)
+        const result = await processImageWithGemini(base64Image, caption, ocrTextAcumulado)
         if (result) {
           console.log('✅ [Media Processor] Gemini processou com sucesso!')
           return result
@@ -545,11 +586,11 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
     
-    // 2. Tentar OpenAI GPT-4o Vision (mais confiável, mas pago)
+    // OpenAI GPT-4o Vision
     if (process.env.OPENAI_API_KEY) {
       try {
         console.log('🔍 [Media Processor] Tentando OpenAI GPT-4o Vision (mais confiável)...')
-        const result = await processImageWithOpenAI(base64Image, caption)
+        const result = await processImageWithOpenAI(base64Image, caption, ocrTextAcumulado)
         if (result) {
           console.log('✅ [Media Processor] OpenAI GPT-4o Vision processou com sucesso!')
           return result
@@ -608,9 +649,10 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
 }
 
 /**
- * Processar imagem com Google Gemini (Gratuito e Funcional)
+ * Processar imagem com Google Gemini (Gratuito e Funcional).
+ * Se ocrText for passado, o valor do comando vem SEMPRE do OCR (nunca do JSON da IA), para evitar R$ 2 em vez de R$ 80.
  */
-async function processImageWithGemini(base64Image: string, caption?: string): Promise<string | null> {
+async function processImageWithGemini(base64Image: string, caption?: string, ocrText?: string): Promise<string | null> {
   if (!process.env.GEMINI_API_KEY) {
     console.log('⚠️ [Media Processor] GEMINI_API_KEY não configurada')
     return null
@@ -624,6 +666,7 @@ async function processImageWithGemini(base64Image: string, caption?: string): Pr
 
   console.log('🔍 [Media Processor] Gemini API Key configurada:', process.env.GEMINI_API_KEY.substring(0, 10) + '...')
   console.log('🔍 [Media Processor] Tamanho da imagem base64:', base64Image.length, 'caracteres')
+  if (ocrText) console.log('🔍 [Media Processor] OCR texto disponível para corrigir valor da IA:', ocrText.length, 'chars')
 
   const prompt = `Analise esta imagem de comprovante (PIX, boleto, recibo) e extraia em JSON.
 
@@ -702,19 +745,15 @@ ${caption ? ` Legenda: ${caption}` : ''}`
             console.log('📝 [Media Processor] Resposta do Gemini:', extractedText.substring(0, 500))
             const jsonData = extrairJsonDaResposta(extractedText)
             if (jsonData && typeof jsonData === 'object') {
+              // VALOR: nunca confiar só na IA. Se temos OCR, usar valor do OCR; senão, do texto da resposta.
+              const valorOCR = ocrText ? extrairValorPrincipalDoTexto(ocrText) : null
+              const valorDoTexto = extrairValorPrincipalDoTexto(extractedText)
               const valorIA = typeof jsonData.valor === 'number' ? jsonData.valor : parseFloat(jsonData.valor)
-              // Se a IA retornou valor muito baixo (ex.: 2), preferir comando extraído do texto (valor/nome corretos)
-              if (valorIA <= 5 && extractedText) {
-                const cmdOCR = extrairComprovanteOCR(extractedText)
-                if (cmdOCR) {
-                  const vMatch = cmdOCR.match(/paguei\s+([\d.]+)|recebi\s+([\d.]+)/)
-                  const v = vMatch ? parseFloat(vMatch[1] ?? vMatch[2] ?? '0') : 0
-                  if (v > valorIA) {
-                    console.log('📝 [Media Processor] Preferindo comando do texto (valor IA era', valorIA, '):', cmdOCR)
-                    return cmdOCR
-                  }
-                }
+              const valorFinal = valorOCR ?? valorDoTexto ?? (Number.isFinite(valorIA) ? valorIA : null)
+              if (valorOCR != null && valorOCR !== valorIA) {
+                console.log('📝 [Media Processor] Valor corrigido pelo OCR: IA=', valorIA, '→ OCR=', valorOCR)
               }
+              if (valorFinal != null) jsonData.valor = valorFinal
               const cmd = formatarComprovante(jsonData)
               if (cmd) return cmd
             }
@@ -765,9 +804,10 @@ ${caption ? ` Legenda: ${caption}` : ''}`
 }
 
 /**
- * Processar imagem com OpenAI GPT-4o Vision
+ * Processar imagem com OpenAI GPT-4o Vision.
+ * Se ocrText for passado, o valor do comando vem do OCR (nunca só do JSON da IA).
  */
-async function processImageWithOpenAI(base64Image: string, caption?: string): Promise<string | null> {
+async function processImageWithOpenAI(base64Image: string, caption?: string, ocrText?: string): Promise<string | null> {
   if (!process.env.OPENAI_API_KEY) {
     return null
   }
@@ -831,6 +871,14 @@ ${caption ? ` Legenda: ${caption}` : ''}`
     console.log('📝 [Media Processor] Resposta do OpenAI:', extractedText.substring(0, 200))
     const jsonData = extrairJsonDaResposta(extractedText)
     if (jsonData && typeof jsonData === 'object') {
+      const valorOCR = ocrText ? extrairValorPrincipalDoTexto(ocrText) : null
+      const valorDoTexto = extrairValorPrincipalDoTexto(extractedText)
+      const valorIA = typeof jsonData.valor === 'number' ? jsonData.valor : parseFloat(jsonData.valor)
+      const valorFinal = valorOCR ?? valorDoTexto ?? (Number.isFinite(valorIA) ? valorIA : null)
+      if (valorOCR != null && valorOCR !== valorIA) {
+        console.log('📝 [Media Processor] Valor corrigido pelo OCR (OpenAI): IA=', valorIA, '→ OCR=', valorOCR)
+      }
+      if (valorFinal != null) jsonData.valor = valorFinal
       const cmd = formatarComprovante(jsonData)
       if (cmd) return cmd
     }

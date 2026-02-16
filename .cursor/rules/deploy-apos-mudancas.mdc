@@ -1,0 +1,27 @@
+---
+description: Fazer deploy (build + commit + push) após alterações que afetam o app
+alwaysApply: true
+---
+
+# Deploy após mudanças
+
+**Obrigatório:** sempre que fizer alterações de código que afetem o app em produção (correções, features, config), **fazer o deploy você mesmo** — não deixar para o usuário.
+
+## Passos
+
+1. Rodar `npm run build` para validar.
+2. Se o build passar:
+   - `git add` dos arquivos alterados (ex.: `git add lib/plen-registro.ts lib/whatsapp-media-processor.ts` ou `git add .` se for muitos).
+   - `git commit -m "tipo: descrição"` (ex.: `fix: comprovante valor OCR`, `feat(api): ...`).
+   - `git push origin main`.
+3. O deploy automático (Railway/Vercel/Render etc.) dispara com o push. Não pedir ao usuário para fazer o deploy manualmente.
+
+## Exceções
+
+Não fazer commit/push se:
+- o usuário pedir apenas revisão ou documentação;
+- o usuário pedir explicitamente para **não** dar deploy.
+
+## Deploy manual (usuário)
+
+Se o usuário quiser fazer deploy manual, ver instruções em **DEPLOY-MANUAL.md**.
