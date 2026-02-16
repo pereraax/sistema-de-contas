@@ -357,6 +357,28 @@ function looksLikeImage(buffer: Buffer): boolean {
   return true
 }
 
+/** OCR puro: pede só o texto da imagem (sem IA interpretar). Depois extraímos comando com regras. */
+async function ocrImageSóTexto(base64Image: string): Promise<string | null> {
+  if (!process.env.GEMINI_API_KEY || !base64Image || base64Image.length < 100) return null
+  try {
+    const apiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: 'Transcreva todo o texto visível nesta imagem, na ordem. Apenas o texto, linha por linha, sem explicação nem JSON.' }, { inline_data: { mime_type: 'image/jpeg', data: base64Image } }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: 1024 },
+      }),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
+    return text || null
+  } catch {
+    return null
+  }
+}
+
 export async function processComprovanteImage(imageBuffer: Buffer, caption?: string): Promise<string | null> {
   try {
     console.log('🔍 [Media Processor] Processando comprovante de imagem...')
@@ -365,10 +387,27 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       return null
     }
     const base64Image = imageBuffer.toString('base64')
+
+    // 1) OCR primeiro (só texto, sem pedir JSON à IA) → nossas regras extraem valor/nome
+    if (process.env.GEMINI_API_KEY) {
+      console.log('🔍 [Media Processor] Tentando OCR só texto (sem IA interpretar)...')
+      const ocrText = await ocrImageSóTexto(base64Image)
+      if (ocrText) {
+        const cmd = extrairComandoDeTexto(ocrText)
+        if (cmd) {
+          console.log('✅ [Media Processor] Comando extraído do OCR:', cmd)
+          return cmd
+        }
+        if (caption) {
+          const cmdLegenda = extrairComandoDeTexto(ocrText + '\n' + caption)
+          if (cmdLegenda) return cmdLegenda
+        }
+      }
+    }
+
+    // 2) Fallback: IA que tenta retornar JSON (pode falhar ou atrapalhar)
     
-    // Prioridade: Gemini (Gratuito) → OpenAI GPT-4o Vision → Google Cloud Vision → Azure Vision
-    
-    // 1. Tentar Gemini primeiro (gratuito e funciona bem)
+    // Tentar Gemini (gratuito)
     if (process.env.GEMINI_API_KEY) {
       try {
         console.log('🔍 [Media Processor] Tentando Gemini (gratuito)...')
@@ -1038,36 +1077,33 @@ async function transcribeAudioWithGroq(audioBuffer: Buffer, mimeType: string): P
     const groqWhisperModels = ['whisper-large-v3-turbo', 'whisper-large-v3']
 
     for (const model of groqWhisperModels) {
-      try {
-        const formData = new FormData()
-        const uint8Array = new Uint8Array(audioBuffer)
-        const blob = new Blob([uint8Array], { type: mime })
-        formData.append('file', blob, `audio${ext}`)
-        formData.append('model', model)
-        formData.append('language', 'pt')
-        formData.append('response_format', 'json')
-
-        const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-          body: formData,
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error(`❌ [Media Processor] Groq Whisper ${model}:`, response.status, errorText.substring(0, 300))
+      for (const [extTry, mimeTry] of [[ext, mime], ['.webm', 'audio/webm'], ['.ogg', 'audio/ogg']] as [string, string][]) {
+        try {
+          const formData = new FormData()
+          const blob = new Blob([new Uint8Array(audioBuffer)], { type: mimeTry })
+          formData.append('file', blob, `audio${extTry}`)
+          formData.append('model', model)
+          formData.append('language', 'pt')
+          formData.append('response_format', 'json')
+          const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+            body: formData,
+          })
+          if (!response.ok) {
+            if (extTry !== ext) console.log(`🎤 [Media Processor] Groq com ${extTry} falhou:`, response.status)
+            continue
+          }
+          const data = await response.json()
+          const text = (data.text || '').trim()
+          if (text) {
+            console.log('✅ [Media Processor] Groq transcreveu:', text.substring(0, 80))
+            return text
+          }
+        } catch (err: any) {
+          if (extTry === ext) console.error(`❌ [Media Processor] Groq ${model}:`, err.message)
           continue
         }
-
-        const data = await response.json()
-        const text = (data.text || '').trim()
-        if (text) {
-          console.log('✅ [Media Processor] Groq transcreveu:', text.substring(0, 80))
-          return text
-        }
-      } catch (err: any) {
-        console.error(`❌ [Media Processor] Groq ${model}:`, err.message)
-        continue
       }
     }
     return null
@@ -1178,26 +1214,24 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   console.log('🎤 [Media Processor] OPENAI_API_KEY configurada?', !!process.env.OPENAI_API_KEY)
   console.log('🎤 [Media Processor] ==========================================')
   
-  // PRIORIDADE 1: Tentar Groq Whisper primeiro (GRATUITO)
-  if (process.env.GROQ_API_KEY) {
-    console.log('🎤 [Media Processor] Tentando transcrever com Groq Whisper (gratuito)...')
-    const resultadoGroq = await transcribeAudioWithGroq(audioBuffer, mimeType)
-    if (resultadoGroq) {
-      console.log('✅ [Media Processor] Groq Whisper transcreveu áudio com sucesso!')
-      return resultadoGroq
-    }
-    console.log('⚠️ [Media Processor] Groq Whisper falhou, tentando próximo provedor (Gemini/OpenAI)...')
-  } else {
-    console.log('⚠️ [Media Processor] GROQ_API_KEY não configurada, pulando Groq')
-  }
-  
-  // PRIORIDADE 2: Tentar Gemini (aceita áudio inline, pode funcionar quando Whisper falha)
+  // 1) Gemini primeiro: aceita áudio inline, menos exigente com formato (evita 400 do Groq)
   if (process.env.GEMINI_API_KEY) {
-    const resultadoGemini = await transcribeAudioWithGemini(audioBuffer, mimeType)
-    if (resultadoGemini) return resultadoGemini
+    console.log('🎤 [Media Processor] Tentando Gemini (áudio inline)...')
+    const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
+    if (r) {
+      console.log('✅ [Media Processor] Gemini transcreveu áudio')
+      return r
+    }
   }
 
-  // PRIORIDADE 3: OpenAI Whisper
+  // 2) Groq Whisper (pode dar 400 com alguns formatos)
+  if (process.env.GROQ_API_KEY) {
+    console.log('🎤 [Media Processor] Tentando Groq Whisper...')
+    const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
+    if (r) return r
+  }
+
+  // 3) OpenAI Whisper
   if (process.env.OPENAI_API_KEY) {
     try {
       if (!looksLikeAudio(audioBuffer)) return null
