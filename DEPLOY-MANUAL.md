@@ -4,6 +4,19 @@ O assistente (Cursor) **deve fazer o deploy** sempre que houver alterações que
 
 ---
 
+## ⚠️ Erro "Failed to find Server Action" / assistente não responde
+
+Se após o deploy a assistente não responder, áudio não for reconhecido ou aparecer erro **"Failed to find Server Action"** / **"reading 'workers'"** nos logs:
+
+1. Defina em **produção** (Railway/Render/etc.) a variável **`NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`** (obrigatório no build).
+2. Gere a chave uma vez:  
+   `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+3. Coloque o valor na variável no painel do provedor e faça um **novo deploy**.
+
+Detalhes: **FIX-SERVER-ACTIONS-ERROR.md**
+
+---
+
 ## Opção 1: Git push (recomendado — dispara deploy automático)
 
 Se o deploy sobe a partir do GitHub (Vercel, Render, Railway conectado ao repo):
