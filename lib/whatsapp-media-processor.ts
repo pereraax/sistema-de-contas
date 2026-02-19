@@ -465,14 +465,18 @@ function extrairComprovanteOCR(texto: string): string | null {
 
   let nomeBeneficiario = nomeDepoisDe(quemRecebeuBlock?.[0] ?? null, 'Nome')
   if (!nomeBeneficiario && quemRecebeuBlock) {
-    const linha = quemRecebeuBlock[0].split(/\n/).find((l) => /^[A-Za-z]/.test(l.trim()) && l.trim().length > 2)
-    if (linha) nomeBeneficiario = linha.trim().substring(0, 120)
+    const ignorar = /^(Nome|CPF|CNPJ|Institui[cç][aã]o|Raz[aã]o\s*Social)$/i
+    const linhas = quemRecebeuBlock[0].split(/\n/).map((l) => l.trim()).filter((l) => l.length > 2 && /^[A-Za-z]/.test(l) && !ignorar.test(l) && !/^\d[\d.\s,-]+$/.test(l))
+    const linha = linhas.find((l) => l.length >= 2 && l.length <= 80) ?? linhas[0]
+    if (linha) nomeBeneficiario = linha.substring(0, 120)
   }
 
   let nomePagador = nomeDepoisDe(quemPagouBlock?.[0] ?? null, 'Nome')
   if (!nomePagador && quemPagouBlock) {
-    const linha = quemPagouBlock[0].split(/\n/).find((l) => /^[A-Za-z]/.test(l.trim()) && l.trim().length > 2)
-    if (linha) nomePagador = linha.trim().substring(0, 120)
+    const ignorar = /^(Nome|CPF|CNPJ|Institui[cç][aã]o|Raz[aã]o\s*Social)$/i
+    const linhas = quemPagouBlock[0].split(/\n/).map((l) => l.trim()).filter((l) => l.length > 2 && /^[A-Za-z]/.test(l) && !ignorar.test(l) && !/^\d[\d.\s,-]+$/.test(l))
+    const linha = linhas.find((l) => l.length >= 2 && l.length <= 80) ?? linhas[0]
+    if (linha) nomePagador = linha.substring(0, 120)
   }
 
   // 3) Direção: "Quem recebeu" = beneficiário (você pagou para ele). "Quem pagou" = quem te pagou (recebimento). Preferir beneficiário quando existir (comprovante de gasto).
@@ -784,10 +788,10 @@ ${caption ? ` Legenda: ${caption}` : ''}`
               if (valorOCR != null && valorOCR !== valorIA) {
                 console.log('📝 [Media Processor] Valor corrigido pelo OCR: IA=', valorIA, '→ OCR=', valorOCR)
               }
-              // Se valor ainda suspeito (<= 10), perguntar ao Gemini só o valor (fallback definitivo)
-              if (valorFinal != null && valorFinal <= 10) {
+              // Se valor ainda suspeito (<= 20, ex.: 2 de "2022" ou "12/08"), perguntar ao Gemini só o valor
+              if (valorFinal != null && valorFinal <= 20) {
                 const valorPergunta = await perguntarValorSoGemini(base64Image)
-                if (valorPergunta != null && valorPergunta > 10) {
+                if (valorPergunta != null && valorPergunta > 0) {
                   valorFinal = valorPergunta
                   console.log('📝 [Media Processor] Valor substituído por pergunta direta: antigo=', jsonData.valor, '→ novo=', valorFinal)
                 }
