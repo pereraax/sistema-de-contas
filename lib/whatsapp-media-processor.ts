@@ -1485,6 +1485,8 @@ async function transcribeAudioWithGroq(audioBuffer: Buffer, mimeType: string): P
           formData.append('model', model)
           formData.append('language', 'pt')
           formData.append('response_format', 'json')
+          // Viés para transcrição de gastos/entradas: valores em reais, números por extenso ou dígitos
+          formData.append('prompt', 'Registro de gastos e entradas em reais. Frases como: gastei X, paguei X, recebi X. Números por extenso ou dígitos: cinquenta, cem, duzentos, trezentos, quinhentos, mil.')
           const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
             method: 'POST',
             headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },

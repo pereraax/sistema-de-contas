@@ -152,3 +152,56 @@ export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promi
     return null
   }
 }
+
+/**
+ * Extrai o valor em reais de uma frase (ex.: transcrição de áudio) via LLM.
+ * Usado quando a extração normal retorna 2 e a frase parece pedido de gasto/entrada (evita "2" errado do Whisper).
+ * Retorna null se não conseguir ou valor fora do range sensato (1–500.000).
+ */
+export async function extrairValorReaisComLLM(frase: string): Promise<number | null> {
+  if (!frase || frase.trim().length < 10) return null
+  const prompt = `Desta frase, qual o valor em reais que a pessoa mencionou? Responda apenas um número, nada mais. Sem R$, sem texto.\nFrase: ${frase.trim().slice(0, 500)}`
+  const groqKey = process.env.GROQ_API_KEY?.trim()
+  if (groqKey) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.1,
+          max_tokens: 20,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.choices?.[0]?.message?.content ?? '').trim().replace(/\s/g, '')
+        const num = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'))
+        if (Number.isFinite(num) && num >= 1 && num <= 500_000) return num
+      }
+    } catch (_) {}
+  }
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  if (openaiKey) {
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.1,
+          max_tokens: 20,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.choices?.[0]?.message?.content ?? '').trim().replace(/\s/g, '')
+        const num = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'))
+        if (Number.isFinite(num) && num >= 1 && num <= 500_000) return num
+      }
+    } catch (_) {}
+  }
+  return null
+}

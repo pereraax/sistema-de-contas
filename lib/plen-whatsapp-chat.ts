@@ -11,6 +11,7 @@ import {
   getRespostaPlanos,
   RESPOSTA_OPEN_FINANCE,
   RESPOSTA_NAO_SEI,
+  extrairValorReaisComLLM,
 } from '@/lib/plen-llm-fallback'
 
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
@@ -375,7 +376,15 @@ export async function processPlenWhatsAppMessage(
     const { msgForRegistro, targetUserName: usuarioNaFrase } = extrairUsuarioNaMensagem(primeiraLinha)
     const nomeOutroUsuario = usuarioNaFrase ?? (linhas.length > 1 ? linhas[1] : null)
 
-    const interpretado = interpretarMensagem(msgForRegistro)
+    let interpretado = interpretarMensagem(msgForRegistro)
+
+    // Áudio/transcrição: se deu R$ 2,00 mas a frase parece pedido completo (gastei X com...), tentar LLM para extrair valor correto
+    if (interpretado?.valor === 2 && msgForRegistro.length > 15 && /(?:gastei|paguei|recebi|ganhei|gastou|pagou)/i.test(msgForRegistro)) {
+      const valorLLM = await extrairValorReaisComLLM(msgForRegistro)
+      if (valorLLM != null && valorLLM > 2) {
+        interpretado = { ...interpretado, valor: valorLLM }
+      }
+    }
 
     if (interpretado) {
       const { tipo, valor, nome, data_registro, categoria } = interpretado
