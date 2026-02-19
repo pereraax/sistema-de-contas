@@ -166,13 +166,39 @@ function categoriaInteligente(nome: string, tipo: TipoRegistro): string {
   return 'Outros'
 }
 
+/** Coleta todos os números que parecem valor em reais (1 a 500.000) no texto normalizado. */
+function todosValoresNoTexto(texto: string): number[] {
+  const vals: number[] = []
+  const re = /[\d.,]+\s*(?:reais?|r\$|r\b)?/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(texto)) !== null) {
+    const n = extrairValor(m[0])
+    if (n != null && n >= 1 && n <= 500_000) vals.push(n)
+  }
+  const re2 = /[\d.,]+/g
+  while ((m = re2.exec(texto)) !== null) {
+    const n = extrairValor(m[0])
+    if (n != null && n >= 1 && n <= 500_000 && !vals.includes(n)) vals.push(n)
+  }
+  return [...new Set(vals)]
+}
+
 export function interpretarMensagem(texto: string): InterpretadoPlen | null {
   const t = normalizarNumerosPorExtenso(texto.trim().toLowerCase())
   // Preferir o valor que vem logo após o verbo (gastei/paguei/recebi) para não pegar "2" de "dia 2" ou transcrição errada
   const valorAposVerbo = t.match(/(?:gastei|gasteu|gastou|paguei|pagou|recebi|recebeu|ganhei|ganhou|entrada\s+de)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
-  const valorStr = valorAposVerbo ?? t.match(/[\d.,]+\s*(?:reais?|r\$|r\b)?/i)?.[0] ?? t.match(/[\d.,]+/)?.[0]
-  const valorNum = valorStr ? extrairValor(valorStr) : null
+  let valorStr = valorAposVerbo ?? t.match(/[\d.,]+\s*(?:reais?|r\$|r\b)?/i)?.[0] ?? t.match(/[\d.,]+/)?.[0]
+  let valorNum = valorStr ? extrairValor(valorStr) : null
   if (valorNum == null || valorNum <= 0) return null
+
+  // Áudio/transcrição: quando deu R$ 2,00 mas há outro número no texto, usar o maior (evita "2" errado do Whisper)
+  if (valorNum === 2) {
+    const todos = todosValoresNoTexto(t)
+    const maior = todos
+      .filter((n) => n > 2 && n <= 500_000 && (n < 2019 || n > 2030)) // exclui ano (ex.: 2026)
+      .sort((a, b) => b - a)[0]
+    if (maior != null) valorNum = maior
+  }
 
   let tipo: TipoRegistro
   let nome: string
