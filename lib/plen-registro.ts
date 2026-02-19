@@ -168,7 +168,9 @@ function categoriaInteligente(nome: string, tipo: TipoRegistro): string {
 
 export function interpretarMensagem(texto: string): InterpretadoPlen | null {
   const t = normalizarNumerosPorExtenso(texto.trim().toLowerCase())
-  const valorStr = t.match(/[\d.,]+\s*(?:reais?|r\$|r\b)?/i)?.[0] || t.match(/[\d.,]+/)?.[0]
+  // Preferir o valor que vem logo após o verbo (gastei/paguei/recebi) para não pegar "2" de "dia 2" ou transcrição errada
+  const valorAposVerbo = t.match(/(?:gastei|gasteu|gastou|paguei|pagou|recebi|recebeu|ganhei|ganhou|entrada\s+de)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
+  const valorStr = valorAposVerbo ?? t.match(/[\d.,]+\s*(?:reais?|r\$|r\b)?/i)?.[0] ?? t.match(/[\d.,]+/)?.[0]
   const valorNum = valorStr ? extrairValor(valorStr) : null
   if (valorNum == null || valorNum <= 0) return null
 
