@@ -92,6 +92,8 @@ function parseWebhookBody(body: unknown): { from: string; text: string } | null 
     const msg = (b.messages as any)[0]
     text = msg.text?.body ?? msg.body ?? msg.text
   }
+  // Meta Cloud API: message.text.body
+  if (!text && (b as any).message?.text?.body) text = (b as any).message.text.body
   if (from && text) {
     const fromClean = String(from).replace(/\D/g, '')
     return { from: fromClean, text: String(text) }
@@ -249,13 +251,17 @@ async function processarEmBackground(parsed: {
     }
     if (!text) return
 
-    if (!isApifacilConfigured()) {
-      console.warn('⚠️ [Apifacil Webhook] APIFACIL_INSTANCE_ID ou APIFACIL_TOKEN não configurados. Resposta não será enviada ao WhatsApp.')
-      return
-    }
     const plenMessage = buildPlenMessage(from, text)
     const result = await processWhatsAppMessage(plenMessage as any)
     const phone = from.startsWith('55') ? from : `55${from}`
+
+    const apifacilOk = isApifacilConfigured()
+    if (!apifacilOk) {
+      console.warn('⚠️ [Apifacil Webhook] APIFACIL_INSTANCE_ID ou APIFACIL_TOKEN não configurados em produção. Configure no painel (Railway/Render) e faça redeploy.')
+      const preview = result?.message ? String(result.message).slice(0, 80) : result?.messages?.length ? `${result.messages.length} msg(s)` : 'null'
+      console.warn('⚠️ [Apifacil Webhook] Resposta que seria enviada para', phone, ':', preview)
+      return
+    }
 
     if (result?.messages && Array.isArray(result.messages) && result.messages.length > 0) {
       console.log('📤 [Apifacil Webhook] Enviando', result.messages.length, 'mensagem(ns) para', phone)
@@ -312,7 +318,8 @@ async function processarEmBackground(parsed: {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('📨 [Apifacil Webhook] WEBHOOK CHAMADO')
+    const apifacilConfigured = isApifacilConfigured()
+    console.log('📨 [Apifacil Webhook] WEBHOOK CHAMADO | APIFACIL configurado:', apifacilConfigured)
     const raw = await request.text()
     let body: unknown
     try {
@@ -349,7 +356,8 @@ export async function POST(request: NextRequest) {
     }
     if (!parsed) {
       const rawPreview = JSON.stringify(body).slice(0, 600)
-      console.log('📨 [Apifacil Webhook] Payload não reconhecido (sem from/text/áudio). Body:', rawPreview)
+      const keys = body && typeof body === 'object' ? Object.keys(body as object).join(', ') : 'null'
+      console.log('📨 [Apifacil Webhook] Payload não reconhecido (sem from/text/áudio). Keys:', keys, '| Body:', rawPreview)
       return NextResponse.json({ success: true, message: 'Payload ignorado (sem from/text)' })
     }
 
