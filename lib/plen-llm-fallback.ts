@@ -154,6 +154,61 @@ export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promi
 }
 
 /**
+ * Desambigua valor quando a transcrição veio "paguei 2" / "gastei 2.00" (erro comum: "dois" em vez de "duzentos"/"vinte").
+ * Usado só quando a frase é curta e o único número é 2. Pergunta ao LLM qual valor em reais a pessoa provavelmente disse.
+ */
+export async function desambiguarValorDoisTranscricao(frase: string): Promise<number | null> {
+  if (!frase || frase.trim().length > 120) return null
+  const prompt = `A transcrição de um áudio em português (registro de gasto/pagamento) foi: "${frase.trim()}"
+
+Em áudios curtos o transcritor costuma confundir "dois" com "duzentos", "vinte", "doze" ou outros valores. Qual valor em reais a pessoa mais provavelmente quis dizer? Responda APENAS um número (ex: 20, 50, 200, 300), nada mais.`
+
+  const groqKey = process.env.GROQ_API_KEY?.trim()
+  if (groqKey) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.2,
+          max_tokens: 15,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.choices?.[0]?.message?.content ?? '').trim().replace(/\s/g, '')
+        const num = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'))
+        if (Number.isFinite(num) && num > 2 && num <= 500_000) return num
+      }
+    } catch (_) {}
+  }
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  if (openaiKey) {
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.2,
+          max_tokens: 15,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.choices?.[0]?.message?.content ?? '').trim().replace(/\s/g, '')
+        const num = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'))
+        if (Number.isFinite(num) && num > 2 && num <= 500_000) return num
+      }
+    } catch (_) {}
+  }
+  return null
+}
+
+/**
  * Extrai o valor em reais de uma frase (ex.: transcrição de áudio) via LLM.
  * Usado quando a extração normal retorna 2 e a frase parece pedido de gasto/entrada (evita "2" errado do Whisper).
  * Retorna null se não conseguir ou valor fora do range sensato (1–500.000).

@@ -12,6 +12,7 @@ import {
   RESPOSTA_OPEN_FINANCE,
   RESPOSTA_NAO_SEI,
   extrairValorReaisComLLM,
+  desambiguarValorDoisTranscricao,
 } from '@/lib/plen-llm-fallback'
 
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
@@ -378,11 +379,14 @@ export async function processPlenWhatsAppMessage(
 
     let interpretado = interpretarMensagem(msgForRegistro)
 
-    // Áudio/transcrição: se deu R$ 2,00 mas a frase parece pedido completo (gastei X com...), tentar LLM para extrair valor correto
-    if (interpretado?.valor === 2 && msgForRegistro.length > 15 && /(?:gastei|paguei|recebi|ganhei|gastou|pagou)/i.test(msgForRegistro)) {
-      const valorLLM = await extrairValorReaisComLLM(msgForRegistro)
-      if (valorLLM != null && valorLLM > 2) {
-        interpretado = { ...interpretado, valor: valorLLM }
+    // Áudio/transcrição: se deu R$ 2,00, corrigir valor (Whisper costuma transcrever "dois" em vez de duzentos/vinte)
+    if (interpretado?.valor === 2 && /(?:gastei|paguei|recebi|ganhei|gastou|pagou)/i.test(msgForRegistro)) {
+      const fraseCurta = msgForRegistro.trim().length <= 80 && /(?:gastei|paguei|recebi|ganhei)\s*(?:um\s+)?(?:dois|2|2\.0*)\b/i.test(msgForRegistro.trim())
+      const valorCorrigido = fraseCurta
+        ? await desambiguarValorDoisTranscricao(msgForRegistro)
+        : await extrairValorReaisComLLM(msgForRegistro)
+      if (valorCorrigido != null && valorCorrigido > 2) {
+        interpretado = { ...interpretado, valor: valorCorrigido }
       }
     }
 

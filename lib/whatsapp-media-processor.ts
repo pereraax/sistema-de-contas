@@ -1616,7 +1616,17 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   console.log('🎤 [Media Processor] OPENAI_API_KEY configurada?', !!process.env.OPENAI_API_KEY)
   console.log('🎤 [Media Processor] ==========================================')
   
-  // 1) Groq Whisper primeiro (estável e bom para português; não depende de Gemini)
+  // 1) Gemini primeiro (melhor em números em PT em áudios curtos; Groq Whisper costuma transcrever "dois" em vez do valor real)
+  if (process.env.GEMINI_API_KEY) {
+    console.log('🎤 [Media Processor] Tentando Gemini (áudio inline)...')
+    const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
+    if (r) {
+      console.log('✅ [Media Processor] Gemini transcreveu áudio')
+      return r
+    }
+  }
+
+  // 2) Groq Whisper
   if (process.env.GROQ_API_KEY) {
     console.log('🎤 [Media Processor] Tentando Groq Whisper...')
     const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
@@ -1624,13 +1634,6 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
       console.log('✅ [Media Processor] Groq transcreveu áudio')
       return r
     }
-  }
-
-  // 2) Gemini (fallback)
-  if (process.env.GEMINI_API_KEY) {
-    console.log('🎤 [Media Processor] Tentando Gemini (áudio inline)...')
-    const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
-    if (r) return r
   }
 
   // 3) OpenAI Whisper
