@@ -1544,7 +1544,8 @@ async function transcribeAudioWithGemini(audioBuffer: Buffer, mimeType: string):
       'gemini-2.0-flash-exp'
     ]
     
-    const prompt = 'Transcreva este áudio para português. Retorne apenas o texto transcrito, sem explicações ou marcações adicionais.'
+    const prompt = `Transcreva este áudio para português. O usuário está registrando um gasto ou entrada (ex.: "gastei 50 no mercado", "paguei 300 com roupas", "recebi 100").
+Regras: retorne só o texto transcrito, sem explicações. Para valores em reais, use algarismos (ex: 50, 80, 300, 500) em vez de por extenso, para evitar confusão.`
     
     for (const model of geminiModels) {
       try {
