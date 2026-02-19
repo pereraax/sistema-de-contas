@@ -504,6 +504,29 @@ function extrairComprovanteOCR(texto: string): string | null {
   return `paguei ${valor.toFixed(2)}`
 }
 
+/** Monta comando "paguei X para Nome" só com valor e nome extraídos do texto OCR. Usado quando extrairComprovanteOCR falha mas temos valor válido. */
+function comandoFromOcrValorENome(ocrText: string): string | null {
+  if (!ocrText || ocrText.trim().length < 5) return null
+  const valor = extrairValorPrincipalDoTexto(ocrText)
+  if (valor == null || valor <= 31) return null
+  const t = ocrText.trim()
+  const quemRecebeuBlock = t.match(/(?:Quem\s+recebeu|recebedor|benefici[aá]rio)[\s\S]*?(?=Quem\s+pagou|pagador|$)/i)
+  const quemPagouBlock = t.match(/(?:Quem\s+pagou|pagador)[\s\S]*?(?=Valor|Total|R\$|$)/i)
+  const ignorar = /^(Nome|CPF|CNPJ|Institui[cç][aã]o|Raz[aã]o\s*Social)$/i
+  const pegarNome = (bloco: string | null): string => {
+    if (!bloco) return ''
+    const afterNome = bloco.match(/Nome\s*[:]?\s*([A-Za-z0-9\s.-]{2,}?)(?=\n|CPF|CNPJ|Instituição|$)/i)
+    if (afterNome?.[1]) return afterNome[1].replace(/\s+/g, ' ').trim().substring(0, 120)
+    const linhas = bloco.split(/\n/).map((l) => l.trim()).filter((l) => l.length >= 2 && l.length <= 80 && /^[A-Za-z]/.test(l) && !ignorar.test(l) && !/^\d[\d.\s,-]+$/.test(l))
+    return linhas[0]?.substring(0, 120) ?? ''
+  }
+  const nomeBenef = pegarNome(quemRecebeuBlock?.[0] ?? null)
+  const nomePag = pegarNome(quemPagouBlock?.[0] ?? null)
+  if (nomeBenef) return `paguei ${valor.toFixed(2)} para ${nomeBenef}`
+  if (nomePag) return `recebi ${valor.toFixed(2)} de ${nomePag}`
+  return `paguei ${valor.toFixed(2)}`
+}
+
 /** Extrai apenas o valor principal (maior R$ X,XX / X,XX) do texto. Ignora números de data (1-31, 2020-2030). */
 function extrairValorPrincipalDoTexto(texto: string): number | null {
   if (!texto || typeof texto !== 'string') return null
@@ -599,11 +622,20 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
 
-    // 3) IAs que tentam retornar JSON — valor SEMPRE do OCR quando houver texto (nunca confiar só na IA para número)
+    // 2b) Fallback: com OCR acumulado, montar comando só com valor + nome (sem IA JSON). Evita Gemini devolver valor errado (ex.: 2).
+    if (ocrTextAcumulado.trim().length > 10) {
+      const cmdOcr = comandoFromOcrValorENome(ocrTextAcumulado)
+      if (cmdOcr) {
+        console.log('✅ [Media Processor] Comando do OCR (fallback valor+nome):', cmdOcr)
+        return cmdOcr
+      }
+    }
+
+    // 3) IAs que tentam retornar JSON — só quando OCR não entregou valor (evita registrar R$ 2 em vez de R$ 80)
     // Gemini
     if (process.env.GEMINI_API_KEY) {
       try {
-        console.log('🔍 [Media Processor] Tentando Gemini (gratuito)...')
+        console.log('🔍 [Media Processor] Tentando Gemini (OCR não entregou valor)...')
         const result = await processImageWithGemini(base64Image, caption, ocrTextAcumulado)
         if (result) {
           console.log('✅ [Media Processor] Gemini processou com sucesso!')
@@ -1515,20 +1547,20 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   console.log('🎤 [Media Processor] OPENAI_API_KEY configurada?', !!process.env.OPENAI_API_KEY)
   console.log('🎤 [Media Processor] ==========================================')
   
-  // 1) Gemini primeiro: aceita áudio inline, menos exigente com formato (evita 400 do Groq)
-  if (process.env.GEMINI_API_KEY) {
-    console.log('🎤 [Media Processor] Tentando Gemini (áudio inline)...')
-    const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
+  // 1) Groq Whisper primeiro (estável e bom para português; não depende de Gemini)
+  if (process.env.GROQ_API_KEY) {
+    console.log('🎤 [Media Processor] Tentando Groq Whisper...')
+    const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
     if (r) {
-      console.log('✅ [Media Processor] Gemini transcreveu áudio')
+      console.log('✅ [Media Processor] Groq transcreveu áudio')
       return r
     }
   }
 
-  // 2) Groq Whisper (pode dar 400 com alguns formatos)
-  if (process.env.GROQ_API_KEY) {
-    console.log('🎤 [Media Processor] Tentando Groq Whisper...')
-    const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
+  // 2) Gemini (fallback)
+  if (process.env.GEMINI_API_KEY) {
+    console.log('🎤 [Media Processor] Tentando Gemini (áudio inline)...')
+    const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
     if (r) return r
   }
 
