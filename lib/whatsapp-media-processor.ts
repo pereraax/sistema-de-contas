@@ -579,7 +579,20 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
 
-    // 1) Google Vision só OCR → extração determinística (valor principal + nomes) tem prioridade
+    // 1) Groq Vision primeiro (substitui Gemini para comprovantes; usa GROQ_API_KEY)
+    if (process.env.GROQ_API_KEY) {
+      try {
+        const groqResult = await processImageWithGroqVision(base64Image, caption)
+        if (groqResult) {
+          console.log('✅ [Media Processor] Groq Vision processou comprovante:', groqResult.slice(0, 60))
+          return groqResult
+        }
+      } catch (e: any) {
+        console.error('❌ [Media Processor] Groq Vision:', e?.message)
+      }
+    }
+
+    // 2) Google Vision só OCR → extração determinística (valor principal + nomes)
     let ocrTextAcumulado = ''
     const ocrGoogle = await getOcrTextGoogleVision(base64Image)
     if (ocrGoogle) {
@@ -600,21 +613,18 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
 
-    // 2) Gemini só texto (OCR) → mesma prioridade: extração valor/nome depois extrairComandoDeTexto
+    // 3) Gemini só texto (OCR) — fallback; extração valor/nome
     if (process.env.GEMINI_API_KEY) {
       const ocrGemini = await ocrImageSóTexto(base64Image)
       if (ocrGemini) {
         ocrTextAcumulado = (ocrTextAcumulado ? ocrTextAcumulado + '\n' : '') + ocrGemini
         const cmdOCR = extrairComprovanteOCR(ocrGemini)
         if (cmdOCR) {
-          console.log('✅ [Media Processor] Comando do OCR (Gemini, extração valor/nome):', cmdOCR)
+          console.log('✅ [Media Processor] Comando do OCR (Gemini):', cmdOCR)
           return cmdOCR
         }
         const cmd = extrairComandoDeTexto(ocrGemini)
-        if (cmd) {
-          console.log('✅ [Media Processor] Comando do OCR (Gemini):', cmd)
-          return cmd
-        }
+        if (cmd) return cmd
         if (caption) {
           const c = extrairComprovanteOCR(ocrGemini + '\n' + caption) || extrairComandoDeTexto(ocrGemini + '\n' + caption)
           if (c) return c
@@ -622,7 +632,7 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
 
-    // 2b) Fallback: com OCR acumulado, montar comando só com valor + nome (sem IA JSON). Evita Gemini devolver valor errado (ex.: 2).
+    // 4) Fallback: montar comando só com valor + nome do OCR (sem IA JSON)
     if (ocrTextAcumulado.trim().length > 10) {
       const cmdOcr = comandoFromOcrValorENome(ocrTextAcumulado)
       if (cmdOcr) {
@@ -631,36 +641,33 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
 
-    // 3) IAs que tentam retornar JSON — só quando OCR não entregou valor (evita registrar R$ 2 em vez de R$ 80)
-    // Gemini
-    if (process.env.GEMINI_API_KEY) {
-      try {
-        console.log('🔍 [Media Processor] Tentando Gemini (OCR não entregou valor)...')
-        const result = await processImageWithGemini(base64Image, caption, ocrTextAcumulado)
-        if (result) {
-          console.log('✅ [Media Processor] Gemini processou com sucesso!')
-          return result
-        }
-      } catch (error: any) {
-        console.error('❌ [Media Processor] Erro ao processar com Gemini:', error.message)
-      }
-    }
-    
-    // OpenAI GPT-4o Vision
+    // 5) OpenAI GPT-4o Vision (antes do Gemini)
     if (process.env.OPENAI_API_KEY) {
       try {
-        console.log('🔍 [Media Processor] Tentando OpenAI GPT-4o Vision (mais confiável)...')
         const result = await processImageWithOpenAI(base64Image, caption, ocrTextAcumulado)
         if (result) {
-          console.log('✅ [Media Processor] OpenAI GPT-4o Vision processou com sucesso!')
+          console.log('✅ [Media Processor] OpenAI Vision processou comprovante')
           return result
         }
       } catch (error: any) {
-        console.error('❌ [Media Processor] Erro ao processar com OpenAI:', error.message)
+        console.error('❌ [Media Processor] Erro OpenAI Vision:', error.message)
       }
     }
-    
-    // 3. Tentar Google Cloud Vision (gratuito - 1000/mês)
+
+    // 6) Gemini por último (substituído por Groq/OpenAI para comprovantes)
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const result = await processImageWithGemini(base64Image, caption, ocrTextAcumulado)
+        if (result) {
+          console.log('✅ [Media Processor] Gemini (fallback) processou comprovante')
+          return result
+        }
+      } catch (error: any) {
+        console.error('❌ [Media Processor] Erro Gemini:', error.message)
+      }
+    }
+
+    // 7) Google Cloud Vision (análise completa)
     if (process.env.GOOGLE_CLOUD_VISION_API_KEY) {
       try {
         console.log('🔍 [Media Processor] Tentando Google Cloud Vision API (gratuito)...')
@@ -674,7 +681,7 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
     
-    // 4. Tentar Azure Computer Vision (gratuito - 5000/mês)
+    // 8) Azure Computer Vision (gratuito - 5000/mês)
     if (process.env.AZURE_VISION_API_KEY && process.env.AZURE_VISION_ENDPOINT) {
       try {
         console.log('🔍 [Media Processor] Tentando Azure Computer Vision (gratuito)...')
@@ -895,6 +902,66 @@ ${caption ? ` Legenda: ${caption}` : ''}`
   } catch (error: any) {
     console.error('❌ [Media Processor] Erro geral ao processar com Gemini:', error.message)
     console.error('❌ [Media Processor] Stack:', error.stack?.substring(0, 500))
+    return null
+  }
+}
+
+/**
+ * Processar comprovante com Groq Vision (Llama 4 Scout) — substitui Gemini para comprovantes.
+ * Usa GROQ_API_KEY; valor sempre validado (nunca usar número de data).
+ */
+async function processImageWithGroqVision(base64Image: string, caption?: string, ocrText?: string): Promise<string | null> {
+  if (!process.env.GROQ_API_KEY || !base64Image || base64Image.length < 100) return null
+  const prompt = `Analise esta imagem de comprovante PIX e extraia em JSON.
+
+REGRAS: Valor = valor da transação em reais (ex.: "Pix enviado R$ 80,00" → valor 80). NUNCA use número de data (12, 2022) ou hora.
+PIX enviado: tipo "pix", nome_beneficiario = nome em "Quem recebeu" (ex.: Pagsmile).
+PIX recebido: tipo "recebimento", nome_pagador = nome em "Quem pagou".
+Retorne SOMENTE um JSON válido: {"tipo":"pix"|"recebimento","valor":número,"data":null,"nome_beneficiario":"","nome_pagador":"","descricao":""}
+${caption ? ` Legenda: ${caption}` : ''}`
+
+  try {
+    console.log('🔍 [Media Processor] Chamando Groq Vision (Llama 4 Scout)...')
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Image}` } },
+            ],
+          },
+        ],
+        max_tokens: 500,
+        temperature: 0.1,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.text()
+      console.error('❌ [Media Processor] Groq Vision:', res.status, err.slice(0, 200))
+      return null
+    }
+    const data = await res.json()
+    const extractedText = data.choices?.[0]?.message?.content?.trim() || ''
+    if (!extractedText) return null
+    const jsonData = extrairJsonDaResposta(extractedText)
+    if (!jsonData || typeof jsonData !== 'object') return null
+    const valorOCR = ocrText ? extrairValorPrincipalDoTexto(ocrText) : null
+    const valorDoTexto = extrairValorPrincipalDoTexto(extractedText)
+    const valorIA = typeof jsonData.valor === 'number' ? jsonData.valor : parseFloat(jsonData.valor)
+    const valorIASeguro = Number.isFinite(valorIA) && valorIA > 31 ? valorIA : null
+    const valorFinal = valorOCR ?? valorDoTexto ?? valorIASeguro
+    if (valorFinal != null) jsonData.valor = valorFinal
+    return formatarComprovante(jsonData)
+  } catch (e: any) {
+    console.error('❌ [Media Processor] Groq Vision erro:', e?.message)
     return null
   }
 }
