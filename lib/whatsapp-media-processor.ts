@@ -504,7 +504,7 @@ function extrairComprovanteOCR(texto: string): string | null {
   return `paguei ${valor.toFixed(2)}`
 }
 
-/** Extrai apenas o valor principal (maior R$ X,XX / X,XX) do texto. Usado para corrigir valor errado da IA. Ignora números de data (1-31, 2020-2030). */
+/** Extrai apenas o valor principal (maior R$ X,XX / X,XX) do texto. Ignora números de data (1-31, 2020-2030). */
 function extrairValorPrincipalDoTexto(texto: string): number | null {
   if (!texto || typeof texto !== 'string') return null
   const t = texto.trim()
@@ -525,6 +525,14 @@ function extrairValorPrincipalDoTexto(texto: string): number | null {
   while ((m = reValorTotal.exec(t)) !== null) candidatos.push(parse(m[1]))
   reNumero.lastIndex = 0
   while ((m = reNumero.exec(t)) !== null) candidatos.push(parse(m[1]))
+  // Fallback PIX: valor em reais costuma ter 2+ dígitos (80,00). Evita pegar 2,00 de data.
+  if (/pix|enviado|recebido|comprovante/i.test(t)) {
+    const reValorGrande = /\b(\d{2,})[.,](\d{2})\b/g
+    while ((m = reValorGrande.exec(t)) !== null) {
+      const v = parseFloat(m[1] + '.' + m[2])
+      if (v > 31 && v < 10_000_000) candidatos.push(v)
+    }
+  }
   const semDataHora = filtrarValoresDataHora(candidatos)
   const validos = semDataHora.length > 0 ? semDataHora : candidatos.filter((v) => v > 0 && v < 10_000_000)
   return validos.length > 0 ? Math.max(...validos) : null
@@ -722,13 +730,14 @@ async function processImageWithGemini(base64Image: string, caption?: string, ocr
   console.log('🔍 [Media Processor] Tamanho da imagem base64:', base64Image.length, 'caracteres')
   if (ocrText) console.log('🔍 [Media Processor] OCR texto disponível para corrigir valor da IA:', ocrText.length, 'chars')
 
-  const prompt = `Analise esta imagem de comprovante (PIX, boleto, recibo) e extraia em JSON.
+  const prompt = `Analise esta imagem de comprovante PIX e extraia em JSON.
 
-IMPORTANTE - Valor: use o valor PRINCIPAL da transação (o valor pago ou recebido, em reais). É o número em destaque, ex: R$ 80,00 → valor 80. NÃO use outros números que apareçam (data, código, ID, parcelas). Se houver um único valor em reais, use esse.
-PIX enviado (você pagou): "Quem recebeu" = nome_beneficiario (nome completo ou razão social), valor em reais. tipo = "pix".
-PIX recebido (você recebeu): "Quem pagou" = nome_pagador, valor. tipo = "recebimento".
-Preencha nome_beneficiario ou nome_pagador com o nome real que aparece no comprovante (não deixe vazio se estiver visível).
-Data: YYYY-MM-DD se possível, senão null.
+REGRAS OBRIGATÓRIAS:
+- Valor: use SOMENTE o valor da transação em reais, o número em DESTAQUE (ex.: "Pix enviado R$ 80,00" → valor 80). NUNCA use número de data (12, 08, 2022), hora (01, 23) ou ID.
+- PIX enviado (você pagou): tipo = "pix". nome_beneficiario = nome em "Quem recebeu" (ex.: Pagsmile). valor = valor em reais (ex.: 80).
+- PIX recebido (você recebeu): tipo = "recebimento". nome_pagador = nome em "Quem pagou". valor = valor em reais.
+- Preencha nome_beneficiario ou nome_pagador com o nome REAL do comprovante (não deixe vazio).
+- data: "YYYY-MM-DD" se visível, senão null.
 
 Retorne SOMENTE um JSON válido, sem markdown: {"tipo":"pix"|"recebimento","valor":número,"data":null ou "YYYY-MM-DD","nome_beneficiario":"","nome_pagador":"","descricao":""}
 ${caption ? ` Legenda: ${caption}` : ''}`
@@ -799,21 +808,14 @@ ${caption ? ` Legenda: ${caption}` : ''}`
             console.log('📝 [Media Processor] Resposta do Gemini:', extractedText.substring(0, 500))
             const jsonData = extrairJsonDaResposta(extractedText)
             if (jsonData && typeof jsonData === 'object') {
-              // VALOR: nunca confiar só na IA. Se temos OCR, usar valor do OCR; senão, do texto da resposta.
+              // VALOR: priorizar sempre OCR/texto; nunca usar valor da IA quando for <= 31 (data/hora).
               const valorOCR = ocrText ? extrairValorPrincipalDoTexto(ocrText) : null
               const valorDoTexto = extrairValorPrincipalDoTexto(extractedText)
               const valorIA = typeof jsonData.valor === 'number' ? jsonData.valor : parseFloat(jsonData.valor)
-              let valorFinal = valorOCR ?? valorDoTexto ?? (Number.isFinite(valorIA) ? valorIA : null)
+              const valorIASeguro = Number.isFinite(valorIA) && valorIA > 31 ? valorIA : null
+              const valorFinal = valorOCR ?? valorDoTexto ?? valorIASeguro
               if (valorOCR != null && valorOCR !== valorIA) {
-                console.log('📝 [Media Processor] Valor corrigido pelo OCR: IA=', valorIA, '→ OCR=', valorOCR)
-              }
-              // Se valor parece de data/hora (<= 31: dia, mês ou dígito de ano), perguntar ao Gemini só o valor da transação
-              if (valorFinal != null && valorFinal <= 31) {
-                const valorPergunta = await perguntarValorSoGemini(base64Image)
-                if (valorPergunta != null && valorPergunta > 31) {
-                  valorFinal = valorPergunta
-                  console.log('📝 [Media Processor] Valor corrigido (era data/hora): antigo=', jsonData.valor, '→ novo=', valorFinal)
-                }
+                console.log('📝 [Media Processor] Valor do OCR (ignorando IA): IA=', valorIA, '→ OCR=', valorOCR)
               }
               if (valorFinal != null) jsonData.valor = valorFinal
               const cmd = formatarComprovante(jsonData)
