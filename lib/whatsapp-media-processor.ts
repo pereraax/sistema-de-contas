@@ -406,9 +406,20 @@ async function ocrImageSóTexto(base64Image: string): Promise<string | null> {
   return null
 }
 
+/** Remove valores que são típicos de data/hora (dia 1-31, mês 1-12, ano 2020-2030) para não confundir com valor em reais. */
+function filtrarValoresDataHora(candidatos: number[]): number[] {
+  return candidatos.filter(
+    (v) =>
+      v > 0 &&
+      v < 10_000_000 &&
+      !(v >= 1 && v <= 31) && // dia
+      !(v >= 2020 && v <= 2030) // ano
+  )
+}
+
 /**
  * Extrai valor principal e nomes do texto OCR do comprovante (PIX etc.).
- * Prioriza valor em contexto "R$", "Valor", "Total" e o maior valor encontrado (evita pegar 2 de data/código).
+ * Prioriza valor em contexto "R$", "Valor", "Total" e evita pegar número de data (2, 12, 2022) como valor.
  * Retorna comando pronto "paguei X para Y" / "recebi X de Y" ou null.
  */
 function extrairComprovanteOCR(texto: string): string | null {
@@ -417,7 +428,7 @@ function extrairComprovanteOCR(texto: string): string | null {
 
   // 1) Valor: preferir R$ X,XX ou Valor/Total; senão maior número no formato X,XX ou X.XX
   const valorCandidatos: number[] = []
-  const reR$ = /R\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/g
+  const reR$ = /R\s*\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/g
   const reValorTotal = /(?:valor|total|pix\s+enviado|pix\s+recebido)\s*[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/gi
   const reNumeroDecimal = /(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})/g
 
@@ -447,9 +458,13 @@ function extrairComprovanteOCR(texto: string): string | null {
   reNumeroDecimal.lastIndex = 0
   while ((m = reNumeroDecimal.exec(t)) !== null) valorCandidatos.push(parseValorBR(m[1]))
 
-  const valor = valorCandidatos.length > 0
-    ? Math.max(...valorCandidatos.filter((v) => v > 0 && v < 10_000_000))
-    : null
+  const semDataHora = filtrarValoresDataHora(valorCandidatos)
+  const valor =
+    semDataHora.length > 0
+      ? Math.max(...semDataHora)
+      : valorCandidatos.length > 0
+        ? Math.max(...valorCandidatos.filter((v) => v > 0 && v < 10_000_000))
+        : null
   if (valor == null || valor <= 0) return null
 
   // 2) Nomes: "Quem recebeu" → beneficiário (quem você pagou); "Quem pagou" → pagador (quem te pagou)
@@ -489,13 +504,13 @@ function extrairComprovanteOCR(texto: string): string | null {
   return `paguei ${valor.toFixed(2)}`
 }
 
-/** Extrai apenas o valor principal (maior R$ X,XX / X,XX) do texto. Usado para corrigir valor errado da IA. */
+/** Extrai apenas o valor principal (maior R$ X,XX / X,XX) do texto. Usado para corrigir valor errado da IA. Ignora números de data (1-31, 2020-2030). */
 function extrairValorPrincipalDoTexto(texto: string): number | null {
   if (!texto || typeof texto !== 'string') return null
   const t = texto.trim()
   const candidatos: number[] = []
-  const reR$ = /R\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/g
-  const reValorTotal = /(?:valor|total|pix\s+enviado)\s*[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/gi
+  const reR$ = /R\s*\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/g
+  const reValorTotal = /(?:valor|total|pix\s+enviado|pix\s+recebido)\s*[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/gi
   const reNumero = /(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})/g
   function parse(s: string): number {
     const limpo = s.replace(/\s/g, '').trim()
@@ -510,7 +525,8 @@ function extrairValorPrincipalDoTexto(texto: string): number | null {
   while ((m = reValorTotal.exec(t)) !== null) candidatos.push(parse(m[1]))
   reNumero.lastIndex = 0
   while ((m = reNumero.exec(t)) !== null) candidatos.push(parse(m[1]))
-  const validos = candidatos.filter((v) => v > 0 && v < 10_000_000)
+  const semDataHora = filtrarValoresDataHora(candidatos)
+  const validos = semDataHora.length > 0 ? semDataHora : candidatos.filter((v) => v > 0 && v < 10_000_000)
   return validos.length > 0 ? Math.max(...validos) : null
 }
 
@@ -654,11 +670,14 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
 
 /**
  * Pergunta ao Gemini APENAS o valor em reais da transação (uma pergunta simples).
- * Usado quando a IA retornou valor suspeito (ex.: 2) para corrigir.
+ * Usado quando a IA retornou valor suspeito (ex.: 2 de data) para corrigir.
  */
 async function perguntarValorSoGemini(base64Image: string): Promise<number | null> {
   if (!process.env.GEMINI_API_KEY || !base64Image) return null
-  const prompt = 'Na imagem do comprovante PIX, qual é o valor em reais da transação? É o número em destaque (ex.: R$ 80,00). Responda APENAS com o número, sem texto. Exemplo: 80'
+  const prompt = `Na imagem do comprovante PIX, qual é o valor em REAIS da transação (valor pago ou recebido)?
+É o número em DESTAQUE, por exemplo "Pix enviado R$ 80,00" → responda 80.
+NÃO use número de data (12/08/2022), nem hora (01h23), nem ID. Apenas o valor da transação em reais.
+Responda SOMENTE com o número (ex: 80).`
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
       method: 'POST',
@@ -672,10 +691,10 @@ async function perguntarValorSoGemini(base64Image: string): Promise<number | nul
     const data = await res.json()
     const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim()
     const fromText = extrairValorPrincipalDoTexto(text)
-    if (fromText != null) return fromText
+    if (fromText != null && fromText > 31) return fromText
     const num = text.match(/\d{1,6}(?:[.,]\d{2})?/)?.[0]?.replace(',', '.') || text.replace(/\D/g, '')
     const v = num ? parseFloat(num) : NaN
-    if (Number.isFinite(v) && v > 0 && v < 10_000_000) {
+    if (Number.isFinite(v) && v > 31 && v < 10_000_000) {
       console.log('📝 [Media Processor] Valor corrigido por pergunta direta ao Gemini:', v)
       return v
     }
@@ -788,12 +807,12 @@ ${caption ? ` Legenda: ${caption}` : ''}`
               if (valorOCR != null && valorOCR !== valorIA) {
                 console.log('📝 [Media Processor] Valor corrigido pelo OCR: IA=', valorIA, '→ OCR=', valorOCR)
               }
-              // Se valor ainda suspeito (<= 20, ex.: 2 de "2022" ou "12/08"), perguntar ao Gemini só o valor
-              if (valorFinal != null && valorFinal <= 20) {
+              // Se valor parece de data/hora (<= 31: dia, mês ou dígito de ano), perguntar ao Gemini só o valor da transação
+              if (valorFinal != null && valorFinal <= 31) {
                 const valorPergunta = await perguntarValorSoGemini(base64Image)
-                if (valorPergunta != null && valorPergunta > 0) {
+                if (valorPergunta != null && valorPergunta > 31) {
                   valorFinal = valorPergunta
-                  console.log('📝 [Media Processor] Valor substituído por pergunta direta: antigo=', jsonData.valor, '→ novo=', valorFinal)
+                  console.log('📝 [Media Processor] Valor corrigido (era data/hora): antigo=', jsonData.valor, '→ novo=', valorFinal)
                 }
               }
               if (valorFinal != null) jsonData.valor = valorFinal
