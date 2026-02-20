@@ -379,14 +379,14 @@ export async function processPlenWhatsAppMessage(
 
     let interpretado = interpretarMensagem(msgForRegistro)
 
-    // Áudio/transcrição: se deu R$ 2,00, corrigir valor (Whisper costuma transcrever "dois" em vez de duzentos/vinte)
+    // Áudio/transcrição: se deu R$ 2,00, corrigir valor (transcrição costuma errar "dois" em vez de duzentos/vinte)
     if (interpretado?.valor === 2 && /(?:gastei|paguei|recebi|ganhei|gastou|pagou)/i.test(msgForRegistro)) {
-      const fraseCurta = msgForRegistro.trim().length <= 80 && /(?:gastei|paguei|recebi|ganhei)\s*(?:um\s+)?(?:dois|2|2\.0*)\b/i.test(msgForRegistro.trim())
-      const valorCorrigido = fraseCurta
-        ? await desambiguarValorDoisTranscricao(msgForRegistro)
-        : await extrairValorReaisComLLM(msgForRegistro)
-      if (valorCorrigido != null && valorCorrigido > 2) {
+      const valorCorrigido = await desambiguarValorDoisTranscricao(msgForRegistro)
+      if (valorCorrigido != null) {
         interpretado = { ...interpretado, valor: valorCorrigido }
+      } else {
+        const fallback = await extrairValorReaisComLLM(msgForRegistro)
+        if (fallback != null && fallback > 2) interpretado = { ...interpretado, valor: fallback }
       }
     }
 

@@ -155,14 +155,23 @@ export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promi
 
 /**
  * Desambigua valor quando a transcrição veio "paguei 2" / "gastei 2.00" (erro comum: "dois" em vez de "duzentos"/"vinte").
- * Usado só quando a frase é curta e o único número é 2. Pergunta ao LLM qual valor em reais a pessoa provavelmente disse.
+ * O transcritor quase sempre erra: a pessoa disse um valor maior e saiu 2. O LLM deve inferir o valor real (NUNCA devolver 2).
  */
+function parseNumFromLLM(text: string): number | null {
+  const cleaned = text.trim().replace(/\s/g, '').replace(/[^\d.,]/g, '').replace(',', '.')
+  const num = parseFloat(cleaned)
+  return Number.isFinite(num) && num > 2 && num <= 500_000 ? num : null
+}
+
 export async function desambiguarValorDoisTranscricao(frase: string): Promise<number | null> {
-  if (!frase || frase.trim().length > 120) return null
-  const prompt = `A transcrição de um áudio em português (registro de gasto/pagamento) foi: "${frase.trim()}"
+  if (!frase || frase.trim().length > 200) return null
+  const prompt = `A transcrição de um áudio em português (registro de gasto/pagamento) saiu: "${frase.trim()}"
 
-Em áudios curtos o transcritor costuma confundir "dois" com "duzentos", "vinte", "doze" ou outros valores. Qual valor em reais a pessoa mais provavelmente quis dizer? Responda APENAS um número (ex: 20, 50, 200, 300), nada mais.`
+IMPORTANTE: O valor "2" ou "2.00" na transcrição é quase SEMPRE um ERRO do transcritor. Em português, "dois" (2) é confundido com "duzentos" (200), "vinte" (20), "doze" (12), "trezentos" (300), etc. A pessoa provavelmente disse um valor em reais maior que 2.
 
+Responda APENAS um número: o valor em reais que a pessoa mais provavelmente disse. NÃO responda 2. Exemplos: 20, 50, 200, 300. Um número só.`
+
+  // 1) Groq
   const groqKey = process.env.GROQ_API_KEY?.trim()
   if (groqKey) {
     try {
@@ -178,12 +187,13 @@ Em áudios curtos o transcritor costuma confundir "dois" com "duzentos", "vinte"
       })
       if (res.ok) {
         const data = await res.json()
-        const text = (data.choices?.[0]?.message?.content ?? '').trim().replace(/\s/g, '')
-        const num = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'))
-        if (Number.isFinite(num) && num > 2 && num <= 500_000) return num
+        const content = data.choices?.[0]?.message?.content ?? ''
+        const num = parseNumFromLLM(content)
+        if (num != null) return num
       }
     } catch (_) {}
   }
+  // 2) OpenAI
   const openaiKey = process.env.OPENAI_API_KEY?.trim()
   if (openaiKey) {
     try {
@@ -199,9 +209,28 @@ Em áudios curtos o transcritor costuma confundir "dois" com "duzentos", "vinte"
       })
       if (res.ok) {
         const data = await res.json()
-        const text = (data.choices?.[0]?.message?.content ?? '').trim().replace(/\s/g, '')
-        const num = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'))
-        if (Number.isFinite(num) && num > 2 && num <= 500_000) return num
+        const num = parseNumFromLLM(data.choices?.[0]?.message?.content ?? '')
+        if (num != null) return num
+      }
+    } catch (_) {}
+  }
+  // 3) Gemini (já em produção para comprovantes)
+  const geminiKey = process.env.GEMINI_API_KEY?.trim()
+  if (geminiKey) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 15 },
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+        const num = parseNumFromLLM(text)
+        if (num != null) return num
       }
     } catch (_) {}
   }
