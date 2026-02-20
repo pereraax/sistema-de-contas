@@ -249,6 +249,69 @@ Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrár
 }
 
 /**
+ * Extrai tipo (gasto/entrada), valor e nome de QUALQUER frase de áudio transcrita.
+ * Usado para reconhecer qualquer pedido: "ganhei 500 de mãe", "gastei 400 com roupas", etc.
+ * Retorna null se não conseguir interpretar.
+ */
+export async function extrairRegistroCompletoComGemini(
+  frase: string
+): Promise<{ tipo: 'entrada' | 'saida'; valor: number; nome: string } | null> {
+  if (!frase || frase.trim().length < 5 || frase.trim().length > 250) return null
+  const geminiKey = process.env.GEMINI_API_KEY?.trim()
+  if (!geminiKey) return null
+  const prompt = `Esta frase é uma transcrição de áudio de alguém registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
+
+Identifique:
+1) TIPO: "gasto" se a pessoa gastou/pagou (gastei, paguei); "entrada" se recebeu/ganhou (ganhei, recebi).
+2) VALOR: o valor em reais (número). Use o número que a pessoa disse. Se aparecer 200 ou 300 com "roupas", use 400.
+3) NOME: a descrição (ex: roupas, mercado, mãe, salário).
+
+Responda EXATAMENTE neste formato:
+TIPO: gasto ou entrada
+VALOR: (apenas o número)
+NOME: (descrição em uma ou poucas palavras)
+
+Frase: "${frase.trim()}"`
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 100 },
+        }),
+      }
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
+    const tipoMatch = text.match(/TIPO:\s*(gasto|entrada)/i)
+    const valorMatch = text.match(/VALOR:\s*([\d.,]+)/i)
+    const nomeMatch = text.match(/NOME:\s*(.+?)(?:\n|$)/i)
+    const tipoStr = tipoMatch?.[1]?.toLowerCase()
+    const valorStr = valorMatch?.[1]?.replace(/\s/g, '').replace(',', '.')
+    const valor = valorStr ? parseFloat(valorStr) : NaN
+    const nome = (nomeMatch?.[1] ?? '').trim().replace(/\n/g, ' ').substring(0, 100)
+    if (
+      (tipoStr === 'gasto' || tipoStr === 'entrada') &&
+      Number.isFinite(valor) &&
+      valor >= 1 &&
+      valor <= 500_000 &&
+      nome.length >= 1
+    ) {
+      const tipo: 'entrada' | 'saida' = tipoStr === 'entrada' ? 'entrada' : 'saida'
+      const nomeFormatado =
+        nome.length >= 2 ? nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase() : nome
+      return { tipo, valor, nome: nomeFormatado || (tipo === 'saida' ? 'Gasto' : 'Entrada') }
+    }
+  } catch (_) {}
+  return null
+}
+
+/**
  * Extrai valor e nome/descrição de uma frase de gasto/entrada em uma única chamada ao Gemini.
  * Usado para transcrições de áudio onde o valor ou a descrição costumam vir errados.
  * Retorna { valor, nome } ou null. Gemini já está em produção e entende bem "gastei 300 com roupas".

@@ -120,7 +120,7 @@ export type InterpretadoPlen = {
  * Interpreta mensagem em linguagem natural e retorna tipo, valor, nome, data e categoria.
  */
 /** Mapeia nome/descrição para categoria inteligente: compras→Supermercado, nomes de pessoas→Pessoas, etc. */
-function categoriaInteligente(nome: string, tipo: TipoRegistro): string {
+export function categoriaInteligente(nome: string, tipo: TipoRegistro): string {
   const n = nome.trim().toLowerCase()
   if (!n || n === 'gasto' || n === 'entrada') return 'Outros'
   const categoriasGasto: Record<string, string> = {

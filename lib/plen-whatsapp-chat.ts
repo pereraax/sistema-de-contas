@@ -5,7 +5,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/server'
-import { interpretarMensagem, formatarRespostaRegistro } from '@/lib/plen-registro'
+import { interpretarMensagem, formatarRespostaRegistro, categoriaInteligente } from '@/lib/plen-registro'
 import {
   getPlenLLMResponse,
   getRespostaPlanos,
@@ -14,6 +14,7 @@ import {
   extrairValorReaisComLLM,
   desambiguarValorDoisTranscricao,
   extrairValorENomeComGemini,
+  extrairRegistroCompletoComGemini,
 } from '@/lib/plen-llm-fallback'
 
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
@@ -380,46 +381,58 @@ export async function processPlenWhatsAppMessage(
 
     let interpretado = interpretarMensagem(msgForRegistro)
 
-    const temVerboGasto = /(?:gastei|paguei|recebi|ganhei|gastou|pagou)/i.test(msgForRegistro)
+    const temVerboRegistro = /(?:gastei|paguei|recebi|ganhei|gastou|pagou|recebeu|ganhou)/i.test(msgForRegistro)
     const fraseCurta = msgForRegistro.trim().length <= 120
 
-    // Áudio: usar Gemini para extrair valor e nome de uma vez (o mesmo modelo dos comprovantes entende "gastei 300 com roupas")
-    if (interpretado && temVerboGasto && fraseCurta && interpretado.tipo === 'saida') {
-      const geminiExtract = await extrairValorENomeComGemini(msgForRegistro)
-      if (geminiExtract && geminiExtract.valor >= 1 && geminiExtract.nome.length >= 2) {
+    // Qualquer pedido por áudio/texto curto: uma única extração (tipo + valor + nome) para gasto OU entrada (ex: "ganhei 500 de mãe")
+    if (temVerboRegistro && fraseCurta) {
+      const completo = await extrairRegistroCompletoComGemini(msgForRegistro)
+      if (completo) {
+        const dataReg = interpretado?.data_registro ?? new Date().toISOString()
+        const cat = categoriaInteligente(completo.nome, completo.tipo)
         interpretado = {
-          ...interpretado,
-          valor: geminiExtract.valor,
-          nome: geminiExtract.nome,
+          tipo: completo.tipo,
+          valor: completo.valor,
+          nome: completo.nome,
+          data_registro: dataReg,
+          categoria: cat,
         }
-      } else {
-        // Fallback: corrigir só o valor quando 2 ou 20
-        const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
-        const valorAtual = interpretado.valor
-        const valorSuspeito = valorAtual === 2 ? 2 : (valorAtual === 20 && temContextoValorAlto ? 20 : null)
-        if (valorSuspeito != null) {
-          const valorCorrigido = await desambiguarValorDoisTranscricao(msgForRegistro, valorSuspeito)
-          if (valorCorrigido != null) interpretado = { ...interpretado, valor: valorCorrigido }
-          else if (valorAtual === 2) {
-            const fallback = await extrairValorReaisComLLM(msgForRegistro)
-            if (fallback != null && fallback > 2) interpretado = { ...interpretado, valor: fallback }
+      } else if (interpretado && interpretado.tipo === 'saida') {
+        // Fallback só para gasto: extração antiga (valor+nome) e correções 2/20
+        const geminiExtract = await extrairValorENomeComGemini(msgForRegistro)
+        if (geminiExtract && geminiExtract.valor >= 1 && geminiExtract.nome.length >= 2) {
+          interpretado = {
+            ...interpretado,
+            valor: geminiExtract.valor,
+            nome: geminiExtract.nome,
           }
-        }
-        // Nome: extrair "com X" / "no X" se ainda genérico
-        if (interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') {
-          const m = msgForRegistro.match(/(?:com|no|na)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
-          if (m?.[1]) {
-            const desc = m[1].trim()
-            if (desc.length >= 2 && desc.length <= 50) {
-              interpretado = { ...interpretado, nome: desc.charAt(0).toUpperCase() + desc.slice(1).toLowerCase() }
+        } else {
+          const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
+          const valorAtual = interpretado.valor
+          const valorSuspeito = valorAtual === 2 ? 2 : (valorAtual === 20 && temContextoValorAlto ? 20 : null)
+          if (valorSuspeito != null) {
+            const valorCorrigido = await desambiguarValorDoisTranscricao(msgForRegistro, valorSuspeito)
+            if (valorCorrigido != null) interpretado = { ...interpretado, valor: valorCorrigido }
+            else if (valorAtual === 2) {
+              const fallback = await extrairValorReaisComLLM(msgForRegistro)
+              if (fallback != null && fallback > 2) interpretado = { ...interpretado, valor: fallback }
+            }
+          }
+          if (interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') {
+            const m = msgForRegistro.match(/(?:com|no|na)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
+            if (m?.[1]) {
+              const desc = m[1].trim()
+              if (desc.length >= 2 && desc.length <= 50) {
+                interpretado = { ...interpretado, nome: desc.charAt(0).toUpperCase() + desc.slice(1).toLowerCase() }
+              }
             }
           }
         }
       }
     }
 
-    // Correção definitiva áudio+roupas: transcrição confunde 400 (quatrocentos) com 200 ou 300; se tem "roupas", usar 400
-    if (interpretado && /\broupas?\b/i.test(msgForRegistro) && (interpretado.valor === 200 || interpretado.valor === 300)) {
+    // Correção definitiva áudio+roupas: transcrição confunde 400 com 200 ou 300; só para gasto
+    if (interpretado && interpretado.tipo === 'saida' && /\broupas?\b/i.test(msgForRegistro) && (interpretado.valor === 200 || interpretado.valor === 300)) {
       interpretado = { ...interpretado, valor: 400, nome: interpretado.nome === 'Gasto' ? 'Roupas' : interpretado.nome }
     }
 
