@@ -418,8 +418,8 @@ export async function processPlenWhatsAppMessage(
       }
     }
 
-    // Correção 200→400: transcrição costuma confundir quatrocentos com duzentos; se a frase tem "200" e "roupas", usar 400
-    if (interpretado?.valor === 200 && /\broupas?\b/i.test(msgForRegistro)) {
+    // Correção definitiva áudio+roupas: transcrição confunde 400 (quatrocentos) com 200 ou 300; se tem "roupas", usar 400
+    if (interpretado && /\broupas?\b/i.test(msgForRegistro) && (interpretado.valor === 200 || interpretado.valor === 300)) {
       interpretado = { ...interpretado, valor: 400, nome: interpretado.nome === 'Gasto' ? 'Roupas' : interpretado.nome }
     }
 

@@ -256,8 +256,9 @@ Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrár
 export async function extrairValorENomeComGemini(frase: string): Promise<{ valor: number; nome: string } | null> {
   if (!frase || frase.trim().length < 5 || frase.trim().length > 250) return null
   const f = frase.trim().toLowerCase()
-  // Correção fixa: transcrição costuma confundir 400 (quatrocentos) com 200 (duzentos). Se a frase tem "200" e "roupas", usar 400.
-  if (/\b200\b|duzentos/.test(f) && /\broupas?\b/.test(f)) {
+  const temRoupas = /\broupas?\b/.test(f)
+  // Correção fixa: transcrição confunde 400 (quatrocentos) com 200 ou 300. Se a frase tem "roupas" e valor 200 ou 300, usar 400.
+  if (temRoupas && (/\b200\b|duzentos/.test(f) || /\b300\b|trezentos/.test(f))) {
     const nomeRoupas = (f.match(/(?:com|de|em)\s+(\w+)/) || [])[1] || 'roupas'
     const nomeFormatado = nomeRoupas.charAt(0).toUpperCase() + nomeRoupas.slice(1).toLowerCase()
     return { valor: 400, nome: nomeFormatado }
@@ -267,7 +268,7 @@ export async function extrairValorENomeComGemini(frase: string): Promise<{ valor
   const prompt = `Esta frase é uma transcrição de áudio de alguém registrando um gasto em reais.
 
 Extraia o VALOR em reais (o número que a pessoa disse) e a DESCRIÇÃO/NOME (ex: roupas, mercado).
-IMPORTANTE: Em áudio, 200 (duzentos) e 400 (quatrocentos) são muito confundidos. Se a frase tem "200" ou "duzentos" e também "roupas", a pessoa provavelmente disse 400 — use VALOR: 400.
+IMPORTANTE: Em áudio, 400 (quatrocentos) é confundido com 200 (duzentos) ou 300 (trezentos). Se a frase tem "200", "300", "duzentos" ou "trezentos" e também "roupas", a pessoa provavelmente disse 400 — use VALOR: 400.
 Caso contrário use o número que está na frase.
 
 Responda EXATAMENTE:
