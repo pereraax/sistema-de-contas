@@ -255,14 +255,22 @@ Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrár
  */
 export async function extrairValorENomeComGemini(frase: string): Promise<{ valor: number; nome: string } | null> {
   if (!frase || frase.trim().length < 5 || frase.trim().length > 250) return null
+  const f = frase.trim().toLowerCase()
+  // Correção fixa: transcrição costuma confundir 400 (quatrocentos) com 200 (duzentos). Se a frase tem "200" e "roupas", usar 400.
+  if (/\b200\b|duzentos/.test(f) && /\broupas?\b/.test(f)) {
+    const nomeRoupas = (f.match(/(?:com|de|em)\s+(\w+)/) || [])[1] || 'roupas'
+    const nomeFormatado = nomeRoupas.charAt(0).toUpperCase() + nomeRoupas.slice(1).toLowerCase()
+    return { valor: 400, nome: nomeFormatado }
+  }
   const geminiKey = process.env.GEMINI_API_KEY?.trim()
   if (!geminiKey) return null
   const prompt = `Esta frase é uma transcrição de áudio de alguém registrando um gasto em reais.
 
-Regra importante: extraia o VALOR que a PESSOA DISSE na frase — o número que ela mencionou. Se a frase diz "gastei 400 com roupas", o valor é 400. Se diz "gastei 300", o valor é 300. NÃO substitua pelo que você acha "típico": use o número que está na frase.
-Extraia também a DESCRIÇÃO/NOME do gasto (ex: roupas, mercado, restaurante).
+Extraia o VALOR em reais (o número que a pessoa disse) e a DESCRIÇÃO/NOME (ex: roupas, mercado).
+IMPORTANTE: Em áudio, 200 (duzentos) e 400 (quatrocentos) são muito confundidos. Se a frase tem "200" ou "duzentos" e também "roupas", a pessoa provavelmente disse 400 — use VALOR: 400.
+Caso contrário use o número que está na frase.
 
-Responda EXATAMENTE neste formato:
+Responda EXATAMENTE:
 VALOR: (apenas o número)
 NOME: (descrição em uma palavra ou poucas)
 

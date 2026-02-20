@@ -1545,7 +1545,7 @@ async function transcribeAudioWithGemini(audioBuffer: Buffer, mimeType: string):
     ]
     
     const prompt = `Transcreva este áudio para português. O usuário está registrando um gasto ou entrada.
-Regras: 1) Retorne a frase COMPLETA transcrita (ex: "gastei 300 com roupas", "paguei 80 no mercado"). 2) Valores em reais SEMPRE em algarismos: 50, 80, 300, 500 (nunca "dois" ou "vinte" se for valor de gasto). 3) Mantenha a descrição: "com roupas", "no mercado", etc. Só o texto, sem explicações.`
+Regras: 1) Frase COMPLETA (ex: "gastei 400 com roupas", "paguei 80 no mercado"). 2) Valores SEMPRE em algarismos: 50, 80, 200, 300, 400, 500. Atenção: 400 = quatrocentos, 200 = duzentos — não confunda. 3) Mantenha a descrição: "com roupas", "no mercado". Só o texto, sem explicações.`
     
     for (const model of geminiModels) {
       try {

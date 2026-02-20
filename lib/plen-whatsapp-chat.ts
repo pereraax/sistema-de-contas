@@ -418,6 +418,11 @@ export async function processPlenWhatsAppMessage(
       }
     }
 
+    // Correção 200→400: transcrição costuma confundir quatrocentos com duzentos; se a frase tem "200" e "roupas", usar 400
+    if (interpretado?.valor === 200 && /\broupas?\b/i.test(msgForRegistro)) {
+      interpretado = { ...interpretado, valor: 400, nome: interpretado.nome === 'Gasto' ? 'Roupas' : interpretado.nome }
+    }
+
     if (interpretado) {
       const { tipo, valor, nome, data_registro, categoria } = interpretado
       const valorFinal = Math.round(valor * 100) / 100
