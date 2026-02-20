@@ -13,6 +13,7 @@ import {
   RESPOSTA_NAO_SEI,
   extrairValorReaisComLLM,
   desambiguarValorDoisTranscricao,
+  extrairValorENomeComGemini,
 } from '@/lib/plen-llm-fallback'
 
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
@@ -379,30 +380,40 @@ export async function processPlenWhatsAppMessage(
 
     let interpretado = interpretarMensagem(msgForRegistro)
 
-    // Áudio/transcrição: corrigir valor quando transcrição erra (2 ou 20 em vez de 200/300); usar contexto "com roupas", "mercado"
     const temVerboGasto = /(?:gastei|paguei|recebi|ganhei|gastou|pagou)/i.test(msgForRegistro)
-    const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
-    if (interpretado && temVerboGasto) {
-      const valorAtual = interpretado.valor
-      const valorSuspeito = valorAtual === 2 ? 2 : (valorAtual === 20 && temContextoValorAlto ? 20 : null)
-      if (valorSuspeito != null) {
-        const valorCorrigido = await desambiguarValorDoisTranscricao(msgForRegistro, valorSuspeito)
-        if (valorCorrigido != null) {
-          interpretado = { ...interpretado, valor: valorCorrigido }
-        } else if (valorAtual === 2) {
-          const fallback = await extrairValorReaisComLLM(msgForRegistro)
-          if (fallback != null && fallback > 2) interpretado = { ...interpretado, valor: fallback }
-        }
-      }
-    }
+    const fraseCurta = msgForRegistro.trim().length <= 120
 
-    // Áudio: se o nome ficou genérico ("Gasto") mas a frase tem descrição (com roupas, no mercado), usar essa descrição
-    if (interpretado && (interpretado.nome === 'Gasto' || interpretado.nome === 'Outros')) {
-      const m = msgForRegistro.match(/(?:com|no|na)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
-      if (m && m[1]) {
-        const desc = m[1].trim()
-        if (desc.length >= 2 && desc.length <= 50) {
-          interpretado = { ...interpretado, nome: desc.charAt(0).toUpperCase() + desc.slice(1).toLowerCase() }
+    // Áudio: usar Gemini para extrair valor e nome de uma vez (o mesmo modelo dos comprovantes entende "gastei 300 com roupas")
+    if (interpretado && temVerboGasto && fraseCurta && interpretado.tipo === 'saida') {
+      const geminiExtract = await extrairValorENomeComGemini(msgForRegistro)
+      if (geminiExtract && geminiExtract.valor >= 1 && geminiExtract.nome.length >= 2) {
+        interpretado = {
+          ...interpretado,
+          valor: geminiExtract.valor,
+          nome: geminiExtract.nome,
+        }
+      } else {
+        // Fallback: corrigir só o valor quando 2 ou 20
+        const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
+        const valorAtual = interpretado.valor
+        const valorSuspeito = valorAtual === 2 ? 2 : (valorAtual === 20 && temContextoValorAlto ? 20 : null)
+        if (valorSuspeito != null) {
+          const valorCorrigido = await desambiguarValorDoisTranscricao(msgForRegistro, valorSuspeito)
+          if (valorCorrigido != null) interpretado = { ...interpretado, valor: valorCorrigido }
+          else if (valorAtual === 2) {
+            const fallback = await extrairValorReaisComLLM(msgForRegistro)
+            if (fallback != null && fallback > 2) interpretado = { ...interpretado, valor: fallback }
+          }
+        }
+        // Nome: extrair "com X" / "no X" se ainda genérico
+        if (interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') {
+          const m = msgForRegistro.match(/(?:com|no|na)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
+          if (m?.[1]) {
+            const desc = m[1].trim()
+            if (desc.length >= 2 && desc.length <= 50) {
+              interpretado = { ...interpretado, nome: desc.charAt(0).toUpperCase() + desc.slice(1).toLowerCase() }
+            }
+          }
         }
       }
     }

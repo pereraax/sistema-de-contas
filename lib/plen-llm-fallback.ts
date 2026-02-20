@@ -249,6 +249,50 @@ Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrár
 }
 
 /**
+ * Extrai valor e nome/descrição de uma frase de gasto/entrada em uma única chamada ao Gemini.
+ * Usado para transcrições de áudio onde o valor ou a descrição costumam vir errados.
+ * Retorna { valor, nome } ou null. Gemini já está em produção e entende bem "gastei 300 com roupas".
+ */
+export async function extrairValorENomeComGemini(frase: string): Promise<{ valor: number; nome: string } | null> {
+  if (!frase || frase.trim().length < 5 || frase.trim().length > 250) return null
+  const geminiKey = process.env.GEMINI_API_KEY?.trim()
+  if (!geminiKey) return null
+  const prompt = `Esta frase é uma transcrição de áudio de alguém registrando um gasto ou entrada em reais (ex: "gastei 300 com roupas", "paguei 80 no mercado").
+
+Extraia o VALOR em reais (número) e a DESCRIÇÃO/NOME do gasto (ex: roupas, mercado, restaurante). Se a pessoa disse "com roupas", o valor costuma ser 300. Se disse "no mercado", pode ser 50 a 200.
+
+Responda EXATAMENTE neste formato, numa única linha:
+VALOR: (número)
+NOME: (descrição em uma palavra ou poucas)
+
+Frase: "${frase.trim()}"`
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 80 },
+      }),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
+    const valorMatch = text.match(/VALOR:\s*([\d.,]+)/i)
+    const nomeMatch = text.match(/NOME:\s*(.+?)(?:\n|$)/i)
+    const valorStr = valorMatch?.[1]?.replace(/\s/g, '').replace(',', '.')
+    const valor = valorStr ? parseFloat(valorStr) : NaN
+    const nome = (nomeMatch?.[1] ?? '').trim().replace(/\n/g, ' ').substring(0, 100)
+    if (Number.isFinite(valor) && valor >= 1 && valor <= 500_000 && nome.length >= 2) {
+      const nomeFormatado = nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase()
+      return { valor, nome: nomeFormatado }
+    }
+  } catch (_) {}
+  return null
+}
+
+/**
  * Extrai o valor em reais de uma frase (ex.: transcrição de áudio) via LLM.
  * Usado quando a extração normal retorna 2 e a frase parece pedido de gasto/entrada (evita "2" errado do Whisper).
  * Retorna null se não conseguir ou valor fora do range sensato (1–500.000).
