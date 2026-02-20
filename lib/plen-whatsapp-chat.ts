@@ -396,6 +396,17 @@ export async function processPlenWhatsAppMessage(
       }
     }
 
+    // Áudio: se o nome ficou genérico ("Gasto") mas a frase tem descrição (com roupas, no mercado), usar essa descrição
+    if (interpretado && (interpretado.nome === 'Gasto' || interpretado.nome === 'Outros')) {
+      const m = msgForRegistro.match(/(?:com|no|na)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
+      if (m && m[1]) {
+        const desc = m[1].trim()
+        if (desc.length >= 2 && desc.length <= 50) {
+          interpretado = { ...interpretado, nome: desc.charAt(0).toUpperCase() + desc.slice(1).toLowerCase() }
+        }
+      }
+    }
+
     if (interpretado) {
       const { tipo, valor, nome, data_registro, categoria } = interpretado
       const valorFinal = Math.round(valor * 100) / 100

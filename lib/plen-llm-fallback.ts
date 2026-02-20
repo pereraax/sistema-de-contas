@@ -165,19 +165,22 @@ function parseNumFromLLM(text: string, valorMin: number): number | null {
 
 export async function desambiguarValorDoisTranscricao(frase: string, valorSuspeito: number = 2): Promise<number | null> {
   if (!frase || frase.trim().length > 200) return null
-  const valorMin = valorSuspeito === 20 ? 50 : 3 // para 20, aceitar 50+; para 2, aceitar 3+
-  const dicaContexto = `Use o CONTEXTO da frase: se a pessoa disse "com roupas", "no mercado", "restaurante", "supermercado", "compras", o valor em reais costuma ser 200, 300, 250, 150. Não devolva valor baixo (20, 2) se o contexto indica gasto com roupas/mercado.`
+  const valorMin = valorSuspeito === 20 ? 50 : 3
+  const f = frase.trim().toLowerCase()
+  const temRoupas = /\broupas?\b/.test(f)
+  const dicaRoupas = temRoupas ? ' A frase menciona ROUPAS (clothes): o valor mais comum é 300 reais. Responda 300.' : ''
+  const dicaContexto = `Use o CONTEXTO: "com roupas" = normalmente 300 reais; "no mercado" = 100-300; "restaurante" = 50-150. Não devolva 20 nem 2 se o contexto indica gasto com roupas/mercado.${dicaRoupas}`
   const prompt = valorSuspeito === 20
     ? `Transcrição de áudio (gasto em reais): "${frase.trim()}"
 
-A transcrição saiu com valor 20, mas quando a pessoa fala "com roupas", "no mercado", "restaurante", normalmente o valor é 200-400 reais (não 20). ${dicaContexto}
+A transcrição saiu com valor 20, mas quando a pessoa fala "com roupas", "no mercado", o valor é 200-400 (não 20). ${dicaContexto}
 
-Responda APENAS um número: o valor em reais que a pessoa provavelmente disse. Um número só (ex: 200, 300, 250).`
-    : `Transcrição de áudio (gasto/pagamento em reais): "${frase.trim()}"
+Responda APENAS um número: o valor em reais que a pessoa disse. Um número só. Prefira 300 se a frase tem "roupas".`
+    : `Transcrição de áudio (gasto em reais): "${frase.trim()}"
 
-O valor na transcrição é 2 ou 2.00 - isso é quase sempre ERRO. "Dois" é confundido com "duzentos" (200), "trezentos" (300), "vinte" (20). ${dicaContexto}
+O valor na transcrição é 2 - é ERRO. "Dois" é confundido com "trezentos" (300), "duzentos" (200). ${dicaContexto}
 
-Responda APENAS um número: o valor que a pessoa mais provavelmente disse. NÃO responda 2 nem 20 se a frase tem "roupas", "mercado" etc. Ex: 200, 300. Um número só.`
+Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrário 200 ou 300. Um número só.`
 
   // 1) Groq
   const groqKey = process.env.GROQ_API_KEY?.trim()
