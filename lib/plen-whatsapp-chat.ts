@@ -379,14 +379,20 @@ export async function processPlenWhatsAppMessage(
 
     let interpretado = interpretarMensagem(msgForRegistro)
 
-    // Áudio/transcrição: se deu R$ 2,00, corrigir valor (transcrição costuma errar "dois" em vez de duzentos/vinte)
-    if (interpretado?.valor === 2 && /(?:gastei|paguei|recebi|ganhei|gastou|pagou)/i.test(msgForRegistro)) {
-      const valorCorrigido = await desambiguarValorDoisTranscricao(msgForRegistro)
-      if (valorCorrigido != null) {
-        interpretado = { ...interpretado, valor: valorCorrigido }
-      } else {
-        const fallback = await extrairValorReaisComLLM(msgForRegistro)
-        if (fallback != null && fallback > 2) interpretado = { ...interpretado, valor: fallback }
+    // Áudio/transcrição: corrigir valor quando transcrição erra (2 ou 20 em vez de 200/300); usar contexto "com roupas", "mercado"
+    const temVerboGasto = /(?:gastei|paguei|recebi|ganhei|gastou|pagou)/i.test(msgForRegistro)
+    const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
+    if (interpretado && temVerboGasto) {
+      const valorAtual = interpretado.valor
+      const valorSuspeito = valorAtual === 2 ? 2 : (valorAtual === 20 && temContextoValorAlto ? 20 : null)
+      if (valorSuspeito != null) {
+        const valorCorrigido = await desambiguarValorDoisTranscricao(msgForRegistro, valorSuspeito)
+        if (valorCorrigido != null) {
+          interpretado = { ...interpretado, valor: valorCorrigido }
+        } else if (valorAtual === 2) {
+          const fallback = await extrairValorReaisComLLM(msgForRegistro)
+          if (fallback != null && fallback > 2) interpretado = { ...interpretado, valor: fallback }
+        }
       }
     }
 

@@ -154,22 +154,30 @@ export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promi
 }
 
 /**
- * Desambigua valor quando a transcrição veio "paguei 2" / "gastei 2.00" (erro comum: "dois" em vez de "duzentos"/"vinte").
- * O transcritor quase sempre erra: a pessoa disse um valor maior e saiu 2. O LLM deve inferir o valor real (NUNCA devolver 2).
+ * Desambigua valor quando a transcrição veio errada (2 ou 20 em vez de 200/300).
+ * Usa o CONTEXTO da frase: "com roupas", "no mercado" → normalmente 200-500 reais.
  */
-function parseNumFromLLM(text: string): number | null {
+function parseNumFromLLM(text: string, valorMin: number): number | null {
   const cleaned = text.trim().replace(/\s/g, '').replace(/[^\d.,]/g, '').replace(',', '.')
   const num = parseFloat(cleaned)
-  return Number.isFinite(num) && num > 2 && num <= 500_000 ? num : null
+  return Number.isFinite(num) && num >= valorMin && num <= 500_000 ? num : null
 }
 
-export async function desambiguarValorDoisTranscricao(frase: string): Promise<number | null> {
+export async function desambiguarValorDoisTranscricao(frase: string, valorSuspeito: number = 2): Promise<number | null> {
   if (!frase || frase.trim().length > 200) return null
-  const prompt = `A transcrição de um áudio em português (registro de gasto/pagamento) saiu: "${frase.trim()}"
+  const valorMin = valorSuspeito === 20 ? 50 : 3 // para 20, aceitar 50+; para 2, aceitar 3+
+  const dicaContexto = `Use o CONTEXTO da frase: se a pessoa disse "com roupas", "no mercado", "restaurante", "supermercado", "compras", o valor em reais costuma ser 200, 300, 250, 150. Não devolva valor baixo (20, 2) se o contexto indica gasto com roupas/mercado.`
+  const prompt = valorSuspeito === 20
+    ? `Transcrição de áudio (gasto em reais): "${frase.trim()}"
 
-IMPORTANTE: O valor "2" ou "2.00" na transcrição é quase SEMPRE um ERRO do transcritor. Em português, "dois" (2) é confundido com "duzentos" (200), "vinte" (20), "doze" (12), "trezentos" (300), etc. A pessoa provavelmente disse um valor em reais maior que 2.
+A transcrição saiu com valor 20, mas quando a pessoa fala "com roupas", "no mercado", "restaurante", normalmente o valor é 200-400 reais (não 20). ${dicaContexto}
 
-Responda APENAS um número: o valor em reais que a pessoa mais provavelmente disse. NÃO responda 2. Exemplos: 20, 50, 200, 300. Um número só.`
+Responda APENAS um número: o valor em reais que a pessoa provavelmente disse. Um número só (ex: 200, 300, 250).`
+    : `Transcrição de áudio (gasto/pagamento em reais): "${frase.trim()}"
+
+O valor na transcrição é 2 ou 2.00 - isso é quase sempre ERRO. "Dois" é confundido com "duzentos" (200), "trezentos" (300), "vinte" (20). ${dicaContexto}
+
+Responda APENAS um número: o valor que a pessoa mais provavelmente disse. NÃO responda 2 nem 20 se a frase tem "roupas", "mercado" etc. Ex: 200, 300. Um número só.`
 
   // 1) Groq
   const groqKey = process.env.GROQ_API_KEY?.trim()
@@ -188,7 +196,7 @@ Responda APENAS um número: o valor em reais que a pessoa mais provavelmente dis
       if (res.ok) {
         const data = await res.json()
         const content = data.choices?.[0]?.message?.content ?? ''
-        const num = parseNumFromLLM(content)
+        const num = parseNumFromLLM(content, valorMin)
         if (num != null) return num
       }
     } catch (_) {}
@@ -209,7 +217,7 @@ Responda APENAS um número: o valor em reais que a pessoa mais provavelmente dis
       })
       if (res.ok) {
         const data = await res.json()
-        const num = parseNumFromLLM(data.choices?.[0]?.message?.content ?? '')
+        const num = parseNumFromLLM(data.choices?.[0]?.message?.content ?? '', valorMin)
         if (num != null) return num
       }
     } catch (_) {}
@@ -229,7 +237,7 @@ Responda APENAS um número: o valor em reais que a pessoa mais provavelmente dis
       if (res.ok) {
         const data = await res.json()
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-        const num = parseNumFromLLM(text)
+        const num = parseNumFromLLM(text, valorMin)
         if (num != null) return num
       }
     } catch (_) {}
