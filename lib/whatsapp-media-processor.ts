@@ -1486,7 +1486,7 @@ async function transcribeAudioWithGroq(audioBuffer: Buffer, mimeType: string): P
           formData.append('language', 'pt')
           formData.append('response_format', 'json')
           // Viés para transcrição de gastos/entradas: valores em reais, números por extenso ou dígitos
-          formData.append('prompt', 'Registro de gastos e entradas em reais. Frases como: gastei X, paguei X, recebi X. Números por extenso ou dígitos: cinquenta, cem, duzentos, trezentos, quinhentos, mil.')
+          formData.append('prompt', 'Registro em reais: GASTO (gastei, paguei) ou ENTRADA (ganhei, recebi). Mantenha o verbo exato: ganhei, recebi, gastei, paguei. Valores em dígitos: 50, 200, 400, 500. Ex: ganhei 500 de mãe, gastei 400 com roupas.')
           const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
             method: 'POST',
             headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
@@ -1544,8 +1544,8 @@ async function transcribeAudioWithGemini(audioBuffer: Buffer, mimeType: string):
       'gemini-2.0-flash-exp'
     ]
     
-    const prompt = `Transcreva este áudio para português. O usuário está registrando um gasto ou entrada.
-Regras: 1) Frase COMPLETA (ex: "gastei 400 com roupas", "paguei 80 no mercado"). 2) Valores SEMPRE em algarismos: 50, 80, 200, 300, 400, 500. Atenção: 400 = quatrocentos, 200 = duzentos — não confunda. 3) Mantenha a descrição: "com roupas", "no mercado". Só o texto, sem explicações.`
+    const prompt = `Transcreva este áudio para português. A pessoa está registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
+Regras: 1) Mantenha o verbo EXATO: se ouvir "ganhei" escreva "ganhei", se "recebi" escreva "recebi", se "gastei" escreva "gastei", se "paguei" escreva "paguei". 2) Valores SEMPRE em algarismos: 50, 80, 200, 400, 500 (não confunda 500 com 5, nem 400 com 200/300). 3) Frase completa com descrição: "ganhei 500 de mãe", "gastei 400 com roupas", "paguei 80 no mercado". Só o texto transcrito, sem explicações.`
     
     for (const model of geminiModels) {
       try {

@@ -248,66 +248,115 @@ Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrár
   return null
 }
 
+const PROMPT_REGISTRO_COMPLETO = `Esta frase é uma transcrição de áudio de alguém registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
+Identifique: 1) TIPO: "gasto" se gastou/pagou; "entrada" se recebeu/ganhou. 2) VALOR: número em reais. 3) NOME: descrição (ex: roupas, mãe).
+Responda EXATAMENTE: TIPO: gasto ou entrada | VALOR: (número) | NOME: (descrição)
+Frase: `
+
+/** Parseia resposta no formato TIPO / VALOR / NOME (várias variações de regex). */
+function parseRespostaRegistroCompleto(text: string): { tipo: 'entrada' | 'saida'; valor: number; nome: string } | null {
+  const raw = (text ?? '').replace(/```/g, '').trim()
+  const tipoMatch = raw.match(/(?:TIPO|tipo)\s*:\s*(gasto|entrada)/i) || raw.match(/\b(gasto|entrada)\s*[:\|]/i)
+  const valorMatch = raw.match(/(?:VALOR|valor)\s*:\s*([\d.,\s]+)/i) || raw.match(/\b(\d[\d.,]*)\s*(?:reais?|r\$)?/i)
+  const nomeMatch = raw.match(/(?:NOME|nome)\s*:\s*(.+?)(?:\n|$|\||\s+TIPO)/is) || raw.match(/(?:NOME|nome)\s*:\s*(.+)/i)
+  const tipoStr = (tipoMatch?.[1] ?? '').toLowerCase()
+  const valorStr = (valorMatch?.[1] ?? '').replace(/\s/g, '').replace(',', '.')
+  const valor = valorStr ? parseFloat(valorStr) : NaN
+  const nomeRaw = (nomeMatch?.[1] ?? '').trim().replace(/\n/g, ' ').substring(0, 100)
+  if (
+    (tipoStr === 'gasto' || tipoStr === 'entrada') &&
+    Number.isFinite(valor) &&
+    valor >= 1 &&
+    valor <= 500_000
+  ) {
+    const tipo: 'entrada' | 'saida' = tipoStr === 'entrada' ? 'entrada' : 'saida'
+    const nome =
+      nomeRaw.length >= 2
+        ? nomeRaw.charAt(0).toUpperCase() + nomeRaw.slice(1).toLowerCase()
+        : nomeRaw || (tipo === 'saida' ? 'Gasto' : 'Entrada')
+    return { tipo, valor, nome }
+  }
+  return null
+}
+
 /**
  * Extrai tipo (gasto/entrada), valor e nome de QUALQUER frase de áudio transcrita.
  * Usado para reconhecer qualquer pedido: "ganhei 500 de mãe", "gastei 400 com roupas", etc.
- * Retorna null se não conseguir interpretar.
+ * Tenta Gemini primeiro; se falhar, tenta Groq/OpenAI. Retorna null se não conseguir.
  */
 export async function extrairRegistroCompletoComGemini(
   frase: string
 ): Promise<{ tipo: 'entrada' | 'saida'; valor: number; nome: string } | null> {
   if (!frase || frase.trim().length < 5 || frase.trim().length > 250) return null
+  const trimmed = frase.trim()
+  const prompt = PROMPT_REGISTRO_COMPLETO + `"${trimmed}"`
+
   const geminiKey = process.env.GEMINI_API_KEY?.trim()
-  if (!geminiKey) return null
-  const prompt = `Esta frase é uma transcrição de áudio de alguém registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
-
-Identifique:
-1) TIPO: "gasto" se a pessoa gastou/pagou (gastei, paguei); "entrada" se recebeu/ganhou (ganhei, recebi).
-2) VALOR: o valor em reais (número). Use o número que a pessoa disse. Se aparecer 200 ou 300 com "roupas", use 400.
-3) NOME: a descrição (ex: roupas, mercado, mãe, salário).
-
-Responda EXATAMENTE neste formato:
-TIPO: gasto ou entrada
-VALOR: (apenas o número)
-NOME: (descrição em uma ou poucas palavras)
-
-Frase: "${frase.trim()}"`
-
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 100 },
-        }),
+  if (geminiKey) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 100 },
+          }),
+        }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
+        const parsed = parseRespostaRegistroCompleto(text)
+        if (parsed) return parsed
       }
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
-    const tipoMatch = text.match(/TIPO:\s*(gasto|entrada)/i)
-    const valorMatch = text.match(/VALOR:\s*([\d.,]+)/i)
-    const nomeMatch = text.match(/NOME:\s*(.+?)(?:\n|$)/i)
-    const tipoStr = tipoMatch?.[1]?.toLowerCase()
-    const valorStr = valorMatch?.[1]?.replace(/\s/g, '').replace(',', '.')
-    const valor = valorStr ? parseFloat(valorStr) : NaN
-    const nome = (nomeMatch?.[1] ?? '').trim().replace(/\n/g, ' ').substring(0, 100)
-    if (
-      (tipoStr === 'gasto' || tipoStr === 'entrada') &&
-      Number.isFinite(valor) &&
-      valor >= 1 &&
-      valor <= 500_000 &&
-      nome.length >= 1
-    ) {
-      const tipo: 'entrada' | 'saida' = tipoStr === 'entrada' ? 'entrada' : 'saida'
-      const nomeFormatado =
-        nome.length >= 2 ? nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase() : nome
-      return { tipo, valor, nome: nomeFormatado || (tipo === 'saida' ? 'Gasto' : 'Entrada') }
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
+
+  const groqKey = process.env.GROQ_API_KEY?.trim()
+  if (groqKey) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.1,
+          max_tokens: 80,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.choices?.[0]?.message?.content ?? '').trim()
+        const parsed = parseRespostaRegistroCompleto(text)
+        if (parsed) return parsed
+      }
+    } catch (_) {}
+  }
+
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  if (openaiKey) {
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.1,
+          max_tokens: 80,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.choices?.[0]?.message?.content ?? '').trim()
+        const parsed = parseRespostaRegistroCompleto(text)
+        if (parsed) return parsed
+      }
+    } catch (_) {}
+  }
   return null
 }
 

@@ -436,6 +436,23 @@ export async function processPlenWhatsAppMessage(
       interpretado = { ...interpretado, valor: 400, nome: interpretado.nome === 'Gasto' ? 'Roupas' : interpretado.nome }
     }
 
+    // Salvaguarda: frase tem "ganhei" ou "recebi" mas interpretado deu gasto (erro de transcrição) → forçar ENTRADA
+    if (interpretado?.tipo === 'saida' && /\b(ganhei|recebi)\b/i.test(msgForRegistro)) {
+      const entVal = msgForRegistro.match(/(?:ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
+      const entNum = entVal ? parseFloat(entVal.replace(',', '.')) : NaN
+      const entNome = msgForRegistro.match(/(?:ganhei|recebi)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|da)\s+([a-záàâãéêíóôõúç\s]+?)(?:\s*$|\.|,)/i)?.[1]?.trim() || msgForRegistro.match(/(?:de|da)\s+([a-záàâãéêíóôõúç]+)/i)?.[1]?.trim() || 'Entrada'
+      if (Number.isFinite(entNum) && entNum >= 1 && entNum <= 500_000) {
+        const nomeFormatado = entNome.length >= 2 ? entNome.charAt(0).toUpperCase() + entNome.slice(1).toLowerCase() : entNome
+        interpretado = {
+          ...interpretado,
+          tipo: 'entrada',
+          valor: entNum,
+          nome: nomeFormatado || 'Entrada',
+          categoria: categoriaInteligente(nomeFormatado || 'Entrada', 'entrada'),
+        }
+      }
+    }
+
     if (interpretado) {
       const { tipo, valor, nome, data_registro, categoria } = interpretado
       const valorFinal = Math.round(valor * 100) / 100
