@@ -257,12 +257,13 @@ export async function extrairValorENomeComGemini(frase: string): Promise<{ valor
   if (!frase || frase.trim().length < 5 || frase.trim().length > 250) return null
   const geminiKey = process.env.GEMINI_API_KEY?.trim()
   if (!geminiKey) return null
-  const prompt = `Esta frase é uma transcrição de áudio de alguém registrando um gasto ou entrada em reais (ex: "gastei 300 com roupas", "paguei 80 no mercado").
+  const prompt = `Esta frase é uma transcrição de áudio de alguém registrando um gasto em reais.
 
-Extraia o VALOR em reais (número) e a DESCRIÇÃO/NOME do gasto (ex: roupas, mercado, restaurante). Se a pessoa disse "com roupas", o valor costuma ser 300. Se disse "no mercado", pode ser 50 a 200.
+Regra importante: extraia o VALOR que a PESSOA DISSE na frase — o número que ela mencionou. Se a frase diz "gastei 400 com roupas", o valor é 400. Se diz "gastei 300", o valor é 300. NÃO substitua pelo que você acha "típico": use o número que está na frase.
+Extraia também a DESCRIÇÃO/NOME do gasto (ex: roupas, mercado, restaurante).
 
-Responda EXATAMENTE neste formato, numa única linha:
-VALOR: (número)
+Responda EXATAMENTE neste formato:
+VALOR: (apenas o número)
 NOME: (descrição em uma palavra ou poucas)
 
 Frase: "${frase.trim()}"`
