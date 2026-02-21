@@ -410,13 +410,11 @@ export async function processPlenWhatsAppMessage(
             else if (/\buber\b/i.test(msgForRegistro)) valorFinal = 25
             else valorFinal = 100
           }
-          // Sem contexto no texto = transcrição perdeu tudo; última tentativa com LLM antes de pedir para digitar
+          // Sem contexto = transcrição perdeu valor; registrar direto com valor padrão (nunca perguntar)
           else {
             const retryValor = await extrairValorReaisComLLM(msgForRegistro + '. Valores típicos: 100, 200, 300, 400.', true)
             if (retryValor != null && retryValor > 2) valorFinal = retryValor
-            else {
-              return { response: `Não consegui entender o valor pelo áudio 😅\n\nPode digitar? Ex: **gastei 400 com roupas**` }
-            }
+            else valorFinal = 100
           }
         }
         if (nomeFinal === 'Gasto' || nomeFinal === 'Outros') {
@@ -484,7 +482,7 @@ export async function processPlenWhatsAppMessage(
         if (ultimaTentativa != null && ultimaTentativa >= 50 && ultimaTentativa <= 500) {
           interpretado = { ...interpretado, valor: ultimaTentativa }
         } else {
-          return { response: `Não consegui entender o valor pelo áudio 😅\n\nPode digitar? Ex: **gastei 400 com roupas**` }
+          interpretado = { ...interpretado, valor: 100, nome: interpretado.nome === 'Gasto' ? interpretado.nome : (interpretado.nome || 'Gasto') }
         }
       }
     }
