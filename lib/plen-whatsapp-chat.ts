@@ -389,11 +389,26 @@ export async function processPlenWhatsAppMessage(
       const completo = await extrairRegistroCompletoComGemini(msgForRegistro)
       if (completo) {
         const dataReg = interpretado?.data_registro ?? new Date().toISOString()
-        const cat = categoriaInteligente(completo.nome, completo.tipo)
+        let valorFinal = completo.valor
+        let nomeFinal = completo.nome
+        const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
+        // Transcrição muitas vezes vira "2" em vez de 20/50/200 — corrigir com LLM
+        if (valorFinal === 2 || (valorFinal === 20 && temContextoValorAlto)) {
+          const valorCorrigido = await extrairValorReaisComLLM(msgForRegistro)
+          if (valorCorrigido != null && valorCorrigido > 2) valorFinal = valorCorrigido
+        }
+        if (nomeFinal === 'Gasto' || nomeFinal === 'Outros') {
+          const m = msgForRegistro.match(/(?:com|no|na)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
+          if (m?.[1]) {
+            const desc = m[1].trim()
+            if (desc.length >= 2 && desc.length <= 50) nomeFinal = desc.charAt(0).toUpperCase() + desc.slice(1).toLowerCase()
+          }
+        }
+        const cat = categoriaInteligente(nomeFinal, completo.tipo)
         interpretado = {
           tipo: completo.tipo,
-          valor: completo.valor,
-          nome: completo.nome,
+          valor: valorFinal,
+          nome: nomeFinal,
           data_registro: dataReg,
           categoria: cat,
         }

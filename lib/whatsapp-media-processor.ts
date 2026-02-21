@@ -1486,7 +1486,7 @@ async function transcribeAudioWithGroq(audioBuffer: Buffer, mimeType: string): P
           formData.append('language', 'pt')
           formData.append('response_format', 'json')
           // Viés para transcrição de gastos/entradas: valores em reais, números por extenso ou dígitos
-          formData.append('prompt', 'Registro em reais: GASTO (gastei, paguei) ou ENTRADA (ganhei, recebi). Mantenha o verbo exato: ganhei, recebi, gastei, paguei. Valores em dígitos: 50, 200, 400, 500. Ex: ganhei 500 de mãe, gastei 400 com roupas.')
+          formData.append('prompt', 'Registro em reais. GASTO (gastei, paguei) ou ENTRADA (ganhei, recebi). Valores SEMPRE em algarismos: 20, 50, 80, 200, 400. NUNCA transcreva só "2" para valor — a pessoa pode ter dito vinte, cinquenta, duzentos. Use o número que faz sentido (ex: mercado/roupas = dezenas ou centenas). Ex: gastei 50 no mercado, paguei 80 no lanche.')
           const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
             method: 'POST',
             headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
