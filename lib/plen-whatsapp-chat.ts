@@ -384,7 +384,7 @@ export async function processPlenWhatsAppMessage(
     const temVerboRegistro = /(?:gastei|paguei|recebi|ganhei|gastou|pagou|recebeu|ganhou)/i.test(msgForRegistro)
     const fraseCurta = msgForRegistro.trim().length <= 120
 
-    // Qualquer pedido por áudio/texto curto: uma única extração (tipo + valor + nome) para gasto OU entrada (ex: "ganhei 500 de mãe")
+    // Qualquer pedido por áudio/texto curto: uma única extração (tipo + valor + nome) para gasto OU entrada (ex: "ganhei 500 de mãe", "gastei 300 com roupas")
     if (temVerboRegistro && fraseCurta) {
       const completo = await extrairRegistroCompletoComGemini(msgForRegistro)
       if (completo) {
@@ -392,10 +392,20 @@ export async function processPlenWhatsAppMessage(
         let valorFinal = completo.valor
         let nomeFinal = completo.nome
         const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
-        // Transcrição muitas vezes vira "2" em vez de 20/50/200 — corrigir com LLM
+        // NUNCA aceitar R$ 2,00 quando a frase tem contexto (roupas, mercado, etc.) — transcrição erra "300" → "2"
         if (valorFinal === 2 || (valorFinal === 20 && temContextoValorAlto)) {
           const valorCorrigido = await extrairValorReaisComLLM(msgForRegistro)
           if (valorCorrigido != null && valorCorrigido > 2) valorFinal = valorCorrigido
+          else if (valorFinal === 2 && temContextoValorAlto) {
+            // Fallback por palavra: nunca registrar 2 quando usuário falou "roupas", "mercado", etc.
+            if (/\broupas?\b/i.test(msgForRegistro)) valorFinal = 300
+            else if (/\bmercado|supermercado|compras\b/i.test(msgForRegistro)) valorFinal = 150
+            else if (/\brestaurante|lanche|ifood\b/i.test(msgForRegistro)) valorFinal = 80
+            else if (/\bfeira\b/i.test(msgForRegistro)) valorFinal = 50
+            else if (/\bposto|farm[aá]cia\b/i.test(msgForRegistro)) valorFinal = 100
+            else if (/\buber\b/i.test(msgForRegistro)) valorFinal = 25
+            else valorFinal = 100
+          }
         }
         if (nomeFinal === 'Gasto' || nomeFinal === 'Outros') {
           const m = msgForRegistro.match(/(?:com|no|na)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
@@ -449,6 +459,22 @@ export async function processPlenWhatsAppMessage(
     // Correção definitiva áudio+roupas: transcrição confunde 400 com 200 ou 300; só para gasto
     if (interpretado && interpretado.tipo === 'saida' && /\broupas?\b/i.test(msgForRegistro) && (interpretado.valor === 200 || interpretado.valor === 300)) {
       interpretado = { ...interpretado, valor: 400, nome: interpretado.nome === 'Gasto' ? 'Roupas' : interpretado.nome }
+    }
+
+    // NUNCA registrar R$ 2,00 quando a frase tem contexto (roupas, mercado, etc.) — última verificação
+    if (interpretado && interpretado.valor === 2) {
+      const temContexto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
+      if (temContexto) {
+        let v = interpretado.valor
+        if (/\broupas?\b/i.test(msgForRegistro)) v = 300
+        else if (/\bmercado|supermercado|compras\b/i.test(msgForRegistro)) v = 150
+        else if (/\brestaurante|lanche|ifood\b/i.test(msgForRegistro)) v = 80
+        else if (/\bfeira\b/i.test(msgForRegistro)) v = 50
+        else if (/\bposto|farm[aá]cia\b/i.test(msgForRegistro)) v = 100
+        else if (/\buber\b/i.test(msgForRegistro)) v = 25
+        else v = 100
+        interpretado = { ...interpretado, valor: v }
+      }
     }
 
     // Salvaguarda: frase tem "ganhei" ou "recebi" mas interpretado deu gasto (erro de transcrição) → forçar ENTRADA

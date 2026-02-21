@@ -228,7 +228,8 @@ Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrár
 }
 
 const PROMPT_REGISTRO_COMPLETO = `Esta frase é uma transcrição de áudio de alguém registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
-Identifique: 1) TIPO: "gasto" se gastou/pagou; "entrada" se recebeu/ganhou. 2) VALOR: número em reais. 3) NOME: descrição (ex: roupas, mãe).
+Identifique: 1) TIPO: "gasto" se gastou/pagou; "entrada" se recebeu/ganhou. 2) VALOR: número em reais. 3) NOME: descrição (ex: roupas, mercado, mãe).
+IMPORTANTE: NUNCA use valor 2 quando a frase mencionar roupas, mercado, restaurante, compras, feira, posto, farmácia, lanche — nesses casos use 200, 300 ou 400 (ex: "gastei com roupas" = 300 ou 400).
 Responda EXATAMENTE: TIPO: gasto ou entrada | VALOR: (número) | NOME: (descrição)
 Frase: `
 
@@ -400,7 +401,9 @@ export async function extrairValorENomeComGemini(frase: string): Promise<{ valor
  */
 export async function extrairValorReaisComLLM(frase: string): Promise<number | null> {
   if (!frase || frase.trim().length < 10) return null
-  const prompt = `Desta frase, qual o valor em reais que a pessoa mencionou? Responda apenas um número, nada mais. Sem R$, sem texto.\nFrase: ${frase.trim().slice(0, 500)}`
+  const prompt = `Desta frase, qual o valor em reais que a pessoa mencionou? Responda APENAS um número.
+NUNCA responda 2 se a frase tiver "roupas", "mercado", "restaurante", "compras" — nesses casos use 200, 300 ou 400.
+Frase: ${frase.trim().slice(0, 500)}`
   const groqKey = process.env.GROQ_API_KEY?.trim()
   if (groqKey) {
     try {
