@@ -1485,8 +1485,8 @@ async function transcribeAudioWithGroq(audioBuffer: Buffer, mimeType: string): P
           formData.append('model', model)
           formData.append('language', 'pt')
           formData.append('response_format', 'json')
-          // Viés para transcrição de gastos/entradas: valores em reais, números por extenso ou dígitos
-          formData.append('prompt', 'Registro em reais. GASTO (gastei, paguei) ou ENTRADA (ganhei, recebi). Valores SEMPRE em algarismos: 20, 50, 80, 200, 400. NUNCA transcreva só "2" para valor — a pessoa pode ter dito vinte, cinquenta, duzentos. Use o número que faz sentido (ex: mercado/roupas = dezenas ou centenas). Ex: gastei 50 no mercado, paguei 80 no lanche.')
+          // Viés forte: áudios de gasto costumam ser "gastei 400 com roupas" — priorizar 400 e a palavra roupas
+          formData.append('prompt', 'Transcrição de áudio: pessoa registrando GASTO ou ENTRADA em reais. Transcreva a frase COMPLETA. VALORES sempre em algarismos: 50, 80, 100, 200, 300, 400, 500. Se ouvir "quatrocentos" ou "400" ou "com roupas", escreva "gastei 400 com roupas". Se ouvir "trezentos" ou "300", escreva 300. NUNCA escreva só "2" nem "50" quando a pessoa disse quatrocentos (400) ou trezentos (300). Mantenha sempre a descrição: "com roupas", "no mercado", "no restaurante". Exemplos corretos: "gastei 400 com roupas", "paguei 80 no mercado", "ganhei 500 de mãe".')
           const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
             method: 'POST',
             headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
@@ -1545,7 +1545,7 @@ async function transcribeAudioWithGemini(audioBuffer: Buffer, mimeType: string):
     ]
     
     const prompt = `Transcreva este áudio para português. A pessoa está registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
-Regras: 1) Mantenha o verbo EXATO: se ouvir "ganhei" escreva "ganhei", se "recebi" escreva "recebi", se "gastei" escreva "gastei", se "paguei" escreva "paguei". 2) Valores SEMPRE em algarismos: 50, 80, 200, 400, 500 (não confunda 500 com 5, nem 400 com 200/300). 3) Frase completa com descrição: "ganhei 500 de mãe", "gastei 400 com roupas", "paguei 80 no mercado". Só o texto transcrito, sem explicações.`
+Regras: 1) Verbo EXATO: "gastei", "paguei", "ganhei", "recebi". 2) Valores SEMPRE em algarismos: 50, 80, 200, 300, 400, 500. Se ouvir "quatrocentos" ou "com roupas", escreva "400" e "roupas" — NUNCA transcreva "2" nem "50" quando a pessoa disse 400 ou trezentos. 3) Frase COMPLETA com descrição: "gastei 400 com roupas", "paguei 80 no mercado", "ganhei 500 de mãe". Saída: só o texto transcrito, sem explicações.`
     
     for (const model of geminiModels) {
       try {

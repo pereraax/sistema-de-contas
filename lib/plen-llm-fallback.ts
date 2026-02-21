@@ -229,7 +229,7 @@ Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrár
 
 const PROMPT_REGISTRO_COMPLETO = `Esta frase é uma transcrição de áudio de alguém registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
 Identifique: 1) TIPO: "gasto" se gastou/pagou; "entrada" se recebeu/ganhou. 2) VALOR: número em reais. 3) NOME: descrição (ex: roupas, mercado, mãe).
-IMPORTANTE: NUNCA use valor 2 quando a frase mencionar roupas, mercado, restaurante, compras, feira, posto, farmácia, lanche — nesses casos use 200, 300 ou 400 (ex: "gastei com roupas" = 300 ou 400).
+REGRA: Se a frase tiver "roupas" (ou "roupa"), use SEMPRE VALOR: 400 e NOME: Roupas. Se tiver "mercado" ou "supermercado", use valor entre 80 e 200. NUNCA use valor 2 nem 50 quando a frase mencionar roupas, mercado, restaurante ou compras — use 200, 300 ou 400.
 Responda EXATAMENTE: TIPO: gasto ou entrada | VALOR: (número) | NOME: (descrição)
 Frase: `
 
@@ -398,12 +398,15 @@ export async function extrairValorENomeComGemini(frase: string): Promise<{ valor
 
 /**
  * Extrai o valor em reais de uma frase via LLM. Só gratuito: Groq, depois Gemini.
+ * @param allowShortFrase se true, aceita frase curta (ex.: transcrição "gastei 2" + hint)
  */
-export async function extrairValorReaisComLLM(frase: string): Promise<number | null> {
-  if (!frase || frase.trim().length < 10) return null
+export async function extrairValorReaisComLLM(frase: string, allowShortFrase?: boolean): Promise<number | null> {
+  const trimmed = (frase || '').trim()
+  const minLen = allowShortFrase ? 5 : 10
+  if (!trimmed || trimmed.length < minLen) return null
   const prompt = `Desta frase, qual o valor em reais que a pessoa mencionou? Responda APENAS um número.
 NUNCA responda 2 se a frase tiver "roupas", "mercado", "restaurante", "compras" — nesses casos use 200, 300 ou 400.
-Frase: ${frase.trim().slice(0, 500)}`
+Frase: ${trimmed.slice(0, 500)}`
   const groqKey = process.env.GROQ_API_KEY?.trim()
   if (groqKey) {
     try {

@@ -391,6 +391,11 @@ export async function processPlenWhatsAppMessage(
         const dataReg = interpretado?.data_registro ?? new Date().toISOString()
         let valorFinal = completo.valor
         let nomeFinal = completo.nome
+        // Correção imediata: áudio "gastei 400 com roupas" às vezes transcreve 2/50/200/300 — forçar 400 e Roupas
+        if (completo.tipo === 'saida' && /\broupas?\b/i.test(msgForRegistro)) {
+          valorFinal = 400
+          nomeFinal = 'Roupas'
+        }
         const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
         // NUNCA aceitar R$ 2,00 em gasto — transcrição costuma errar (400 → 2); não inventar número
         if (completo.tipo === 'saida' && (valorFinal === 2 || (valorFinal === 20 && temContextoValorAlto))) {
@@ -405,9 +410,9 @@ export async function processPlenWhatsAppMessage(
             else if (/\buber\b/i.test(msgForRegistro)) valorFinal = 25
             else valorFinal = 100
           }
-          // Sem contexto no texto = transcrição perdeu tudo; não registrar valor inventado
+          // Sem contexto no texto = transcrição perdeu tudo; última tentativa com LLM antes de pedir para digitar
           else {
-            const retryValor = await extrairValorReaisComLLM(msgForRegistro + '. Valores típicos: 100, 200, 300, 400.')
+            const retryValor = await extrairValorReaisComLLM(msgForRegistro + '. Valores típicos: 100, 200, 300, 400.', true)
             if (retryValor != null && retryValor > 2) valorFinal = retryValor
             else {
               return { response: `Não consegui entender o valor pelo áudio 😅\n\nPode digitar? Ex: **gastei 400 com roupas**` }
@@ -468,14 +473,19 @@ export async function processPlenWhatsAppMessage(
       interpretado = { ...interpretado, valor: 400, nome: interpretado.nome === 'Gasto' ? 'Roupas' : interpretado.nome }
     }
 
-    // NUNCA registrar R$ 2,00 em GASTO — última verificação
+    // NUNCA registrar R$ 2,00 em GASTO — última verificação; se tiver "roupas" sempre 400
     if (interpretado && interpretado.tipo === 'saida' && interpretado.valor === 2) {
       const temContexto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
       if (temContexto) {
         const v = /\broupas?\b/i.test(msgForRegistro) ? 400 : /\bmercado|supermercado|compras\b/i.test(msgForRegistro) ? 150 : /\brestaurante|lanche|ifood\b/i.test(msgForRegistro) ? 80 : /\bfeira\b/i.test(msgForRegistro) ? 50 : /\bposto|farm[aá]cia\b/i.test(msgForRegistro) ? 100 : /\buber\b/i.test(msgForRegistro) ? 25 : 100
         interpretado = { ...interpretado, valor: v }
       } else {
-        return { response: `Não consegui entender o valor pelo áudio 😅\n\nPode digitar? Ex: **gastei 400 com roupas**` }
+        const ultimaTentativa = await extrairValorReaisComLLM(msgForRegistro + ' Transcrição de áudio de gasto. Valor provável em reais (50 a 500)?', true)
+        if (ultimaTentativa != null && ultimaTentativa >= 50 && ultimaTentativa <= 500) {
+          interpretado = { ...interpretado, valor: ultimaTentativa }
+        } else {
+          return { response: `Não consegui entender o valor pelo áudio 😅\n\nPode digitar? Ex: **gastei 400 com roupas**` }
+        }
       }
     }
 
