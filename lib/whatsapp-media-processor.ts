@@ -1617,17 +1617,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   console.log('🎤 [Media Processor] OPENAI_API_KEY configurada?', !!process.env.OPENAI_API_KEY)
   console.log('🎤 [Media Processor] ==========================================')
   
-  // 1) Groq Whisper primeiro (estável para português; evita depender do Gemini)
-  if (process.env.GROQ_API_KEY) {
-    console.log('🎤 [Media Processor] Tentando Groq Whisper...')
-    const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
-    if (r) {
-      console.log('✅ [Media Processor] Groq transcreveu áudio')
-      return r
-    }
-  }
-
-  // 2) OpenAI Whisper
+  // 1) OpenAI Whisper primeiro (funciona bem sem Groq; use só OPENAI_API_KEY)
   if (process.env.OPENAI_API_KEY) {
     try {
       if (!looksLikeAudio(audioBuffer)) return null
@@ -1638,6 +1628,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
       formData.append('file', blob, `audio${ext}`)
       formData.append('model', 'whisper-1')
       formData.append('language', 'pt')
+      formData.append('prompt', 'Registro em reais. Gastei, paguei, recebi, ganhei. Valores em algarismos: 20, 50, 80, 200, 400.')
 
       const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
@@ -1648,17 +1639,26 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
       if (!response.ok) {
         const errorText = await response.text()
         console.error('❌ [Media Processor] OpenAI Whisper:', response.status, errorText.substring(0, 300))
-        return null
-      }
-
-      const data = await response.json()
-      const text = (data.text || '').trim()
-      if (text) {
-        console.log('✅ [Media Processor] OpenAI transcreveu:', text.substring(0, 80))
-        return text
+      } else {
+        const data = await response.json()
+        const text = (data.text || '').trim()
+        if (text) {
+          console.log('✅ [Media Processor] OpenAI transcreveu:', text.substring(0, 80))
+          return text
+        }
       }
     } catch (err: any) {
       console.error('❌ [Media Processor] Erro OpenAI Whisper:', err.message)
+    }
+  }
+
+  // 2) Groq Whisper (fallback)
+  if (process.env.GROQ_API_KEY) {
+    console.log('🎤 [Media Processor] Tentando Groq Whisper...')
+    const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
+    if (r) {
+      console.log('✅ [Media Processor] Groq transcreveu áudio')
+      return r
     }
   }
 
@@ -1672,7 +1672,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     }
   }
 
-  console.error('❌ [Media Processor] Nenhuma IA configurada para transcrever áudio (GROQ_API_KEY, OPENAI_API_KEY ou GEMINI_API_KEY)')
+  console.error('❌ [Media Processor] Nenhuma IA configurada para transcrever áudio (OPENAI_API_KEY, GROQ_API_KEY ou GEMINI_API_KEY)')
   return null
 }
 

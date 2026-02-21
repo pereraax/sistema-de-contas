@@ -182,7 +182,28 @@ O valor na transcrição é 2 - é ERRO. "Dois" é confundido com "trezentos" (3
 
 Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrário 200 ou 300. Um número só.`
 
-  // 1) Groq
+  // 1) OpenAI primeiro (sem Groq)
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  if (openaiKey) {
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.2,
+          max_tokens: 15,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const num = parseNumFromLLM(data.choices?.[0]?.message?.content ?? '', valorMin)
+        if (num != null) return num
+      }
+    } catch (_) {}
+  }
+  // 2) Groq (fallback)
   const groqKey = process.env.GROQ_API_KEY?.trim()
   if (groqKey) {
     try {
@@ -204,28 +225,7 @@ Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrár
       }
     } catch (_) {}
   }
-  // 2) OpenAI
-  const openaiKey = process.env.OPENAI_API_KEY?.trim()
-  if (openaiKey) {
-    try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'user' as const, content: prompt }],
-          temperature: 0.2,
-          max_tokens: 15,
-        }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const num = parseNumFromLLM(data.choices?.[0]?.message?.content ?? '', valorMin)
-        if (num != null) return num
-      }
-    } catch (_) {}
-  }
-  // 3) Gemini (já em produção para comprovantes)
+  // 3) Gemini (fallback)
   const geminiKey = process.env.GEMINI_API_KEY?.trim()
   if (geminiKey) {
     try {
@@ -281,7 +281,7 @@ function parseRespostaRegistroCompleto(text: string): { tipo: 'entrada' | 'saida
 
 /**
  * Extrai tipo (gasto/entrada), valor e nome de QUALQUER frase (áudio transcrita ou mensagem).
- * Usado para: "ganhei 500 de mãe", "gastei 400 com roupas". Groq e OpenAI primeiro; Gemini só fallback.
+ * Usado para: "ganhei 500 de mãe", "gastei 400 com roupas". OpenAI primeiro (funciona sem Groq); Groq e Gemini fallback.
  */
 export async function extrairRegistroCompletoComGemini(
   frase: string
@@ -290,15 +290,15 @@ export async function extrairRegistroCompletoComGemini(
   const trimmed = frase.trim()
   const prompt = PROMPT_REGISTRO_COMPLETO + `"${trimmed}"`
 
-  // 1) Groq primeiro (não depender do Gemini)
-  const groqKey = process.env.GROQ_API_KEY?.trim()
-  if (groqKey) {
+  // 1) OpenAI primeiro (use só OPENAI_API_KEY, sem Groq)
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  if (openaiKey) {
     try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
+          model: 'gpt-4o-mini',
           messages: [{ role: 'user' as const, content: prompt }],
           temperature: 0.1,
           max_tokens: 80,
@@ -313,15 +313,15 @@ export async function extrairRegistroCompletoComGemini(
     } catch (_) {}
   }
 
-  // 2) OpenAI
-  const openaiKey = process.env.OPENAI_API_KEY?.trim()
-  if (openaiKey) {
+  // 2) Groq (fallback)
+  const groqKey = process.env.GROQ_API_KEY?.trim()
+  if (groqKey) {
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'llama-3.1-8b-instant',
           messages: [{ role: 'user' as const, content: prompt }],
           temperature: 0.1,
           max_tokens: 80,
@@ -383,7 +383,7 @@ function parseValorENomeGasto(text: string): { valor: number; nome: string } | n
 }
 
 /**
- * Extrai valor e nome de uma frase de GASTO. Groq e OpenAI primeiro; Gemini só fallback.
+ * Extrai valor e nome de uma frase de GASTO. OpenAI primeiro (sem Groq); Groq e Gemini fallback.
  */
 export async function extrairValorENomeComGemini(frase: string): Promise<{ valor: number; nome: string } | null> {
   if (!frase || frase.trim().length < 5 || frase.trim().length > 250) return null
@@ -395,13 +395,13 @@ export async function extrairValorENomeComGemini(frase: string): Promise<{ valor
   }
   const prompt = PROMPT_VALOR_NOME_GASTO + `"${frase.trim()}"`
 
-  if (process.env.GROQ_API_KEY) {
+  if (process.env.OPENAI_API_KEY) {
     try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
+          model: 'gpt-4o-mini',
           messages: [{ role: 'user' as const, content: prompt }],
           temperature: 0.1,
           max_tokens: 80,
@@ -415,13 +415,13 @@ export async function extrairValorENomeComGemini(frase: string): Promise<{ valor
       }
     } catch (_) {}
   }
-  if (process.env.OPENAI_API_KEY) {
+  if (process.env.GROQ_API_KEY) {
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'llama-3.1-8b-instant',
           messages: [{ role: 'user' as const, content: prompt }],
           temperature: 0.1,
           max_tokens: 80,
@@ -461,20 +461,19 @@ export async function extrairValorENomeComGemini(frase: string): Promise<{ valor
 
 /**
  * Extrai o valor em reais de uma frase (ex.: transcrição de áudio) via LLM.
- * Usado quando a extração normal retorna 2 e a frase parece pedido de gasto/entrada (evita "2" errado do Whisper).
- * Retorna null se não conseguir ou valor fora do range sensato (1–500.000).
+ * OpenAI primeiro (sem Groq); Groq fallback.
  */
 export async function extrairValorReaisComLLM(frase: string): Promise<number | null> {
   if (!frase || frase.trim().length < 10) return null
   const prompt = `Desta frase, qual o valor em reais que a pessoa mencionou? Responda apenas um número, nada mais. Sem R$, sem texto.\nFrase: ${frase.trim().slice(0, 500)}`
-  const groqKey = process.env.GROQ_API_KEY?.trim()
-  if (groqKey) {
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  if (openaiKey) {
     try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
+          model: 'gpt-4o-mini',
           messages: [{ role: 'user' as const, content: prompt }],
           temperature: 0.1,
           max_tokens: 20,
@@ -488,14 +487,14 @@ export async function extrairValorReaisComLLM(frase: string): Promise<number | n
       }
     } catch (_) {}
   }
-  const openaiKey = process.env.OPENAI_API_KEY?.trim()
-  if (openaiKey) {
+  const groqKey = process.env.GROQ_API_KEY?.trim()
+  if (groqKey) {
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'llama-3.1-8b-instant',
           messages: [{ role: 'user' as const, content: prompt }],
           temperature: 0.1,
           max_tokens: 20,
