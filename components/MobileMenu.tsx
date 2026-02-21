@@ -165,19 +165,17 @@ export default function MobileMenu() {
             ref={sidebarRef}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
-            className="fixed left-0 top-0 w-64 bg-white dark:bg-[#1A1A1A] border-r border-gray-200 dark:border-white/10 shadow-lg z-50 lg:hidden animate-slide-in-from-left flex flex-col overflow-hidden"
+            className="fixed left-0 top-0 w-64 bg-white dark:bg-[#1A1A1A] border-r border-gray-200 dark:border-white/10 shadow-lg z-50 lg:hidden animate-slide-in-from-left flex flex-col"
             style={{
               height: '100dvh',
               height: '100vh',
               touchAction: 'pan-y',
             }}
           >
-            {/* Área rolável: altura fixa para scroll nativo no iOS; só este elemento rola */}
+            {/* Área rolável: altura limitada para scroll no mobile; padding-bottom para não ficar atrás da barra inferior */}
             <div
-              className="overflow-y-auto overflow-x-hidden overscroll-contain p-6"
+              className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-6 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]"
               style={{
-                height: '100%',
-                minHeight: 0,
                 WebkitOverflowScrolling: 'touch',
                 touchAction: 'pan-y',
                 overscrollBehavior: 'contain',
