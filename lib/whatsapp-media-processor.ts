@@ -1516,9 +1516,13 @@ async function transcribeAudioWithGroq(audioBuffer: Buffer, mimeType: string): P
 }
 
 /**
- * Transcrever áudio usando Gemini (GRATUITO) - FALLBACK
+ * Transcrever áudio usando Gemini (GRATUITO) - FALLBACK ou retry com prompt de frase completa
  */
-async function transcribeAudioWithGemini(audioBuffer: Buffer, mimeType: string): Promise<string | null> {
+async function transcribeAudioWithGemini(
+  audioBuffer: Buffer,
+  mimeType: string,
+  customPrompt?: string
+): Promise<string | null> {
   if (!process.env.GEMINI_API_KEY) {
     console.log('⚠️ [Media Processor] GEMINI_API_KEY não configurada')
     return null
@@ -1527,25 +1531,20 @@ async function transcribeAudioWithGemini(audioBuffer: Buffer, mimeType: string):
   try {
     console.log('🎤 [Media Processor] ==========================================')
     console.log('🎤 [Media Processor] Transcrevendo áudio com Gemini...')
-    console.log('🎤 [Media Processor] API Key (primeiros 10 chars):', process.env.GEMINI_API_KEY.substring(0, 10) + '...')
     console.log('🎤 [Media Processor] Tamanho do buffer:', audioBuffer.length, 'bytes')
     console.log('🎤 [Media Processor] MIME type:', mimeType)
     
-    // Converter Buffer para base64
     const audioBase64 = audioBuffer.toString('base64')
-    
-    // Mapear MIME type do áudio
     const geminiMimeType = mimeType || 'audio/webm'
     
-    // Modelos Gemini que suportam áudio
     const geminiModels = [
       'gemini-1.5-pro',
       'gemini-1.5-flash',
       'gemini-2.0-flash-exp'
     ]
     
-    const prompt = `Transcreva este áudio para português. A pessoa está registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
-Regras: 1) Verbo EXATO: "gastei", "paguei", "ganhei", "recebi". 2) Valores SEMPRE em algarismos: 50, 80, 200, 300, 400, 500. Se ouvir "quatrocentos" ou "com roupas", escreva "400" e "roupas" — NUNCA transcreva "2" nem "50" quando a pessoa disse 400 ou trezentos. 3) Frase COMPLETA com descrição: "gastei 400 com roupas", "paguei 80 no mercado", "ganhei 500 de mãe". Saída: só o texto transcrito, sem explicações.`
+    const prompt = customPrompt ?? `Transcreva este áudio para português. A pessoa está registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
+Regras: 1) Verbo EXATO: "gastei", "paguei", "ganhei", "recebi". 2) Valores em algarismos: 50, 80, 200, 300, 400, 500. 3) Frase COMPLETA com descrição: "gastei 400 com roupas", "paguei 80 no mercado", "ganhei 500 de mãe". Saída: só o texto transcrito.`
     
     for (const model of geminiModels) {
       try {
@@ -1607,6 +1606,20 @@ Regras: 1) Verbo EXATO: "gastei", "paguei", "ganhei", "recebi". 2) Valores SEMPR
   }
 }
 
+/** Verifica se a transcrição parece incompleta (só verbo + número, sem descrição). */
+function isTranscriptionIncomplete(text: string): boolean {
+  const t = (text || '').trim()
+  if (t.length < 10 || t.length > 120) return false
+  // Parece "paguei 200" ou "gastei 50 reais" sem "no mercado", "com roupas", etc.
+  const soVerboNumero = /^(gastei|paguei|ganhei|recebi)\s+[\d.,]+(\s*(reais?|r\$)?\.?)?$/i.test(t)
+  const temDescricao = /\b(com|no|na|de|em)\s+[a-záàâãéêíóôõúç]{2,}/i.test(t)
+  return soVerboNumero && !temDescricao
+}
+
+const PROMPT_AUDIO_FRASE_COMPLETA = `Transcreva este áudio para português. A pessoa está dizendo quanto GASTOU ou RECEBEU e EM QUE ou DE QUEM.
+Inclua a frase COMPLETA: valor em algarismos e a descrição (ex.: "gastei 200 no mercado", "paguei 80 no posto", "ganhei 500 de mãe", "gastei 400 com roupas").
+Saída: apenas o texto transcrito, sem explicações.`
+
 export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Promise<string | null> {
   console.log('🎤 [Media Processor] ==========================================')
   console.log('🎤 [Media Processor] INICIANDO TRANSCRIÇÃO DE ÁUDIO')
@@ -1614,29 +1627,36 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   console.log('🎤 [Media Processor] MIME type:', mimeType)
   console.log('🎤 [Media Processor] GROQ_API_KEY configurada?', !!process.env.GROQ_API_KEY)
   console.log('🎤 [Media Processor] GEMINI_API_KEY configurada?', !!process.env.GEMINI_API_KEY)
-  console.log('🎤 [Media Processor] OPENAI_API_KEY configurada?', !!process.env.OPENAI_API_KEY)
   console.log('🎤 [Media Processor] ==========================================')
   
+  let firstResult: string | null = null
+
   // 1) Groq Whisper (gratuito) — principal
   if (process.env.GROQ_API_KEY) {
     console.log('🎤 [Media Processor] Tentando Groq Whisper (gratuito)...')
     const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
     if (r) {
-      console.log('✅ [Media Processor] Groq transcreveu áudio')
-      return r
+      console.log('✅ [Media Processor] Groq transcreveu áudio:', r.slice(0, 60))
+      firstResult = r
+      if (!isTranscriptionIncomplete(r)) return r
+      console.log('🎤 [Media Processor] Transcrição curta/incompleta; tentando Gemini para frase completa...')
     }
   }
 
-  // 2) Gemini (gratuito) — fallback
+  // 2) Gemini — fallback ou retry quando Groq retornou só "verbo + número"
   if (process.env.GEMINI_API_KEY) {
-    console.log('🎤 [Media Processor] Tentando Gemini (gratuito, fallback)...')
-    const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
+    const useFullSentencePrompt = firstResult != null && isTranscriptionIncomplete(firstResult)
+    console.log('🎤 [Media Processor] Tentando Gemini' + (useFullSentencePrompt ? ' (frase completa)' : '') + '...')
+    const r = await transcribeAudioWithGemini(audioBuffer, mimeType, useFullSentencePrompt ? PROMPT_AUDIO_FRASE_COMPLETA : undefined)
     if (r) {
-      console.log('✅ [Media Processor] Gemini transcreveu áudio')
-      return r
+      console.log('✅ [Media Processor] Gemini transcreveu:', r.slice(0, 60))
+      if (firstResult && r.trim().length > firstResult.trim().length) return r.trim()
+      if (!firstResult) return r
+      return r.trim()
     }
   }
 
+  if (firstResult) return firstResult
   console.error('❌ [Media Processor] Configure GROQ_API_KEY ou GEMINI_API_KEY (gratuitos) para transcrever áudio.')
   return null
 }

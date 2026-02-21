@@ -418,7 +418,7 @@ export async function processPlenWhatsAppMessage(
           }
         }
         if (nomeFinal === 'Gasto' || nomeFinal === 'Outros') {
-          const m = msgForRegistro.match(/(?:com|no|na)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
+          const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
           if (m?.[1]) {
             const desc = m[1].trim()
             if (desc.length >= 2 && desc.length <= 50) nomeFinal = desc.charAt(0).toUpperCase() + desc.slice(1).toLowerCase()
@@ -454,7 +454,7 @@ export async function processPlenWhatsAppMessage(
             }
           }
           if (interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') {
-            const m = msgForRegistro.match(/(?:com|no|na)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
+            const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
             if (m?.[1]) {
               const desc = m[1].trim()
               if (desc.length >= 2 && desc.length <= 50) {

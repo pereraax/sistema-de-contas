@@ -227,9 +227,9 @@ Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrár
   return null
 }
 
-const PROMPT_REGISTRO_COMPLETO = `Esta frase é uma transcrição de áudio de alguém registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
-Identifique: 1) TIPO: "gasto" se gastou/pagou; "entrada" se recebeu/ganhou. 2) VALOR: o número em reais que a pessoa disse. 3) NOME: descrição (ex: roupas, mercado, mãe).
-Use SEMPRE o valor que a pessoa mencionou (50, 80, 200, 300, 400, etc.). Só corrija para outro valor se aparecer claramente 2 ou "dois" e a frase tiver contexto (roupas, mercado) — aí use valor plausível (ex.: roupas 300 ou 400, mercado 80-150). Não invente valor; prefira o que está na frase.
+const PROMPT_REGISTRO_COMPLETO = `Esta frase é de alguém registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais. Pode ser transcrição de áudio (às vezes curta ou incompleta).
+Identifique: 1) TIPO: "gasto" se gastou/pagou; "entrada" se recebeu/ganhou. 2) VALOR: o número em reais que a pessoa disse. 3) NOME: descrição do que foi (ex: roupas, mercado, posto, mãe) — se a frase não tiver descrição, use "Gasto" ou "Entrada".
+Use o valor que a pessoa mencionou. Se a frase for só "paguei 200" ou "gastei 50", extraia esse valor e NOME: Gasto. Se tiver "no mercado", "com roupas", "de mãe", use isso como NOME.
 Responda EXATAMENTE: TIPO: gasto ou entrada | VALOR: (número) | NOME: (descrição)
 Frase: `
 
