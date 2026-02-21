@@ -182,28 +182,7 @@ O valor na transcrição é 2 - é ERRO. "Dois" é confundido com "trezentos" (3
 
 Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrário 200 ou 300. Um número só.`
 
-  // 1) OpenAI primeiro (sem Groq)
-  const openaiKey = process.env.OPENAI_API_KEY?.trim()
-  if (openaiKey) {
-    try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'user' as const, content: prompt }],
-          temperature: 0.2,
-          max_tokens: 15,
-        }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const num = parseNumFromLLM(data.choices?.[0]?.message?.content ?? '', valorMin)
-        if (num != null) return num
-      }
-    } catch (_) {}
-  }
-  // 2) Groq (fallback)
+  // 1) Groq (gratuito)
   const groqKey = process.env.GROQ_API_KEY?.trim()
   if (groqKey) {
     try {
@@ -225,7 +204,7 @@ Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrár
       }
     } catch (_) {}
   }
-  // 3) Gemini (fallback)
+  // 2) Gemini (gratuito, fallback)
   const geminiKey = process.env.GEMINI_API_KEY?.trim()
   if (geminiKey) {
     try {
@@ -281,7 +260,7 @@ function parseRespostaRegistroCompleto(text: string): { tipo: 'entrada' | 'saida
 
 /**
  * Extrai tipo (gasto/entrada), valor e nome de QUALQUER frase (áudio transcrita ou mensagem).
- * Usado para: "ganhei 500 de mãe", "gastei 400 com roupas". OpenAI primeiro (funciona sem Groq); Groq e Gemini fallback.
+ * Usado para: "ganhei 500 de mãe", "gastei 400 com roupas". Só gratuito: Groq primeiro, Gemini fallback.
  */
 export async function extrairRegistroCompletoComGemini(
   frase: string
@@ -290,30 +269,7 @@ export async function extrairRegistroCompletoComGemini(
   const trimmed = frase.trim()
   const prompt = PROMPT_REGISTRO_COMPLETO + `"${trimmed}"`
 
-  // 1) OpenAI primeiro (use só OPENAI_API_KEY, sem Groq)
-  const openaiKey = process.env.OPENAI_API_KEY?.trim()
-  if (openaiKey) {
-    try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'user' as const, content: prompt }],
-          temperature: 0.1,
-          max_tokens: 80,
-        }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const text = (data.choices?.[0]?.message?.content ?? '').trim()
-        const parsed = parseRespostaRegistroCompleto(text)
-        if (parsed) return parsed
-      }
-    } catch (_) {}
-  }
-
-  // 2) Groq (fallback)
+  // 1) Groq (gratuito) — principal
   const groqKey = process.env.GROQ_API_KEY?.trim()
   if (groqKey) {
     try {
@@ -383,7 +339,7 @@ function parseValorENomeGasto(text: string): { valor: number; nome: string } | n
 }
 
 /**
- * Extrai valor e nome de uma frase de GASTO. OpenAI primeiro (sem Groq); Groq e Gemini fallback.
+ * Extrai valor e nome de uma frase de GASTO. Só gratuito: Groq primeiro, Gemini fallback.
  */
 export async function extrairValorENomeComGemini(frase: string): Promise<{ valor: number; nome: string } | null> {
   if (!frase || frase.trim().length < 5 || frase.trim().length > 250) return null
@@ -395,26 +351,6 @@ export async function extrairValorENomeComGemini(frase: string): Promise<{ valor
   }
   const prompt = PROMPT_VALOR_NOME_GASTO + `"${frase.trim()}"`
 
-  if (process.env.OPENAI_API_KEY) {
-    try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'user' as const, content: prompt }],
-          temperature: 0.1,
-          max_tokens: 80,
-        }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const text = (data.choices?.[0]?.message?.content ?? '').trim()
-        const parsed = parseValorENomeGasto(text)
-        if (parsed) return parsed
-      }
-    } catch (_) {}
-  }
   if (process.env.GROQ_API_KEY) {
     try {
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -460,33 +396,11 @@ export async function extrairValorENomeComGemini(frase: string): Promise<{ valor
 }
 
 /**
- * Extrai o valor em reais de uma frase (ex.: transcrição de áudio) via LLM.
- * OpenAI primeiro (sem Groq); Groq fallback.
+ * Extrai o valor em reais de uma frase via LLM. Só gratuito: Groq, depois Gemini.
  */
 export async function extrairValorReaisComLLM(frase: string): Promise<number | null> {
   if (!frase || frase.trim().length < 10) return null
   const prompt = `Desta frase, qual o valor em reais que a pessoa mencionou? Responda apenas um número, nada mais. Sem R$, sem texto.\nFrase: ${frase.trim().slice(0, 500)}`
-  const openaiKey = process.env.OPENAI_API_KEY?.trim()
-  if (openaiKey) {
-    try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'user' as const, content: prompt }],
-          temperature: 0.1,
-          max_tokens: 20,
-        }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const text = (data.choices?.[0]?.message?.content ?? '').trim().replace(/\s/g, '')
-        const num = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'))
-        if (Number.isFinite(num) && num >= 1 && num <= 500_000) return num
-      }
-    } catch (_) {}
-  }
   const groqKey = process.env.GROQ_API_KEY?.trim()
   if (groqKey) {
     try {
@@ -503,6 +417,28 @@ export async function extrairValorReaisComLLM(frase: string): Promise<number | n
       if (res.ok) {
         const data = await res.json()
         const text = (data.choices?.[0]?.message?.content ?? '').trim().replace(/\s/g, '')
+        const num = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'))
+        if (Number.isFinite(num) && num >= 1 && num <= 500_000) return num
+      }
+    } catch (_) {}
+  }
+  const geminiKey = process.env.GEMINI_API_KEY?.trim()
+  if (geminiKey) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 20 },
+          }),
+        }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim().replace(/\s/g, '')
         const num = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'))
         if (Number.isFinite(num) && num >= 1 && num <= 500_000) return num
       }

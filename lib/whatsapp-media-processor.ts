@@ -1617,44 +1617,9 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   console.log('🎤 [Media Processor] OPENAI_API_KEY configurada?', !!process.env.OPENAI_API_KEY)
   console.log('🎤 [Media Processor] ==========================================')
   
-  // 1) OpenAI Whisper primeiro (funciona bem sem Groq; use só OPENAI_API_KEY)
-  if (process.env.OPENAI_API_KEY) {
-    try {
-      if (!looksLikeAudio(audioBuffer)) return null
-      const { ext, mime } = getAudioFileInfo(mimeType)
-      const formData = new FormData()
-      const uint8Array = new Uint8Array(audioBuffer)
-      const blob = new Blob([uint8Array], { type: mime })
-      formData.append('file', blob, `audio${ext}`)
-      formData.append('model', 'whisper-1')
-      formData.append('language', 'pt')
-      formData.append('prompt', 'Registro em reais. Gastei, paguei, recebi, ganhei. Valores em algarismos: 20, 50, 80, 200, 400.')
-
-      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('❌ [Media Processor] OpenAI Whisper:', response.status, errorText.substring(0, 300))
-      } else {
-        const data = await response.json()
-        const text = (data.text || '').trim()
-        if (text) {
-          console.log('✅ [Media Processor] OpenAI transcreveu:', text.substring(0, 80))
-          return text
-        }
-      }
-    } catch (err: any) {
-      console.error('❌ [Media Processor] Erro OpenAI Whisper:', err.message)
-    }
-  }
-
-  // 2) Groq Whisper (fallback)
+  // 1) Groq Whisper (gratuito) — principal
   if (process.env.GROQ_API_KEY) {
-    console.log('🎤 [Media Processor] Tentando Groq Whisper...')
+    console.log('🎤 [Media Processor] Tentando Groq Whisper (gratuito)...')
     const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
     if (r) {
       console.log('✅ [Media Processor] Groq transcreveu áudio')
@@ -1662,9 +1627,9 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     }
   }
 
-  // 3) Gemini por último (fallback)
+  // 2) Gemini (gratuito) — fallback
   if (process.env.GEMINI_API_KEY) {
-    console.log('🎤 [Media Processor] Tentando Gemini (fallback áudio)...')
+    console.log('🎤 [Media Processor] Tentando Gemini (gratuito, fallback)...')
     const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
     if (r) {
       console.log('✅ [Media Processor] Gemini transcreveu áudio')
@@ -1672,7 +1637,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     }
   }
 
-  console.error('❌ [Media Processor] Nenhuma IA configurada para transcrever áudio (OPENAI_API_KEY, GROQ_API_KEY ou GEMINI_API_KEY)')
+  console.error('❌ [Media Processor] Configure GROQ_API_KEY ou GEMINI_API_KEY (gratuitos) para transcrever áudio.')
   return null
 }
 
