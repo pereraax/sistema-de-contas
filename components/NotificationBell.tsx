@@ -348,27 +348,35 @@ export default function NotificationBell() {
   if (toast) {
     const config = getNotificationConfig(toast.type)
     const Icon = config.icon
+    // Wrapper fixo em tela cheia (viewport) para que no mobile a notificação não se mova ao deslizar a página
     toastElement = (
       <div
-        className={`fixed top-[4.75rem] right-4 z-[10001] w-[320px] max-w-[calc(100vw-2rem)] rounded-2xl border-l-4 ${config.accent} bg-white/70 dark:bg-gray-900/60 backdrop-blur-2xl border border-white/20 dark:border-white/10 ring-1 ring-white/20 dark:ring-white/5 shadow-xl shadow-black/10 p-3.5 flex items-start gap-3 animate-slide-in-right-notification`}
-        role="alert"
+        className="fixed inset-0 z-[10001] pointer-events-none sm:pointer-events-none"
+        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+        aria-hidden
       >
-        <div className={`flex-shrink-0 ${config.iconBg} rounded-xl p-2`}>
-          <Icon size={18} className={config.iconColor} strokeWidth={2.5} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900 dark:text-white leading-snug">
-            {toast.message}
-          </p>
-          <p className="text-[11px] text-gray-600 dark:text-gray-200 mt-0.5">Agora</p>
-        </div>
-        <button
-          onClick={() => { setToast(null); if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current); toastTimeoutRef.current = null }}
-          className="flex-shrink-0 p-1.5 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 transition-colors"
-          aria-label="Fechar"
+        <div
+          className={`absolute top-[4.75rem] right-4 w-[320px] max-w-[calc(100vw-2rem)] rounded-2xl border-l-4 ${config.accent} bg-white/70 dark:bg-gray-900/60 backdrop-blur-2xl border border-white/20 dark:border-white/10 ring-1 ring-white/20 dark:ring-white/5 shadow-xl shadow-black/10 p-3.5 flex items-start gap-3 animate-slide-in-right-notification pointer-events-auto`}
+          role="alert"
+          style={{ position: 'absolute' }}
         >
-          <X size={16} className="text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white" strokeWidth={2.5} />
-        </button>
+          <div className={`flex-shrink-0 ${config.iconBg} rounded-xl p-2`}>
+            <Icon size={18} className={config.iconColor} strokeWidth={2.5} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white leading-snug whitespace-pre-line break-words">
+              {toast.message}
+            </p>
+            <p className="text-[11px] text-gray-600 dark:text-gray-200 mt-0.5">Agora</p>
+          </div>
+          <button
+            onClick={() => { setToast(null); if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current); toastTimeoutRef.current = null }}
+            className="flex-shrink-0 p-1.5 rounded-lg hover:bg-white/30 dark:hover:bg-white/10 transition-colors"
+            aria-label="Fechar"
+          >
+            <X size={16} className="text-gray-500 dark:text-gray-200 hover:text-gray-700 dark:hover:text-white" strokeWidth={2.5} />
+          </button>
+        </div>
       </div>
     )
   }
