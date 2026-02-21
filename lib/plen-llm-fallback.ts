@@ -280,9 +280,8 @@ function parseRespostaRegistroCompleto(text: string): { tipo: 'entrada' | 'saida
 }
 
 /**
- * Extrai tipo (gasto/entrada), valor e nome de QUALQUER frase de áudio transcrita.
- * Usado para reconhecer qualquer pedido: "ganhei 500 de mãe", "gastei 400 com roupas", etc.
- * Tenta Gemini primeiro; se falhar, tenta Groq/OpenAI. Retorna null se não conseguir.
+ * Extrai tipo (gasto/entrada), valor e nome de QUALQUER frase (áudio transcrita ou mensagem).
+ * Usado para: "ganhei 500 de mãe", "gastei 400 com roupas". Groq e OpenAI primeiro; Gemini só fallback.
  */
 export async function extrairRegistroCompletoComGemini(
   frase: string
@@ -291,29 +290,7 @@ export async function extrairRegistroCompletoComGemini(
   const trimmed = frase.trim()
   const prompt = PROMPT_REGISTRO_COMPLETO + `"${trimmed}"`
 
-  const geminiKey = process.env.GEMINI_API_KEY?.trim()
-  if (geminiKey) {
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 100 },
-          }),
-        }
-      )
-      if (res.ok) {
-        const data = await res.json()
-        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
-        const parsed = parseRespostaRegistroCompleto(text)
-        if (parsed) return parsed
-      }
-    } catch (_) {}
-  }
-
+  // 1) Groq primeiro (não depender do Gemini)
   const groqKey = process.env.GROQ_API_KEY?.trim()
   if (groqKey) {
     try {
@@ -336,6 +313,7 @@ export async function extrairRegistroCompletoComGemini(
     } catch (_) {}
   }
 
+  // 2) OpenAI
   const openaiKey = process.env.OPENAI_API_KEY?.trim()
   if (openaiKey) {
     try {
@@ -357,60 +335,127 @@ export async function extrairRegistroCompletoComGemini(
       }
     } catch (_) {}
   }
+
+  // 3) Gemini por último (fallback)
+  const geminiKey = process.env.GEMINI_API_KEY?.trim()
+  if (geminiKey) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 100 },
+          }),
+        }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
+        const parsed = parseRespostaRegistroCompleto(text)
+        if (parsed) return parsed
+      }
+    } catch (_) {}
+  }
+  return null
+}
+
+const PROMPT_VALOR_NOME_GASTO = `Esta frase é uma transcrição de áudio de alguém registrando um gasto em reais.
+Extraia o VALOR em reais (o número que a pessoa disse) e a DESCRIÇÃO/NOME (ex: roupas, mercado).
+Se a frase tem "roupas" e valor 200 ou 300, use VALOR: 400. Caso contrário use o número que está na frase.
+Responda EXATAMENTE: VALOR: (apenas o número) | NOME: (descrição em uma palavra ou poucas)
+Frase: `
+
+function parseValorENomeGasto(text: string): { valor: number; nome: string } | null {
+  const raw = (text ?? '').replace(/```/g, '').trim()
+  const valorMatch = raw.match(/(?:VALOR|valor)\s*:\s*([\d.,\s]+)/i)
+  const nomeMatch = raw.match(/(?:NOME|nome)\s*:\s*(.+?)(?:\n|$|\||\s+VALOR)/i)
+  const valorStr = (valorMatch?.[1] ?? '').replace(/\s/g, '').replace(',', '.')
+  const valor = valorStr ? parseFloat(valorStr) : NaN
+  const nome = (nomeMatch?.[1] ?? '').trim().replace(/\n/g, ' ').substring(0, 100)
+  if (Number.isFinite(valor) && valor >= 1 && valor <= 500_000 && nome.length >= 2) {
+    const nomeFormatado = nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase()
+    return { valor, nome: nomeFormatado }
+  }
   return null
 }
 
 /**
- * Extrai valor e nome/descrição de uma frase de gasto/entrada em uma única chamada ao Gemini.
- * Usado para transcrições de áudio onde o valor ou a descrição costumam vir errados.
- * Retorna { valor, nome } ou null. Gemini já está em produção e entende bem "gastei 300 com roupas".
+ * Extrai valor e nome de uma frase de GASTO. Groq e OpenAI primeiro; Gemini só fallback.
  */
 export async function extrairValorENomeComGemini(frase: string): Promise<{ valor: number; nome: string } | null> {
   if (!frase || frase.trim().length < 5 || frase.trim().length > 250) return null
   const f = frase.trim().toLowerCase()
   const temRoupas = /\broupas?\b/.test(f)
-  // Correção fixa: transcrição confunde 400 (quatrocentos) com 200 ou 300. Se a frase tem "roupas" e valor 200 ou 300, usar 400.
   if (temRoupas && (/\b200\b|duzentos/.test(f) || /\b300\b|trezentos/.test(f))) {
     const nomeRoupas = (f.match(/(?:com|de|em)\s+(\w+)/) || [])[1] || 'roupas'
-    const nomeFormatado = nomeRoupas.charAt(0).toUpperCase() + nomeRoupas.slice(1).toLowerCase()
-    return { valor: 400, nome: nomeFormatado }
+    return { valor: 400, nome: nomeRoupas.charAt(0).toUpperCase() + nomeRoupas.slice(1).toLowerCase() }
   }
-  const geminiKey = process.env.GEMINI_API_KEY?.trim()
-  if (!geminiKey) return null
-  const prompt = `Esta frase é uma transcrição de áudio de alguém registrando um gasto em reais.
+  const prompt = PROMPT_VALOR_NOME_GASTO + `"${frase.trim()}"`
 
-Extraia o VALOR em reais (o número que a pessoa disse) e a DESCRIÇÃO/NOME (ex: roupas, mercado).
-IMPORTANTE: Em áudio, 400 (quatrocentos) é confundido com 200 (duzentos) ou 300 (trezentos). Se a frase tem "200", "300", "duzentos" ou "trezentos" e também "roupas", a pessoa provavelmente disse 400 — use VALOR: 400.
-Caso contrário use o número que está na frase.
-
-Responda EXATAMENTE:
-VALOR: (apenas o número)
-NOME: (descrição em uma palavra ou poucas)
-
-Frase: "${frase.trim()}"`
-
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 80 },
-      }),
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
-    const valorMatch = text.match(/VALOR:\s*([\d.,]+)/i)
-    const nomeMatch = text.match(/NOME:\s*(.+?)(?:\n|$)/i)
-    const valorStr = valorMatch?.[1]?.replace(/\s/g, '').replace(',', '.')
-    const valor = valorStr ? parseFloat(valorStr) : NaN
-    const nome = (nomeMatch?.[1] ?? '').trim().replace(/\n/g, ' ').substring(0, 100)
-    if (Number.isFinite(valor) && valor >= 1 && valor <= 500_000 && nome.length >= 2) {
-      const nomeFormatado = nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase()
-      return { valor, nome: nomeFormatado }
-    }
-  } catch (_) {}
+  if (process.env.GROQ_API_KEY) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.1,
+          max_tokens: 80,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.choices?.[0]?.message?.content ?? '').trim()
+        const parsed = parseValorENomeGasto(text)
+        if (parsed) return parsed
+      }
+    } catch (_) {}
+  }
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.1,
+          max_tokens: 80,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.choices?.[0]?.message?.content ?? '').trim()
+        const parsed = parseValorENomeGasto(text)
+        if (parsed) return parsed
+      }
+    } catch (_) {}
+  }
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 80 },
+          }),
+        }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
+        const parsed = parseValorENomeGasto(text)
+        if (parsed) return parsed
+      }
+    } catch (_) {}
+  }
   return null
 }
 

@@ -1617,17 +1617,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   console.log('🎤 [Media Processor] OPENAI_API_KEY configurada?', !!process.env.OPENAI_API_KEY)
   console.log('🎤 [Media Processor] ==========================================')
   
-  // 1) Gemini primeiro (melhor em números em PT em áudios curtos; Groq Whisper costuma transcrever "dois" em vez do valor real)
-  if (process.env.GEMINI_API_KEY) {
-    console.log('🎤 [Media Processor] Tentando Gemini (áudio inline)...')
-    const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
-    if (r) {
-      console.log('✅ [Media Processor] Gemini transcreveu áudio')
-      return r
-    }
-  }
-
-  // 2) Groq Whisper
+  // 1) Groq Whisper primeiro (estável para português; evita depender do Gemini)
   if (process.env.GROQ_API_KEY) {
     console.log('🎤 [Media Processor] Tentando Groq Whisper...')
     const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
@@ -1637,7 +1627,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     }
   }
 
-  // 3) OpenAI Whisper
+  // 2) OpenAI Whisper
   if (process.env.OPENAI_API_KEY) {
     try {
       if (!looksLikeAudio(audioBuffer)) return null
@@ -1671,8 +1661,18 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
       console.error('❌ [Media Processor] Erro OpenAI Whisper:', err.message)
     }
   }
-  
-  console.error('❌ [Media Processor] Nenhuma IA configurada para transcrever áudio (GEMINI_API_KEY ou OPENAI_API_KEY)')
+
+  // 3) Gemini por último (fallback)
+  if (process.env.GEMINI_API_KEY) {
+    console.log('🎤 [Media Processor] Tentando Gemini (fallback áudio)...')
+    const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
+    if (r) {
+      console.log('✅ [Media Processor] Gemini transcreveu áudio')
+      return r
+    }
+  }
+
+  console.error('❌ [Media Processor] Nenhuma IA configurada para transcrever áudio (GROQ_API_KEY, OPENAI_API_KEY ou GEMINI_API_KEY)')
   return null
 }
 
