@@ -228,8 +228,8 @@ Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrár
 }
 
 const PROMPT_REGISTRO_COMPLETO = `Esta frase é uma transcrição de áudio de alguém registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
-Identifique: 1) TIPO: "gasto" se gastou/pagou; "entrada" se recebeu/ganhou. 2) VALOR: número em reais. 3) NOME: descrição (ex: roupas, mercado, mãe).
-REGRA: Se a frase tiver "roupas" (ou "roupa"), use SEMPRE VALOR: 400 e NOME: Roupas. Se tiver "mercado" ou "supermercado", use valor entre 80 e 200. NUNCA use valor 2 nem 50 quando a frase mencionar roupas, mercado, restaurante ou compras — use 200, 300 ou 400.
+Identifique: 1) TIPO: "gasto" se gastou/pagou; "entrada" se recebeu/ganhou. 2) VALOR: o número em reais que a pessoa disse. 3) NOME: descrição (ex: roupas, mercado, mãe).
+Use SEMPRE o valor que a pessoa mencionou (50, 80, 200, 300, 400, etc.). Só corrija para outro valor se aparecer claramente 2 ou "dois" e a frase tiver contexto (roupas, mercado) — aí use valor plausível (ex.: roupas 300 ou 400, mercado 80-150). Não invente valor; prefira o que está na frase.
 Responda EXATAMENTE: TIPO: gasto ou entrada | VALOR: (número) | NOME: (descrição)
 Frase: `
 
@@ -320,8 +320,7 @@ export async function extrairRegistroCompletoComGemini(
 }
 
 const PROMPT_VALOR_NOME_GASTO = `Esta frase é uma transcrição de áudio de alguém registrando um gasto em reais.
-Extraia o VALOR em reais (o número que a pessoa disse) e a DESCRIÇÃO/NOME (ex: roupas, mercado).
-Se a frase tem "roupas" e valor 200 ou 300, use VALOR: 400. Caso contrário use o número que está na frase.
+Extraia o VALOR em reais (o número que a pessoa disse) e a DESCRIÇÃO/NOME (ex: roupas, mercado). Use sempre o valor que a pessoa mencionou; não troque por outro.
 Responda EXATAMENTE: VALOR: (apenas o número) | NOME: (descrição em uma palavra ou poucas)
 Frase: `
 
@@ -344,12 +343,6 @@ function parseValorENomeGasto(text: string): { valor: number; nome: string } | n
  */
 export async function extrairValorENomeComGemini(frase: string): Promise<{ valor: number; nome: string } | null> {
   if (!frase || frase.trim().length < 5 || frase.trim().length > 250) return null
-  const f = frase.trim().toLowerCase()
-  const temRoupas = /\broupas?\b/.test(f)
-  if (temRoupas && (/\b200\b|duzentos/.test(f) || /\b300\b|trezentos/.test(f))) {
-    const nomeRoupas = (f.match(/(?:com|de|em)\s+(\w+)/) || [])[1] || 'roupas'
-    return { valor: 400, nome: nomeRoupas.charAt(0).toUpperCase() + nomeRoupas.slice(1).toLowerCase() }
-  }
   const prompt = PROMPT_VALOR_NOME_GASTO + `"${frase.trim()}"`
 
   if (process.env.GROQ_API_KEY) {
@@ -455,12 +448,12 @@ Frase: ${trimmed.slice(0, 500)}`
 
 /**
  * Quando a transcrição de um gasto está incerta ("gastei 2", "gastei"), infere valor provável.
- * Prioriza 400 e 300 (erro comum de transcrição "quatrocentos" → "dois").
+ * Usa o contexto da frase; não prioriza um valor fixo.
  */
 export async function inferirValorGastoTranscricaoIncerteza(frase: string): Promise<number | null> {
   const trimmed = (frase || '').trim()
   if (!trimmed || trimmed.length < 3) return null
-  const prompt = `Transcrição de áudio de alguém dizendo que GASTOU (pode estar incompleta ou errada). Quando o áudio diz "gastei 400 com roupas" ou "gastei trezentos", a transcrição às vezes sai "gastei 2" ou "gastei dois". Dado o texto: "${trimmed.slice(0, 200)}". Qual valor em reais a pessoa provavelmente disse? Responda APENAS um número. Prefira 400 ou 300.`
+  const prompt = `Transcrição de áudio de alguém dizendo que GASTOU (pode estar incompleta ou errada). Dado o texto: "${trimmed.slice(0, 200)}". Qual valor em reais a pessoa provavelmente disse? Responda APENAS um número (ex.: 50, 80, 100, 150, 200, 300, 400).`
   const groqKey = process.env.GROQ_API_KEY?.trim()
   if (groqKey) {
     try {

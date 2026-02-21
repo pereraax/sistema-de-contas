@@ -392,11 +392,6 @@ export async function processPlenWhatsAppMessage(
         const dataReg = interpretado?.data_registro ?? new Date().toISOString()
         let valorFinal = completo.valor
         let nomeFinal = completo.nome
-        // Correção imediata: áudio "gastei 400 com roupas" às vezes transcreve 2/50/200/300 — forçar 400 e Roupas
-        if (completo.tipo === 'saida' && /\broupas?\b/i.test(msgForRegistro)) {
-          valorFinal = 400
-          nomeFinal = 'Roupas'
-        }
         const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
         // NUNCA aceitar R$ 2,00 em gasto — transcrição costuma errar (400 → 2); não inventar número
         if (completo.tipo === 'saida' && (valorFinal === 2 || (valorFinal === 20 && temContextoValorAlto))) {
@@ -411,21 +406,14 @@ export async function processPlenWhatsAppMessage(
             else if (/\buber\b/i.test(msgForRegistro)) valorFinal = 25
             else valorFinal = 100
           }
-          // Sem contexto = transcrição perdeu valor; inferir 400/300 (ex.: "gastei 400 com roupas" → "gastei 2")
+          // Sem contexto = transcrição perdeu valor; inferir valor a partir da frase (sem viés para 400)
           else {
-            const retryValor = await extrairValorReaisComLLM(msgForRegistro + '. Valores típicos: 100, 200, 300, 400.', true)
+            const retryValor = await extrairValorReaisComLLM(msgForRegistro + '. Valores típicos: 50, 80, 100, 150, 200, 300, 400.', true)
             if (retryValor != null && retryValor > 2) valorFinal = retryValor
             if (valorFinal === 2 || valorFinal === 20) {
               const inferido = await inferirValorGastoTranscricaoIncerteza(msgForRegistro)
               valorFinal = inferido != null ? inferido : 100
-              if (inferido === 400) nomeFinal = 'Roupas'
-            }
-            if (valorFinal === 100 && msgForRegistro.trim().length <= 30) {
-              const inferido = await inferirValorGastoTranscricaoIncerteza(msgForRegistro)
-              if (inferido != null && inferido >= 200) {
-                valorFinal = inferido
-                if (inferido === 400) nomeFinal = 'Roupas'
-              }
+              if (inferido != null && /\broupas?\b/i.test(msgForRegistro)) nomeFinal = 'Roupas'
             }
           }
         }
@@ -478,12 +466,7 @@ export async function processPlenWhatsAppMessage(
       }
     }
 
-    // Correção definitiva áudio+roupas: transcrição confunde 400 com 200 ou 300; só para gasto
-    if (interpretado && interpretado.tipo === 'saida' && /\broupas?\b/i.test(msgForRegistro) && (interpretado.valor === 200 || interpretado.valor === 300)) {
-      interpretado = { ...interpretado, valor: 400, nome: interpretado.nome === 'Gasto' ? 'Roupas' : interpretado.nome }
-    }
-
-    // NUNCA registrar R$ 2,00 em GASTO — última verificação; se tiver "roupas" sempre 400
+    // NUNCA registrar R$ 2,00 em GASTO — última verificação
     if (interpretado && interpretado.tipo === 'saida' && interpretado.valor === 2) {
       const temContexto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
       if (temContexto) {
@@ -496,11 +479,8 @@ export async function processPlenWhatsAppMessage(
         } else {
           const inferido = await inferirValorGastoTranscricaoIncerteza(msgForRegistro)
           const v = inferido != null ? inferido : 100
-          interpretado = {
-            ...interpretado,
-            valor: v,
-            nome: inferido === 400 ? 'Roupas' : (interpretado.nome === 'Gasto' ? interpretado.nome : (interpretado.nome || 'Gasto')),
-          }
+          const nomeRoupas = /\broupas?\b/i.test(msgForRegistro) ? 'Roupas' : (interpretado.nome === 'Gasto' ? interpretado.nome : (interpretado.nome || 'Gasto'))
+          interpretado = { ...interpretado, valor: v, nome: nomeRoupas }
         }
       }
     }
