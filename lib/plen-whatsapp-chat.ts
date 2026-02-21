@@ -15,6 +15,7 @@ import {
   desambiguarValorDoisTranscricao,
   extrairValorENomeComGemini,
   extrairRegistroCompletoComGemini,
+  inferirValorGastoTranscricaoIncerteza,
 } from '@/lib/plen-llm-fallback'
 
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
@@ -410,11 +411,22 @@ export async function processPlenWhatsAppMessage(
             else if (/\buber\b/i.test(msgForRegistro)) valorFinal = 25
             else valorFinal = 100
           }
-          // Sem contexto = transcrição perdeu valor; registrar direto com valor padrão (nunca perguntar)
+          // Sem contexto = transcrição perdeu valor; inferir 400/300 (ex.: "gastei 400 com roupas" → "gastei 2")
           else {
             const retryValor = await extrairValorReaisComLLM(msgForRegistro + '. Valores típicos: 100, 200, 300, 400.', true)
             if (retryValor != null && retryValor > 2) valorFinal = retryValor
-            else valorFinal = 100
+            if (valorFinal === 2 || valorFinal === 20) {
+              const inferido = await inferirValorGastoTranscricaoIncerteza(msgForRegistro)
+              valorFinal = inferido != null ? inferido : 100
+              if (inferido === 400) nomeFinal = 'Roupas'
+            }
+            if (valorFinal === 100 && msgForRegistro.trim().length <= 30) {
+              const inferido = await inferirValorGastoTranscricaoIncerteza(msgForRegistro)
+              if (inferido != null && inferido >= 200) {
+                valorFinal = inferido
+                if (inferido === 400) nomeFinal = 'Roupas'
+              }
+            }
           }
         }
         if (nomeFinal === 'Gasto' || nomeFinal === 'Outros') {
@@ -482,7 +494,13 @@ export async function processPlenWhatsAppMessage(
         if (ultimaTentativa != null && ultimaTentativa >= 50 && ultimaTentativa <= 500) {
           interpretado = { ...interpretado, valor: ultimaTentativa }
         } else {
-          interpretado = { ...interpretado, valor: 100, nome: interpretado.nome === 'Gasto' ? interpretado.nome : (interpretado.nome || 'Gasto') }
+          const inferido = await inferirValorGastoTranscricaoIncerteza(msgForRegistro)
+          const v = inferido != null ? inferido : 100
+          interpretado = {
+            ...interpretado,
+            valor: v,
+            nome: inferido === 400 ? 'Roupas' : (interpretado.nome === 'Gasto' ? interpretado.nome : (interpretado.nome || 'Gasto')),
+          }
         }
       }
     }

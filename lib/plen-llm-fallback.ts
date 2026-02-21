@@ -452,3 +452,57 @@ Frase: ${trimmed.slice(0, 500)}`
   }
   return null
 }
+
+/**
+ * Quando a transcrição de um gasto está incerta ("gastei 2", "gastei"), infere valor provável.
+ * Prioriza 400 e 300 (erro comum de transcrição "quatrocentos" → "dois").
+ */
+export async function inferirValorGastoTranscricaoIncerteza(frase: string): Promise<number | null> {
+  const trimmed = (frase || '').trim()
+  if (!trimmed || trimmed.length < 3) return null
+  const prompt = `Transcrição de áudio de alguém dizendo que GASTOU (pode estar incompleta ou errada). Quando o áudio diz "gastei 400 com roupas" ou "gastei trezentos", a transcrição às vezes sai "gastei 2" ou "gastei dois". Dado o texto: "${trimmed.slice(0, 200)}". Qual valor em reais a pessoa provavelmente disse? Responda APENAS um número. Prefira 400 ou 300.`
+  const groqKey = process.env.GROQ_API_KEY?.trim()
+  if (groqKey) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.1,
+          max_tokens: 20,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.choices?.[0]?.message?.content ?? '').trim().replace(/\s/g, '')
+        const num = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'))
+        if (Number.isFinite(num) && num >= 50 && num <= 500) return num
+      }
+    } catch (_) {}
+  }
+  const geminiKey = process.env.GEMINI_API_KEY?.trim()
+  if (geminiKey) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 20 },
+          }),
+        }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim().replace(/\s/g, '')
+        const num = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'))
+        if (Number.isFinite(num) && num >= 50 && num <= 500) return num
+      }
+    } catch (_) {}
+  }
+  return null
+}
