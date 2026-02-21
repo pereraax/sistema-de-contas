@@ -172,9 +172,9 @@ export default function MobileMenu() {
               touchAction: 'pan-y',
             }}
           >
-            {/* Área rolável: altura limitada para scroll no mobile; padding-bottom para não ficar atrás da barra inferior */}
+            {/* Área rolável: padding-bottom grande para deslizar até mostrar "Fazer Upgrade" acima da barra inferior */}
             <div
-              className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-6 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]"
+              className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-6 pb-[calc(11rem+env(safe-area-inset-bottom,0px))]"
               style={{
                 WebkitOverflowScrolling: 'touch',
                 touchAction: 'pan-y',
