@@ -292,9 +292,34 @@ async function processarEmBackground(parsed: {
       }
     } else if (result === null) {
       console.log('📨 [Apifacil Webhook] Mensagem processada mas sem resposta (assistente desativado ou ignorado).')
+      if (apifacilOk) {
+        await sendTextMessage(phone, 'Processei sua mensagem. Se precisar de algo, digite ou fale de novo. 😊')
+        registerSentMessage(phone, 'Processei sua mensagem.')
+      }
+    } else if (!result?.message && (!result?.messages || result.messages.length === 0)) {
+      console.log('📨 [Apifacil Webhook] Resposta vazia do assistente.')
+      if (apifacilOk) {
+        await sendTextMessage(phone, 'Recebi seu áudio. Se não registrou como esperado, tente digitar, por exemplo: gastei 50 no mercado.')
+        registerSentMessage(phone, 'Recebi seu áudio.')
+      }
     }
   } catch (err) {
     console.error('❌ [Apifacil Webhook] Erro no processamento em background:', err)
+    try {
+      const phone = from.startsWith('55') ? from : `55${from}`
+      if (isApifacilConfigured()) {
+        const eraAudio = media?.type === 'audio'
+        await sendTextMessage(
+          phone,
+          eraAudio
+            ? 'Desculpe, tive um problema ao processar o áudio. Tente enviar de novo ou digite a mensagem (ex.: gastei 50 no mercado).'
+            : 'Desculpe, tive um problema. Tente novamente.'
+        )
+        registerSentMessage(phone, 'Erro no processamento.')
+      }
+    } catch (sendErr) {
+      console.error('❌ [Apifacil Webhook] Falha ao enviar mensagem de erro ao usuário:', sendErr)
+    }
   }
 }
 
