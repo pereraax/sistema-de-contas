@@ -208,23 +208,17 @@ async function isDeactivationMessage(text: string): Promise<boolean> {
   const hasParar = lowerText.includes('parar') || lowerText.includes('para') || lowerText.includes('pare')
   const hasAssistente = lowerText.includes('assistente')
   const hasPlen = lowerText.includes('plen')
-  
-  console.log(`🔍 [WhatsApp PLEN] Verificação de combinação:`, {
-    hasParar,
-    hasAssistente,
-    hasPlen,
-    lowerText
-  })
-  
+
   if (hasParar && hasAssistente && hasPlen) {
     console.log(`🛑 [WhatsApp PLEN] ✅ DESATIVAÇÃO DETECTADA (combinação): "parar assistente plen" na mensagem "${lowerText}"`)
     process.stdout.write(`\n🛑✅ DESATIVAÇÃO DETECTADA (combinação): parar + assistente + plen\n`)
     addLog('info', `🛑 [PLEN WhatsApp] ✅ DESATIVAÇÃO DETECTADA (combinação): "parar assistente plen" na mensagem "${lowerText}"`)
     return true
   }
-  
-  console.log(`❌ [WhatsApp PLEN] Nenhuma desativação detectada na mensagem: "${lowerText}"`)
-  addLog('warn', `❌ [PLEN WhatsApp] Nenhuma desativação detectada na mensagem: "${lowerText}"`)
+  // Só logar quando a mensagem parecia poder ser desativação (evita poluir log com "paguei 2.00" etc.)
+  if (hasParar || hasAssistente || hasPlen) {
+    console.log(`🔍 [WhatsApp PLEN] Não é comando de desativação: "${lowerText}"`)
+  }
   return false
 }
 

@@ -1486,7 +1486,7 @@ async function transcribeAudioWithGroq(audioBuffer: Buffer, mimeType: string): P
           formData.append('language', 'pt')
           formData.append('response_format', 'json')
           // Viés forte: áudios de gasto costumam ser "gastei 400 com roupas" — priorizar 400 e a palavra roupas
-          formData.append('prompt', 'Transcrição de áudio: pessoa registrando GASTO ou ENTRADA em reais. Transcreva a frase COMPLETA. VALORES sempre em algarismos: 50, 80, 100, 200, 300, 400, 500. Se ouvir "quatrocentos" ou "400" ou "com roupas", escreva "gastei 400 com roupas". Se ouvir "trezentos" ou "300", escreva 300. NUNCA escreva só "2" nem "50" quando a pessoa disse quatrocentos (400) ou trezentos (300). Mantenha sempre a descrição: "com roupas", "no mercado", "no restaurante". Exemplos corretos: "gastei 400 com roupas", "paguei 80 no mercado", "ganhei 500 de mãe".')
+          formData.append('prompt', 'Transcrição em português: pessoa registrando GASTO ou ENTRADA em reais. VALORES sempre com o número COMPLETO em algarismos: se ouvir "duzentos" ou "200" escreva 200 (nunca 2 nem 2.00). Se ouvir "quatrocentos" ou "400" escreva 400. Escreva: "paguei 200", "gastei 400 com roupas", "paguei 80 no mercado". NUNCA use 2 ou 2.00 para valores em reais (2 reais é raro; duzentos é comum).')
           const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
             method: 'POST',
             headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
@@ -1543,8 +1543,8 @@ async function transcribeAudioWithGemini(
       'gemini-2.0-flash-exp'
     ]
     
-    const prompt = customPrompt ?? `Transcreva este áudio para português. A pessoa está registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
-Regras: 1) Verbo EXATO: "gastei", "paguei", "ganhei", "recebi". 2) Valores em algarismos: 50, 80, 200, 300, 400, 500. 3) Frase COMPLETA com descrição: "gastei 400 com roupas", "paguei 80 no mercado", "ganhei 500 de mãe". Saída: só o texto transcrito.`
+    const prompt = customPrompt ?? `Transcreva este áudio para português. A pessoa está registrando um GASTO (gastei, paguei) ou ENTRADA (ganhei, recebi) em reais.
+Regras: 1) Valores em reais: escreva o número COMPLETO. Se ouvir "duzentos" ou "200" → escreva 200 (NUNCA 2 nem 2.00). Se ouvir "quatrocentos" ou "400" → escreva 400. 2) Exemplos corretos: "paguei 200", "gastei 400 com roupas", "paguei 80 no mercado". 3) Saída: apenas o texto transcrito.`
     
     for (const model of geminiModels) {
       try {
@@ -1616,6 +1616,19 @@ function isTranscriptionIncomplete(text: string): boolean {
   return soVerboNumero && !temDescricao
 }
 
+/** Corrige erro comum da transcrição: "paguei 2.00" ou "gastei 2" quando a pessoa disse 200. */
+function corrigirValorDoisNaTranscricao(text: string): string {
+  const t = (text || '').trim()
+  // Só verbo + 2 ou 2.00 (sem descrição) → muito provável que seja 200
+  if (/^(gastei|paguei|ganhei|recebi)\s+2(\.0{1,2})?(\s*(reais?|r\$)?\.?)?$/i.test(t)) {
+    const verb = t.match(/^(gastei|paguei|ganhei|recebi)/i)?.[1] ?? 'paguei'
+    const corrigido = `${verb} 200`
+    console.log('🎤 [Media Processor] Transcrição corrigida (2/2.00 → 200):', t, '→', corrigido)
+    return corrigido
+  }
+  return t
+}
+
 const PROMPT_AUDIO_FRASE_COMPLETA = `Transcreva este áudio para português. A pessoa está dizendo quanto GASTOU ou RECEBEU e EM QUE ou DE QUEM.
 Inclua a frase COMPLETA: valor em algarismos e a descrição (ex.: "gastei 200 no mercado", "paguei 80 no posto", "ganhei 500 de mãe", "gastei 400 com roupas").
 Saída: apenas o texto transcrito, sem explicações.`
@@ -1636,9 +1649,10 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     console.log('🎤 [Media Processor] Tentando Groq Whisper (gratuito)...')
     const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
     if (r) {
-      console.log('✅ [Media Processor] Groq transcreveu áudio:', r.slice(0, 60))
-      firstResult = r
-      if (!isTranscriptionIncomplete(r)) return r
+      const corrigido = corrigirValorDoisNaTranscricao(r)
+      console.log('✅ [Media Processor] Groq transcreveu áudio:', corrigido.slice(0, 60))
+      firstResult = corrigido
+      if (!isTranscriptionIncomplete(corrigido)) return corrigido
       console.log('🎤 [Media Processor] Transcrição curta/incompleta; tentando Gemini para frase completa...')
     }
   }
@@ -1649,14 +1663,15 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     console.log('🎤 [Media Processor] Tentando Gemini' + (useFullSentencePrompt ? ' (frase completa)' : '') + '...')
     const r = await transcribeAudioWithGemini(audioBuffer, mimeType, useFullSentencePrompt ? PROMPT_AUDIO_FRASE_COMPLETA : undefined)
     if (r) {
-      console.log('✅ [Media Processor] Gemini transcreveu:', r.slice(0, 60))
-      if (firstResult && r.trim().length > firstResult.trim().length) return r.trim()
-      if (!firstResult) return r
-      return r.trim()
+      const corrigido = corrigirValorDoisNaTranscricao(r.trim())
+      console.log('✅ [Media Processor] Gemini transcreveu:', corrigido.slice(0, 60))
+      if (firstResult && corrigido.length > firstResult.trim().length) return corrigido
+      if (!firstResult) return corrigido
+      return corrigido
     }
   }
 
-  if (firstResult) return firstResult
+  if (firstResult) return corrigirValorDoisNaTranscricao(firstResult)
   console.error('❌ [Media Processor] Configure GROQ_API_KEY ou GEMINI_API_KEY (gratuitos) para transcrever áudio.')
   return null
 }
