@@ -380,13 +380,33 @@ export async function processPlenWhatsAppMessage(
     const { msgForRegistro, targetUserName: usuarioNaFrase } = extrairUsuarioNaMensagem(primeiraLinha)
     const nomeOutroUsuario = usuarioNaFrase ?? (linhas.length > 1 ? linhas[1] : null)
 
-    let interpretado = interpretarMensagem(msgForRegistro)
+    // Registro já extraído do áudio (Gemini direto): usar sem reextrair (evita virar 200/Outros)
+    const isAudioPreExtraido = msgForRegistro.startsWith('__PLEN_AUDIO__\t')
+    let interpretado: { tipo: 'saida' | 'entrada'; valor: number; nome: string; data_registro: string; categoria: string } | null = null
+    if (isAudioPreExtraido) {
+      const parts = msgForRegistro.split('\t')
+      if (parts.length >= 4) {
+        const [, tipo, valorStr, ...nomeParts] = parts
+        const nome = nomeParts.join('\t').trim()
+        const valor = parseFloat(valorStr)
+        if ((tipo === 'saida' || tipo === 'entrada') && Number.isFinite(valor) && valor >= 1 && nome) {
+          interpretado = {
+            tipo: tipo as 'saida' | 'entrada',
+            valor,
+            nome: nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase(),
+            data_registro: new Date().toISOString(),
+            categoria: categoriaInteligente(nome, tipo as 'saida' | 'entrada'),
+          }
+        }
+      }
+    }
+    if (!interpretado) interpretado = interpretarMensagem(msgForRegistro)
 
     const temVerboRegistro = /(?:gastei|paguei|recebi|ganhei|gastou|pagou|recebeu|ganhou)/i.test(msgForRegistro)
     const fraseCurta = msgForRegistro.trim().length <= 120
 
-    // Qualquer pedido por áudio/texto curto: uma única extração (tipo + valor + nome) para gasto OU entrada (ex: "ganhei 500 de mãe", "gastei 300 com roupas")
-    if (temVerboRegistro && fraseCurta) {
+    // Qualquer pedido por áudio/texto curto: uma única extração (tipo + valor + nome) — NÃO reextrair quando já veio do áudio (__PLEN_AUDIO__)
+    if (!isAudioPreExtraido && temVerboRegistro && fraseCurta) {
       const completo = await extrairRegistroCompletoComGemini(msgForRegistro)
       if (completo) {
         const dataReg = interpretado?.data_registro ?? new Date().toISOString()

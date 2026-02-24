@@ -173,10 +173,9 @@ async function processarEmBackground(parsed: {
         // Nova solução: tentar extração direta (áudio → tipo + valor + nome) com Gemini primeiro
         const extraido = await extrairRegistroDeAudioComGemini(buffer, media.mimetype)
         if (extraido) {
-          text = extraido.tipo === 'saida'
-            ? `gastei ${extraido.valor} com ${extraido.nome}`
-            : `ganhei ${extraido.valor} de ${extraido.nome}`
-          console.log('🎤 [Apifacil Webhook] Áudio extraído direto (Gemini):', text)
+          // Enviar registro já extraído para o PLEN usar direto (evita reextração que virava 200/Outros)
+          text = `__PLEN_AUDIO__\t${extraido.tipo}\t${extraido.valor}\t${(extraido.nome || '').replace(/\t/g, ' ')}`
+          console.log('🎤 [Apifacil Webhook] Áudio extraído direto (Gemini):', extraido.tipo, extraido.valor, extraido.nome)
         } else {
           const transcribed = await transcribeAudio(buffer, media.mimetype)
           text = (transcribed || '').trim()
