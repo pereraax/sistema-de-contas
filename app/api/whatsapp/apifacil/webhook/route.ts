@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
-import { detectMedia, transcribeAudio, processComprovanteImage, downloadMedia } from '@/lib/whatsapp-media-processor'
+import { detectMedia, transcribeAudio, extrairRegistroDeAudioComGemini, processComprovanteImage, downloadMedia } from '@/lib/whatsapp-media-processor'
 import { RESPOSTA_AUDIO_NAO_ENTENDI } from '@/lib/plen-whatsapp-chat'
 
 /** Formato esperado pelo processWhatsAppMessage (Baileys/Evolution style) */
@@ -170,19 +170,28 @@ async function processarEmBackground(parsed: {
         const res = await fetch(media.url, { method: 'GET', headers: getMediaFetchHeaders() })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const buffer = Buffer.from(await res.arrayBuffer())
-        const transcribed = await transcribeAudio(buffer, media.mimetype)
-        text = (transcribed || '').trim()
-        if (!text) {
-          if (isApifacilConfigured()) {
-            const phone = from.startsWith('55') ? from : `55${from}`
-            await sendTextMessage(phone, RESPOSTA_AUDIO_NAO_ENTENDI)
-            registerSentMessage(phone, RESPOSTA_AUDIO_NAO_ENTENDI)
+        // Nova solução: tentar extração direta (áudio → tipo + valor + nome) com Gemini primeiro
+        const extraido = await extrairRegistroDeAudioComGemini(buffer, media.mimetype)
+        if (extraido) {
+          text = extraido.tipo === 'saida'
+            ? `gastei ${extraido.valor} com ${extraido.nome}`
+            : `ganhei ${extraido.valor} de ${extraido.nome}`
+          console.log('🎤 [Apifacil Webhook] Áudio extraído direto (Gemini):', text)
+        } else {
+          const transcribed = await transcribeAudio(buffer, media.mimetype)
+          text = (transcribed || '').trim()
+          if (!text) {
+            if (isApifacilConfigured()) {
+              const phone = from.startsWith('55') ? from : `55${from}`
+              await sendTextMessage(phone, RESPOSTA_AUDIO_NAO_ENTENDI)
+              registerSentMessage(phone, RESPOSTA_AUDIO_NAO_ENTENDI)
+            }
+            return
           }
-          return
+          console.log('🎤 [Apifacil Webhook] Áudio transcrito:', text.slice(0, 80))
         }
-        console.log('🎤 [Apifacil Webhook] Áudio transcrito:', text.slice(0, 80))
       } catch (err) {
-        console.error('🎤 [Apifacil Webhook] Erro ao transcrever áudio:', err)
+        console.error('🎤 [Apifacil Webhook] Erro ao processar áudio:', err)
         if (isApifacilConfigured()) {
           const phone = from.startsWith('55') ? from : `55${from}`
           await sendTextMessage(phone, RESPOSTA_AUDIO_NAO_ENTENDI)

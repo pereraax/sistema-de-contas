@@ -1661,6 +1661,83 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   return null
 }
 
+/** Resultado da extração direta de áudio (um único passo com Gemini). */
+export type RegistroExtraidoDeAudio = {
+  tipo: 'saida' | 'entrada'
+  valor: number
+  nome: string
+}
+
+const PROMPT_AUDIO_PARA_JSON = `Ouça este áudio em português. A pessoa está registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
+
+Responda APENAS com um JSON válido, sem outro texto, no formato:
+{"tipo":"gasto","valor":400,"nome":"Roupas"}
+ou para entrada:
+{"tipo":"entrada","valor":500,"nome":"mãe"}
+
+Regras:
+- "tipo" deve ser exatamente "gasto" ou "entrada".
+- "valor" deve ser o número em reais que a pessoa disse (ex.: 50, 80, 200, 400).
+- "nome" deve ser a descrição em uma ou poucas palavras (ex.: Roupas, mercado, posto, mãe).
+
+Exemplos: "gastei 400 com roupas" → {"tipo":"gasto","valor":400,"nome":"Roupas"}
+"paguei 80 no mercado" → {"tipo":"gasto","valor":80,"nome":"mercado"}
+"ganhei 500 de mãe" → {"tipo":"entrada","valor":500,"nome":"mãe"}`
+
+/**
+ * Nova solução: envia o áudio direto ao Gemini e recebe tipo + valor + nome em um passo.
+ * Evita erros de transcrição + extração em cadeia. Requer GEMINI_API_KEY.
+ */
+export async function extrairRegistroDeAudioComGemini(
+  audioBuffer: Buffer,
+  mimeType: string
+): Promise<RegistroExtraidoDeAudio | null> {
+  if (!process.env.GEMINI_API_KEY) return null
+  if (!audioBuffer?.length) return null
+
+  const audioBase64 = audioBuffer.toString('base64')
+  const geminiMimeType = mimeType && /^audio\//.test(mimeType) ? mimeType : 'audio/webm'
+  const models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp']
+
+  for (const model of models) {
+    try {
+      const apiVersion = model.startsWith('gemini-2') ? 'v1beta' : 'v1'
+      const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: PROMPT_AUDIO_PARA_JSON },
+                { inline_data: { mime_type: geminiMimeType, data: audioBase64 } },
+              ],
+            },
+          ],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 150, responseMimeType: 'application/json' },
+        }),
+      })
+      if (!res.ok) continue
+      const data = await res.json()
+      const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+      const trimmed = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+      const parsed = JSON.parse(trimmed) as { tipo?: string; valor?: number; nome?: string }
+      const tipo = parsed.tipo?.toLowerCase()
+      const valor = typeof parsed.valor === 'number' ? parsed.valor : parseInt(String(parsed.valor), 10)
+      const nome = String(parsed.nome ?? '').trim()
+      if ((tipo === 'gasto' || tipo === 'entrada') && Number.isFinite(valor) && valor >= 1 && valor <= 500_000 && nome.length >= 1) {
+        const tipoNorm: 'saida' | 'entrada' = tipo === 'entrada' ? 'entrada' : 'saida'
+        const nomeNorm = nome.length >= 2 ? nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase() : nome
+        console.log('✅ [Media Processor] Extração direta de áudio (Gemini):', { tipo: tipoNorm, valor, nome: nomeNorm })
+        return { tipo: tipoNorm, valor, nome: nomeNorm }
+      }
+    } catch (e) {
+      continue
+    }
+  }
+  return null
+}
 
 
 
