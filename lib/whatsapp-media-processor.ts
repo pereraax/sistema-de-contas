@@ -1670,19 +1670,50 @@ export type RegistroExtraidoDeAudio = {
 
 const PROMPT_AUDIO_PARA_JSON = `Ouça este áudio em português. A pessoa está registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais.
 
-Responda APENAS com um JSON válido, sem outro texto, no formato:
-{"tipo":"gasto","valor":400,"nome":"Roupas"}
-ou para entrada:
-{"tipo":"entrada","valor":500,"nome":"mãe"}
+IMPORTANTE: Use o valor EXATO em reais que a pessoa FALOU. Se ela disse "quatrocentos" ou "400" ou "quatrocentos reais" → valor 400. Se disse "duzentos" ou "200" → valor 200. NUNCA troque 400 por 200 nem 200 por 400.
+
+Responda APENAS com um JSON válido, sem outro texto:
+{"tipo":"gasto","valor":NÚMERO,"nome":"descrição"}
+ou entrada:
+{"tipo":"entrada","valor":NÚMERO,"nome":"descrição"}
 
 Regras:
-- "tipo" deve ser exatamente "gasto" ou "entrada".
-- "valor" deve ser o número em reais que a pessoa disse (ex.: 50, 80, 200, 400).
-- "nome" deve ser a descrição em uma ou poucas palavras (ex.: Roupas, mercado, posto, mãe).
+- tipo: "gasto" se gastou/pagou; "entrada" se recebeu/ganhou.
+- valor: o número em reais que a pessoa disse (50, 80, 100, 200, 300, 400, 500, etc.).
+- nome: descrição em poucas palavras (Roupas, mercado, posto, mãe). Se não entender, use "Gasto" ou "Entrada".
 
-Exemplos: "gastei 400 com roupas" → {"tipo":"gasto","valor":400,"nome":"Roupas"}
+Exemplos: áudio "gastei quatrocentos com roupas" → {"tipo":"gasto","valor":400,"nome":"Roupas"}
 "paguei 80 no mercado" → {"tipo":"gasto","valor":80,"nome":"mercado"}
 "ganhei 500 de mãe" → {"tipo":"entrada","valor":500,"nome":"mãe"}`
+
+/** Extrai o primeiro objeto JSON da resposta de áudio (ex.: "Texto {\"tipo\":\"gasto\",...}" ou markdown). */
+function parseAudioRegistroJson(raw: string): { tipo?: string; valor?: number; nome?: string } | null {
+  const t = (raw ?? '').trim()
+  const semMarkdown = t.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+  const candidatos = [semMarkdown, t]
+  for (const s of candidatos) {
+    const idx = s.indexOf('{')
+    if (idx === -1) continue
+    let depth = 0
+    let end = -1
+    for (let i = idx; i < s.length; i++) {
+      if (s[i] === '{') depth++
+      else if (s[i] === '}') {
+        depth--
+        if (depth === 0) {
+          end = i
+          break
+        }
+      }
+    }
+    if (end === -1) continue
+    try {
+      const parsed = JSON.parse(s.slice(idx, end + 1)) as { tipo?: string; valor?: number; nome?: string }
+      if (parsed && typeof parsed === 'object') return parsed
+    } catch (_) {}
+  }
+  return null
+}
 
 /**
  * Nova solução: envia o áudio direto ao Gemini e recebe tipo + valor + nome em um passo.
@@ -1692,11 +1723,18 @@ export async function extrairRegistroDeAudioComGemini(
   audioBuffer: Buffer,
   mimeType: string
 ): Promise<RegistroExtraidoDeAudio | null> {
-  if (!process.env.GEMINI_API_KEY) return null
-  if (!audioBuffer?.length) return null
+  if (!process.env.GEMINI_API_KEY) {
+    console.log('🎤 [Media Processor] Extração direta de áudio: GEMINI_API_KEY não configurada')
+    return null
+  }
+  if (!audioBuffer?.length) {
+    console.log('🎤 [Media Processor] Extração direta de áudio: buffer vazio')
+    return null
+  }
 
   const audioBase64 = audioBuffer.toString('base64')
-  const geminiMimeType = mimeType && /^audio\//.test(mimeType) ? mimeType : 'audio/webm'
+  // WhatsApp/API Fácil costuma enviar audio/ogg (Opus). Gemini aceita ogg/opus.
+  const geminiMimeType = mimeType && /^audio\//.test(mimeType) ? mimeType : 'audio/ogg'
   const models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp']
 
   for (const model of models) {
@@ -1718,11 +1756,18 @@ export async function extrairRegistroDeAudioComGemini(
           generationConfig: { temperature: 0.1, maxOutputTokens: 150, responseMimeType: 'application/json' },
         }),
       })
-      if (!res.ok) continue
+      if (!res.ok) {
+        const errText = await res.text()
+        console.log(`🎤 [Media Processor] Extração áudio ${model} HTTP ${res.status}:`, errText.slice(0, 180))
+        continue
+      }
       const data = await res.json()
       const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-      const trimmed = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
-      const parsed = JSON.parse(trimmed) as { tipo?: string; valor?: number; nome?: string }
+      const parsed = parseAudioRegistroJson(raw)
+      if (!parsed) {
+        console.log(`🎤 [Media Processor] Extração áudio ${model}: resposta sem JSON válido:`, raw.slice(0, 200))
+        continue
+      }
       const tipo = parsed.tipo?.toLowerCase()
       const valor = typeof parsed.valor === 'number' ? parsed.valor : parseInt(String(parsed.valor), 10)
       const nome = String(parsed.nome ?? '').trim()
@@ -1732,10 +1777,12 @@ export async function extrairRegistroDeAudioComGemini(
         console.log('✅ [Media Processor] Extração direta de áudio (Gemini):', { tipo: tipoNorm, valor, nome: nomeNorm })
         return { tipo: tipoNorm, valor, nome: nomeNorm }
       }
-    } catch (e) {
-      continue
+      console.log(`🎤 [Media Processor] Extração áudio ${model}: validação falhou (tipo=${tipo}, valor=${valor}, nome=${nome?.slice(0, 30)})`)
+    } catch (e: any) {
+      console.log(`🎤 [Media Processor] Extração áudio ${model} erro:`, e?.message ?? e)
     }
   }
+  console.log('🎤 [Media Processor] Extração direta de áudio falhou; será usado fallback (transcrição).')
   return null
 }
 

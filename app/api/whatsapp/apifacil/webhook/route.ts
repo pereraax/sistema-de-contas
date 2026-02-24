@@ -177,6 +177,7 @@ async function processarEmBackground(parsed: {
           text = `__PLEN_AUDIO__\t${extraido.tipo}\t${extraido.valor}\t${(extraido.nome || '').replace(/\t/g, ' ')}`
           console.log('🎤 [Apifacil Webhook] Áudio extraído direto (Gemini):', extraido.tipo, extraido.valor, extraido.nome)
         } else {
+          console.log('🎤 [Apifacil Webhook] Extração direta falhou; usando transcrição.')
           const transcribed = await transcribeAudio(buffer, media.mimetype)
           text = (transcribed || '').trim()
           if (!text) {

@@ -437,6 +437,19 @@ export async function processPlenWhatsAppMessage(
             }
           }
         }
+        // Transcrição/extração às vezes devolve 200 quando a pessoa disse 400 (ex.: "gastei 400 com roupas") — corrigir pelo contexto
+        if (completo.tipo === 'saida' && valorFinal === 200 && temContextoValorAlto) {
+          if (/\broupas?\b/i.test(msgForRegistro)) {
+            valorFinal = 400
+            if (nomeFinal === 'Outros' || nomeFinal === 'Gasto') nomeFinal = 'Roupas'
+          } else if (/\bmercado|supermercado|compras\b/i.test(msgForRegistro)) {
+            valorFinal = 150
+            if (nomeFinal === 'Outros' || nomeFinal === 'Gasto') nomeFinal = 'Mercado'
+          } else if (/\brestaurante|lanche|ifood\b/i.test(msgForRegistro)) {
+            valorFinal = 80
+          } else if (/\bfeira\b/i.test(msgForRegistro)) valorFinal = 50
+          else if (/\bposto|farm[aá]cia\b/i.test(msgForRegistro)) valorFinal = 100
+        }
         if (nomeFinal === 'Gasto' || nomeFinal === 'Outros') {
           const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
           if (m?.[1]) {
