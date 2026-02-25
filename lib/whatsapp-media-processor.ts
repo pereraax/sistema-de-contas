@@ -1639,8 +1639,10 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
     if (r) {
       const corrigido = corrigirValorDoisNaTranscricao(r)
-      console.log('✅ [Media Processor] Áudio transcrito:', corrigido.slice(0, 60))
-      return corrigido
+      // "quatrocentos"/"duzentos" → 400/200 para extração e interpretação
+      const normalizado = normalizarNumerosPorExtenso(corrigido)
+      console.log('✅ [Media Processor] Áudio transcrito:', normalizado.slice(0, 60))
+      return normalizado
     }
   }
   console.error('❌ [Media Processor] Transcrição falhou. Configure GROQ_API_KEY para áudio.')

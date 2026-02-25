@@ -5,7 +5,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/server'
-import { interpretarMensagem, formatarRespostaRegistro, categoriaInteligente } from '@/lib/plen-registro'
+import { interpretarMensagem, formatarRespostaRegistro, categoriaInteligente, normalizarNumerosPorExtenso } from '@/lib/plen-registro'
 import {
   getPlenLLMResponse,
   getRespostaPlanos,
@@ -407,12 +407,19 @@ export async function processPlenWhatsAppMessage(
 
     // Qualquer pedido por áudio/texto curto: uma única extração (tipo + valor + nome) — NÃO reextrair quando já veio do áudio (__PLEN_AUDIO__)
     if (!isAudioPreExtraido && temVerboRegistro && fraseCurta) {
-      const completo = await extrairRegistroCompletoComGemini(msgForRegistro)
+      // Normalizar "quatrocentos"/"duzentos" → 400/200 para o extrator entender (transcrição de áudio)
+      const msgNorm = normalizarNumerosPorExtenso(msgForRegistro)
+      const completo = await extrairRegistroCompletoComGemini(msgNorm)
       if (completo) {
         const dataReg = interpretado?.data_registro ?? new Date().toISOString()
         let valorFinal = completo.valor
         let nomeFinal = completo.nome
         const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
+        // Texto tem 400/quatrocentos mas extrator devolveu 200 — corrigir
+        if (completo.tipo === 'saida' && valorFinal === 200 && /\b(400|quatrocentos)\b/i.test(msgForRegistro)) {
+          valorFinal = 400
+          if (/\broupas?\b/i.test(msgForRegistro)) nomeFinal = 'Roupas'
+        }
         // NUNCA aceitar R$ 2,00 em gasto — transcrição costuma errar (400 → 2); não inventar número
         if (completo.tipo === 'saida' && (valorFinal === 2 || (valorFinal === 20 && temContextoValorAlto))) {
           const valorCorrigido = await extrairValorReaisComLLM(msgForRegistro)
