@@ -1633,35 +1633,17 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   
   let firstResult: string | null = null
 
-  // 1) Groq Whisper (gratuito) — principal
+  // Groq Whisper — único provedor de transcrição (Gemini retorna 404 na API atual)
   if (process.env.GROQ_API_KEY) {
-    console.log('🎤 [Media Processor] Tentando Groq Whisper (gratuito)...')
+    console.log('🎤 [Media Processor] Transcrevendo com Groq Whisper...')
     const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
     if (r) {
       const corrigido = corrigirValorDoisNaTranscricao(r)
-      console.log('✅ [Media Processor] Groq transcreveu áudio:', corrigido.slice(0, 60))
-      firstResult = corrigido
-      if (!isTranscriptionIncomplete(corrigido)) return corrigido
-      console.log('🎤 [Media Processor] Transcrição curta/incompleta; tentando Gemini para frase completa...')
-    }
-  }
-
-  // 2) Gemini — fallback ou retry quando Groq retornou só "verbo + número"
-  if (process.env.GEMINI_API_KEY) {
-    const useFullSentencePrompt = firstResult != null && isTranscriptionIncomplete(firstResult)
-    console.log('🎤 [Media Processor] Tentando Gemini' + (useFullSentencePrompt ? ' (frase completa)' : '') + '...')
-    const r = await transcribeAudioWithGemini(audioBuffer, mimeType, useFullSentencePrompt ? PROMPT_AUDIO_FRASE_COMPLETA : undefined)
-    if (r) {
-      const corrigido = corrigirValorDoisNaTranscricao(r.trim())
-      console.log('✅ [Media Processor] Gemini transcreveu:', corrigido.slice(0, 60))
-      if (firstResult && corrigido.length > firstResult.trim().length) return corrigido
-      if (!firstResult) return corrigido
+      console.log('✅ [Media Processor] Áudio transcrito:', corrigido.slice(0, 60))
       return corrigido
     }
   }
-
-  if (firstResult) return corrigirValorDoisNaTranscricao(firstResult)
-  console.error('❌ [Media Processor] Configure GROQ_API_KEY ou GEMINI_API_KEY (gratuitos) para transcrever áudio.')
+  console.error('❌ [Media Processor] Transcrição falhou. Configure GROQ_API_KEY para áudio.')
   return null
 }
 
