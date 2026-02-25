@@ -387,7 +387,7 @@ async function ocrImageSóTexto(base64Image: string): Promise<string | null> {
   ]
   for (const prompt of prompts) {
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -726,7 +726,7 @@ async function perguntarValorSoGemini(base64Image: string): Promise<number | nul
 NÃO use número de data (12/08/2022), nem hora (01h23), nem ID. Apenas o valor da transação em reais.
 Responda SOMENTE com o número (ex: 80).`
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -795,10 +795,7 @@ ${caption ? ` Legenda: ${caption}` : ''}`
     for (const model of geminiModels) {
       try {
         console.log(`🔍 [Media Processor] Tentando modelo Gemini: ${model}`)
-        
-        const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
-        
-        console.log(`🔍 [Media Processor] URL da API: ${apiUrl.replace(process.env.GEMINI_API_KEY, 'KEY_HIDDEN')}`)
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
         
         const requestBody = {
           contents: [
@@ -1543,7 +1540,8 @@ Regras: 1) Valores em reais: escreva o número COMPLETO. Se ouvir "duzentos" ou 
       try {
         console.log(`🎤 [Media Processor] Tentando transcrever com Gemini modelo: ${model}`)
         
-        const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
+        // Modelos 1.5 estão em v1beta; v1 retorna 404 para gemini-1.5-pro
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
@@ -1745,7 +1743,8 @@ export async function extrairRegistroDeAudioComGemini(
 
   for (const model of models) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
+      // Modelos 1.5 disponíveis em v1beta (v1 retorna 404)
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
