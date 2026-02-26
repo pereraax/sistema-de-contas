@@ -414,6 +414,14 @@ export async function processPlenWhatsAppMessage(
         const dataReg = interpretado?.data_registro ?? new Date().toISOString()
         let valorFinal = completo.valor
         let nomeFinal = completo.nome
+        // Prioridade: valor que está NA FRASE (logo após o verbo) sobre o que o extrator devolveu
+        const valorNaFrase = msgNorm.match(/(?:gastei|paguei|ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
+        if (valorNaFrase) {
+          const v = parseFloat(valorNaFrase.replace(',', '.').replace(/\s/g, ''))
+          if (Number.isFinite(v) && v >= 1 && v <= 500_000 && v !== valorFinal) {
+            valorFinal = Math.round(v * 100) / 100
+          }
+        }
         const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
         // Texto tem 400/quatrocentos mas extrator devolveu 200 — corrigir
         if (completo.tipo === 'saida' && valorFinal === 200 && /\b(400|quatrocentos)\b/i.test(msgForRegistro)) {
@@ -465,10 +473,11 @@ export async function processPlenWhatsAppMessage(
           }
         }
         if (nomeFinal === 'Gasto' || nomeFinal === 'Outros') {
-          const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
+          // Extrair descrição da frase: "com roupas", "no mercado", "em conta de luz" (até 2 palavras)
+          const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+)?)(?:\s|$|,|\.)/i)
           if (m?.[1]) {
-            const desc = m[1].trim()
-            if (desc.length >= 2 && desc.length <= 50) nomeFinal = desc.charAt(0).toUpperCase() + desc.slice(1).toLowerCase()
+            const desc = m[1].trim().replace(/\s+/g, ' ').substring(0, 50)
+            if (desc.length >= 2) nomeFinal = desc.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
           }
         }
         const cat = categoriaInteligente(nomeFinal, completo.tipo)
