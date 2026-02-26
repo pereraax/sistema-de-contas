@@ -42,6 +42,7 @@ function normalizeBody(body: any): any {
     ?? body.url ?? data.url
     ?? body.arquivo ?? data.arquivo ?? body.file ?? data.file
     ?? body.link_midia ?? data.link_midia ?? body.media ?? data.media
+    ?? body.audio_url ?? data.audio_url ?? body.file_url ?? data.file_url ?? body.link_media ?? data.link_media
     ?? (mensagemIsUrl && tipoMensagem ? mensagem!.trim() : undefined)
   return {
     ...body,
@@ -1614,16 +1615,13 @@ function isTranscriptionIncomplete(text: string): boolean {
   return soVerboNumero && !temDescricao
 }
 
-/** Corrige erro comum da transcrição: "2" ou "2.00" quando a pessoa disse 200 ou 290. Se tiver "roupas/compras" → 290. */
+/** Corrige erro comum da transcrição: "2" ou "2.00" quando a pessoa disse 200 (nunca forçar valor fixo; o correto vem do áudio). */
 function corrigirValorDoisNaTranscricao(text: string): string {
   const t = (text || '').trim()
   if (!t || t.length < 5) return t
-  const temRoupas = /\b(roupas?|compras|com roupas)\b/i.test(t)
-  // "gastei 2 com roupas" costuma ser "gastei 290 com roupas" (transcrição perde o 90)
-  const valorSubstituir = temRoupas ? '290' : '200'
-  const corrigido = t.replace(/\b(gastei|paguei|ganhei|recebi)\s+2(\.0{1,2})?(?=\s|$|,|reais?|r\$)/gi, `$1 ${valorSubstituir}`)
+  const corrigido = t.replace(/\b(gastei|paguei|ganhei|recebi)\s+2(\.0{1,2})?(?=\s|$|,|reais?|r\$)/gi, '$1 200')
   if (corrigido !== t) {
-    console.log('🎤 [Media Processor] Transcrição corrigida (2/2.00 → ' + valorSubstituir + '):', t.slice(0, 60), '→', corrigido.slice(0, 60))
+    console.log('🎤 [Media Processor] Transcrição corrigida (2/2.00 → 200):', t.slice(0, 60), '→', corrigido.slice(0, 60))
     return corrigido
   }
   return t
