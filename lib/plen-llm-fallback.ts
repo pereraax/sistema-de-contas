@@ -400,8 +400,7 @@ export async function extrairValorReaisComLLM(frase: string, allowShortFrase?: b
   const trimmed = (frase || '').trim()
   const minLen = allowShortFrase ? 5 : 10
   if (!trimmed || trimmed.length < minLen) return null
-  const prompt = `Desta frase, qual o valor em reais que a pessoa mencionou? Responda APENAS um número.
-NUNCA responda 2 se a frase tiver "roupas", "mercado", "restaurante", "compras" — nesses casos use 200, 300 ou 400.
+  const prompt = `Desta frase, qual o valor em reais que a pessoa mencionou? Responda APENAS um número (ex.: 50, 80, 200, 350, 450). Não invente; use o valor que está na frase ou o mais provável no contexto.
 Frase: ${trimmed.slice(0, 500)}`
   const groqKey = process.env.GROQ_API_KEY?.trim()
   if (groqKey) {
@@ -501,4 +500,79 @@ export async function inferirValorGastoTranscricaoIncerteza(frase: string): Prom
     } catch (_) {}
   }
   return null
+}
+
+/**
+ * Corrige transcrição de áudio quando o valor saiu como 200 mas o contexto (roupas, mercado, etc.)
+ * sugere que a pessoa disse 350, 450, etc. — o Whisper confunde com frequência.
+ * Retorna a frase com o valor corrigido para o número que o LLM considerar mais provável.
+ */
+export async function corrigirValor200NaTranscricao(transcricao: string): Promise<string> {
+  const t = (transcricao || '').trim()
+  if (!t || t.length < 10) return t
+  // Só corrigir quando a frase tem "gastei 200" ou "paguei 200" e algum contexto (com X, no X)
+  const temGasto200 = /(?:gastei|paguei)\s+200(\s|,|$|reais?|r\$)/i.test(t)
+  const temContexto = /\b(com|no|na|em)\s+[a-záàâãéêíóôõúç]{2,}/i.test(t) || /\b(roupas?|mercado|compras|restaurante|eletrônicos)\b/i.test(t)
+  if (!temGasto200 || !temContexto) return t
+
+  const prompt = `Transcrição de áudio em português. A pessoa disse quanto gastou. O valor transcrito foi 200, mas em áudio "trezentos e cinquenta" (350) e "quatrocentos e cinquenta" (450) são frequentemente ouvidos como "duzentos" (200).
+
+Frase transcrita: "${t.slice(0, 200)}"
+
+Considerando o contexto (ex.: roupas, mercado), qual valor em reais a pessoa provavelmente disse? Responda APENAS um número: 200, 250, 300, 350, 400 ou 450.`
+
+  const groqKey = process.env.GROQ_API_KEY?.trim()
+  if (groqKey) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.2,
+          max_tokens: 15,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const raw = (data.choices?.[0]?.message?.content ?? '').trim().replace(/\s/g, '')
+        const num = parseFloat(raw.replace(/[^\d.,]/g, '').replace(',', '.'))
+        if (Number.isFinite(num) && num >= 100 && num <= 600 && num !== 200) {
+          const corrigido = t.replace(/(gastei|paguei)\s+200(\s|,|$|reais?|r\$)/i, `$1 ${Math.round(num)}$2`)
+          console.log('🎤 [PLEN] Transcrição corrigida 200 →', num, ':', t.slice(0, 50), '→', corrigido.slice(0, 50))
+          return corrigido
+        }
+      }
+    } catch (e) {
+      console.warn('[PLEN] corrigirValor200NaTranscricao:', (e as Error).message)
+    }
+  }
+  const geminiKey = process.env.GEMINI_API_KEY?.trim()
+  if (geminiKey) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.2, maxOutputTokens: 15 },
+          }),
+        }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        const raw = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim().replace(/\s/g, '')
+        const num = parseFloat(raw.replace(/[^\d.,]/g, '').replace(',', '.'))
+        if (Number.isFinite(num) && num >= 100 && num <= 600 && num !== 200) {
+          const corrigido = t.replace(/(gastei|paguei)\s+200(\s|,|$|reais?|r\$)/i, `$1 ${Math.round(num)}$2`)
+          console.log('🎤 [PLEN] Transcrição corrigida 200 →', num)
+          return corrigido
+        }
+      }
+    } catch (_) {}
+  }
+  return t
 }

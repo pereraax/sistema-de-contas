@@ -10,6 +10,7 @@ import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen
 import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 import { detectMedia, transcribeAudio, processComprovanteImage, downloadMedia } from '@/lib/whatsapp-media-processor'
 import { RESPOSTA_AUDIO_NAO_ENTENDI } from '@/lib/plen-whatsapp-chat'
+import { corrigirValor200NaTranscricao } from '@/lib/plen-llm-fallback'
 
 /** Formato esperado pelo processWhatsAppMessage (Baileys/Evolution style) */
 function buildPlenMessage(from: string, text: string): {
@@ -171,8 +172,11 @@ async function processarEmBackground(parsed: {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const buffer = Buffer.from(await res.arrayBuffer())
         // Áudio: usar só Groq (Whisper) para transcrição — Gemini retorna 404 na API atual
-        const transcribed = await transcribeAudio(buffer, media.mimetype)
-        text = (transcribed || '').trim()
+        let transcribed = await transcribeAudio(buffer, media.mimetype)
+        transcribed = (transcribed || '').trim()
+        // Corrigir valor 200 quando contexto sugere 350/450 (Whisper confunde com frequência)
+        if (transcribed) text = await corrigirValor200NaTranscricao(transcribed)
+        else text = ''
         if (!text) {
           if (isApifacilConfigured()) {
             const phone = from.startsWith('55') ? from : `55${from}`
