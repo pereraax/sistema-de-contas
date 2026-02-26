@@ -429,14 +429,11 @@ export async function processPlenWhatsAppMessage(
       }
     }
 
-    // Regra fixa (sem IA): "paguei 2.00" / "gastei 2.00" costuma ser transcrição errada de "290 com roupas" (áudio)
-    const soPagueiGasteiDois = /^(gastei|paguei)\s+2(?:\.00)?\s*(?:reais?)?\s*$/i.test(msgForRegistro.trim())
-    if (interpretado?.tipo === 'saida' && soPagueiGasteiDois) {
-      interpretado = { ...interpretado, valor: 290, nome: 'Roupas', categoria: categoriaInteligente('Roupas', 'saida') }
-    } else if (interpretado?.tipo === 'saida' && interpretado.valor === 2) {
-      // 2 em gasto sem ser "só 2.00" → transcrição 200→2, usar 200
+    // Regra fixa (sem IA): valor 2 em gasto → transcrição costuma errar (200/290/350 → 2), usar 200; nome "Roupas" se tiver "roupas" na frase
+    // Não forçar 290: quando o áudio for transcrito certo (ex: "gastei 350 com roupas"), o regex já pega 350
+    if (interpretado?.tipo === 'saida' && interpretado.valor === 2) {
       interpretado = { ...interpretado, valor: 200 }
-      if ((interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') && /\broupas?\b/i.test(msgForRegistro)) {
+      if ((interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') && /\b(roupas?|compras)\b/i.test(msgForRegistro)) {
         interpretado = { ...interpretado, nome: 'Roupas', categoria: categoriaInteligente('Roupas', 'saida') }
       }
     }
@@ -461,6 +458,7 @@ export async function processPlenWhatsAppMessage(
     if (interpretado) {
       const { tipo, valor, nome, data_registro, categoria } = interpretado
       const valorFinal = Math.round(valor * 100) / 100
+      console.log('[PLEN WhatsApp] Registro interpretado:', { msg: msgForRegistro.slice(0, 100), valor: valorFinal, nome, tipo })
 
       // Nome do dono da conta (profile) para preferir essa pessoa quando não houver segunda linha
       let profileNome: string | null = null
