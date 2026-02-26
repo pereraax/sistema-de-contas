@@ -340,7 +340,12 @@ export function formatarRespostaRegistro(params: {
   nomeUsuario?: string
 }): string {
   const { nome, tipo, valor, dataRegistro, categoria, nomeUsuario } = params
-  const valorFormatado = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const valorFormatado = valor.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
   const dataBR = formatarDataBR(dataRegistro)
   const emojiValor = tipo === 'entrada' ? '🟢' : '🔴' // entrada = ganho (verde), saida/divida = vermelho
   const mensagemSucesso =
