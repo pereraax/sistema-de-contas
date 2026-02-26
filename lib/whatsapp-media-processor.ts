@@ -142,8 +142,12 @@ export function detectMedia(body: any): MediaInfo | null {
     const apifacilUrlPattern = /https?:\/\/(apifacil|apifacilv2|s3|amazonaws)[^\s]+/i
     if (apifacilUrlPattern.test(field)) {
       const url = field.trim()
-      const isAudioByType = b.tipo_mensagem === 'audio' || b.tipo_mensagem === 'voice' || b.type === 'audio'
-      console.log('🔍 [Media Processor] URL suspeita de mídia (apifacil/S3) encontrada:', url.substring(0, 100), 'tipo_mensagem:', b.tipo_mensagem)
+      const isAudioByType =
+        b.tipo_mensagem === 'audio' ||
+        b.tipo_mensagem === 'voice' ||
+        b.type === 'audio' ||
+        (b.tipo_envio as string) === 'AUDIO_RECEBIDO'
+      console.log('🔍 [Media Processor] URL suspeita de mídia (apifacil/S3):', url.substring(0, 80), 'tipo_envio:', b.tipo_envio, '→', isAudioByType ? 'audio' : 'image')
       return {
         type: isAudioByType ? 'audio' : 'image',
         url,
@@ -1515,7 +1519,8 @@ async function transcribeAudioWithOpenAI(audioBuffer: Buffer, mimeType: string):
 }
 
 /**
- * Transcrever áudio usando Gemini (desativado — use Groq ou OpenAI).
+ * Transcrever áudio usando Gemini. Aceita audio/ogg (Opus), audio/webm, audio/mpeg.
+ * Ordem das parts: áudio primeiro, depois prompt (recomendado para multimodal).
  */
 async function transcribeAudioWithGemini(
   audioBuffer: Buffer,
@@ -1528,81 +1533,77 @@ async function transcribeAudioWithGemini(
   }
 
   try {
-    console.log('🎤 [Media Processor] ==========================================')
-    console.log('🎤 [Media Processor] Transcrevendo áudio com Gemini...')
-    console.log('🎤 [Media Processor] Tamanho do buffer:', audioBuffer.length, 'bytes')
-    console.log('🎤 [Media Processor] MIME type:', mimeType)
-    
+    console.log('🎤 [Media Processor] Transcrevendo áudio com Gemini. Buffer:', audioBuffer.length, 'bytes, mime:', mimeType)
     const audioBase64 = audioBuffer.toString('base64')
-    const geminiMimeType = mimeType || 'audio/webm'
-    
+    // Gemini aceita audio/ogg, audio/webm, audio/mpeg. Normalizar para evitar rejeição.
+    const geminiMimeType =
+      /^audio\/(ogg|webm|mpeg|mp3|mp4|x-wav|wav)$/i.test(mimeType || '') ? mimeType : 'audio/ogg'
+
     const geminiModels = [
+      { name: 'gemini-2.0-flash', version: 'v1beta' as const },
       { name: 'gemini-1.5-flash', version: 'v1' as const },
       { name: 'gemini-1.5-pro', version: 'v1' as const },
-      { name: 'gemini-2.0-flash', version: 'v1beta' as const },
     ]
-    
-    const prompt = customPrompt ?? `Transcreva este áudio para português. A pessoa está registrando um GASTO ou ENTRADA em reais.
 
-REGRAS OBRIGATÓRIAS:
-1) VALOR: escreva o número EXATO que você OUVIR em algarismos. Exemplos: "duzentos e noventa" ou "290" → 290. "trezentos e cinquenta" → 350. "quatrocentos" → 400. "duzentos" → 200. "oitenta" → 80. NUNCA troque 290 por 200 nem por 2. NUNCA use 2 ou 2,00 para valores em reais (use 200 ou 290 conforme ouvido).
-2) DESCRIÇÃO: SEMPRE inclua o que ela disse. Se disse "com roupas", "no mercado", "no posto", escreva isso. Ex.: "gastei 290 com roupas", "gastei 350 com roupas", "gastei 80 no mercado".
+    const prompt =
+      customPrompt ??
+      `Transcreva este áudio para português. A pessoa está registrando um GASTO ou ENTRADA em reais.
+Regras: 1) Valor em algarismos (ex.: 50, 200, 350). 2) Inclua a descrição (ex.: "no mercado", "com roupas").
+Saída: APENAS a frase transcrita. Exemplos: "gastei 50 no mercado", "paguei 200 com roupas".`
 
-Saída: APENAS a frase transcrita, sem explicações. Exemplos corretos: "gastei 290 com roupas", "paguei 350 com roupas", "gastei 200 no mercado".`
-    
     for (const { name: model, version } of geminiModels) {
       try {
-        console.log(`🎤 [Media Processor] Tentando transcrever com Gemini modelo: ${model}`)
         const apiUrl = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
+        const body = {
+          contents: [
+            {
+              parts: [
+                { inline_data: { mime_type: geminiMimeType, data: audioBase64 } },
+                { text: prompt },
+              ],
+            },
+          ],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 500 },
+        }
         const response = await fetch(apiUrl, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: prompt },
-                  {
-                    inline_data: {
-                      mime_type: geminiMimeType,
-                      data: audioBase64,
-                    },
-                  },
-                ],
-              },
-            ],
-            generationConfig: {
-              temperature: 0.1,
-              maxOutputTokens: 1000,
-            },
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
         })
+        const responseText = await response.text()
 
         if (!response.ok) {
-          const errorText = await response.text()
-          console.error(`❌ [Media Processor] Gemini modelo ${model} falhou:`, response.status, errorText.substring(0, 200))
-          continue // Tentar próximo modelo
+          console.error(
+            `❌ [Media Processor] Gemini ${model} status ${response.status}:`,
+            responseText.slice(0, 400)
+          )
+          continue
         }
 
-        const data = await response.json()
-        const transcribedText = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-        
+        let data: { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
+        try {
+          data = JSON.parse(responseText)
+        } catch {
+          console.error('❌ [Media Processor] Gemini resposta não é JSON:', responseText.slice(0, 200))
+          continue
+        }
+
+        const transcribedText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
         if (transcribedText) {
-          console.log(`✅ [Media Processor] Gemini modelo ${model} transcreveu com sucesso:`, transcribedText.substring(0, 100))
-          return transcribedText.trim()
+          console.log('✅ [Media Processor] Gemini', model, 'transcreveu:', transcribedText.slice(0, 80))
+          return transcribedText
+        }
+        if (data.candidates?.[0]?.content?.parts?.length) {
+          console.warn('⚠️ [Media Processor] Gemini', model, 'retornou parts sem text:', JSON.stringify(data.candidates[0].content).slice(0, 200))
         }
       } catch (error: any) {
-        console.error(`❌ [Media Processor] Erro ao chamar Gemini modelo ${model}:`, error.message)
+        console.error('❌ [Media Processor] Gemini', model, 'erro:', error?.message || error)
         continue
       }
     }
-    
-    console.error('❌ [Media Processor] Todos os modelos Gemini falharam na transcrição')
     return null
   } catch (error: any) {
-    console.error('❌ [Media Processor] Erro geral ao transcrever áudio com Gemini:', error.message)
+    console.error('❌ [Media Processor] Erro ao transcrever com Gemini:', error?.message || error)
     return null
   }
 }

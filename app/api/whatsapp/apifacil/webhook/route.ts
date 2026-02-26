@@ -135,19 +135,42 @@ function parseWebhookBody(body: unknown): { from: string; text: string } | null 
 
 type MediaPayload = { type: 'audio'; url: string; mimetype: string } | { type: 'image'; url: string; mimetype: string; caption?: string }
 
-/** Extrai from e opcionalmente text ou mídia (áudio/imagem). Para áudio, text virá da transcrição; para imagem, do comprovante. */
+/** Quando tipo_envio = AUDIO_RECEBIDO, a API Fácil pode enviar a URL em vários campos. Extrair de forma explícita. */
+function getAudioUrlFromPayload(body: Record<string, unknown>): string | null {
+  const data = (body.data && typeof body.data === 'object' ? body.data : body) as Record<string, unknown>
+  const candidates = [
+    body.url_media,
+    data.url_media,
+    body.media_url,
+    data.media_url,
+    body.url_midia,
+    data.url_midia,
+    body.url,
+    data.url,
+    body.audio_url,
+    (body as any).arquivo_audio,
+    body.file_url,
+    (body as any).link_media,
+    body.mensagem,
+    data.mensagem,
+  ]
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim().startsWith('http')) return c.trim()
+  }
+  return null
+}
+
+/** Extrai from e opcionalmente text ou mídia (áudio/imagem). Áudio: prioriza tipo_envio AUDIO_RECEBIDO + URL explícita. */
 function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string; media?: MediaPayload } | null {
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
-  const tipoEnvio = (b.tipo_envio as string) || ''
+  const tipoEnvio = String((b.tipo_envio ?? (b.data && typeof b.data === 'object' ? (b.data as Record<string, unknown>).tipo_envio : '')) || '').trim()
   if (tipoEnvio === 'MENSAGEM_ENVIADA') return null
 
   const data = (b.data && typeof b.data === 'object' ? b.data : b) as Record<string, unknown>
-  // Doc API Fácil: em mensagens RECEBIDAS, origem = quem ENVIOU (usuário), destino = instância. Resposta deve ir para ORIGEM.
   const isRecebida = /MENSAGEM_RECEBIDA|AUDIO_RECEBIDO|IMAGEM_RECEBIDA/i.test(tipoEnvio)
   let from = (isRecebida ? (data.origem ?? b.origem ?? data.numero_telefone_origem ?? b.numero_telefone_origem) : null)
     ?? (data.destino ?? b.destino ?? data.origem ?? data.from ?? b.origem ?? b.from ?? data.telefone ?? data.numero ?? b.telefone ?? b.numero) as string | undefined
-  // Se origem veio como LID (ex: 176330134003867@lid) ou não parece número completo, usar numero_telefone_origem
   if (from && (String(from).includes('@') || String(from).replace(/\D/g, '').length < 10)) {
     const numOrigem = (data.numero_telefone_origem ?? b.numero_telefone_origem) as string | undefined
     const numLimpo = numOrigem ? String(numOrigem).replace(/\D/g, '') : ''
@@ -160,7 +183,16 @@ function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string
   const textRaw = (data.mensagem ?? data.text ?? b.mensagem ?? b.text ?? (data as any)?.body) as string | undefined
   const text = textRaw != null ? String(textRaw).trim() : ''
 
-  // IMPORTANTE: Detectar mídia ANTES de tratar como texto. Quando mensagem é URL (ex.: áudio S3), não usar como texto.
+  // 1) ÁUDIO: prioridade para tipo_envio AUDIO_RECEBIDO com URL em qualquer campo conhecido
+  if (/AUDIO_RECEBIDO/i.test(tipoEnvio)) {
+    const audioUrl = getAudioUrlFromPayload(b)
+    if (audioUrl) {
+      console.log('🎤 [Apifacil Webhook] Áudio detectado (tipo_envio=AUDIO_RECEBIDO):', audioUrl.slice(0, 80))
+      return { from: fromClean, media: { type: 'audio', url: audioUrl, mimetype: 'audio/ogg' } }
+    }
+  }
+
+  // 2) Mídia genérica (detectMedia)
   const media = detectMedia(body as any)
   if (media?.type === 'audio' && media.url) {
     return { from: fromClean, media: { type: 'audio', url: media.url, mimetype: media.mimetype || 'audio/ogg' } }
@@ -169,7 +201,7 @@ function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string
     return { from: fromClean, media: { type: 'image', url: media.url, mimetype: media.mimetype || 'image/jpeg', caption: media.caption } }
   }
 
-  // Só usar mensagem como texto se não for URL (evitar tratar URL do áudio como texto)
+  // 3) Só texto (mensagem não é URL)
   if (text && !/^https?:\/\//i.test(text)) return { from: fromClean, text }
   return null
 }
@@ -277,6 +309,26 @@ async function processarEmBackground(parsed: {
       }
     }
     if (!text) return
+
+    // Quando a API Fácil envia só TEXTO em vez do áudio (ex.: "paguei 2.00"), não registrar 2 — pedir para digitar
+    const txtNorm = text.trim()
+    if (
+      !media &&
+      (/^(gastei|paguei)\s+2(\.0{0,2})?\s*$/i.test(txtNorm) ||
+        /^dois\s*reais?\.?$/i.test(txtNorm) ||
+        /^(gastei|paguei)\s+dois\s*reais?\.?$/i.test(txtNorm))
+    ) {
+      const phone = from.startsWith('55') ? from : `55${from}`
+      if (isApifacilConfigured()) {
+        await sendTextMessage(
+          phone,
+          'Recebi só um resumo do seu áudio (valor 2). Para registrar o valor certo, **digite** a frase, por exemplo:\n\ngastei 50 no mercado\npaguei 200 com roupas'
+        )
+        registerSentMessage(phone, 'Pedido para digitar valor (evitar 2 fixo).')
+      }
+      console.log('📨 [Apifacil Webhook] Texto "paguei 2" recebido em vez de áudio — pedimos para o usuário digitar.')
+      return
+    }
 
     // Texto (digitado, transcrito do áudio ou extraído da imagem) → PLEN interpreta e gera resposta
     const plenMessage = buildPlenMessage(from, text)
