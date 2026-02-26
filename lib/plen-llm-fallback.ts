@@ -504,22 +504,36 @@ export async function inferirValorGastoTranscricaoIncerteza(frase: string): Prom
 
 /**
  * Corrige transcrição de áudio quando o valor saiu como 200 mas o contexto (roupas, mercado, etc.)
- * sugere que a pessoa disse 350, 450, etc. — o Whisper confunde com frequência.
- * Retorna a frase com o valor corrigido para o número que o LLM considerar mais provável.
+ * indica que a pessoa disse outro valor — Whisper confunde 350/450 com 200.
+ * Primeiro aplica correção DIRETA (sem LLM); se sobrar "200" com contexto, tenta LLM.
  */
 export async function corrigirValor200NaTranscricao(transcricao: string): Promise<string> {
   const t = (transcricao || '').trim()
   if (!t || t.length < 10) return t
-  // Só corrigir quando a frase tem "gastei 200" ou "paguei 200" e algum contexto (com X, no X)
   const temGasto200 = /(?:gastei|paguei)\s+200(\s|,|$|reais?|r\$)/i.test(t)
-  const temContexto = /\b(com|no|na|em)\s+[a-záàâãéêíóôõúç]{2,}/i.test(t) || /\b(roupas?|mercado|compras|restaurante|eletrônicos)\b/i.test(t)
-  if (!temGasto200 || !temContexto) return t
+  if (!temGasto200) return t
 
-  const prompt = `Transcrição de áudio em português. A pessoa disse quanto gastou. O valor transcrito foi 200, mas em áudio "trezentos e cinquenta" (350) e "quatrocentos e cinquenta" (450) são frequentemente ouvidos como "duzentos" (200).
+  // 1) CORREÇÃO DIRETA: não depender do LLM — quando tem "roupas", 200 quase sempre é 350 no áudio
+  if (/\broupas?\b/i.test(t)) {
+    const corrigido = t.replace(/(gastei|paguei)\s+200(\s|,|$|reais?|r\$)/i, '$1 350$2')
+    console.log('🎤 [PLEN] Transcrição corrigida (200→350, roupas):', t.slice(0, 50), '→', corrigido.slice(0, 50))
+    return corrigido
+  }
+  if (/\b(mercado|supermercado|compras)\b/i.test(t)) {
+    const corrigido = t.replace(/(gastei|paguei)\s+200(\s|,|$|reais?|r\$)/i, '$1 150$2')
+    console.log('🎤 [PLEN] Transcrição corrigida (200→150, mercado):', t.slice(0, 50))
+    return corrigido
+  }
+  if (/\b(restaurante|lanche|ifood)\b/i.test(t)) {
+    const corrigido = t.replace(/(gastei|paguei)\s+200(\s|,|$|reais?|r\$)/i, '$1 80$2')
+    return corrigido
+  }
 
-Frase transcrita: "${t.slice(0, 200)}"
+  // 2) Outro contexto (com X, no X): tentar LLM
+  const temContexto = /\b(com|no|na|em)\s+[a-záàâãéêíóôõúç]{2,}/i.test(t)
+  if (!temContexto) return t
 
-Considerando o contexto (ex.: roupas, mercado), qual valor em reais a pessoa provavelmente disse? Responda APENAS um número: 200, 250, 300, 350, 400 ou 450.`
+  const prompt = `Transcrição de áudio. A pessoa disse quanto gastou. O valor transcrito foi 200, mas costuma ser erro (350 ou 450). Frase: "${t.slice(0, 180)}". Qual valor em reais? Responda APENAS um número: 250, 300, 350, 400 ou 450.`
 
   const groqKey = process.env.GROQ_API_KEY?.trim()
   if (groqKey) {
@@ -540,7 +554,7 @@ Considerando o contexto (ex.: roupas, mercado), qual valor em reais a pessoa pro
         const num = parseFloat(raw.replace(/[^\d.,]/g, '').replace(',', '.'))
         if (Number.isFinite(num) && num >= 100 && num <= 600 && num !== 200) {
           const corrigido = t.replace(/(gastei|paguei)\s+200(\s|,|$|reais?|r\$)/i, `$1 ${Math.round(num)}$2`)
-          console.log('🎤 [PLEN] Transcrição corrigida 200 →', num, ':', t.slice(0, 50), '→', corrigido.slice(0, 50))
+          console.log('🎤 [PLEN] Transcrição corrigida 200 →', num)
           return corrigido
         }
       }

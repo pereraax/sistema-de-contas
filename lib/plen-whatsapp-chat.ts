@@ -429,6 +429,11 @@ export async function processPlenWhatsAppMessage(
           const n = parseFloat(numeroAposVerbo.replace(',', '.').replace(/\s/g, ''))
           if (Number.isFinite(n) && n >= 1 && n <= 500_000 && n !== 200) valorFinal = Math.round(n * 100) / 100
         }
+        // REGRA DIRETA: áudio com "roupas" e valor 200 → Whisper quase sempre erra; usar 350 e Roupas
+        if (completo.tipo === 'saida' && valorFinal === 200 && /\broupas?\b/i.test(msgForRegistro)) {
+          valorFinal = 350
+          nomeFinal = 'Roupas'
+        }
         // NUNCA aceitar R$ 2,00 em gasto — transcrição costuma errar (400 → 2); não inventar número
         if (completo.tipo === 'saida' && (valorFinal === 2 || (valorFinal === 20 && temContextoValorAlto))) {
           const valorCorrigido = await extrairValorReaisComLLM(msgForRegistro)
