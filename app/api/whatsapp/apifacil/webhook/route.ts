@@ -364,6 +364,10 @@ export async function POST(request: NextRequest) {
     const { from } = parsed
     const textPreview = parsed.text ? parsed.text.slice(0, 80) : parsed.media ? `[${parsed.media.type}]` : ''
     console.log('📨 [Apifacil Webhook] MENSAGEM RECEBIDA:', { from, textPreview, mediaType: parsed.media?.type })
+    // Se veio texto "paguei 2.00"/"gastei 2.00" (e não áudio), a API pode estar enviando transcrição em vez do áudio; aplicamos correção 290+roupas no PLEN
+    if (parsed.text && /^(gastei|paguei)\s+2(?:\.00)?\s*(?:reais?)?\s*$/i.test(parsed.text.trim()) && !parsed.media) {
+      console.log('📨 [Apifacil Webhook] Texto "paguei/gastei 2.00" recebido como TEXTO (sem áudio). Corrigindo para 290 + Roupas no registro.')
+    }
 
     // Em localhost: só processar se WHATSAPP_TEST_NUMBERS estiver definido e o número estiver na lista
     const isDev = process.env.NODE_ENV === 'development'

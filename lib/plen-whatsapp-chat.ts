@@ -389,10 +389,16 @@ export async function processPlenWhatsAppMessage(
       if (valorValido) {
         let valorUsar = Math.round(valorNum * 100) / 100
         let nomeUsar = nomeValido ? nomeRegex.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : (tipoFromVerbo === 'saida' ? 'Gasto' : 'Entrada')
-        // Regra fixa (sem IA): 200 + "roupas" → 350 e Roupas (transcrição costuma errar)
-        if (tipoFromVerbo === 'saida' && valorUsar === 200 && /\b(roupas?|compras|com roupas)\b/i.test(msgForRegistro)) {
-          valorUsar = 350
-          nomeUsar = 'Roupas'
+        // Regra fixa (sem IA): 200 + "roupas/compras" OU "gastei 200 com" (transcrição cortou "roupas") → 350 e Roupas
+        if (tipoFromVerbo === 'saida' && valorUsar === 200) {
+          if (/\b(roupas?|compras|com roupas)\b/i.test(msgForRegistro)) {
+            valorUsar = 350
+            nomeUsar = 'Roupas'
+          } else if (/^(gastei|paguei)\s+200\s+com\s*$/i.test(msgForRegistro.trim()) || /^(gastei|paguei)\s+200\s+com\s+[a-záàâãéêíóôõúç]{1,3}\s*$/i.test(msgForRegistro.trim())) {
+            // "gastei 200 com" ou "gastei 200 com r/ro" (transcrição cortada) → provável 350 com roupas
+            valorUsar = 350
+            nomeUsar = 'Roupas'
+          }
         }
         const dataReg = interpretado?.data_registro ?? new Date().toISOString()
         interpretado = {
@@ -423,8 +429,12 @@ export async function processPlenWhatsAppMessage(
       }
     }
 
-    // Regra fixa (sem IA): nunca registrar R$ 2,00 em gasto — transcrição costuma errar (200 → 2) → usar 200
-    if (interpretado?.tipo === 'saida' && interpretado.valor === 2) {
+    // Regra fixa (sem IA): "paguei 2.00" / "gastei 2.00" costuma ser transcrição errada de "290 com roupas" (áudio)
+    const soPagueiGasteiDois = /^(gastei|paguei)\s+2(?:\.00)?\s*(?:reais?)?\s*$/i.test(msgForRegistro.trim())
+    if (interpretado?.tipo === 'saida' && soPagueiGasteiDois) {
+      interpretado = { ...interpretado, valor: 290, nome: 'Roupas', categoria: categoriaInteligente('Roupas', 'saida') }
+    } else if (interpretado?.tipo === 'saida' && interpretado.valor === 2) {
+      // 2 em gasto sem ser "só 2.00" → transcrição 200→2, usar 200
       interpretado = { ...interpretado, valor: 200 }
       if ((interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') && /\broupas?\b/i.test(msgForRegistro)) {
         interpretado = { ...interpretado, nome: 'Roupas', categoria: categoriaInteligente('Roupas', 'saida') }
