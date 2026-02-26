@@ -121,14 +121,17 @@ function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string
   if (tipoEnvio === 'MENSAGEM_ENVIADA') return null
 
   const data = (b.data && typeof b.data === 'object' ? b.data : b) as Record<string, unknown>
-  const from = (data.origem ?? data.from ?? b.origem ?? b.from ?? data.telefone ?? data.numero ?? b.telefone ?? b.numero) as string | undefined
+  // Em mensagens RECEBIDAS (AUDIO_RECEBIDO, MENSAGEM_RECEBIDA) a API Fácil envia origem=instância e destino=quem enviou. Quem enviou = destino.
+  const isRecebida = /MENSAGEM_RECEBIDA|AUDIO_RECEBIDO|IMAGEM_RECEBIDA/i.test(tipoEnvio)
+  const from = (isRecebida ? (data.destino ?? b.destino ?? data.numero_telefone_destino ?? b.numero_telefone_destino) : null)
+    ?? (data.origem ?? data.from ?? b.origem ?? b.from ?? data.telefone ?? data.numero ?? b.telefone ?? b.numero) as string | undefined
   if (!from) return null
 
   const fromClean = String(from).replace(/\D/g, '')
   const textRaw = (data.mensagem ?? data.text ?? b.mensagem ?? b.text ?? (data as any)?.body) as string | undefined
   const text = textRaw != null ? String(textRaw).trim() : ''
 
-  // IMPORTANTE: Detectar mídia ANTES de tratar como texto. API Fácil pode enviar URL em "mensagem" ou tipo em data.
+  // IMPORTANTE: Detectar mídia ANTES de tratar como texto. Quando mensagem é URL (ex.: áudio S3), não usar como texto.
   const media = detectMedia(body as any)
   if (media?.type === 'audio' && media.url) {
     return { from: fromClean, media: { type: 'audio', url: media.url, mimetype: media.mimetype || 'audio/ogg' } }
@@ -137,7 +140,8 @@ function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string
     return { from: fromClean, media: { type: 'image', url: media.url, mimetype: media.mimetype || 'image/jpeg', caption: media.caption } }
   }
 
-  if (text) return { from: fromClean, text }
+  // Só usar mensagem como texto se não for URL (evitar tratar URL do áudio como texto)
+  if (text && !/^https?:\/\//i.test(text)) return { from: fromClean, text }
   return null
 }
 
