@@ -1539,10 +1539,11 @@ async function transcribeAudioWithGemini(
     const geminiMimeType =
       /^audio\/(ogg|webm|mpeg|mp3|mp4|x-wav|wav)$/i.test(mimeType || '') ? mimeType : 'audio/ogg'
 
+    // v1beta: 1.5 e 2.0. v1 dá 404 para 1.5. Ordem: 1.5 primeiro (menos cota que 2.0).
     const geminiModels = [
+      { name: 'gemini-1.5-flash', version: 'v1beta' as const },
+      { name: 'gemini-1.5-pro', version: 'v1beta' as const },
       { name: 'gemini-2.0-flash', version: 'v1beta' as const },
-      { name: 'gemini-1.5-flash', version: 'v1' as const },
-      { name: 'gemini-1.5-pro', version: 'v1' as const },
     ]
 
     const prompt =
@@ -1667,7 +1668,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     }
   }
 
-  console.error('❌ [Media Processor] Transcrição falhou. Configure GROQ_API_KEY (gratuito) ou GEMINI_API_KEY (gratuito, nova chave em aistudio.google.com) para áudio.')
+  console.error('❌ [Media Processor] Transcrição falhou. Dica: GROQ_API_KEY (gratuito em console.groq.com) costuma ser mais estável que Gemini para áudio.')
   return null
 }
 

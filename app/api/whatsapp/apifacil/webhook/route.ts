@@ -256,9 +256,9 @@ async function processarEmBackground(parsed: {
             const phone = from.startsWith('55') ? from : `55${from}`
             await sendTextMessage(
               phone,
-              'Não consegui entender o áudio 😅 Tente falar de novo (ex.: "gastei 50 no mercado") ou digite a mensagem.'
+              'Não consegui entender o áudio 😅 Pode digitar a mensagem? Ex.: gastei 50 no mercado'
             )
-            registerSentMessage(phone, 'Não consegui entender o áudio.')
+            registerSentMessage(phone, 'Transcrição do áudio falhou (cota/API).')
           }
           return
         }
