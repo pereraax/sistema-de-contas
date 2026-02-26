@@ -613,26 +613,7 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
 
-    // 3) Gemini só texto (OCR) — fallback; extração valor/nome
-    if (process.env.GEMINI_API_KEY) {
-      const ocrGemini = await ocrImageSóTexto(base64Image)
-      if (ocrGemini) {
-        ocrTextAcumulado = (ocrTextAcumulado ? ocrTextAcumulado + '\n' : '') + ocrGemini
-        const cmdOCR = extrairComprovanteOCR(ocrGemini)
-        if (cmdOCR) {
-          console.log('✅ [Media Processor] Comando do OCR (Gemini):', cmdOCR)
-          return cmdOCR
-        }
-        const cmd = extrairComandoDeTexto(ocrGemini)
-        if (cmd) return cmd
-        if (caption) {
-          const c = extrairComprovanteOCR(ocrGemini + '\n' + caption) || extrairComandoDeTexto(ocrGemini + '\n' + caption)
-          if (c) return c
-        }
-      }
-    }
-
-    // 4) Fallback: montar comando só com valor + nome do OCR (sem IA JSON)
+    // 3) Fallback: montar comando só com valor + nome do OCR (sem IA JSON)
     if (ocrTextAcumulado.trim().length > 10) {
       const cmdOcr = comandoFromOcrValorENome(ocrTextAcumulado)
       if (cmdOcr) {
@@ -641,7 +622,7 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
 
-    // 5) OpenAI GPT-4o Vision (antes do Gemini)
+    // 4) OpenAI GPT-4o Vision (comprovante)
     if (process.env.OPENAI_API_KEY) {
       try {
         const result = await processImageWithOpenAI(base64Image, caption, ocrTextAcumulado)
@@ -654,20 +635,7 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
 
-    // 6) Gemini por último (substituído por Groq/OpenAI para comprovantes)
-    if (process.env.GEMINI_API_KEY) {
-      try {
-        const result = await processImageWithGemini(base64Image, caption, ocrTextAcumulado)
-        if (result) {
-          console.log('✅ [Media Processor] Gemini (fallback) processou comprovante')
-          return result
-        }
-      } catch (error: any) {
-        console.error('❌ [Media Processor] Erro Gemini:', error.message)
-      }
-    }
-
-    // 7) Google Cloud Vision (análise completa)
+    // 5) Google Cloud Vision (análise completa)
     if (process.env.GOOGLE_CLOUD_VISION_API_KEY) {
       try {
         console.log('🔍 [Media Processor] Tentando Google Cloud Vision API (gratuito)...')
@@ -681,7 +649,7 @@ export async function processComprovanteImage(imageBuffer: Buffer, caption?: str
       }
     }
     
-    // 8) Azure Computer Vision (gratuito - 5000/mês)
+    // 6) Azure Computer Vision (gratuito - 5000/mês)
     if (process.env.AZURE_VISION_API_KEY && process.env.AZURE_VISION_ENDPOINT) {
       try {
         console.log('🔍 [Media Processor] Tentando Azure Computer Vision (gratuito)...')
@@ -1512,7 +1480,38 @@ Mantenha a frase: "com roupas", "no mercado", etc. Exemplos: "gastei 350 com rou
 }
 
 /**
- * Transcrever áudio usando Gemini (GRATUITO) - FALLBACK ou retry com prompt de frase completa
+ * Transcrever áudio usando OpenAI Whisper (fallback quando Groq falha).
+ */
+async function transcribeAudioWithOpenAI(audioBuffer: Buffer, mimeType: string): Promise<string | null> {
+  if (!process.env.OPENAI_API_KEY) return null
+  try {
+    if (!looksLikeAudio(audioBuffer)) return null
+    const { ext, mime } = getAudioFileInfo(mimeType)
+    const formData = new FormData()
+    const blob = new Blob([new Uint8Array(audioBuffer)], { type: mime })
+    formData.append('file', blob, `audio${ext}`)
+    formData.append('model', 'whisper-1')
+    formData.append('language', 'pt')
+    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      body: formData,
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    const text = (data.text || '').trim()
+    if (text) {
+      console.log('✅ [Media Processor] OpenAI Whisper transcreveu:', text.substring(0, 80))
+      return text
+    }
+  } catch (err: any) {
+    console.error('❌ [Media Processor] OpenAI Whisper:', err.message)
+  }
+  return null
+}
+
+/**
+ * Transcrever áudio usando Gemini (desativado — use Groq ou OpenAI).
  */
 async function transcribeAudioWithGemini(
   audioBuffer: Buffer,
@@ -1633,7 +1632,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   console.log('🎤 [Media Processor] Tamanho do áudio:', audioBuffer.length, 'bytes')
   console.log('🎤 [Media Processor] MIME type:', mimeType)
   console.log('🎤 [Media Processor] GROQ_API_KEY configurada?', !!process.env.GROQ_API_KEY)
-  console.log('🎤 [Media Processor] GEMINI_API_KEY configurada?', !!process.env.GEMINI_API_KEY)
+  console.log('🎤 [Media Processor] OPENAI_API_KEY configurada?', !!process.env.OPENAI_API_KEY)
   console.log('🎤 [Media Processor] ==========================================')
   
   let firstResult: string | null = null
@@ -1650,19 +1649,19 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     }
   }
 
-  // 2) Fallback: Gemini (se Groq falhou ou não está configurado)
-  if (process.env.GEMINI_API_KEY) {
-    console.log('🎤 [Media Processor] Tentando transcrição com Gemini...')
-    const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
+  // 2) Fallback: OpenAI Whisper (se Groq falhou ou não está configurado)
+  if (process.env.OPENAI_API_KEY) {
+    console.log('🎤 [Media Processor] Tentando transcrição com OpenAI Whisper...')
+    const r = await transcribeAudioWithOpenAI(audioBuffer, mimeType)
     if (r) {
       const corrigido = corrigirValorDoisNaTranscricao(r)
       const normalizado = normalizarNumerosPorExtenso(corrigido)
-      console.log('✅ [Media Processor] Áudio transcrito (Gemini):', normalizado.slice(0, 60))
+      console.log('✅ [Media Processor] Áudio transcrito (OpenAI):', normalizado.slice(0, 60))
       return normalizado
     }
   }
 
-  console.error('❌ [Media Processor] Transcrição falhou. Configure GROQ_API_KEY ou GEMINI_API_KEY para áudio.')
+  console.error('❌ [Media Processor] Transcrição falhou. Configure GROQ_API_KEY ou OPENAI_API_KEY para áudio.')
   return null
 }
 

@@ -204,21 +204,23 @@ Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrár
       }
     } catch (_) {}
   }
-  // 2) Gemini (gratuito, fallback)
-  const geminiKey = process.env.GEMINI_API_KEY?.trim()
-  if (geminiKey) {
+  // 2) OpenAI (fallback quando Groq falha)
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  if (openaiKey) {
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 15 },
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.2,
+          max_tokens: 15,
         }),
       })
       if (res.ok) {
         const data = await res.json()
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+        const text = data.choices?.[0]?.message?.content ?? ''
         const num = parseNumFromLLM(text, valorMin)
         if (num != null) return num
       }
@@ -296,24 +298,23 @@ export async function extrairRegistroCompletoComGemini(
     } catch (_) {}
   }
 
-  // 3) Gemini por último (fallback)
-  const geminiKey = process.env.GEMINI_API_KEY?.trim()
-  if (geminiKey) {
+  // 3) OpenAI (fallback quando Groq falha)
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  if (openaiKey) {
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 100 },
-          }),
-        }
-      )
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.1,
+          max_tokens: 100,
+        }),
+      })
       if (res.ok) {
         const data = await res.json()
-        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
+        const text = (data.choices?.[0]?.message?.content ?? '').trim()
         const parsed = parseRespostaRegistroCompleto(text)
         if (parsed) return parsed
       }
@@ -368,22 +369,22 @@ export async function extrairValorENomeComGemini(frase: string): Promise<{ valor
       }
     } catch (_) {}
   }
-  if (process.env.GEMINI_API_KEY) {
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  if (openaiKey) {
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 80 },
-          }),
-        }
-      )
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.1,
+          max_tokens: 80,
+        }),
+      })
       if (res.ok) {
         const data = await res.json()
-        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
+        const text = (data.choices?.[0]?.message?.content ?? '').trim()
         const parsed = parseValorENomeGasto(text)
         if (parsed) return parsed
       }
@@ -423,23 +424,22 @@ Frase: ${trimmed.slice(0, 500)}`
       }
     } catch (_) {}
   }
-  const geminiKey = process.env.GEMINI_API_KEY?.trim()
-  if (geminiKey) {
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  if (openaiKey) {
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 20 },
-          }),
-        }
-      )
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.1,
+          max_tokens: 20,
+        }),
+      })
       if (res.ok) {
         const data = await res.json()
-        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim().replace(/\s/g, '')
+        const text = (data.choices?.[0]?.message?.content ?? '').trim().replace(/\s/g, '')
         const num = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'))
         if (Number.isFinite(num) && num >= 1 && num <= 500_000) return num
       }
@@ -477,23 +477,22 @@ export async function inferirValorGastoTranscricaoIncerteza(frase: string): Prom
       }
     } catch (_) {}
   }
-  const geminiKey = process.env.GEMINI_API_KEY?.trim()
-  if (geminiKey) {
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  if (openaiKey) {
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 20 },
-          }),
-        }
-      )
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user' as const, content: prompt }],
+          temperature: 0.1,
+          max_tokens: 20,
+        }),
+      })
       if (res.ok) {
         const data = await res.json()
-        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim().replace(/\s/g, '')
+        const text = (data.choices?.[0]?.message?.content ?? '').trim().replace(/\s/g, '')
         const num = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'))
         if (Number.isFinite(num) && num >= 50 && num <= 500) return num
       }
