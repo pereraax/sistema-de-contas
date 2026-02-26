@@ -1632,6 +1632,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   console.log('🎤 [Media Processor] Tamanho do áudio:', audioBuffer.length, 'bytes')
   console.log('🎤 [Media Processor] MIME type:', mimeType)
   console.log('🎤 [Media Processor] GROQ_API_KEY configurada?', !!process.env.GROQ_API_KEY)
+  console.log('🎤 [Media Processor] GEMINI_API_KEY configurada?', !!process.env.GEMINI_API_KEY)
   console.log('🎤 [Media Processor] OPENAI_API_KEY configurada?', !!process.env.OPENAI_API_KEY)
   console.log('🎤 [Media Processor] ==========================================')
   
@@ -1649,7 +1650,19 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     }
   }
 
-  // 2) Fallback: OpenAI Whisper (se Groq falhou ou não está configurado)
+  // 2) Fallback gratuito: Gemini (crie nova chave em aistudio.google.com se a antiga vazou)
+  if (process.env.GEMINI_API_KEY) {
+    console.log('🎤 [Media Processor] Tentando transcrição com Gemini...')
+    const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
+    if (r) {
+      const corrigido = corrigirValorDoisNaTranscricao(r)
+      const normalizado = normalizarNumerosPorExtenso(corrigido)
+      console.log('✅ [Media Processor] Áudio transcrito (Gemini):', normalizado.slice(0, 60))
+      return normalizado
+    }
+  }
+
+  // 3) Fallback: OpenAI Whisper (pago)
   if (process.env.OPENAI_API_KEY) {
     console.log('🎤 [Media Processor] Tentando transcrição com OpenAI Whisper...')
     const r = await transcribeAudioWithOpenAI(audioBuffer, mimeType)
@@ -1661,7 +1674,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     }
   }
 
-  console.error('❌ [Media Processor] Transcrição falhou. Configure GROQ_API_KEY ou OPENAI_API_KEY para áudio.')
+  console.error('❌ [Media Processor] Transcrição falhou. Configure GROQ_API_KEY (gratuito) ou GEMINI_API_KEY (gratuito, nova chave em aistudio.google.com) para áudio.')
   return null
 }
 
