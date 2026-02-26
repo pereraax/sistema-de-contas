@@ -26,10 +26,11 @@ function tipoEnvioToTipoMensagem(tipoEnvio: string): string | null {
   return null
 }
 
-/** Normaliza body para API Fácil: tipo e URL podem estar em body.data, tipo_envio ou mensagem como URL */
+/** Normaliza body para API Fácil: dados podem estar em body, body.data ou body.payload (event whatsapp_insert) */
 function normalizeBody(body: any): any {
   if (!body || typeof body !== 'object') return body
-  const data = body.data && typeof body.data === 'object' ? body.data : {}
+  const payload = body.payload && typeof body.payload === 'object' ? body.payload : {}
+  const data = body.data && typeof body.data === 'object' ? body.data : payload
   const tipoEnvio = (body.tipo_envio ?? data.tipo_envio) as string | undefined
   const tipoFromEnvio = tipoEnvioToTipoMensagem(tipoEnvio || '')
   const tipoMensagem = body.tipo_mensagem ?? data.tipo_mensagem ?? data.tipo ?? tipoFromEnvio

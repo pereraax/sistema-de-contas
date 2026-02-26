@@ -429,8 +429,7 @@ export async function processPlenWhatsAppMessage(
       }
     }
 
-    // Regra fixa (sem IA): valor 2 em gasto → transcrição costuma errar (200/290/350 → 2), usar 200; nome "Roupas" se tiver "roupas" na frase
-    // Não forçar 290: quando o áudio for transcrito certo (ex: "gastei 350 com roupas"), o regex já pega 350
+    // Valor 2 em gasto → transcrição costuma errar (200→2); usar 200. Nome "Roupas" se tiver "roupas" na frase.
     if (interpretado?.tipo === 'saida' && interpretado.valor === 2) {
       interpretado = { ...interpretado, valor: 200 }
       if ((interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') && /\b(roupas?|compras)\b/i.test(msgForRegistro)) {

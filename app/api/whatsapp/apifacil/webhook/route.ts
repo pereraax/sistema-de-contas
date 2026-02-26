@@ -346,29 +346,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 })
     }
 
-    // Log para debug: saber se veio ÁUDIO (URL) ou só TEXTO (transcrição errada da API/WhatsApp)
-    const b = body as Record<string, unknown>
+    // API Fácil envia os dados da mensagem dentro de "payload" (event whatsapp_insert). Unificar para o resto do código ver tipo_envio, mensagem, url_media, origem.
+    const rawBody = body as Record<string, unknown>
+    const payload = rawBody.payload && typeof rawBody.payload === 'object' ? (rawBody.payload as Record<string, unknown>) : null
+    const bodyToParse = payload ? { ...rawBody, ...payload } : rawBody
+
+    const b = bodyToParse as Record<string, unknown>
     const data = (b.data && typeof b.data === 'object' ? b.data : b) as Record<string, unknown>
     const tipoEnvio = (b.tipo_envio ?? data.tipo_envio) as string | undefined
     const mensagemPreview = (b.mensagem ?? data.mensagem) as string | undefined
-    const urlMedia = data.url_media ?? data.url_midia ?? data.media_url ?? data.url ?? mensagemPreview
+    const urlMedia = b.url_media ?? data.url_media ?? data.url_midia ?? data.media_url ?? b.url ?? data.url ?? mensagemPreview
     const mensagemEhUrl = typeof urlMedia === 'string' && /^https?:\/\//i.test(urlMedia)
     console.log('📨 [Apifacil Webhook] Payload recebido:', {
+      keys: Object.keys(bodyToParse),
       tipo_envio: tipoEnvio,
       tem_url_media: !!urlMedia && mensagemEhUrl,
-      mensagem_preview: typeof mensagemPreview === 'string' ? mensagemPreview.slice(0, 80) : '(não é string)',
+      mensagem_preview: typeof mensagemPreview === 'string' ? mensagemPreview.slice(0, 100) : '(não é string)',
       from: b.origem ?? data.origem,
     })
+    if (tipoEnvio && /AUDIO/i.test(String(tipoEnvio))) {
+      console.log('📨 [Apifacil Webhook] ÁUDIO detectado no tipo_envio. url_media?', !!urlMedia, 'mensagem é URL?', mensagemEhUrl)
+    }
 
-    let parsed = parseWebhookBodyWithMedia(body)
+    let parsed = parseWebhookBodyWithMedia(bodyToParse)
     if (!parsed) {
-      const fallback = parseWebhookBody(body)
+      const fallback = parseWebhookBody(bodyToParse)
       if (fallback) parsed = { from: fallback.from, text: fallback.text }
     }
     if (parsed && !parsed.media) {
-      const data = (body as any).data || body
-      const te = ((body as any).tipo_envio ?? data?.tipo_envio) as string
-      const url = data?.url_media ?? data?.url_midia ?? data?.media_url ?? data?.url ?? data?.mensagem ?? (body as any).mensagem
+      const data = (bodyToParse as any).data || bodyToParse
+      const te = ((bodyToParse as any).tipo_envio ?? data?.tipo_envio) as string
+      const url = data?.url_media ?? data?.url_midia ?? data?.media_url ?? data?.url ?? data?.mensagem ?? (bodyToParse as any).mensagem
       if (te && typeof url === 'string' && url.startsWith('http')) {
         const tipo = /AUDIO_RECEBIDO/i.test(te) ? 'audio' : /IMAGEM_RECEBIDA|IMAGE/i.test(te) ? 'image' : null
         if (tipo) {
@@ -378,8 +386,8 @@ export async function POST(request: NextRequest) {
       }
     }
     if (!parsed) {
-      const rawPreview = JSON.stringify(body).slice(0, 600)
-      const keys = body && typeof body === 'object' ? Object.keys(body as object).join(', ') : 'null'
+      const rawPreview = JSON.stringify(bodyToParse).slice(0, 600)
+      const keys = bodyToParse && typeof bodyToParse === 'object' ? Object.keys(bodyToParse as object).join(', ') : 'null'
       console.log('📨 [Apifacil Webhook] Payload não reconhecido (sem from/text). Keys:', keys, '| Body:', rawPreview)
       return NextResponse.json({ success: true, message: 'Payload ignorado (sem from/text)' })
     }
@@ -387,10 +395,6 @@ export async function POST(request: NextRequest) {
     const { from } = parsed
     const textPreview = parsed.text ? parsed.text.slice(0, 80) : parsed.media ? `[${parsed.media.type}]` : ''
     console.log('📨 [Apifacil Webhook] MENSAGEM RECEBIDA:', { from, textPreview, mediaType: parsed.media?.type })
-    // Se veio texto "paguei 2.00"/"gastei 2.00" (e não áudio), a API pode estar enviando transcrição em vez do áudio; PLEN usa 200 + Roupas (não forçar 290)
-    if (parsed.text && /^(gastei|paguei)\s+2(?:\.00)?\s*(?:reais?)?\s*$/i.test(parsed.text.trim()) && !parsed.media) {
-      console.log('📨 [Apifacil Webhook] Texto "paguei/gastei 2.00" recebido como TEXTO (sem áudio). Registrando 200; confira se a API envia o áudio para transcrição correta.')
-    }
 
     // Em localhost: só processar se WHATSAPP_TEST_NUMBERS estiver definido e o número estiver na lista
     const isDev = process.env.NODE_ENV === 'development'
