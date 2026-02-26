@@ -387,7 +387,7 @@ async function ocrImageSóTexto(base64Image: string): Promise<string | null> {
   ]
   for (const prompt of prompts) {
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -726,7 +726,7 @@ async function perguntarValorSoGemini(base64Image: string): Promise<number | nul
 NÃO use número de data (12/08/2022), nem hora (01h23), nem ID. Apenas o valor da transação em reais.
 Responda SOMENTE com o número (ex: 80).`
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -784,18 +784,19 @@ ${caption ? ` Legenda: ${caption}` : ''}`
   try {
     console.log('🔍 [Media Processor] Chamando Gemini API...')
     
-    // Modelos disponíveis (tentar na ordem)
+    // v1 para 1.5 (v1beta retorna 404 em alguns ambientes); v1beta para 2.x
     const geminiModels = [
-      'gemini-1.5-flash',
-      'gemini-1.5-pro',
+      { name: 'gemini-1.5-flash', version: 'v1' as const },
+      { name: 'gemini-1.5-pro', version: 'v1' as const },
+      { name: 'gemini-2.0-flash', version: 'v1beta' as const },
     ]
     
     let lastError: any = null
     
-    for (const model of geminiModels) {
+    for (const { name: model, version } of geminiModels) {
       try {
         console.log(`🔍 [Media Processor] Tentando modelo Gemini: ${model}`)
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
+        const apiUrl = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
         
         const requestBody = {
           contents: [
@@ -929,7 +930,7 @@ ${caption ? ` Legenda: ${caption}` : ''}`
             role: 'user',
             content: [
               { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Image}` } },
+              { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Clean}` } },
             ],
           },
         ],
@@ -1533,17 +1534,19 @@ async function transcribeAudioWithGemini(
     const audioBase64 = audioBuffer.toString('base64')
     const geminiMimeType = mimeType || 'audio/webm'
     
-    const geminiModels = ['gemini-1.5-flash', 'gemini-1.5-pro']
+    const geminiModels = [
+      { name: 'gemini-1.5-flash', version: 'v1' as const },
+      { name: 'gemini-1.5-pro', version: 'v1' as const },
+      { name: 'gemini-2.0-flash', version: 'v1beta' as const },
+    ]
     
     const prompt = customPrompt ?? `Transcreva este áudio para português. A pessoa está registrando um GASTO (gastei, paguei) ou ENTRADA (ganhei, recebi) em reais.
 Regras: 1) Valores em reais: escreva o número COMPLETO. Se ouvir "duzentos" ou "200" → escreva 200 (NUNCA 2 nem 2.00). Se ouvir "quatrocentos" ou "400" → escreva 400. 2) Exemplos corretos: "paguei 200", "gastei 400 com roupas", "paguei 80 no mercado". 3) Saída: apenas o texto transcrito.`
     
-    for (const model of geminiModels) {
+    for (const { name: model, version } of geminiModels) {
       try {
         console.log(`🎤 [Media Processor] Tentando transcrever com Gemini modelo: ${model}`)
-        
-        // Modelos 1.5 estão em v1beta; v1 retorna 404 para gemini-1.5-pro
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
+        const apiUrl = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
@@ -1725,12 +1728,15 @@ export async function extrairRegistroDeAudioComGemini(
   const audioBase64 = audioBuffer.toString('base64')
   // WhatsApp/API Fácil costuma enviar audio/ogg (Opus). Gemini aceita ogg/opus.
   const geminiMimeType = mimeType && /^audio\//.test(mimeType) ? mimeType : 'audio/ogg'
-  const models = ['gemini-1.5-flash', 'gemini-1.5-pro']
+  const models = [
+    { name: 'gemini-1.5-flash', version: 'v1' as const },
+    { name: 'gemini-1.5-pro', version: 'v1' as const },
+    { name: 'gemini-2.0-flash', version: 'v1beta' as const },
+  ]
 
-  for (const model of models) {
+  for (const { name: model, version } of models) {
     try {
-      // Modelos 1.5 disponíveis em v1beta (v1 retorna 404)
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
+      const url = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
