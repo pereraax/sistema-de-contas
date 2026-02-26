@@ -160,10 +160,12 @@ export function detectMedia(body: any): MediaInfo | null {
     b.mimetype?.startsWith('audio/') ||
     body.tipo === 'audio' ||
     body.messageType === 'audio' ||
-    body.mediaType === 'audio'
+    body.mediaType === 'audio' ||
+    (b.tipo_envio as string) === 'AUDIO_RECEBIDO'
 
   if (isAudio) {
-    const audioUrl = b.url_media || b.media_url || b.url || body.audio_url || body.mediaUrl || body.media
+    const mensagemComoUrl = typeof b.mensagem === 'string' && /^https?:\/\//i.test(b.mensagem) ? b.mensagem : null
+    const audioUrl = b.url_media || b.media_url || b.url || body.audio_url || body.mediaUrl || body.media || mensagemComoUrl
     if (audioUrl) {
       console.log('🎤 [Media Processor] Áudio detectado:', audioUrl)
       return {
@@ -1615,18 +1617,6 @@ function isTranscriptionIncomplete(text: string): boolean {
   return soVerboNumero && !temDescricao
 }
 
-/** Corrige erro comum da transcrição: "2" ou "2.00" quando a pessoa disse 200 (nunca forçar valor fixo; o correto vem do áudio). */
-function corrigirValorDoisNaTranscricao(text: string): string {
-  const t = (text || '').trim()
-  if (!t || t.length < 5) return t
-  const corrigido = t.replace(/\b(gastei|paguei|ganhei|recebi)\s+2(\.0{1,2})?(?=\s|$|,|reais?|r\$)/gi, '$1 200')
-  if (corrigido !== t) {
-    console.log('🎤 [Media Processor] Transcrição corrigida (2/2.00 → 200):', t.slice(0, 60), '→', corrigido.slice(0, 60))
-    return corrigido
-  }
-  return t
-}
-
 const PROMPT_AUDIO_FRASE_COMPLETA = `Transcreva este áudio para português. A pessoa está dizendo quanto GASTOU ou RECEBEU e EM QUE ou DE QUEM.
 Inclua a frase COMPLETA: valor em algarismos e a descrição (ex.: "gastei 200 no mercado", "paguei 80 no posto", "ganhei 500 de mãe", "gastei 400 com roupas").
 Saída: apenas o texto transcrito, sem explicações.`
@@ -1648,8 +1638,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     console.log('🎤 [Media Processor] Transcrevendo com Groq Whisper...')
     const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
     if (r) {
-      const corrigido = corrigirValorDoisNaTranscricao(r)
-      const normalizado = normalizarNumerosPorExtenso(corrigido)
+      const normalizado = normalizarNumerosPorExtenso(r.trim())
       console.log('✅ [Media Processor] Áudio transcrito (Groq):', normalizado.slice(0, 60))
       return normalizado
     }
@@ -1660,8 +1649,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     console.log('🎤 [Media Processor] Tentando transcrição com Gemini...')
     const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
     if (r) {
-      const corrigido = corrigirValorDoisNaTranscricao(r)
-      const normalizado = normalizarNumerosPorExtenso(corrigido)
+      const normalizado = normalizarNumerosPorExtenso(r.trim())
       console.log('✅ [Media Processor] Áudio transcrito (Gemini):', normalizado.slice(0, 60))
       return normalizado
     }
@@ -1672,8 +1660,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     console.log('🎤 [Media Processor] Tentando transcrição com OpenAI Whisper...')
     const r = await transcribeAudioWithOpenAI(audioBuffer, mimeType)
     if (r) {
-      const corrigido = corrigirValorDoisNaTranscricao(r)
-      const normalizado = normalizarNumerosPorExtenso(corrigido)
+      const normalizado = normalizarNumerosPorExtenso(r.trim())
       console.log('✅ [Media Processor] Áudio transcrito (OpenAI):', normalizado.slice(0, 60))
       return normalizado
     }

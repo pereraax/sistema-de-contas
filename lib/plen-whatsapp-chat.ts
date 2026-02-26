@@ -13,17 +13,6 @@ import {
   RESPOSTA_NAO_SEI,
 } from '@/lib/plen-llm-fallback'
 
-/** Quando registramos R$ 2,00 em gasto, pode ser erro de transcrição (você disse 20 ou 200). Adiciona dica. */
-function respostaRegistroComDica(
-  params: { nome: string; tipo: 'saida' | 'entrada' | 'divida'; valor: number; dataRegistro: string; categoria: string; nomeUsuario?: string }
-): string {
-  const txt = formatarRespostaRegistro(params)
-  if (params.tipo === 'saida' && (params.valor === 2 || params.valor === 2.0)) {
-    return txt + '\n\n💡 Se você disse outro valor (ex.: 20 ou 200), digite: gastei X no mercado.'
-  }
-  return txt
-}
-
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
 const MSG_ENTENDER_MELHOR = `Para te entender melhor, você pode começar dizendo o que deseja:
 
@@ -412,11 +401,6 @@ export async function processPlenWhatsAppMessage(
       }
       // Sem IA: quando o regex não achou valor, usa só interpretarMensagem e extrai nome por regex "com X" / "no X"
       if (!valorValido && interpretado && interpretado.tipo === 'saida') {
-        const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
-        const valorAtual = interpretado.valor
-        // Regras fixas (sem IA): 2 → 200; 20 com contexto → 200
-        if (valorAtual === 2) interpretado = { ...interpretado, valor: 200 }
-        else if (valorAtual === 20 && temContextoValorAlto) interpretado = { ...interpretado, valor: 200 }
         if (interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') {
           const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)
           if (m?.[1]) {
@@ -428,12 +412,6 @@ export async function processPlenWhatsAppMessage(
           }
         }
       }
-    }
-
-    // Só correção de transcrição: 2 → 200 apenas quando a frase sugere valor alto (ex.: "no mercado", "com roupas"). Evita forçar 200 quando a pessoa disse "dois reais".
-    const temContextoValorAltoPara2 = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
-    if (interpretado?.tipo === 'saida' && interpretado.valor === 2 && temContextoValorAltoPara2) {
-      interpretado = { ...interpretado, valor: 200 }
     }
 
     // Salvaguarda: frase tem "ganhei" ou "recebi" mas interpretado deu gasto → forçar ENTRADA
@@ -504,7 +482,7 @@ export async function processPlenWhatsAppMessage(
             return { response: `Erro ao salvar: ${error.message}. Crie uma pessoa em Configurações → Usuários no site.` }
           }
           return {
-            response: respostaRegistroComDica({
+            response: formatarRespostaRegistro({
               nome,
               tipo,
               valor: valorFinal,
@@ -581,7 +559,7 @@ export async function processPlenWhatsAppMessage(
       }
 
       return {
-        response: respostaRegistroComDica({
+        response: formatarRespostaRegistro({
           nome,
           tipo,
           valor: valorFinal,
