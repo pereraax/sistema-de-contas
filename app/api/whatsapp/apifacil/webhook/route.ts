@@ -2,7 +2,17 @@
  * Webhook da API Fácil (apifacil.dev) para mensagens WhatsApp.
  * A API Fácil chama esta URL quando uma mensagem é recebida na instância conectada.
  * Sem esta rota, o assistente PLEN nunca recebe as mensagens (404).
- * Suporta texto, imagem (comprovante) e áudio (transcrição → mesmo fluxo do texto).
+ *
+ * Fluxos suportados:
+ * - TEXTO: mensagem digitada → PLEN interpreta (registro, dúvidas, etc.) → envia resposta.
+ * - ÁUDIO: detecta áudio (tipo_envio AUDIO_RECEBIDO ou URL de áudio) → baixa arquivo →
+ *   transcreve (Gemini/Groq/OpenAI) → usa o texto transcrito como se fosse mensagem digitada →
+ *   PLEN processa e gera a mesma resposta (ex.: "📌 Gasto R$ 50,00 ...") → envia ao usuário.
+ * - IMAGEM: comprovante → extrai valor/nome (IA) → PLEN registra → envia confirmação.
+ *
+ * Para áudio funcionar, a API Fácil deve enviar no payload: tipo_envio (ou tipo_mensagem) de áudio
+ * e URL do arquivo (url_media, media_url ou mensagem com URL). Se enviar só texto (ex.: transcrição
+ * pronta "paguei 2.00"), o sistema trata como texto e aplica regras de correção quando possível.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -163,16 +173,19 @@ async function processarEmBackground(parsed: {
 }) {
   const { from, text: textInicial, media } = parsed
   let text = textInicial
+  let origemMensagem: 'texto' | 'áudio' | 'imagem' = 'texto'
   try {
     if (media?.type === 'audio') {
-      // Áudio: baixar → transcrever → tratar o texto como se o usuário tivesse digitado (mesmo fluxo do PLEN).
+      origemMensagem = 'áudio'
+      // Áudio: baixar → transcrever → usar texto no PLEN (registro/pergunta) → mesma resposta que texto.
+      console.log('🎤 [Apifacil Webhook] Processando ÁUDIO: baixar → transcrever → PLEN → enviar resposta')
       try {
         const buffer = await downloadMedia(media.url, getMediaFetchHeaders())
         if (!buffer || buffer.length === 0) throw new Error('Download do áudio falhou')
         const transcribed = await transcribeAudio(buffer, media.mimetype || 'audio/ogg')
         text = (transcribed || '').trim()
         if (text) {
-          console.log('🎤 [Apifacil Webhook] Áudio transcrito:', text.slice(0, 80))
+          console.log('🎤 [Apifacil Webhook] Áudio transcrito:', text.slice(0, 120), '→ será processado pelo PLEN como texto')
         } else {
           if (isApifacilConfigured()) {
             const phone = from.startsWith('55') ? from : `55${from}`
@@ -198,6 +211,7 @@ async function processarEmBackground(parsed: {
       }
     }
     if (media?.type === 'image') {
+      origemMensagem = 'imagem'
       try {
         console.log('🖼️ [Apifacil Webhook] Imagem detectada, baixando:', media.url?.slice(0, 90))
         const buffer = await downloadMedia(media.url, getMediaFetchHeaders())
@@ -231,9 +245,12 @@ async function processarEmBackground(parsed: {
     }
     if (!text) return
 
-    // Texto (digitado ou de imagem/comprovante) segue o fluxo normal: PLEN interpreta e registra
+    // Texto (digitado, transcrito do áudio ou extraído da imagem) → PLEN interpreta e gera resposta
     const plenMessage = buildPlenMessage(from, text)
     const result = await processWhatsAppMessage(plenMessage as any)
+    if (origemMensagem !== 'texto') {
+      console.log('📤 [Apifacil Webhook] Resposta do PLEN (origem:', origemMensagem + '):', result?.message ? String(result.message).slice(0, 80) : result?.messages?.length ? `${result.messages.length} msg(s)` : '—')
+    }
     const phone = from.startsWith('55') ? from : `55${from}`
 
     const apifacilOk = isApifacilConfigured()
