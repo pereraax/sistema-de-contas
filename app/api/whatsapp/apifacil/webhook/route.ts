@@ -34,6 +34,24 @@ function buildPlenMessage(from: string, text: string): {
   }
 }
 
+/** Cache de IDs já processados para evitar resposta duplicada (API Fácil pode enviar 2 webhooks para o mesmo áudio). TTL 3 min. */
+const processedWebhookIds = new Map<string, number>()
+const DEDUPE_TTL_MS = 180_000
+
+function isAlreadyProcessed(bodyToParse: Record<string, unknown>, from: string): boolean {
+  const id = bodyToParse.id ?? (bodyToParse.data && typeof bodyToParse.data === 'object' ? (bodyToParse.data as Record<string, unknown>).id : undefined)
+  const mensagemId = bodyToParse.mensagem_id ?? (bodyToParse.data && typeof bodyToParse.data === 'object' ? (bodyToParse.data as Record<string, unknown>).mensagem_id : undefined)
+  const key = [id, mensagemId].filter((v) => v != null).length ? `${String(id ?? '')}-${String(mensagemId ?? '')}-${from}` : ''
+  if (!key) return false
+  const now = Date.now()
+  for (const [k, ts] of processedWebhookIds.entries()) {
+    if (now - ts > DEDUPE_TTL_MS) processedWebhookIds.delete(k)
+  }
+  if (processedWebhookIds.has(key)) return true
+  processedWebhookIds.set(key, now)
+  return false
+}
+
 /** Números permitidos em modo teste (localhost). Variável: WHATSAPP_TEST_NUMBERS=5511999999999 ou 5511999999999,5511888888888 */
 function getTestNumbers(): string[] {
   const raw = process.env.WHATSAPP_TEST_NUMBERS || ''
@@ -423,6 +441,10 @@ export async function POST(request: NextRequest) {
     }
 
     const { from } = parsed
+    if (isAlreadyProcessed(bodyToParse as Record<string, unknown>, from)) {
+      console.log('📨 [Apifacil Webhook] Ignorando payload duplicado (id/mensagem_id já processado).', { from })
+      return NextResponse.json({ success: true, message: 'Payload já processado (deduplicado)' })
+    }
     const textPreview = parsed.text ? parsed.text.slice(0, 80) : parsed.media ? `[${parsed.media.type}]` : ''
     console.log('📨 [Apifacil Webhook] MENSAGEM RECEBIDA:', { from, textPreview, mediaType: parsed.media?.type })
 

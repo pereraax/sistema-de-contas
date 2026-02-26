@@ -419,8 +419,9 @@ export async function processPlenWhatsAppMessage(
       }
     }
 
-    // Só correção de transcrição: valor 2 em gasto costuma ser 200 (não forçar 290). Nome vem da frase (regex "com X"/"no X").
-    if (interpretado?.tipo === 'saida' && interpretado.valor === 2) {
+    // Só correção de transcrição: 2 → 200 apenas quando a frase sugere valor alto (ex.: "no mercado", "com roupas"). Evita forçar 200 quando a pessoa disse "dois reais".
+    const temContextoValorAltoPara2 = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
+    if (interpretado?.tipo === 'saida' && interpretado.valor === 2 && temContextoValorAltoPara2) {
       interpretado = { ...interpretado, valor: 200 }
     }
 
