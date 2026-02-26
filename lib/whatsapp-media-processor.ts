@@ -1629,12 +1629,9 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   console.log('🎤 [Media Processor] Tamanho do áudio:', audioBuffer.length, 'bytes')
   console.log('🎤 [Media Processor] MIME type:', mimeType)
   console.log('🎤 [Media Processor] GROQ_API_KEY configurada?', !!process.env.GROQ_API_KEY)
-  console.log('🎤 [Media Processor] GEMINI_API_KEY configurada?', !!process.env.GEMINI_API_KEY)
   console.log('🎤 [Media Processor] OPENAI_API_KEY configurada?', !!process.env.OPENAI_API_KEY)
   console.log('🎤 [Media Processor] ==========================================')
   
-  let firstResult: string | null = null
-
   // 1) Groq Whisper (rápido e gratuito)
   if (process.env.GROQ_API_KEY) {
     console.log('🎤 [Media Processor] Transcrevendo com Groq Whisper...')
@@ -1646,18 +1643,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     }
   }
 
-  // 2) Fallback gratuito: Gemini (crie nova chave em aistudio.google.com se a antiga vazou)
-  if (process.env.GEMINI_API_KEY) {
-    console.log('🎤 [Media Processor] Tentando transcrição com Gemini...')
-    const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
-    if (r) {
-      const normalizado = normalizarNumerosPorExtenso(r.trim())
-      console.log('✅ [Media Processor] Áudio transcrito (Gemini):', normalizado.slice(0, 60))
-      return normalizado
-    }
-  }
-
-  // 3) Fallback: OpenAI Whisper (pago)
+  // 2) Fallback: OpenAI Whisper (pago)
   if (process.env.OPENAI_API_KEY) {
     console.log('🎤 [Media Processor] Tentando transcrição com OpenAI Whisper...')
     const r = await transcribeAudioWithOpenAI(audioBuffer, mimeType)
@@ -1668,7 +1654,7 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
     }
   }
 
-  console.error('❌ [Media Processor] Transcrição falhou. Dica: GROQ_API_KEY (gratuito em console.groq.com) costuma ser mais estável que Gemini para áudio.')
+  console.error('❌ [Media Processor] Transcrição falhou. Configure GROQ_API_KEY (gratuito em console.groq.com) ou OPENAI_API_KEY.')
   return null
 }
 
