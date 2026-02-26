@@ -1638,19 +1638,31 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
   
   let firstResult: string | null = null
 
-  // Groq Whisper — único provedor de transcrição (Gemini retorna 404 na API atual)
+  // 1) Groq Whisper (rápido e gratuito)
   if (process.env.GROQ_API_KEY) {
     console.log('🎤 [Media Processor] Transcrevendo com Groq Whisper...')
     const r = await transcribeAudioWithGroq(audioBuffer, mimeType)
     if (r) {
       const corrigido = corrigirValorDoisNaTranscricao(r)
-      // "quatrocentos"/"duzentos" → 400/200 para extração e interpretação
       const normalizado = normalizarNumerosPorExtenso(corrigido)
-      console.log('✅ [Media Processor] Áudio transcrito:', normalizado.slice(0, 60))
+      console.log('✅ [Media Processor] Áudio transcrito (Groq):', normalizado.slice(0, 60))
       return normalizado
     }
   }
-  console.error('❌ [Media Processor] Transcrição falhou. Configure GROQ_API_KEY para áudio.')
+
+  // 2) Fallback: Gemini (se Groq falhou ou não está configurado)
+  if (process.env.GEMINI_API_KEY) {
+    console.log('🎤 [Media Processor] Tentando transcrição com Gemini...')
+    const r = await transcribeAudioWithGemini(audioBuffer, mimeType)
+    if (r) {
+      const corrigido = corrigirValorDoisNaTranscricao(r)
+      const normalizado = normalizarNumerosPorExtenso(corrigido)
+      console.log('✅ [Media Processor] Áudio transcrito (Gemini):', normalizado.slice(0, 60))
+      return normalizado
+    }
+  }
+
+  console.error('❌ [Media Processor] Transcrição falhou. Configure GROQ_API_KEY ou GEMINI_API_KEY para áudio.')
   return null
 }
 

@@ -2,13 +2,13 @@
  * Webhook da API Fácil (apifacil.dev) para mensagens WhatsApp.
  * A API Fácil chama esta URL quando uma mensagem é recebida na instância conectada.
  * Sem esta rota, o assistente PLEN nunca recebe as mensagens (404).
- * Suporta texto e imagem (comprovante). Áudio desativado até nova definição.
+ * Suporta texto, imagem (comprovante) e áudio (transcrição → mesmo fluxo do texto).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
-import { detectMedia, processComprovanteImage, downloadMedia } from '@/lib/whatsapp-media-processor'
+import { detectMedia, processComprovanteImage, downloadMedia, transcribeAudio } from '@/lib/whatsapp-media-processor'
 
 /** Formato esperado pelo processWhatsAppMessage (Baileys/Evolution style) */
 function buildPlenMessage(from: string, text: string): {
@@ -103,7 +103,7 @@ function parseWebhookBody(body: unknown): { from: string; text: string } | null 
 
 type MediaPayload = { type: 'audio'; url: string; mimetype: string } | { type: 'image'; url: string; mimetype: string; caption?: string }
 
-/** Extrai from e opcionalmente text ou mídia (áudio/imagem). Para imagem, text virá do comprovante; áudio não é transcrito (desativado). */
+/** Extrai from e opcionalmente text ou mídia (áudio/imagem). Para áudio, text virá da transcrição; para imagem, do comprovante. */
 function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string; media?: MediaPayload } | null {
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
@@ -165,13 +165,37 @@ async function processarEmBackground(parsed: {
   let text = textInicial
   try {
     if (media?.type === 'audio') {
-      // Áudio desativado: pedir que envie por texto até nova definição do fluxo.
-      if (isApifacilConfigured()) {
-        const phone = from.startsWith('55') ? from : `55${from}`
-        await sendTextMessage(phone, 'Por enquanto envie por texto. O suporte a áudio será reativado em breve. Ex.: gastei 50 no mercado')
-        registerSentMessage(phone, 'Por enquanto envie por texto.')
+      // Áudio: baixar → transcrever → tratar o texto como se o usuário tivesse digitado (mesmo fluxo do PLEN).
+      try {
+        const buffer = await downloadMedia(media.url, getMediaFetchHeaders())
+        if (!buffer || buffer.length === 0) throw new Error('Download do áudio falhou')
+        const transcribed = await transcribeAudio(buffer, media.mimetype || 'audio/ogg')
+        text = (transcribed || '').trim()
+        if (text) {
+          console.log('🎤 [Apifacil Webhook] Áudio transcrito:', text.slice(0, 80))
+        } else {
+          if (isApifacilConfigured()) {
+            const phone = from.startsWith('55') ? from : `55${from}`
+            await sendTextMessage(
+              phone,
+              'Não consegui entender o áudio 😅 Tente falar de novo (ex.: "gastei 50 no mercado") ou digite a mensagem.'
+            )
+            registerSentMessage(phone, 'Não consegui entender o áudio.')
+          }
+          return
+        }
+      } catch (err) {
+        console.error('🎤 [Apifacil Webhook] Erro ao processar áudio:', err)
+        if (isApifacilConfigured()) {
+          const phone = from.startsWith('55') ? from : `55${from}`
+          await sendTextMessage(
+            phone,
+            'Problema ao processar o áudio. Tente enviar de novo ou digite a mensagem (ex.: gastei 50 no mercado).'
+          )
+          registerSentMessage(phone, 'Erro ao processar áudio.')
+        }
+        return
       }
-      return
     }
     if (media?.type === 'image') {
       try {
