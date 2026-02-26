@@ -1480,10 +1480,9 @@ async function transcribeAudioWithGroq(audioBuffer: Buffer, mimeType: string): P
           formData.append('model', model)
           formData.append('language', 'pt')
           formData.append('response_format', 'json')
-          // Valor EXATO que a pessoa disse — 200, 350, 450 são comuns; Whisper às vezes confunde 350 com 200
-          formData.append('prompt', `Transcrição em português: pessoa registrando GASTO ou ENTRADA em reais.
-VALORES: escreva o número EXATO em algarismos. "duzentos"/"200" → 200. "trezentos e cinquenta"/"350" → 350. "quatrocentos e cinquenta"/"450" → 450. "quatrocentos"/"400" → 400. NUNCA use 2 ou 2,00 para reais.
-Mantenha a frase inteira: "com roupas", "no mercado", etc. Exemplos corretos: "gastei 350 com roupas", "gastei 200 no mercado", "paguei 450 com roupas".`)
+          formData.append('prompt', `Transcrição em português: pessoa registrando GASTO ou ENTRADA em reais. Escreva EXATAMENTE o que a pessoa FALOU.
+REGRA CRÍTICA - VALOR: use o número que a pessoa DISSE, em algarismos. "trezentos e cinquenta" ou "350" → 350. "quatrocentos" ou "400" → 400. "duzentos" ou "200" → 200. NUNCA troque 350 ou 400 por 200. NUNCA use 2 ou 2,00 para reais.
+Mantenha a frase: "com roupas", "no mercado", etc. Exemplos: "gastei 350 com roupas", "paguei 400 com roupas", "gastei 200 no mercado".`)
           const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
             method: 'POST',
             headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
@@ -1540,8 +1539,9 @@ async function transcribeAudioWithGemini(
       { name: 'gemini-2.0-flash', version: 'v1beta' as const },
     ]
     
-    const prompt = customPrompt ?? `Transcreva este áudio para português. A pessoa está registrando um GASTO (gastei, paguei) ou ENTRADA (ganhei, recebi) em reais.
-Regras: 1) Valores em reais: escreva o número COMPLETO. Se ouvir "duzentos" ou "200" → escreva 200 (NUNCA 2 nem 2.00). Se ouvir "quatrocentos" ou "400" → escreva 400. 2) Exemplos corretos: "paguei 200", "gastei 400 com roupas", "paguei 80 no mercado". 3) Saída: apenas o texto transcrito.`
+    const prompt = customPrompt ?? `Transcreva este áudio para português. A pessoa está registrando um GASTO ou ENTRADA em reais. Escreva EXATAMENTE o que ela FALOU.
+Valor: use o número que você OUVIR. "trezentos e cinquenta" → 350. "quatrocentos" → 400. "duzentos" → 200. NUNCA troque 350 ou 400 por 200. NUNCA use 2 ou 2,00 para reais.
+Exemplos corretos: "gastei 350 com roupas", "paguei 400 com roupas", "gastei 80 no mercado". Saída: só o texto transcrito.`
     
     for (const { name: model, version } of geminiModels) {
       try {
@@ -1610,14 +1610,14 @@ function isTranscriptionIncomplete(text: string): boolean {
   return soVerboNumero && !temDescricao
 }
 
-/** Corrige erro comum da transcrição: "paguei 2.00" ou "gastei 2" quando a pessoa disse 200. */
+/** Corrige erro comum da transcrição: "2" ou "2.00" quando a pessoa disse 200 (ou outro valor). */
 function corrigirValorDoisNaTranscricao(text: string): string {
   const t = (text || '').trim()
-  // Só verbo + 2 ou 2.00 (sem descrição) → muito provável que seja 200
-  if (/^(gastei|paguei|ganhei|recebi)\s+2(\.0{1,2})?(\s*(reais?|r\$)?\.?)?$/i.test(t)) {
-    const verb = t.match(/^(gastei|paguei|ganhei|recebi)/i)?.[1] ?? 'paguei'
-    const corrigido = `${verb} 200`
-    console.log('🎤 [Media Processor] Transcrição corrigida (2/2.00 → 200):', t, '→', corrigido)
+  if (!t || t.length < 5) return t
+  // Qualquer "gastei 2", "paguei 2.00", "gastei 2 com roupas", etc. → 200 (transcrição costuma errar 200→2)
+  const corrigido = t.replace(/\b(gastei|paguei|ganhei|recebi)\s+2(\.0{1,2})?(?=\s|$|,|reais?|r\$)/gi, '$1 200')
+  if (corrigido !== t) {
+    console.log('🎤 [Media Processor] Transcrição corrigida (2/2.00 → 200):', t.slice(0, 50), '→', corrigido.slice(0, 50))
     return corrigido
   }
   return t

@@ -391,8 +391,19 @@ export async function processPlenWhatsAppMessage(
       const nomeValido = nomeRegex && nomeRegex.length >= 2
       // Se regex já achou valor (e opcionalmente nome), usar e só chamar LLM se faltar algo
       if (valorValido) {
-        const valorUsar = Math.round(valorNum * 100) / 100
-        const nomeUsar = nomeValido ? nomeRegex.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : (tipoFromVerbo === 'saida' ? 'Gasto' : 'Entrada')
+        let valorUsar = Math.round(valorNum * 100) / 100
+        let nomeUsar = nomeValido ? nomeRegex.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : (tipoFromVerbo === 'saida' ? 'Gasto' : 'Entrada')
+        // Áudio: transcrição costuma errar 350/400 → 200. Se deu 200 e a frase tem "roupas", pedir ao LLM o valor que a pessoa disse.
+        if (tipoFromVerbo === 'saida' && valorUsar === 200 && /\b(roupas?|compras|com roupas)\b/i.test(msgForRegistro)) {
+          const segundoValor = await extrairValorReaisComLLM(
+            `Transcrição de áudio. Frase: "${msgForRegistro.trim()}". O valor transcrito foi 200, mas pode ser erro (pessoa disse 350, 400 ou 450). Qual valor em reais ela disse? Apenas um número.`,
+            true
+          )
+          if (segundoValor != null && segundoValor >= 100 && segundoValor <= 600 && segundoValor !== 200) {
+            valorUsar = segundoValor
+            nomeUsar = 'Roupas'
+          }
+        }
         const dataReg = interpretado?.data_registro ?? new Date().toISOString()
         interpretado = {
           tipo: tipoFromVerbo,
@@ -413,6 +424,17 @@ export async function processPlenWhatsAppMessage(
           const v = parseFloat(valorNaFrase.replace(',', '.').replace(/\s/g, ''))
           if (Number.isFinite(v) && v >= 1 && v <= 500_000) {
             valorFinal = Math.round(v * 100) / 100
+          }
+        }
+        // Áudio/transcrição: 200 é frequentemente erro (pessoa disse 350, 400). Se contexto sugere valor maior, pedir segunda opinião ao LLM.
+        if (completo.tipo === 'saida' && valorFinal === 200 && (nomeFinal === 'Outros' || nomeFinal === 'Gasto') && /\b(roupas?|compras|mercado|supermercado)\b/i.test(msgForRegistro)) {
+          const segundoValor = await extrairValorReaisComLLM(
+            `Transcrição de áudio. Frase: "${msgForRegistro.trim()}". O valor transcrito foi 200, mas a pessoa pode ter dito 350, 400 ou 450. Qual valor em reais ela disse? Apenas um número.`,
+            true
+          )
+          if (segundoValor != null && segundoValor >= 100 && segundoValor <= 600 && segundoValor !== 200) {
+            valorFinal = segundoValor
+            if (/\broupas?\b/i.test(msgForRegistro)) nomeFinal = 'Roupas'
           }
         }
         // Se nome ainda genérico mas a frase tem "com X", usar X como nome
@@ -467,6 +489,22 @@ export async function processPlenWhatsAppMessage(
             }
           }
         }
+      }
+    }
+
+    // NUNCA registrar R$ 2,00 em gasto — transcrição costuma errar (200 → 2). Corrigir com LLM ou fallback 200.
+    if (interpretado?.tipo === 'saida' && interpretado.valor === 2) {
+      const valorCorreto = await extrairValorReaisComLLM(
+        `Frase (pode ser transcrição de áudio): "${msgForRegistro.trim()}". O valor apareceu como 2, mas é erro (a pessoa disse 200, 350, etc.). Qual valor em reais? Apenas um número.`,
+        true
+      )
+      if (valorCorreto != null && valorCorreto >= 50 && valorCorreto <= 500_000) {
+        interpretado = { ...interpretado, valor: valorCorreto }
+      } else {
+        interpretado = { ...interpretado, valor: 200 }
+      }
+      if ((interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') && /\broupas?\b/i.test(msgForRegistro)) {
+        interpretado = { ...interpretado, nome: 'Roupas', categoria: categoriaInteligente('Roupas', 'saida') }
       }
     }
 
