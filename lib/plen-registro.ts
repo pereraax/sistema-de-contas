@@ -29,6 +29,8 @@ export function normalizarNumerosPorExtenso(texto: string): string {
   }
   // "e X" após dezenas: "vinte e cinco" → 25 (simplificado: só "e N" onde N < 10)
   out = out.replace(/\b(20|30|40|50|60|70|80|90)\s+e\s+([1-9])\b/gi, (_, dezena, un) => String(parseInt(dezena, 10) + parseInt(un, 10)))
+  // Centenas + e cinquenta: "quatrocentos e cinquenta" já virou "400 e 50" → 450 (áudio "gastei 450 com roupas")
+  out = out.replace(/\b(100|200|300|400|500|600|700|800|900)\s+e\s+50\b/gi, (_, cent) => String(parseInt(cent, 10) + 50))
   return out
 }
 

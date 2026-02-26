@@ -1479,8 +1479,8 @@ async function transcribeAudioWithGroq(audioBuffer: Buffer, mimeType: string): P
           formData.append('model', model)
           formData.append('language', 'pt')
           formData.append('response_format', 'json')
-          // Viés forte: áudios de gasto costumam ser "gastei 400 com roupas" — priorizar 400 e a palavra roupas
-          formData.append('prompt', 'Transcrição em português: pessoa registrando GASTO ou ENTRADA em reais. VALORES sempre com o número COMPLETO em algarismos: se ouvir "duzentos" ou "200" escreva 200 (nunca 2 nem 2.00). Se ouvir "quatrocentos" ou "400" escreva 400. Escreva: "paguei 200", "gastei 400 com roupas", "paguei 80 no mercado". NUNCA use 2 ou 2.00 para valores em reais (2 reais é raro; duzentos é comum).')
+          // Viés: áudios de gasto — priorizar valor exato (200, 400, 450) e descrição (roupas, mercado)
+          formData.append('prompt', 'Transcrição em português: pessoa registrando GASTO ou ENTRADA em reais. VALORES em algarismos COMPLETOS: "duzentos"/"200" → 200 (nunca 2 nem 2.00). "quatrocentos"/"400" → 400. "quatrocentos e cinquenta"/"450" → 450. Exemplos: "paguei 200", "gastei 400 com roupas", "gastei 450 com roupas", "paguei 80 no mercado". NUNCA use 2 ou 2.00 para valores em reais.')
           const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
             method: 'POST',
             headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },

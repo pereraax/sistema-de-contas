@@ -423,9 +423,10 @@ export async function processPlenWhatsAppMessage(
           }
         }
         const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
-        // Texto tem 400/quatrocentos mas extrator devolveu 200 — corrigir
-        if (completo.tipo === 'saida' && valorFinal === 200 && /\b(400|quatrocentos)\b/i.test(msgForRegistro)) {
-          valorFinal = 400
+        // Texto tem 400/450/quatrocentos (ou quatrocentos e cinquenta) mas extrator devolveu 200 — corrigir
+        if (completo.tipo === 'saida' && valorFinal === 200 && /\b(400|450|quatrocentos|quatrocentos e cinquenta)\b/i.test(msgForRegistro)) {
+          if (/\b(450|quatrocentos e cinquenta)\b/i.test(msgForRegistro)) valorFinal = 450
+          else valorFinal = 400
           if (/\broupas?\b/i.test(msgForRegistro)) nomeFinal = 'Roupas'
         }
         // NUNCA aceitar R$ 2,00 em gasto — transcrição costuma errar (400 → 2); não inventar número
@@ -452,10 +453,10 @@ export async function processPlenWhatsAppMessage(
             }
           }
         }
-        // Transcrição/extração às vezes devolve 200 quando a pessoa disse 400 (ex.: "gastei 400 com roupas") — corrigir pelo contexto
+        // Transcrição/extração às vezes devolve 200 quando a pessoa disse 450 (ex.: "gastei 450 com roupas") — corrigir pelo contexto
         if (completo.tipo === 'saida' && valorFinal === 200 && temContextoValorAlto) {
           if (/\broupas?\b/i.test(msgForRegistro)) {
-            valorFinal = 400
+            valorFinal = 450
             if (nomeFinal === 'Outros' || nomeFinal === 'Gasto') nomeFinal = 'Roupas'
           } else if (/\bmercado|supermercado|compras\b/i.test(msgForRegistro)) {
             valorFinal = 150
