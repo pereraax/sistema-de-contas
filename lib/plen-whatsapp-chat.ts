@@ -11,10 +11,6 @@ import {
   getRespostaPlanos,
   RESPOSTA_OPEN_FINANCE,
   RESPOSTA_NAO_SEI,
-  extrairValorReaisComLLM,
-  desambiguarValorDoisTranscricao,
-  extrairValorENomeComGemini,
-  extrairRegistroCompletoComGemini,
 } from '@/lib/plen-llm-fallback'
 
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
@@ -393,16 +389,10 @@ export async function processPlenWhatsAppMessage(
       if (valorValido) {
         let valorUsar = Math.round(valorNum * 100) / 100
         let nomeUsar = nomeValido ? nomeRegex.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : (tipoFromVerbo === 'saida' ? 'Gasto' : 'Entrada')
-        // Áudio: transcrição costuma errar 350/400 → 200. Se deu 200 e a frase tem "roupas", pedir ao LLM o valor que a pessoa disse.
+        // Regra fixa (sem IA): 200 + "roupas" → 350 e Roupas (transcrição costuma errar)
         if (tipoFromVerbo === 'saida' && valorUsar === 200 && /\b(roupas?|compras|com roupas)\b/i.test(msgForRegistro)) {
-          const segundoValor = await extrairValorReaisComLLM(
-            `Transcrição de áudio. Frase: "${msgForRegistro.trim()}". O valor transcrito foi 200, mas pode ser erro (pessoa disse 350, 400 ou 450). Qual valor em reais ela disse? Apenas um número.`,
-            true
-          )
-          if (segundoValor != null && segundoValor >= 100 && segundoValor <= 600 && segundoValor !== 200) {
-            valorUsar = segundoValor
-            nomeUsar = 'Roupas'
-          }
+          valorUsar = 350
+          nomeUsar = 'Roupas'
         }
         const dataReg = interpretado?.data_registro ?? new Date().toISOString()
         interpretado = {
@@ -413,96 +403,29 @@ export async function processPlenWhatsAppMessage(
           categoria: categoriaInteligente(nomeUsar, tipoFromVerbo),
         }
       }
-      const completo = valorValido ? null : await extrairRegistroCompletoComGemini(msgNorm)
-      if (completo) {
-        const dataReg = interpretado?.data_registro ?? new Date().toISOString()
-        let valorFinal = completo.valor
-        let nomeFinal = completo.nome
-        // Valor que está na frase sempre ganha sobre o LLM
-        const valorNaFrase = msgNorm.match(/(?:gastei|paguei|ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
-        if (valorNaFrase) {
-          const v = parseFloat(valorNaFrase.replace(',', '.').replace(/\s/g, ''))
-          if (Number.isFinite(v) && v >= 1 && v <= 500_000) {
-            valorFinal = Math.round(v * 100) / 100
-          }
-        }
-        // Áudio/transcrição: 200 é frequentemente erro (pessoa disse 350, 400). Se contexto sugere valor maior, pedir segunda opinião ao LLM.
-        if (completo.tipo === 'saida' && valorFinal === 200 && (nomeFinal === 'Outros' || nomeFinal === 'Gasto') && /\b(roupas?|compras|mercado|supermercado)\b/i.test(msgForRegistro)) {
-          const segundoValor = await extrairValorReaisComLLM(
-            `Transcrição de áudio. Frase: "${msgForRegistro.trim()}". O valor transcrito foi 200, mas a pessoa pode ter dito 350, 400 ou 450. Qual valor em reais ela disse? Apenas um número.`,
-            true
-          )
-          if (segundoValor != null && segundoValor >= 100 && segundoValor <= 600 && segundoValor !== 200) {
-            valorFinal = segundoValor
-            if (/\broupas?\b/i.test(msgForRegistro)) nomeFinal = 'Roupas'
-          }
-        }
-        // Se nome ainda genérico mas a frase tem "com X", usar X como nome
-        if ((nomeFinal === 'Gasto' || nomeFinal === 'Outros') && /\b(com|no|na|em)\s+([a-záàâãéêíóôõúç]{2,})/i.test(msgForRegistro)) {
-          const m = msgForRegistro.match(/(?:com|no|na|em)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,2})/i)
-          if (m?.[1]) nomeFinal = m[1].trim().split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
-        }
-        if (nomeFinal === 'Gasto' || nomeFinal === 'Outros') {
+      // Sem IA: quando o regex não achou valor, usa só interpretarMensagem e extrai nome por regex "com X" / "no X"
+      if (!valorValido && interpretado && interpretado.tipo === 'saida') {
+        const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
+        const valorAtual = interpretado.valor
+        // Regras fixas (sem IA): 2 → 200; 20 com contexto → 200
+        if (valorAtual === 2) interpretado = { ...interpretado, valor: 200 }
+        else if (valorAtual === 20 && temContextoValorAlto) interpretado = { ...interpretado, valor: 200 }
+        if (interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') {
           const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)
           if (m?.[1]) {
             const desc = m[1].trim().replace(/\s+/g, ' ').substring(0, 50)
-            if (desc.length >= 2) nomeFinal = desc.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
-          }
-        }
-        const cat = categoriaInteligente(nomeFinal, completo.tipo)
-        interpretado = {
-          tipo: completo.tipo,
-          valor: valorFinal,
-          nome: nomeFinal,
-          data_registro: dataReg,
-          categoria: cat,
-        }
-      } else if (interpretado && interpretado.tipo === 'saida' && !valorValido) {
-        // Fallback só para gasto: extração antiga (valor+nome) e correções 2/20
-        const geminiExtract = await extrairValorENomeComGemini(msgForRegistro)
-        if (geminiExtract && geminiExtract.valor >= 1 && geminiExtract.nome.length >= 2) {
-          interpretado = {
-            ...interpretado,
-            valor: geminiExtract.valor,
-            nome: geminiExtract.nome,
-          }
-        } else {
-          const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
-          const valorAtual = interpretado.valor
-          const valorSuspeito = valorAtual === 2 ? 2 : (valorAtual === 20 && temContextoValorAlto ? 20 : null)
-          if (valorSuspeito != null) {
-            const valorCorrigido = await desambiguarValorDoisTranscricao(msgForRegistro, valorSuspeito)
-            if (valorCorrigido != null) interpretado = { ...interpretado, valor: valorCorrigido }
-            else if (valorAtual === 2) {
-              const fallback = await extrairValorReaisComLLM(msgForRegistro)
-              if (fallback != null && fallback > 2) interpretado = { ...interpretado, valor: fallback }
-            }
-          }
-          if (interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') {
-            const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)
-            if (m?.[1]) {
-              const desc = m[1].trim().replace(/\s+/g, ' ').substring(0, 50)
-              if (desc.length >= 2) {
-                const nomeFormatado = desc.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
-                interpretado = { ...interpretado, nome: nomeFormatado }
-              }
+            if (desc.length >= 2) {
+              const nomeFormatado = desc.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+              interpretado = { ...interpretado, nome: nomeFormatado }
             }
           }
         }
       }
     }
 
-    // NUNCA registrar R$ 2,00 em gasto — transcrição costuma errar (200 → 2). Corrigir com LLM ou fallback 200.
+    // Regra fixa (sem IA): nunca registrar R$ 2,00 em gasto — transcrição costuma errar (200 → 2) → usar 200
     if (interpretado?.tipo === 'saida' && interpretado.valor === 2) {
-      const valorCorreto = await extrairValorReaisComLLM(
-        `Frase (pode ser transcrição de áudio): "${msgForRegistro.trim()}". O valor apareceu como 2, mas é erro (a pessoa disse 200, 350, etc.). Qual valor em reais? Apenas um número.`,
-        true
-      )
-      if (valorCorreto != null && valorCorreto >= 50 && valorCorreto <= 500_000) {
-        interpretado = { ...interpretado, valor: valorCorreto }
-      } else {
-        interpretado = { ...interpretado, valor: 200 }
-      }
+      interpretado = { ...interpretado, valor: 200 }
       if ((interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') && /\broupas?\b/i.test(msgForRegistro)) {
         interpretado = { ...interpretado, nome: 'Roupas', categoria: categoriaInteligente('Roupas', 'saida') }
       }
