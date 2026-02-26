@@ -345,6 +345,8 @@ async function processarEmBackground(parsed: {
 }
 
 export async function POST(request: NextRequest) {
+  // Responder 200 o mais cedo possível para a API Fácil não marcar como Pendente (timeout ~10–30s)
+  let parsed: { from: string; text?: string; media?: { type: 'audio'; url: string; mimetype: string } | { type: 'image'; url: string; mimetype: string; caption?: string } } | null = null
   try {
     const apifacilConfigured = isApifacilConfigured()
     console.log('📨 [Apifacil Webhook] WEBHOOK CHAMADO | APIFACIL configurado:', apifacilConfigured)
@@ -393,7 +395,7 @@ export async function POST(request: NextRequest) {
       console.log('📨 [Apifacil Webhook] ÁUDIO detectado no tipo_envio. url_media?', !!urlMedia, 'mensagem é URL?', mensagemEhUrl)
     }
 
-    let parsed = parseWebhookBodyWithMedia(bodyToParse)
+    parsed = parseWebhookBodyWithMedia(bodyToParse)
     if (!parsed) {
       const fallback = parseWebhookBody(bodyToParse)
       if (fallback) parsed = { from: fallback.from, text: fallback.text }
@@ -446,10 +448,10 @@ export async function POST(request: NextRequest) {
     })
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('❌ [Apifacil Webhook] Erro:', err)
-    return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : 'Erro interno' },
-      { status: 500 }
-    )
+    console.error('❌ [Apifacil Webhook] Erro (retornando 200 para API Fácil não marcar Pendente):', err)
+    if (parsed) {
+      processarEmBackground(parsed).catch((e) => console.error('❌ [Apifacil Webhook] Erro em background após catch:', e))
+    }
+    return NextResponse.json({ success: true })
   }
 }
