@@ -15,7 +15,6 @@ import {
   desambiguarValorDoisTranscricao,
   extrairValorENomeComGemini,
   extrairRegistroCompletoComGemini,
-  inferirValorGastoTranscricaoIncerteza,
 } from '@/lib/plen-llm-fallback'
 
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
@@ -32,11 +31,6 @@ Em seguida explique: o que foi, qual data e horário (se for lembrete). Exemplos
 • "Me lembre de pagar conta de água amanhã"
 • "Gastei 50 reais no mercado"
 • "Tenho uma dívida de 200 reais no cartão"`
-
-/** Resposta quando áudio não foi entendido. */
-export const RESPOSTA_AUDIO_NAO_ENTENDI = `Oops, não consegui entender o áudio 😅
-
-Diga com mais clareza e perto do microfone para eu entender melhor seu pedido. Se preferir, pode digitar a mensagem.`
 
 export type ProcessPlenWhatsAppResult = { response: string }
 
@@ -380,33 +374,13 @@ export async function processPlenWhatsAppMessage(
     const { msgForRegistro, targetUserName: usuarioNaFrase } = extrairUsuarioNaMensagem(primeiraLinha)
     const nomeOutroUsuario = usuarioNaFrase ?? (linhas.length > 1 ? linhas[1] : null)
 
-    // Registro já extraído do áudio (Gemini direto): usar sem reextrair (evita virar 200/Outros)
-    const isAudioPreExtraido = msgForRegistro.startsWith('__PLEN_AUDIO__\t')
-    let interpretado: { tipo: 'saida' | 'entrada'; valor: number; nome: string; data_registro: string; categoria: string } | null = null
-    if (isAudioPreExtraido) {
-      const parts = msgForRegistro.split('\t')
-      if (parts.length >= 4) {
-        const [, tipo, valorStr, ...nomeParts] = parts
-        const nome = nomeParts.join('\t').trim()
-        const valor = parseFloat(valorStr)
-        if ((tipo === 'saida' || tipo === 'entrada') && Number.isFinite(valor) && valor >= 1 && nome) {
-          interpretado = {
-            tipo: tipo as 'saida' | 'entrada',
-            valor,
-            nome: nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase(),
-            data_registro: new Date().toISOString(),
-            categoria: categoriaInteligente(nome, tipo as 'saida' | 'entrada'),
-          }
-        }
-      }
-    }
-    if (!interpretado) interpretado = interpretarMensagem(msgForRegistro)
+    let interpretado: { tipo: 'saida' | 'entrada'; valor: number; nome: string; data_registro: string; categoria: string } | null = interpretarMensagem(msgForRegistro)
 
     const temVerboRegistro = /(?:gastei|paguei|recebi|ganhei|gastou|pagou|recebeu|ganhou)/i.test(msgForRegistro)
     const fraseCurta = msgForRegistro.trim().length <= 120
 
-    // Qualquer pedido por áudio/texto curto: extração (tipo + valor + nome). Regex primeiro quando possível.
-    if (!isAudioPreExtraido && temVerboRegistro && fraseCurta) {
+    // Pedido de registro (texto curto): extração por regex primeiro, LLM quando necessário.
+    if (temVerboRegistro && fraseCurta) {
       const msgNorm = normalizarNumerosPorExtenso(msgForRegistro)
       // SOLUÇÃO DEFINITIVA: extrair valor e nome por REGEX da frase (não depender do LLM)
       const valorRegex = msgNorm.match(/(?:gastei|paguei|ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
@@ -417,13 +391,8 @@ export async function processPlenWhatsAppMessage(
       const nomeValido = nomeRegex && nomeRegex.length >= 2
       // Se regex já achou valor (e opcionalmente nome), usar e só chamar LLM se faltar algo
       if (valorValido) {
-        let valorUsar = Math.round(valorNum * 100) / 100
-        let nomeUsar = nomeValido ? nomeRegex.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : (tipoFromVerbo === 'saida' ? 'Gasto' : 'Entrada')
-        if (tipoFromVerbo === 'saida' && valorUsar === 200 && /\broupas?\b/i.test(msgForRegistro)) {
-          valorUsar = 350
-          nomeUsar = 'Roupas'
-        }
-        if (/\broupas?\b/i.test(msgForRegistro)) nomeUsar = 'Roupas'
+        const valorUsar = Math.round(valorNum * 100) / 100
+        const nomeUsar = nomeValido ? nomeRegex.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : (tipoFromVerbo === 'saida' ? 'Gasto' : 'Entrada')
         const dataReg = interpretado?.data_registro ?? new Date().toISOString()
         interpretado = {
           tipo: tipoFromVerbo,
@@ -433,12 +402,12 @@ export async function processPlenWhatsAppMessage(
           categoria: categoriaInteligente(nomeUsar, tipoFromVerbo),
         }
       }
-      const completo = interpretado ? null : await extrairRegistroCompletoComGemini(msgNorm)
+      const completo = valorValido ? null : await extrairRegistroCompletoComGemini(msgNorm)
       if (completo) {
         const dataReg = interpretado?.data_registro ?? new Date().toISOString()
         let valorFinal = completo.valor
         let nomeFinal = completo.nome
-        // DEFINITIVO: valor que está NA FRASE sempre ganha sobre o LLM (evita 200 fixo quando transcrição/LLM erram)
+        // Valor que está na frase sempre ganha sobre o LLM
         const valorNaFrase = msgNorm.match(/(?:gastei|paguei|ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
         if (valorNaFrase) {
           const v = parseFloat(valorNaFrase.replace(',', '.').replace(/\s/g, ''))
@@ -446,72 +415,17 @@ export async function processPlenWhatsAppMessage(
             valorFinal = Math.round(v * 100) / 100
           }
         }
-        const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
-        // Se extrator devolveu 200 mas a frase tem outro número (ex.: 450, 80), priorizar o número na frase
-        const numeroAposVerbo = msgNorm.match(/(?:gastei|paguei|ganhei|recebi)\s+([\d.,]+)/i)?.[1]
-        if (completo.tipo === 'saida' && valorFinal === 200 && numeroAposVerbo) {
-          const n = parseFloat(numeroAposVerbo.replace(',', '.').replace(/\s/g, ''))
-          if (Number.isFinite(n) && n >= 1 && n <= 500_000 && n !== 200) valorFinal = Math.round(n * 100) / 100
-        }
-        // REGRA DEFINITIVA: "roupas" + 200 → 350 e Roupas (Whisper/LLM costumam errar)
-        if (completo.tipo === 'saida' && valorFinal === 200 && /\broupas?\b/i.test(msgForRegistro)) {
-          valorFinal = 350
-          nomeFinal = 'Roupas'
-        }
         // Se nome ainda genérico mas a frase tem "com X", usar X como nome
         if ((nomeFinal === 'Gasto' || nomeFinal === 'Outros') && /\b(com|no|na|em)\s+([a-záàâãéêíóôõúç]{2,})/i.test(msgForRegistro)) {
           const m = msgForRegistro.match(/(?:com|no|na|em)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,2})/i)
           if (m?.[1]) nomeFinal = m[1].trim().split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
         }
-        // NUNCA aceitar R$ 2,00 em gasto — transcrição costuma errar (400 → 2); não inventar número
-        if (completo.tipo === 'saida' && (valorFinal === 2 || (valorFinal === 20 && temContextoValorAlto))) {
-          const valorCorrigido = await extrairValorReaisComLLM(msgForRegistro)
-          if (valorCorrigido != null && valorCorrigido > 2) valorFinal = valorCorrigido
-          else if (temContextoValorAlto) {
-            if (/\broupas?\b/i.test(msgForRegistro)) valorFinal = 400
-            else if (/\bmercado|supermercado|compras\b/i.test(msgForRegistro)) valorFinal = 150
-            else if (/\brestaurante|lanche|ifood\b/i.test(msgForRegistro)) valorFinal = 80
-            else if (/\bfeira\b/i.test(msgForRegistro)) valorFinal = 50
-            else if (/\bposto|farm[aá]cia\b/i.test(msgForRegistro)) valorFinal = 100
-            else if (/\buber\b/i.test(msgForRegistro)) valorFinal = 25
-            else valorFinal = 100
-          }
-          // Sem contexto = transcrição perdeu valor; inferir valor a partir da frase (sem viés para 400)
-          else {
-            const retryValor = await extrairValorReaisComLLM(msgForRegistro + '. Valores típicos: 50, 80, 100, 150, 200, 300, 400.', true)
-            if (retryValor != null && retryValor > 2) valorFinal = retryValor
-            if (valorFinal === 2 || valorFinal === 20) {
-              const inferido = await inferirValorGastoTranscricaoIncerteza(msgForRegistro)
-              valorFinal = inferido != null ? inferido : 100
-              if (inferido != null && /\broupas?\b/i.test(msgForRegistro)) nomeFinal = 'Roupas'
-            }
-          }
-        }
-        // Segunda opinião: quando deu 200 + Outros/Gasto, perguntar ao LLM o valor (transcrição às vezes troca 350 por 200)
-        if (completo.tipo === 'saida' && valorFinal === 200 && (nomeFinal === 'Outros' || nomeFinal === 'Gasto')) {
-          let segundoValor = await extrairValorReaisComLLM(msgForRegistro + ' Qual valor em reais a pessoa disse? Apenas o número.', true)
-          // Se ainda 200 e a frase tem "roupas", transcrição pode ter confundido 350/450 com 200 — perguntar de novo com contexto
-          if (segundoValor === 200 && /\broupas?\b/i.test(msgForRegistro)) {
-            const vRoupas = await extrairValorReaisComLLM(
-              msgForRegistro + ' Gasto com ROUPAS. Valores comuns: 250, 300, 350, 400, 450. Se a pessoa disse um desses, qual número? Apenas o número.',
-              true
-            )
-            if (vRoupas != null && vRoupas >= 100 && vRoupas <= 600) segundoValor = vRoupas
-          }
-          if (segundoValor != null && segundoValor >= 1 && segundoValor <= 500_000 && segundoValor !== 200) {
-            valorFinal = segundoValor
-          }
-          if (/\broupas?\b/i.test(msgForRegistro)) nomeFinal = 'Roupas'
-        }
         if (nomeFinal === 'Gasto' || nomeFinal === 'Outros') {
-          // Extrair descrição da frase: "com X", "no X", "em X" — até 4 palavras (ex.: conta de luz, posto de gasolina)
           const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)
           if (m?.[1]) {
             const desc = m[1].trim().replace(/\s+/g, ' ').substring(0, 50)
             if (desc.length >= 2) nomeFinal = desc.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
           }
-          // Garantir "Roupas" quando a frase menciona roupas (transcrição pode ter cortado "com roupas")
-          if (/\broupas?\b/i.test(msgForRegistro)) nomeFinal = 'Roupas'
         }
         const cat = categoriaInteligente(nomeFinal, completo.tipo)
         interpretado = {
@@ -556,26 +470,7 @@ export async function processPlenWhatsAppMessage(
       }
     }
 
-    // NUNCA registrar R$ 2,00 em GASTO — última verificação
-    if (interpretado && interpretado.tipo === 'saida' && interpretado.valor === 2) {
-      const temContexto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
-      if (temContexto) {
-        const v = /\broupas?\b/i.test(msgForRegistro) ? 400 : /\bmercado|supermercado|compras\b/i.test(msgForRegistro) ? 150 : /\brestaurante|lanche|ifood\b/i.test(msgForRegistro) ? 80 : /\bfeira\b/i.test(msgForRegistro) ? 50 : /\bposto|farm[aá]cia\b/i.test(msgForRegistro) ? 100 : /\buber\b/i.test(msgForRegistro) ? 25 : 100
-        interpretado = { ...interpretado, valor: v }
-      } else {
-        const ultimaTentativa = await extrairValorReaisComLLM(msgForRegistro + ' Transcrição de áudio de gasto. Valor provável em reais (50 a 500)?', true)
-        if (ultimaTentativa != null && ultimaTentativa >= 50 && ultimaTentativa <= 500) {
-          interpretado = { ...interpretado, valor: ultimaTentativa }
-        } else {
-          const inferido = await inferirValorGastoTranscricaoIncerteza(msgForRegistro)
-          const v = inferido != null ? inferido : 100
-          const nomeRoupas = /\broupas?\b/i.test(msgForRegistro) ? 'Roupas' : (interpretado.nome === 'Gasto' ? interpretado.nome : (interpretado.nome || 'Gasto'))
-          interpretado = { ...interpretado, valor: v, nome: nomeRoupas }
-        }
-      }
-    }
-
-    // Salvaguarda: frase tem "ganhei" ou "recebi" mas interpretado deu gasto (erro de transcrição) → forçar ENTRADA
+    // Salvaguarda: frase tem "ganhei" ou "recebi" mas interpretado deu gasto → forçar ENTRADA
     if (interpretado?.tipo === 'saida' && /\b(ganhei|recebi)\b/i.test(msgForRegistro)) {
       const entVal = msgForRegistro.match(/(?:ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
       const entNum = entVal ? parseFloat(entVal.replace(',', '.')) : NaN
