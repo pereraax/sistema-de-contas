@@ -453,12 +453,21 @@ export async function processPlenWhatsAppMessage(
             }
           }
         }
-        // Segunda opinião: quando deu 200 + Outros/Gasto e não há outro número na frase, perguntar ao LLM o valor
+        // Segunda opinião: quando deu 200 + Outros/Gasto, perguntar ao LLM o valor (transcrição às vezes troca 350 por 200)
         if (completo.tipo === 'saida' && valorFinal === 200 && (nomeFinal === 'Outros' || nomeFinal === 'Gasto')) {
-          const segundoValor = await extrairValorReaisComLLM(msgForRegistro + ' Qual valor em reais a pessoa disse? Apenas o número.', true)
+          let segundoValor = await extrairValorReaisComLLM(msgForRegistro + ' Qual valor em reais a pessoa disse? Apenas o número.', true)
+          // Se ainda 200 e a frase tem "roupas", transcrição pode ter confundido 350/450 com 200 — perguntar de novo com contexto
+          if (segundoValor === 200 && /\broupas?\b/i.test(msgForRegistro)) {
+            const vRoupas = await extrairValorReaisComLLM(
+              msgForRegistro + ' Gasto com ROUPAS. Valores comuns: 250, 300, 350, 400, 450. Se a pessoa disse um desses, qual número? Apenas o número.',
+              true
+            )
+            if (vRoupas != null && vRoupas >= 100 && vRoupas <= 600) segundoValor = vRoupas
+          }
           if (segundoValor != null && segundoValor >= 1 && segundoValor <= 500_000 && segundoValor !== 200) {
             valorFinal = segundoValor
           }
+          if (/\broupas?\b/i.test(msgForRegistro)) nomeFinal = 'Roupas'
         }
         if (nomeFinal === 'Gasto' || nomeFinal === 'Outros') {
           // Extrair descrição da frase: "com X", "no X", "em X" — até 4 palavras (ex.: conta de luz, posto de gasolina)
@@ -467,6 +476,8 @@ export async function processPlenWhatsAppMessage(
             const desc = m[1].trim().replace(/\s+/g, ' ').substring(0, 50)
             if (desc.length >= 2) nomeFinal = desc.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
           }
+          // Garantir "Roupas" quando a frase menciona roupas (transcrição pode ter cortado "com roupas")
+          if (/\broupas?\b/i.test(msgForRegistro)) nomeFinal = 'Roupas'
         }
         const cat = categoriaInteligente(nomeFinal, completo.tipo)
         interpretado = {

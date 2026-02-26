@@ -1479,8 +1479,10 @@ async function transcribeAudioWithGroq(audioBuffer: Buffer, mimeType: string): P
           formData.append('model', model)
           formData.append('language', 'pt')
           formData.append('response_format', 'json')
-          // Genérico: qualquer pedido de registro — valor em algarismos e frase completa (com X, no Y)
-          formData.append('prompt', 'Transcrição em português: pessoa registrando GASTO (gastei, paguei) ou ENTRADA (ganhei, recebi) em reais. Regras: 1) VALORES sempre em algarismos completos (ex.: 50, 80, 200, 450, 1200) — nunca use 2 ou 2,00 para valores em reais. 2) Mantenha a frase completa incluindo a descrição: "com roupas", "no mercado", "em eletrônicos", "de mãe", etc. Exemplos: "gastei 50 no mercado", "paguei 450 com roupas", "recebi 300 de João".')
+          // Valor EXATO que a pessoa disse — 200, 350, 450 são comuns; Whisper às vezes confunde 350 com 200
+          formData.append('prompt', `Transcrição em português: pessoa registrando GASTO ou ENTRADA em reais.
+VALORES: escreva o número EXATO em algarismos. "duzentos"/"200" → 200. "trezentos e cinquenta"/"350" → 350. "quatrocentos e cinquenta"/"450" → 450. "quatrocentos"/"400" → 400. NUNCA use 2 ou 2,00 para reais.
+Mantenha a frase inteira: "com roupas", "no mercado", etc. Exemplos corretos: "gastei 350 com roupas", "gastei 200 no mercado", "paguei 450 com roupas".`)
           const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
             method: 'POST',
             headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
