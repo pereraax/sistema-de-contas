@@ -38,7 +38,11 @@ Para o nosso servidor **baixar o áudio e transcrever com Gemini**, o webhook pr
    - **tem_url_media** = true só se tiver URL de áudio.
    - **mensagem_preview** = o que veio em "mensagem" (texto ou URL).
 
-Se **tipo_envio** não for AUDIO_RECEBIDO e **tem_url_media** for false, a API não está enviando o áudio; o próximo passo é conferir no painel da API Fácil ou falar com o suporte.
+Se **tipo_envio** não for AUDIO_RECEBIDO e **tem_url_media** for false, a API pode estar **bloqueando** o envio de áudio (campo `tipos_envio` na configuração). **Correção automática:** o sistema tenta corrigir isso na primeira vez que recebe um texto "paguei 2.00" em vez de áudio. Você também pode forçar a correção chamando:
+
+- **GET ou POST** `https://seu-dominio.com/api/whatsapp/apifacil/ensure-audio-config`
+
+Isso remove `AUDIO_RECEBIDO` e `IMAGEM_RECEBIDA` da lista de tipos bloqueados na API Fácil, e o webhook passará a receber áudio. Se ainda assim não vier áudio, confira no painel da API Fácil ou fale com o suporte.
 
 ---
 
@@ -62,3 +66,39 @@ Se **tipo_envio** não for AUDIO_RECEBIDO e **tem_url_media** for false, a API n
      - O aviso em amarelo se continuar vindo só texto "paguei 2.00".
 
 Assim dá para saber **exatamente** o que a API está enviando e o que falta (tipo_envio de áudio e/ou URL do áudio) para o Gemini transcrever.
+
+---
+
+## Onde ver isso na API Fácil
+
+### Via API (endpoints)
+
+1. **Configuração da instância e tipos de envio**
+   - **GET** `https://apifacil.dev/api/v1/whatsapp/instancia/{id}/detalhes`
+   - Header: `Authorization: seu_token`
+   - Na resposta, em `data.configuracao.config_json` aparece o objeto `tipos_envio`.
+   - **Importante:** Na API Fácil, `tipos_envio` é a lista de tipos que você **bloqueia** (não quer receber). Se `AUDIO_RECEBIDO` estiver nessa lista, o webhook **não** recebe áudio. Para receber áudio, **não** inclua `AUDIO_RECEBIDO` em `tipos_envio` (ou remova se estiver).
+   - Valores possíveis citados na doc: `MENSAGEM_ENVIADA`, `MENSAGEM_RECEBIDA`, `ERRO_PROCESSAMENTO`, `MENSAGEM_GRUPO_RECEBIDO`, **`AUDIO_RECEBIDO`**, `IMAGEM_RECEBIDA`, `VIDEO_RECEBIDO`, `DOCUMENTO_RECEBIDO`.
+
+2. **Alterar a configuração (para passar a receber áudio)**
+   - **PUT** `https://apifacil.dev/api/v1/whatsapp/configuracao/{id}`
+   - Body (exemplo): envie apenas o que quiser atualizar. Para **não** bloquear áudio, não inclua `AUDIO_RECEBIDO` em `tipos_envio`. Exemplo só com outros bloqueios:
+   ```json
+   {
+     "tipos_envio": ["MENSAGEM_ENVIADA", "MENSAGEM_RECEBIDA"]
+   }
+   ```
+   - Assim você continua recebendo `AUDIO_RECEBIDO` (e imagem, etc.) no webhook.
+
+3. **Reprocessar um webhook (teste)**
+   - **POST** `https://apifacil.dev/api/v1/whatsapp/notificacao/reprocessar-webhook`
+   - Body: `{ "id": 123456 }` (o ID da notificação).
+   - O ID da notificação costuma aparecer no **painel** (histórico de notificações).
+
+### No painel (site apifacil.dev)
+
+- Entre no painel da API Fácil e abra a **instância** que você usa.
+- Procure por:
+  - **Configuração / Config. Webhook** → URL do webhook e opções avançadas (equivalente ao que a API retorna em “detalhes da instância”).
+  - **Notificações** ou **Histórico de webhooks** ou **Payload enviado** → lista de notificações enviadas ao seu webhook; ao clicar em uma notificação (ex.: a da mensagem de áudio), você vê o **payload** que foi enviado (`tipo_envio`, `mensagem`, `url_media`, etc.). É aí que você confere se veio `AUDIO_RECEBIDO` e se existe URL do áudio.
+- Se no painel não houver “Payload enviado” ou “Histórico”, use os **logs do seu servidor** (busca por `APIFACIL_WEBHOOK_PAYLOAD`) como na seção “Ver no nosso servidor o que a API Fácil enviou” acima.

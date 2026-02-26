@@ -18,7 +18,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
+import { ensureAudioWebhookEnabled } from '@/lib/whatsapp-apifacil-config'
 import { detectMedia, processComprovanteImage, downloadMedia, transcribeAudio } from '@/lib/whatsapp-media-processor'
+
+/** Uma vez por deploy: ao detectar texto "paguei 2.00" em vez de áudio, tenta corrigir tipos_envio na API Fácil. */
+let audioConfigFixTried = false
 
 /** Formato esperado pelo processWhatsAppMessage (Baileys/Evolution style) */
 function buildPlenMessage(from: string, text: string): {
@@ -448,9 +452,19 @@ export async function POST(request: NextRequest) {
     const textPreview = parsed.text ? parsed.text.slice(0, 80) : parsed.media ? `[${parsed.media.type}]` : ''
     console.log('📨 [Apifacil Webhook] MENSAGEM RECEBIDA:', { from, textPreview, mediaType: parsed.media?.type })
 
-    // Diagnóstico: quando veio TEXTO e não áudio, e o texto parece transcrição errada ("paguei 2.00"), avisar
+    // Diagnóstico: quando veio TEXTO e não áudio, e o texto parece transcrição errada ("paguei 2.00"), avisar e tentar corrigir config uma vez
     if (parsed.text && !parsed.media && /^(gastei|paguei)\s+2(\.00)?\s*$/i.test(parsed.text.trim())) {
-      console.warn('⚠️ [Apifacil Webhook] PROBLEMA: recebemos TEXTO "' + parsed.text.trim() + '" em vez de ÁUDIO. A API Fácil não enviou o arquivo de áudio (tipo_envio foi:', tipoEnvio, '| payload_keys:', payloadKeys.join(', ') || '—', '). Para o Gemini transcrever, o webhook precisa receber tipo_envio AUDIO_RECEBIDO e a URL do áudio (url_media ou mensagem com URL). Verifique na documentação/suporte da API Fácil como receber o áudio em mensagens de voz.')
+      console.warn('⚠️ [Apifacil Webhook] PROBLEMA: recebemos TEXTO "' + parsed.text.trim() + '" em vez de ÁUDIO. tipo_envio=', tipoEnvio, '| payload_keys=', payloadKeys.join(', ') || '—')
+      if (!audioConfigFixTried && isApifacilConfigured()) {
+        audioConfigFixTried = true
+        ensureAudioWebhookEnabled()
+          .then((r) => {
+            if (r.updated) console.log('✅ [Apifacil Webhook] Configuração corrigida: webhook passará a receber áudio. tipos_envio:', r.tipos_envio_depois)
+            else if (r.success) console.log('📋 [Apifacil Webhook] Config já permitia áudio. tipos_envio:', r.tipos_envio_antes)
+            else console.warn('⚠️ [Apifacil Webhook] Não foi possível ajustar config áudio:', r.error)
+          })
+          .catch((e) => console.warn('⚠️ [Apifacil Webhook] Erro ao ajustar config áudio:', e))
+      }
     }
 
     // Em localhost: só processar se WHATSAPP_TEST_NUMBERS estiver definido e o número estiver na lista

@@ -91,11 +91,17 @@ export async function configurarWebhookApifacil(webhookUrl: string) {
         
         if (response.ok) {
           console.log(`✅ [Apifacil Config] Webhook configurado com sucesso via ${endpoint.name}!`)
+          // Garantir que áudio (e imagem) não estejam bloqueados em tipos_envio
+          const audioFix = await ensureAudioWebhookEnabled()
+          if (audioFix.updated) {
+            console.log('✅ [Apifacil Config] Configuração de áudio/imagem corrigida:', audioFix.tipos_envio_depois)
+          }
           return {
             success: true,
             message: 'Webhook configurado com sucesso!',
             data: responseData,
             endpoint: endpoint.name,
+            audioConfig: audioFix.updated ? 'atualizado para receber áudio/imagem' : undefined,
           }
         }
         
@@ -126,6 +132,99 @@ export async function configurarWebhookApifacil(webhookUrl: string) {
       success: false,
       error: error.message || 'Erro ao configurar webhook',
     }
+  }
+}
+
+/**
+ * Obter detalhes da instância (inclui configuracao.config_json.tipos_envio)
+ * GET /api/v1/whatsapp/instancia/{id}/detalhes
+ */
+export async function getInstanceDetails(): Promise<{
+  success: boolean
+  data?: { instancia?: unknown; configuracao?: { config_json?: { tipos_envio?: string[] } } }
+  error?: string
+}> {
+  const config = getApifacilConfig()
+  if (!config) {
+    return { success: false, error: 'Apifacil não está configurado' }
+  }
+  try {
+    const url = `${APIFACIL_BASE_URL}/whatsapp/instancia/${config.instanceId}/detalhes`
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { Authorization: config.token, 'Content-Type': 'application/json' },
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      return { success: false, error: data?.message || `Erro ${response.status}` }
+    }
+    return { success: true, data: data?.data ?? data }
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Erro ao obter detalhes' }
+  }
+}
+
+/**
+ * Garantir que o webhook receba áudio (e imagem): remove AUDIO_RECEBIDO e IMAGEM_RECEBIDA
+ * da lista de tipos bloqueados (tipos_envio) na API Fácil.
+ * Na API Fácil, tipos_envio = tipos que você NÃO quer receber; se AUDIO_RECEBIDO estiver lá, o webhook não recebe áudio.
+ */
+export async function ensureAudioWebhookEnabled(): Promise<{
+  success: boolean
+  message?: string
+  updated?: boolean
+  tipos_envio_antes?: string[]
+  tipos_envio_depois?: string[]
+  error?: string
+}> {
+  const config = getApifacilConfig()
+  if (!config) {
+    return { success: false, error: 'Apifacil não está configurado' }
+  }
+  try {
+    const details = await getInstanceDetails()
+    if (!details.success || !details.data) {
+      return { success: false, error: details.error || 'Não foi possível obter detalhes da instância' }
+    }
+    const configuracao = details.data.configuracao
+    const configJson = configuracao?.config_json
+    const tiposAtuais: string[] = Array.isArray(configJson?.tipos_envio) ? [...configJson.tipos_envio] : []
+    const bloqueadosParaReceber = ['AUDIO_RECEBIDO', 'IMAGEM_RECEBIDA']
+    const precisaRemover = bloqueadosParaReceber.filter((t) => tiposAtuais.includes(t))
+    if (precisaRemover.length === 0) {
+      return {
+        success: true,
+        message: 'Webhook já está configurado para receber áudio e imagem.',
+        updated: false,
+        tipos_envio_antes: tiposAtuais,
+        tipos_envio_depois: tiposAtuais,
+      }
+    }
+    const tiposNovos = tiposAtuais.filter((t) => !bloqueadosParaReceber.includes(t))
+    const url = `${APIFACIL_BASE_URL}/whatsapp/configuracao/${config.instanceId}`
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: { Authorization: config.token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipos_envio: tiposNovos }),
+    })
+    const resData = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      return {
+        success: false,
+        error: resData?.message || resData?.error || `Erro ${response.status}`,
+        tipos_envio_antes: tiposAtuais,
+      }
+    }
+    console.log('✅ [Apifacil Config] tipos_envio atualizado para receber áudio/imagem:', tiposAtuais, '→', tiposNovos)
+    return {
+      success: true,
+      message: 'Configuração atualizada: webhook passará a receber áudio e imagem.',
+      updated: true,
+      tipos_envio_antes: tiposAtuais,
+      tipos_envio_depois: tiposNovos,
+    }
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Erro ao atualizar configuração' }
   }
 }
 
