@@ -423,11 +423,11 @@ export async function processPlenWhatsAppMessage(
           }
         }
         const temContextoValorAlto = /(?:roupas?|mercado|restaurante|supermercado|compras|feira|posto|farm[aá]cia|lanche|uber|ifood)/i.test(msgForRegistro)
-        // Texto tem 400/450/quatrocentos (ou quatrocentos e cinquenta) mas extrator devolveu 200 — corrigir
-        if (completo.tipo === 'saida' && valorFinal === 200 && /\b(400|450|quatrocentos|quatrocentos e cinquenta)\b/i.test(msgForRegistro)) {
-          if (/\b(450|quatrocentos e cinquenta)\b/i.test(msgForRegistro)) valorFinal = 450
-          else valorFinal = 400
-          if (/\broupas?\b/i.test(msgForRegistro)) nomeFinal = 'Roupas'
+        // Se extrator devolveu 200 mas a frase tem outro número (ex.: 450, 80), priorizar o número na frase
+        const numeroAposVerbo = msgNorm.match(/(?:gastei|paguei|ganhei|recebi)\s+([\d.,]+)/i)?.[1]
+        if (completo.tipo === 'saida' && valorFinal === 200 && numeroAposVerbo) {
+          const n = parseFloat(numeroAposVerbo.replace(',', '.').replace(/\s/g, ''))
+          if (Number.isFinite(n) && n >= 1 && n <= 500_000 && n !== 200) valorFinal = Math.round(n * 100) / 100
         }
         // NUNCA aceitar R$ 2,00 em gasto — transcrição costuma errar (400 → 2); não inventar número
         if (completo.tipo === 'saida' && (valorFinal === 2 || (valorFinal === 20 && temContextoValorAlto))) {
@@ -453,20 +453,7 @@ export async function processPlenWhatsAppMessage(
             }
           }
         }
-        // Transcrição/extração às vezes devolve 200 quando a pessoa disse 450 (ex.: "gastei 450 com roupas") — corrigir pelo contexto
-        if (completo.tipo === 'saida' && valorFinal === 200 && temContextoValorAlto) {
-          if (/\broupas?\b/i.test(msgForRegistro)) {
-            valorFinal = 450
-            if (nomeFinal === 'Outros' || nomeFinal === 'Gasto') nomeFinal = 'Roupas'
-          } else if (/\bmercado|supermercado|compras\b/i.test(msgForRegistro)) {
-            valorFinal = 150
-            if (nomeFinal === 'Outros' || nomeFinal === 'Gasto') nomeFinal = 'Mercado'
-          } else if (/\brestaurante|lanche|ifood\b/i.test(msgForRegistro)) {
-            valorFinal = 80
-          } else if (/\bfeira\b/i.test(msgForRegistro)) valorFinal = 50
-          else if (/\bposto|farm[aá]cia\b/i.test(msgForRegistro)) valorFinal = 100
-        }
-        // Segunda opinião: quando deu 200 + Outros/Gasto, perguntar de novo ao LLM o valor (evita fixar 200 errado)
+        // Segunda opinião: quando deu 200 + Outros/Gasto e não há outro número na frase, perguntar ao LLM o valor
         if (completo.tipo === 'saida' && valorFinal === 200 && (nomeFinal === 'Outros' || nomeFinal === 'Gasto')) {
           const segundoValor = await extrairValorReaisComLLM(msgForRegistro + ' Qual valor em reais a pessoa disse? Apenas o número.', true)
           if (segundoValor != null && segundoValor >= 1 && segundoValor <= 500_000 && segundoValor !== 200) {
@@ -474,8 +461,8 @@ export async function processPlenWhatsAppMessage(
           }
         }
         if (nomeFinal === 'Gasto' || nomeFinal === 'Outros') {
-          // Extrair descrição da frase: "com roupas", "no mercado", "em conta de luz" (até 2 palavras)
-          const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+)?)(?:\s|$|,|\.)/i)
+          // Extrair descrição da frase: "com X", "no X", "em X" — até 4 palavras (ex.: conta de luz, posto de gasolina)
+          const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)
           if (m?.[1]) {
             const desc = m[1].trim().replace(/\s+/g, ' ').substring(0, 50)
             if (desc.length >= 2) nomeFinal = desc.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
@@ -511,11 +498,12 @@ export async function processPlenWhatsAppMessage(
             }
           }
           if (interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') {
-            const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
+            const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)
             if (m?.[1]) {
-              const desc = m[1].trim()
-              if (desc.length >= 2 && desc.length <= 50) {
-                interpretado = { ...interpretado, nome: desc.charAt(0).toUpperCase() + desc.slice(1).toLowerCase() }
+              const desc = m[1].trim().replace(/\s+/g, ' ').substring(0, 50)
+              if (desc.length >= 2) {
+                const nomeFormatado = desc.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+                interpretado = { ...interpretado, nome: nomeFormatado }
               }
             }
           }

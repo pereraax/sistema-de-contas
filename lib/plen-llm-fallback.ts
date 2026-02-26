@@ -227,9 +227,12 @@ Responda APENAS um número. Se a frase tem "roupas", responda 300. Caso contrár
   return null
 }
 
-const PROMPT_REGISTRO_COMPLETO = `Esta frase é de alguém registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais. Pode ser transcrição de áudio (às vezes curta ou incompleta).
-Identifique: 1) TIPO: "gasto" se gastou/pagou; "entrada" se recebeu/ganhou. 2) VALOR: o número em reais que a pessoa disse. 3) NOME: descrição do que foi (ex: roupas, mercado, posto, mãe) — se a frase não tiver descrição, use "Gasto" ou "Entrada".
-Use o valor que a pessoa mencionou. Se a frase for só "paguei 200" ou "gastei 50", extraia esse valor e NOME: Gasto. Se tiver "no mercado", "com roupas", "de mãe", use isso como NOME.
+const PROMPT_REGISTRO_COMPLETO = `Esta frase é de alguém registrando um GASTO (gastei, paguei) ou uma ENTRADA (ganhei, recebi) em reais. Pode ser transcrição de áudio.
+Extraia EXATAMENTE o que a pessoa disse:
+1) TIPO: "gasto" se gastou/pagou; "entrada" se recebeu/ganhou.
+2) VALOR: o número em reais que a pessoa disse (qualquer valor: 30, 80, 150, 450, 1200, etc.).
+3) NOME: a descrição/categoria — use o que vier na frase: "com X" (ex.: com roupas, com eletrônicos), "no X" (no mercado, no posto), "em X" (em conta de luz), "de X" (de mãe). Se não tiver descrição, use "Gasto" ou "Entrada".
+Não invente valor nem descrição. "Gastei 450 com roupas" → valor 450, nome Roupas. "Paguei 80 no mercado" → 80, Mercado. "Recebi 200 de João" → 200, João.
 Responda EXATAMENTE: TIPO: gasto ou entrada | VALOR: (número) | NOME: (descrição)
 Frase: `
 
@@ -319,9 +322,9 @@ export async function extrairRegistroCompletoComGemini(
   return null
 }
 
-const PROMPT_VALOR_NOME_GASTO = `Esta frase é uma transcrição de áudio de alguém registrando um gasto em reais.
-Extraia o VALOR em reais (o número que a pessoa disse) e a DESCRIÇÃO/NOME (ex: roupas, mercado). Use sempre o valor que a pessoa mencionou; não troque por outro.
-Responda EXATAMENTE: VALOR: (apenas o número) | NOME: (descrição em uma palavra ou poucas)
+const PROMPT_VALOR_NOME_GASTO = `Esta frase é de alguém registrando um gasto em reais (pode ser áudio transcrito).
+Extraia EXATAMENTE o que a pessoa disse: VALOR (qualquer número: 30, 80, 450, 1200) e NOME (a descrição: "com X", "no X", "em X" — roupas, mercado, eletrônicos, conta de luz, etc.). Não invente valor nem descrição.
+Responda EXATAMENTE: VALOR: (apenas o número) | NOME: (descrição em poucas palavras)
 Frase: `
 
 function parseValorENomeGasto(text: string): { valor: number; nome: string } | null {
