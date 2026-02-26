@@ -13,6 +13,17 @@ import {
   RESPOSTA_NAO_SEI,
 } from '@/lib/plen-llm-fallback'
 
+/** Quando registramos R$ 2,00 em gasto, pode ser erro de transcrição (você disse 20 ou 200). Adiciona dica. */
+function respostaRegistroComDica(
+  params: { nome: string; tipo: 'saida' | 'entrada' | 'divida'; valor: number; dataRegistro: string; categoria: string; nomeUsuario?: string }
+): string {
+  const txt = formatarRespostaRegistro(params)
+  if (params.tipo === 'saida' && (params.valor === 2 || params.valor === 2.0)) {
+    return txt + '\n\n💡 Se você disse outro valor (ex.: 20 ou 200), digite: gastei X no mercado.'
+  }
+  return txt
+}
+
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
 const MSG_ENTENDER_MELHOR = `Para te entender melhor, você pode começar dizendo o que deseja:
 
@@ -493,7 +504,7 @@ export async function processPlenWhatsAppMessage(
             return { response: `Erro ao salvar: ${error.message}. Crie uma pessoa em Configurações → Usuários no site.` }
           }
           return {
-            response: formatarRespostaRegistro({
+            response: respostaRegistroComDica({
               nome,
               tipo,
               valor: valorFinal,
@@ -570,7 +581,7 @@ export async function processPlenWhatsAppMessage(
       }
 
       return {
-        response: formatarRespostaRegistro({
+        response: respostaRegistroComDica({
           nome,
           tipo,
           valor: valorFinal,

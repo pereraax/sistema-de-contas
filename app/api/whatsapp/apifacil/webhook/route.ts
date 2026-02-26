@@ -454,7 +454,7 @@ export async function POST(request: NextRequest) {
 
     // Diagnóstico: quando veio TEXTO e não áudio, e o texto parece transcrição errada ("paguei 2.00"), avisar e tentar corrigir config uma vez
     if (parsed.text && !parsed.media && /^(gastei|paguei)\s+2(\.00)?\s*$/i.test(parsed.text.trim())) {
-      console.warn('⚠️ [Apifacil Webhook] PROBLEMA: recebemos TEXTO "' + parsed.text.trim() + '" em vez de ÁUDIO. tipo_envio=', tipoEnvio, '| payload_keys=', payloadKeys.join(', ') || '—')
+      console.warn('⚠️ [Apifacil Webhook] RECEBEMOS TEXTO EM VEZ DE ÁUDIO — por isso o valor fica R$ 2,00. tipo_envio=', tipoEnvio, '| Para receber áudio de verdade, chame GET/POST .../api/whatsapp/apifacil/ensure-audio-config')
       if (!audioConfigFixTried && isApifacilConfigured()) {
         audioConfigFixTried = true
         ensureAudioWebhookEnabled()
