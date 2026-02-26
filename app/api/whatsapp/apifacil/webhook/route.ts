@@ -121,15 +121,15 @@ function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string
   if (tipoEnvio === 'MENSAGEM_ENVIADA') return null
 
   const data = (b.data && typeof b.data === 'object' ? b.data : b) as Record<string, unknown>
-  // Em mensagens RECEBIDAS (AUDIO_RECEBIDO, MENSAGEM_RECEBIDA) a API Fácil envia origem=instância e destino=quem enviou. Quem enviou = destino (ou numero_telefone_destino quando destino é LID ex: 123@lid).
+  // Doc API Fácil: em mensagens RECEBIDAS, origem = quem ENVIOU (usuário), destino = instância. Resposta deve ir para ORIGEM.
   const isRecebida = /MENSAGEM_RECEBIDA|AUDIO_RECEBIDO|IMAGEM_RECEBIDA/i.test(tipoEnvio)
-  let from = (isRecebida ? (data.destino ?? b.destino ?? data.numero_telefone_destino ?? b.numero_telefone_destino) : null)
-    ?? (data.origem ?? data.from ?? b.origem ?? b.from ?? data.telefone ?? data.numero ?? b.telefone ?? b.numero) as string | undefined
-  // Se destino veio como LID (ex: 176330134003867@lid) ou não parece número completo, usar numero_telefone_destino
+  let from = (isRecebida ? (data.origem ?? b.origem ?? data.numero_telefone_origem ?? b.numero_telefone_origem) : null)
+    ?? (data.destino ?? b.destino ?? data.origem ?? data.from ?? b.origem ?? b.from ?? data.telefone ?? data.numero ?? b.telefone ?? b.numero) as string | undefined
+  // Se origem veio como LID (ex: 176330134003867@lid) ou não parece número completo, usar numero_telefone_origem
   if (from && (String(from).includes('@') || String(from).replace(/\D/g, '').length < 10)) {
-    const numDestino = (data.numero_telefone_destino ?? b.numero_telefone_destino) as string | undefined
-    const numLimpo = numDestino ? String(numDestino).replace(/\D/g, '') : ''
-    if (numLimpo.length >= 10) from = numDestino
+    const numOrigem = (data.numero_telefone_origem ?? b.numero_telefone_origem) as string | undefined
+    const numLimpo = numOrigem ? String(numOrigem).replace(/\D/g, '') : ''
+    if (numLimpo.length >= 10) from = numOrigem
   }
   if (!from) return null
 
@@ -189,7 +189,7 @@ async function processarEmBackground(parsed: {
     if (media?.type === 'audio') {
       origemMensagem = 'áudio'
       const phoneAudio = from.startsWith('55') ? from : `55${from}`
-      console.log('🎤 [Apifacil Webhook] Processando ÁUDIO: from=' + from + ' → enviar resposta para ' + phoneAudio)
+      console.log('🎤 [Apifacil Webhook] Processando ÁUDIO: origem (quem enviou)=' + from + ' → resposta será enviada para ' + phoneAudio)
       try {
         const buffer = await downloadMedia(media.url, getMediaFetchHeaders())
         if (!buffer || buffer.length === 0) throw new Error('Download do áudio falhou')
