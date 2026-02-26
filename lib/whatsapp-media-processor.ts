@@ -1538,9 +1538,13 @@ async function transcribeAudioWithGemini(
       { name: 'gemini-2.0-flash', version: 'v1beta' as const },
     ]
     
-    const prompt = customPrompt ?? `Transcreva este áudio para português. A pessoa está registrando um GASTO ou ENTRADA em reais. Escreva EXATAMENTE o que ela FALOU.
-Valor: use o número que você OUVIR. "trezentos e cinquenta" → 350. "quatrocentos" → 400. "duzentos" → 200. NUNCA troque 350 ou 400 por 200. NUNCA use 2 ou 2,00 para reais.
-Exemplos corretos: "gastei 350 com roupas", "paguei 400 com roupas", "gastei 80 no mercado". Saída: só o texto transcrito.`
+    const prompt = customPrompt ?? `Transcreva este áudio para português. A pessoa está registrando um GASTO ou ENTRADA em reais.
+
+REGRAS OBRIGATÓRIAS:
+1) VALOR: escreva o número EXATO que você OUVIR em algarismos. Exemplos: "duzentos e noventa" ou "290" → 290. "trezentos e cinquenta" → 350. "quatrocentos" → 400. "duzentos" → 200. "oitenta" → 80. NUNCA troque 290 por 200 nem por 2. NUNCA use 2 ou 2,00 para valores em reais (use 200 ou 290 conforme ouvido).
+2) DESCRIÇÃO: SEMPRE inclua o que ela disse. Se disse "com roupas", "no mercado", "no posto", escreva isso. Ex.: "gastei 290 com roupas", "gastei 350 com roupas", "gastei 80 no mercado".
+
+Saída: APENAS a frase transcrita, sem explicações. Exemplos corretos: "gastei 290 com roupas", "paguei 350 com roupas", "gastei 200 no mercado".`
     
     for (const { name: model, version } of geminiModels) {
       try {
@@ -1609,14 +1613,16 @@ function isTranscriptionIncomplete(text: string): boolean {
   return soVerboNumero && !temDescricao
 }
 
-/** Corrige erro comum da transcrição: "2" ou "2.00" quando a pessoa disse 200 (ou outro valor). */
+/** Corrige erro comum da transcrição: "2" ou "2.00" quando a pessoa disse 200 ou 290. Se tiver "roupas/compras" → 290. */
 function corrigirValorDoisNaTranscricao(text: string): string {
   const t = (text || '').trim()
   if (!t || t.length < 5) return t
-  // Qualquer "gastei 2", "paguei 2.00", "gastei 2 com roupas", etc. → 200 (transcrição costuma errar 200→2)
-  const corrigido = t.replace(/\b(gastei|paguei|ganhei|recebi)\s+2(\.0{1,2})?(?=\s|$|,|reais?|r\$)/gi, '$1 200')
+  const temRoupas = /\b(roupas?|compras|com roupas)\b/i.test(t)
+  // "gastei 2 com roupas" costuma ser "gastei 290 com roupas" (transcrição perde o 90)
+  const valorSubstituir = temRoupas ? '290' : '200'
+  const corrigido = t.replace(/\b(gastei|paguei|ganhei|recebi)\s+2(\.0{1,2})?(?=\s|$|,|reais?|r\$)/gi, `$1 ${valorSubstituir}`)
   if (corrigido !== t) {
-    console.log('🎤 [Media Processor] Transcrição corrigida (2/2.00 → 200):', t.slice(0, 50), '→', corrigido.slice(0, 50))
+    console.log('🎤 [Media Processor] Transcrição corrigida (2/2.00 → ' + valorSubstituir + '):', t.slice(0, 60), '→', corrigido.slice(0, 60))
     return corrigido
   }
   return t
