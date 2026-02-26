@@ -457,6 +457,13 @@ export async function processPlenWhatsAppMessage(
           } else if (/\bfeira\b/i.test(msgForRegistro)) valorFinal = 50
           else if (/\bposto|farm[aá]cia\b/i.test(msgForRegistro)) valorFinal = 100
         }
+        // Segunda opinião: quando deu 200 + Outros/Gasto, perguntar de novo ao LLM o valor (evita fixar 200 errado)
+        if (completo.tipo === 'saida' && valorFinal === 200 && (nomeFinal === 'Outros' || nomeFinal === 'Gasto')) {
+          const segundoValor = await extrairValorReaisComLLM(msgForRegistro + ' Qual valor em reais a pessoa disse? Apenas o número.', true)
+          if (segundoValor != null && segundoValor >= 1 && segundoValor <= 500_000 && segundoValor !== 200) {
+            valorFinal = segundoValor
+          }
+        }
         if (nomeFinal === 'Gasto' || nomeFinal === 'Outros') {
           const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+)(?:\s|$|,|\.)/i)
           if (m?.[1]) {

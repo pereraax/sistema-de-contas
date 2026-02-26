@@ -84,8 +84,14 @@ function parseDataDoTexto(texto: string): string {
   const m = agora.getMonth()
   const d = agora.getDate()
 
-  // "hoje" ou nenhuma data explícita → usa data e hora do momento da solicitação
-  if (/\bhoje\b/.test(t)) return agora.toISOString()
+  // "hoje" ou nenhuma data explícita → hoje no fuso Brasília (evita servidor UTC dar dia seguinte)
+  try {
+    const br = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+    var hojeBR = () => toISONoonUTC(br.getFullYear(), br.getMonth(), br.getDate())
+  } catch {
+    var hojeBR = () => toISONoonUTC(y, m, d)
+  }
+  if (/\bhoje\b/.test(t)) return hojeBR()
   if (/\bontem\b/.test(t)) {
     const ontem = new Date(y, m, d - 1)
     return toISONoonUTC(ontem.getFullYear(), ontem.getMonth(), ontem.getDate())
@@ -104,8 +110,7 @@ function parseDataDoTexto(texto: string): string {
     const data = new Date(anoFull, mes, dia)
     if (!isNaN(data.getTime())) return toISONoonUTC(data.getFullYear(), data.getMonth(), data.getDate())
   }
-  // Padrão: momento exato da solicitação (data e hora corretas na plataforma)
-  return agora.toISOString()
+  return hojeBR()
 }
 
 export type InterpretadoPlen = {
