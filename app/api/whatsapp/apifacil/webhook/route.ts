@@ -357,13 +357,27 @@ export async function POST(request: NextRequest) {
     const mensagemPreview = (b.mensagem ?? data.mensagem) as string | undefined
     const urlMedia = b.url_media ?? data.url_media ?? data.url_midia ?? data.media_url ?? b.url ?? data.url ?? mensagemPreview
     const mensagemEhUrl = typeof urlMedia === 'string' && /^https?:\/\//i.test(urlMedia)
+    const payloadKeys = payload ? Object.keys(payload) : []
+    // Uma linha só para aparecer em qualquer painel de logs (busque: APIFACIL_WEBHOOK_PAYLOAD)
+    const payloadKeysStr = payloadKeys.length ? payloadKeys.join(',') : 'sem_payload'
+    const msgPreview = typeof mensagemPreview === 'string' ? mensagemPreview.slice(0, 80).replace(/\n/g, ' ') : 'não_string'
+    console.log('APIFACIL_WEBHOOK_PAYLOAD tipo_envio=' + String(tipoEnvio || '') + ' payload_keys=' + payloadKeysStr + ' tem_url_media=' + (!!urlMedia && mensagemEhUrl) + ' mensagem_preview=' + msgPreview + ' from=' + String(b.origem ?? data.origem ?? ''))
     console.log('📨 [Apifacil Webhook] Payload recebido:', {
       keys: Object.keys(bodyToParse),
+      payload_keys: payloadKeys.length ? payloadKeys : '(sem payload)',
       tipo_envio: tipoEnvio,
       tem_url_media: !!urlMedia && mensagemEhUrl,
       mensagem_preview: typeof mensagemPreview === 'string' ? mensagemPreview.slice(0, 100) : '(não é string)',
       from: b.origem ?? data.origem,
     })
+    // Diagnóstico: listar todos os campos que podem ser URL de mídia (para áudio quando API envia em outro nome)
+    const possiveisUrlAudio = [
+      b.url_media, data.url_media, b.media_url, data.media_url, b.url, data.url,
+      (bodyToParse as any).audio_url, (bodyToParse as any).arquivo_audio, (bodyToParse as any).file_url, (bodyToParse as any).link_media,
+    ].filter((v) => typeof v === 'string' && /^https?:\/\//i.test(v))
+    if (possiveisUrlAudio.length > 0) {
+      console.log('📨 [Apifacil Webhook] Possível URL de mídia encontrada:', possiveisUrlAudio[0].slice(0, 80))
+    }
     if (tipoEnvio && /AUDIO/i.test(String(tipoEnvio))) {
       console.log('📨 [Apifacil Webhook] ÁUDIO detectado no tipo_envio. url_media?', !!urlMedia, 'mensagem é URL?', mensagemEhUrl)
     }
@@ -376,7 +390,10 @@ export async function POST(request: NextRequest) {
     if (parsed && !parsed.media) {
       const data = (bodyToParse as any).data || bodyToParse
       const te = ((bodyToParse as any).tipo_envio ?? data?.tipo_envio) as string
-      const url = data?.url_media ?? data?.url_midia ?? data?.media_url ?? data?.url ?? data?.mensagem ?? (bodyToParse as any).mensagem
+      const url =
+        data?.url_media ?? data?.url_midia ?? data?.media_url ?? data?.url ?? data?.mensagem
+        ?? (bodyToParse as any).url_media ?? (bodyToParse as any).audio_url ?? (bodyToParse as any).file_url ?? (bodyToParse as any).link_media
+        ?? (bodyToParse as any).mensagem
       if (te && typeof url === 'string' && url.startsWith('http')) {
         const tipo = /AUDIO_RECEBIDO/i.test(te) ? 'audio' : /IMAGEM_RECEBIDA|IMAGE/i.test(te) ? 'image' : null
         if (tipo) {
@@ -395,6 +412,11 @@ export async function POST(request: NextRequest) {
     const { from } = parsed
     const textPreview = parsed.text ? parsed.text.slice(0, 80) : parsed.media ? `[${parsed.media.type}]` : ''
     console.log('📨 [Apifacil Webhook] MENSAGEM RECEBIDA:', { from, textPreview, mediaType: parsed.media?.type })
+
+    // Diagnóstico: quando veio TEXTO e não áudio, e o texto parece transcrição errada ("paguei 2.00"), avisar
+    if (parsed.text && !parsed.media && /^(gastei|paguei)\s+2(\.00)?\s*$/i.test(parsed.text.trim())) {
+      console.warn('⚠️ [Apifacil Webhook] PROBLEMA: recebemos TEXTO "' + parsed.text.trim() + '" em vez de ÁUDIO. A API Fácil não enviou o arquivo de áudio (tipo_envio foi:', tipoEnvio, '| payload_keys:', payloadKeys.join(', ') || '—', '). Para o Gemini transcrever, o webhook precisa receber tipo_envio AUDIO_RECEBIDO e a URL do áudio (url_media ou mensagem com URL). Verifique na documentação/suporte da API Fácil como receber o áudio em mensagens de voz.')
+    }
 
     // Em localhost: só processar se WHATSAPP_TEST_NUMBERS estiver definido e o número estiver na lista
     const isDev = process.env.NODE_ENV === 'development'
