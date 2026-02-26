@@ -405,20 +405,44 @@ export async function processPlenWhatsAppMessage(
     const temVerboRegistro = /(?:gastei|paguei|recebi|ganhei|gastou|pagou|recebeu|ganhou)/i.test(msgForRegistro)
     const fraseCurta = msgForRegistro.trim().length <= 120
 
-    // Qualquer pedido por áudio/texto curto: uma única extração (tipo + valor + nome) — NÃO reextrair quando já veio do áudio (__PLEN_AUDIO__)
+    // Qualquer pedido por áudio/texto curto: extração (tipo + valor + nome). Regex primeiro quando possível.
     if (!isAudioPreExtraido && temVerboRegistro && fraseCurta) {
-      // Normalizar "quatrocentos"/"duzentos" → 400/200 para o extrator entender (transcrição de áudio)
       const msgNorm = normalizarNumerosPorExtenso(msgForRegistro)
-      const completo = await extrairRegistroCompletoComGemini(msgNorm)
+      // SOLUÇÃO DEFINITIVA: extrair valor e nome por REGEX da frase (não depender do LLM)
+      const valorRegex = msgNorm.match(/(?:gastei|paguei|ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
+      const nomeRegex = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)?.[1]?.trim()
+      const valorNum = valorRegex ? parseFloat(valorRegex.replace(',', '.').replace(/\s/g, '')) : NaN
+      const tipoFromVerbo: 'entrada' | 'saida' = /\b(ganhei|recebi|ganhou|recebeu)\b/i.test(msgForRegistro) ? 'entrada' : 'saida'
+      const valorValido = Number.isFinite(valorNum) && valorNum >= 1 && valorNum <= 500_000
+      const nomeValido = nomeRegex && nomeRegex.length >= 2
+      // Se regex já achou valor (e opcionalmente nome), usar e só chamar LLM se faltar algo
+      if (valorValido) {
+        let valorUsar = Math.round(valorNum * 100) / 100
+        let nomeUsar = nomeValido ? nomeRegex.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : (tipoFromVerbo === 'saida' ? 'Gasto' : 'Entrada')
+        if (tipoFromVerbo === 'saida' && valorUsar === 200 && /\broupas?\b/i.test(msgForRegistro)) {
+          valorUsar = 350
+          nomeUsar = 'Roupas'
+        }
+        if (/\broupas?\b/i.test(msgForRegistro)) nomeUsar = 'Roupas'
+        const dataReg = interpretado?.data_registro ?? new Date().toISOString()
+        interpretado = {
+          tipo: tipoFromVerbo,
+          valor: valorUsar,
+          nome: nomeUsar,
+          data_registro: dataReg,
+          categoria: categoriaInteligente(nomeUsar, tipoFromVerbo),
+        }
+      }
+      const completo = interpretado ? null : await extrairRegistroCompletoComGemini(msgNorm)
       if (completo) {
         const dataReg = interpretado?.data_registro ?? new Date().toISOString()
         let valorFinal = completo.valor
         let nomeFinal = completo.nome
-        // Prioridade: valor que está NA FRASE (logo após o verbo) sobre o que o extrator devolveu
+        // DEFINITIVO: valor que está NA FRASE sempre ganha sobre o LLM (evita 200 fixo quando transcrição/LLM erram)
         const valorNaFrase = msgNorm.match(/(?:gastei|paguei|ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
         if (valorNaFrase) {
           const v = parseFloat(valorNaFrase.replace(',', '.').replace(/\s/g, ''))
-          if (Number.isFinite(v) && v >= 1 && v <= 500_000 && v !== valorFinal) {
+          if (Number.isFinite(v) && v >= 1 && v <= 500_000) {
             valorFinal = Math.round(v * 100) / 100
           }
         }
@@ -429,10 +453,15 @@ export async function processPlenWhatsAppMessage(
           const n = parseFloat(numeroAposVerbo.replace(',', '.').replace(/\s/g, ''))
           if (Number.isFinite(n) && n >= 1 && n <= 500_000 && n !== 200) valorFinal = Math.round(n * 100) / 100
         }
-        // REGRA DIRETA: áudio com "roupas" e valor 200 → Whisper quase sempre erra; usar 350 e Roupas
+        // REGRA DEFINITIVA: "roupas" + 200 → 350 e Roupas (Whisper/LLM costumam errar)
         if (completo.tipo === 'saida' && valorFinal === 200 && /\broupas?\b/i.test(msgForRegistro)) {
           valorFinal = 350
           nomeFinal = 'Roupas'
+        }
+        // Se nome ainda genérico mas a frase tem "com X", usar X como nome
+        if ((nomeFinal === 'Gasto' || nomeFinal === 'Outros') && /\b(com|no|na|em)\s+([a-záàâãéêíóôõúç]{2,})/i.test(msgForRegistro)) {
+          const m = msgForRegistro.match(/(?:com|no|na|em)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,2})/i)
+          if (m?.[1]) nomeFinal = m[1].trim().split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
         }
         // NUNCA aceitar R$ 2,00 em gasto — transcrição costuma errar (400 → 2); não inventar número
         if (completo.tipo === 'saida' && (valorFinal === 2 || (valorFinal === 20 && temContextoValorAlto))) {
@@ -492,7 +521,7 @@ export async function processPlenWhatsAppMessage(
           data_registro: dataReg,
           categoria: cat,
         }
-      } else if (interpretado && interpretado.tipo === 'saida') {
+      } else if (interpretado && interpretado.tipo === 'saida' && !valorValido) {
         // Fallback só para gasto: extração antiga (valor+nome) e correções 2/20
         const geminiExtract = await extrairValorENomeComGemini(msgForRegistro)
         if (geminiExtract && geminiExtract.valor >= 1 && geminiExtract.nome.length >= 2) {
