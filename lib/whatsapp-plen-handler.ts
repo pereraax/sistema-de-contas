@@ -496,14 +496,22 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       }
     }
 
-    // PRIORIDADE 2a: "Olá! Quero utilizar a Plenipay" — resposta com link completo para cadastro
-    const msgUtilizar = text.toLowerCase().trim().replace(/\s+/g, ' ')
+    // PRIORIDADE 2a: "Olá, quero utilizar a plenipay" — resposta com 3 mensagens + botões (nunca enviar "Oops! não entendi").
+    // Normalizar: minúsculas, um espaço, sem pontuação no fim para capturar "plenipay." etc.
+    const msgUtilizar = text
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ')
+      .replace(/[.,!?]+$/g, '')
+    const hasQueroUtilizar = msgUtilizar.includes('quero utilizar') && msgUtilizar.includes('plenipay')
+    const hasQueroUsar = msgUtilizar.includes('quero usar') && msgUtilizar.includes('plenipay')
     const isQueroUtilizarPlenipay =
       msgUtilizar.includes('quero utilizar a plenipay') ||
-      msgUtilizar === 'olá! quero utilizar a plenipay' ||
-      msgUtilizar === 'olá quero utilizar a plenipay' ||
-      msgUtilizar === 'ola! quero utilizar a plenipay' ||
-      msgUtilizar === 'ola quero utilizar a plenipay'
+      msgUtilizar.includes('quero utilizar plenipay') ||
+      msgUtilizar.includes('quero usar a plenipay') ||
+      msgUtilizar.includes('quero usar plenipay') ||
+      hasQueroUtilizar ||
+      hasQueroUsar
 
     if (isQueroUtilizarPlenipay) {
       console.log('👋 [WhatsApp PLEN] ==========================================')
