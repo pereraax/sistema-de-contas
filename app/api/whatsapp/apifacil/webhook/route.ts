@@ -472,9 +472,29 @@ export async function POST(request: NextRequest) {
     const b = bodyToParse as Record<string, unknown>
     // Notificação de ERRO de envio (ex.: botão falhou — "Não foi possível enviar sua mensagem"): não processar como mensagem do usuário
     const erroEnvio = b.erro === true || String(b.status || '').toUpperCase() === 'ERRO'
+    const tipoEnvioPayload = String(b.tipo_envio ?? '').toUpperCase()
     if (erroEnvio) {
       const msgErro = typeof b.mensagem === 'string' ? b.mensagem : '(sem mensagem)'
       console.log('📨 [Apifacil Webhook] Notificação de erro de envio ignorada (não é mensagem do usuário):', msgErro.slice(0, 120))
+      // Quando o envio de BOTÃO falhou, enviar fallback (link de cadastro em texto) para o destino (usuário)
+      if (tipoEnvioPayload === 'BOTAO_ENVIADO' && isApifacilConfigured()) {
+        const destino = String(b.destino ?? b.numero_telefone_destino ?? '').replace(/\D/g, '')
+        const phone = destino.startsWith('55') ? destino : destino ? `55${destino}` : ''
+        if (phone) {
+          const cadastroUrl = 'https://plenipay.com'
+          const fallbackMsg = `Escolha abaixo:\n\n🔗 Cadastre-se aqui: ${cadastroUrl}\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
+          sendTextMessage(phone, fallbackMsg)
+            .then((r) => {
+              if (r.success) {
+                console.log('✅ [Apifacil Webhook] Fallback (link cadastro) enviado para', phone, 'após erro de botão')
+                registerSentMessage(phone, fallbackMsg)
+              } else {
+                console.error('❌ [Apifacil Webhook] Falha ao enviar fallback após erro botão:', r.error)
+              }
+            })
+            .catch((e) => console.error('❌ [Apifacil Webhook] Erro ao enviar fallback após erro botão:', e))
+        }
+      }
       return NextResponse.json({ success: true, message: 'Notificação de erro de envio ignorada' })
     }
     const data = (b.data && typeof b.data === 'object' ? b.data : b) as Record<string, unknown>
