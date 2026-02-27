@@ -54,38 +54,31 @@ export async function sendReplyButtons(
   const urlButtons = `${baseUrl}/whatsapp/enviar-botao`
   const cadastroUrl = 'https://plenipay.com'
 
-  // Importante:
-  // - Muitos provedores "não suportam" botão URL (cta_url) fora de templates.
-  // - Para garantir botões de verdade, aqui sempre mandamos "reply buttons" (id + texto).
-  // - Ao clicar em "CADASTRAR", nosso webhook responde com o link em seguida.
-  const buttonsForApi = buttons.slice(0, 3).map((b) => ({
-    id: b.id,
-    text: b.title,
-    title: b.title,
-    label: b.title,
-  }))
+  // Conforme documentação API Fácil (enviar-botao):
+  // - Botão de resposta: { "id": "...", "text": "..." }
+  // - Botão URL (cta_url): { "name": "cta_url", "buttonParamsJson": "{\"display_text\":\"...\",\"url\":\"...\"}" }
+  // Payload: telefone, text, buttons, instancia; opcional: title, footer
+  const buttonsForApi = buttons.slice(0, 3).map((b) => {
+    const idLower = (b.id || '').toLowerCase()
+    if (idLower === 'cadastrar') {
+      return {
+        name: 'cta_url',
+        buttonParamsJson: JSON.stringify({
+          display_text: b.title || 'CADASTRAR',
+          url: cadastroUrl,
+        }),
+      }
+    }
+    return { id: b.id, text: b.title }
+  })
 
-  // Tentativa 2: formato "botoes" (id + titulo) — mais comum em integrações brasileiras
-  const botoesForApi = buttons.slice(0, 3).map((b) => ({
-    id: b.id,
-    titulo: b.title,
-    title: b.title,
-    text: b.title,
-    label: b.title,
-  }))
-
-  // Enviar com múltiplos nomes de campos para aumentar compatibilidade com variações do endpoint
-  const payload: Record<string, unknown> = {
-    instancia: config.instanceId,
-    id_instancia: config.instanceId,
+  const payload = {
     telefone: cleanPhone,
-    para: cleanPhone,
-    numero: cleanPhone,
     text: bodyText,
-    mensagem: bodyText,
-    message: bodyText,
     buttons: buttonsForApi,
-    botoes: botoesForApi,
+    instancia: config.instanceId,
+    title: 'PleniPay',
+    footer: 'Escolha uma opção abaixo',
   }
   try {
     const res = await fetch(urlButtons, {
