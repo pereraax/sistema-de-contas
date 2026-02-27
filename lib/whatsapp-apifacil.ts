@@ -54,20 +54,16 @@ export async function sendReplyButtons(
   const urlButtons = `${baseUrl}/whatsapp/enviar-botao`
   const cadastroUrl = 'https://plenipay.com'
 
-  // Tentativa 1: formato "buttons" (algumas contas/endpoints aceitam cta_url)
-  const buttonsForApi = buttons.slice(0, 3).map((b) => {
-    const idLower = (b.id || '').toLowerCase()
-    if (idLower === 'cadastrar') {
-      return {
-        name: 'cta_url',
-        buttonParamsJson: JSON.stringify({
-          display_text: b.title || 'CADASTRAR',
-          url: cadastroUrl,
-        }),
-      }
-    }
-    return { id: b.id, text: b.title }
-  })
+  // Importante:
+  // - Muitos provedores "não suportam" botão URL (cta_url) fora de templates.
+  // - Para garantir botões de verdade, aqui sempre mandamos "reply buttons" (id + texto).
+  // - Ao clicar em "CADASTRAR", nosso webhook responde com o link em seguida.
+  const buttonsForApi = buttons.slice(0, 3).map((b) => ({
+    id: b.id,
+    text: b.title,
+    title: b.title,
+    label: b.title,
+  }))
 
   // Tentativa 2: formato "botoes" (id + titulo) — mais comum em integrações brasileiras
   const botoesForApi = buttons.slice(0, 3).map((b) => ({
