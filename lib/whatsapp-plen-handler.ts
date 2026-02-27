@@ -520,8 +520,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       console.log('👋 [WhatsApp PLEN] ==========================================')
       addLog('info', `👋 [PLEN WhatsApp] QUERO UTILIZAR PLENIPAY: ${text}`)
 
-      // Resposta exata: 3 mensagens (como no print).
-      // 1) Boas-vindas | 2) Escolha abaixo + botões CADASTRAR / JÁ CADASTREI | 3) Instrução do e-mail.
+      // Resposta exata: 3 mensagens (1 boas-vindas, 2 botões CADASTRAR / JÁ CADASTREI, 3 e-mail).
       return {
         success: true,
         messages: [

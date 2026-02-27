@@ -54,29 +54,22 @@ export async function sendReplyButtons(
   const urlButtons = `${baseUrl}/whatsapp/enviar-botao`
   const cadastroUrl = 'https://plenipay.com'
 
-  // Conforme documentação API Fácil (enviar-botao):
-  // - Botão de resposta: { "id": "...", "text": "..." }
-  // - Botão URL (cta_url): { "name": "cta_url", "buttonParamsJson": "{\"display_text\":\"...\",\"url\":\"...\"}" }
-  // Payload: telefone, text, buttons, instancia; opcional: title, footer
-  const buttonsForApi = buttons.slice(0, 3).map((b) => {
-    const idLower = (b.id || '').toLowerCase()
-    if (idLower === 'cadastrar') {
-      return {
-        name: 'cta_url',
-        buttonParamsJson: JSON.stringify({
-          display_text: b.title || 'CADASTRAR',
-          url: cadastroUrl,
-        }),
-      }
-    }
-    return { id: b.id, text: b.title }
-  })
+  // Doc API Fácil: "O link no campo url deve estar presente no texto da mensagem" para botão CTA.
+  // Enviamos só botões de RESPOSTA (id + text) para evitar rejeição ao misturar cta_url + reply; ao tocar em CADASTRAR enviamos o link.
+  const buttonsForApi = buttons.slice(0, 3).map((b) => ({ id: b.id, text: b.title }))
+
+  const textWithUrl =
+    bodyText === 'Escolha abaixo:' && buttons.some((b) => (b.id || '').toLowerCase() === 'cadastrar')
+      ? `${bodyText}\n\n${cadastroUrl}`
+      : bodyText
 
   const payload = {
     telefone: cleanPhone,
-    text: bodyText,
+    text: textWithUrl,
     buttons: buttonsForApi,
     instancia: config.instanceId,
+    title: 'PleniPay',
+    footer: 'Toque em um botão abaixo',
   }
   try {
     const res = await fetch(urlButtons, {
@@ -90,7 +83,8 @@ export async function sendReplyButtons(
     } catch {
       // resposta não é JSON
     }
-    if (res.ok && !data?.error) {
+    const apiError = data?.error === true || data?.erro === true
+    if (res.ok && !apiError) {
       console.log('✅ [Apifacil] enviar-botao OK, botões enviados para', cleanPhone)
       return { success: true, messageId: data?.data?.notificacao_id ?? data?.data?.id ?? data?.messageId }
     }
