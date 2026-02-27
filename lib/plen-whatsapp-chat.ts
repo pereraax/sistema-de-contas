@@ -685,6 +685,13 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
       }
     }
 
+    // Nunca enviar o texto longo "Oops!" quando a mensagem for nossa própria saudação (eco no webhook)
+    const pareceNossaSaudacao =
+      (t.includes('eu sou a plen') || t.includes('sua assistente financeira')) && (t.includes('oiii') || t.includes('assistente'))
+    if (pareceNossaSaudacao) {
+      return { response: 'Em que posso ajudar? 😊' }
+    }
+
     // Só enviar Oops para oi/olá quando NÃO for mensagem de quero utilizar plenipay
     if (t.includes('oi') || t.includes('olá') || t.includes('ola')) {
       return { response: msgNaoEntendi }

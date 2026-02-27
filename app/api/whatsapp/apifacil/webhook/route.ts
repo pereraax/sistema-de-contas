@@ -310,6 +310,16 @@ async function processarEmBackground(parsed: {
     }
     if (!text) return
 
+    // Ignorar eco da nossa própria mensagem (provedor reenvia nossa saudação e gerava "Oops!" em seguida)
+    const txtLower = String(text).trim().toLowerCase()
+    const pareceNossaMensagem =
+      (txtLower.includes('eu sou a plen') || txtLower.includes('sua assistente financeira')) &&
+      (txtLower.includes('oiii') || txtLower.includes('assistente financeira'))
+    if (pareceNossaMensagem) {
+      console.log('📨 [Apifacil Webhook] Ignorando eco da nossa mensagem (evita enviar Oops):', txtLower.slice(0, 60))
+      return
+    }
+
     // Quando a API Fácil envia só TEXTO em vez do áudio (ex.: "paguei 2.00"), não registrar 2 — pedir para digitar
     const txtNorm = text.trim()
     if (
