@@ -262,6 +262,18 @@ Você pode falar de forma natural! Por exemplo:
 
 Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
 
+    // Nunca enviar "Oops! não entendi" para mensagens da sequência quero utilizar plenipay
+    const pareceQueroPlenipay =
+      (t.includes('quero') && (t.includes('plenipay') || t.includes('pleni'))) ||
+      t.includes('quero utilizar') ||
+      t.includes('quero usar')
+    if (pareceQueroPlenipay) {
+      return jsonResponse({
+        response:
+          '👋 Para cadastro e botões, envie no WhatsApp: *Olá, quero utilizar a plenipay*. Você recebe as 3 mensagens com CADASTRAR e JÁ CADASTREI.',
+      })
+    }
+
     if (t.includes('oi') || t.includes('olá') || t.includes('ola')) {
       return jsonResponse({ response: msgNaoEntendi })
     }
@@ -280,6 +292,13 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
       return jsonResponse({ response: llmReply })
     }
 
+    // Não enviar Oops para mensagens que parecem quero utilizar/cadastrar plenipay
+    if (pareceQueroPlenipay) {
+      return jsonResponse({
+        response:
+          '👋 Para cadastro e botões, envie no WhatsApp: *Olá, quero utilizar a plenipay*. Você recebe as 3 mensagens com CADASTRAR e JÁ CADASTREI.',
+      })
+    }
     return jsonResponse({ response: msgNaoEntendi })
   } catch (err: any) {
     const msg = err?.message ?? String(err)

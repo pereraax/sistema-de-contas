@@ -673,18 +673,19 @@ Você pode falar de forma natural! Por exemplo:
 
 Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
 
-    // Nunca responder "Oops! não entendi" para quem quer utilizar/cadastrar na Plenipay.
-    // (Esse fluxo é tratado no handler com 3 mensagens + botões; se caiu aqui, redirecionar.)
-    const isQueroUtilizarPlenipay =
-      (t.includes('quero utilizar') && t.includes('plenipay')) ||
-      (t.includes('quero usar') && t.includes('plenipay'))
-    if (isQueroUtilizarPlenipay) {
+    // Nunca enviar "Oops! não entendi" na sequência de quero utilizar/cadastrar na Plenipay.
+    const pareceQueroPlenipay =
+      (t.includes('quero') && (t.includes('plenipay') || t.includes('pleni'))) ||
+      t.includes('quero utilizar') ||
+      t.includes('quero usar')
+    if (pareceQueroPlenipay) {
       return {
         response:
-          '👋 Para receber o link de cadastro e os botões, envie exatamente: *Olá, quero utilizar a plenipay* no nosso WhatsApp. Assim você recebe as 3 mensagens com a opção CADASTRAR e JÁ CADASTREI.',
+          '👋 Para receber o link de cadastro e os botões, envie: *Olá, quero utilizar a plenipay* no WhatsApp. Você recebe as 3 mensagens com CADASTRAR e JÁ CADASTREI.',
       }
     }
 
+    // Só enviar Oops para oi/olá quando NÃO for mensagem de quero utilizar plenipay
     if (t.includes('oi') || t.includes('olá') || t.includes('ola')) {
       return { response: msgNaoEntendi }
     }
