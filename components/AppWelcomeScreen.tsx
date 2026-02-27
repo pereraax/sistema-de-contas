@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { X, Loader2, Eye, EyeOff } from 'lucide-react'
+import { X, Loader2, Eye, EyeOff, Apple, Mail, BarChart2, Chrome } from 'lucide-react'
 
 const PLANOS = [
   { id: 'teste' as const, nome: 'Gratuito', preco: 'R$ 0', periodo: 'sempre grátis', destaque: false },
@@ -17,7 +17,7 @@ const ONBOARDING_SLIDES_COUNT = 4
 
 export default function AppWelcomeScreen() {
   const router = useRouter()
-  const [phase, setPhase] = useState<'splash' | 'onboarding' | 'welcome' | 'login'>('splash')
+  const [phase, setPhase] = useState<'splash' | 'onboarding' | 'welcome' | 'auth' | 'login'>('splash')
   const [slideIndex, setSlideIndex] = useState(0)
   const [showPlanos, setShowPlanos] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -159,20 +159,98 @@ export default function AppWelcomeScreen() {
             ))}
           </div>
 
-          <Link
-            href="/cadastro?plano=teste"
+          <button
+            type="button"
+            onClick={() => setPhase('auth')}
             className="app-btn-pill block w-full py-4 rounded-full text-white font-semibold text-center text-base"
           >
             Criar conta
-          </Link>
+          </button>
           <button
             type="button"
-            onClick={() => setPhase('login')}
+            onClick={() => setPhase('auth')}
             className="mt-4 text-[#00C2FF] text-sm font-medium"
           >
             Já tenho conta
           </button>
         </div>
+      </div>
+    )
+  }
+
+  // ——— Tela de autenticação/cadastro inicial (É hora de iniciar sua jornada!)
+  if (phase === 'auth') {
+    return (
+      <div
+        className="fixed inset-0 z-[100] flex flex-col app-onboarding-bg overflow-auto"
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 min-h-full">
+          {/* Ícone Plenipay: container quadrado com gradiente e glow */}
+          <div
+            className="app-auth-icon-box w-16 h-16 rounded-2xl flex items-center justify-center mb-8"
+            aria-hidden
+          >
+            <BarChart2 className="w-8 h-8 text-white" strokeWidth={2.5} />
+          </div>
+
+          <h1 className="text-2xl font-bold text-white text-center max-w-[320px] mb-2 leading-tight">
+            É hora de iniciar sua jornada!
+          </h1>
+          <p className="text-white/75 text-base text-center max-w-[320px] mb-10 leading-snug">
+            Crie sua conta e comece a transformar suas finanças.
+          </p>
+
+          {/* Botões de autenticação */}
+          <div className="w-full max-w-[320px] space-y-4">
+            <button
+              type="button"
+              className="app-auth-btn-light w-full py-4 rounded-full flex items-center justify-center gap-3 text-[#0D1B2A] font-semibold text-base transition-transform active:scale-[0.98]"
+              onClick={() => {}}
+              aria-label="Continuar com Apple"
+            >
+              <Apple className="w-5 h-5 flex-shrink-0" />
+              <span>Continuar com Apple</span>
+            </button>
+            <button
+              type="button"
+              className="app-auth-btn-light w-full py-4 rounded-full flex items-center justify-center gap-3 text-[#0D1B2A] font-semibold text-base transition-transform active:scale-[0.98]"
+              onClick={() => {}}
+              aria-label="Continuar com Google"
+            >
+              <Chrome className="w-5 h-5 flex-shrink-0" />
+              <span>Continuar com Google</span>
+            </button>
+            <Link
+              href="/cadastro?plano=teste"
+              className="app-btn-pill w-full py-4 rounded-full flex items-center justify-center gap-3 text-white font-semibold text-base no-underline transition-transform active:scale-[0.98]"
+            >
+              <Mail className="w-5 h-5 flex-shrink-0" />
+              <span>Continuar com E-mail</span>
+            </Link>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setPhase('login')}
+            className="mt-8 text-[#00C2FF] text-base font-medium"
+          >
+            Entrar
+          </button>
+        </div>
+
+        {/* Rodapé legal */}
+        <p className="text-center text-white/55 text-xs px-6 pb-8 pt-4 max-w-[320px] mx-auto leading-snug">
+          Ao continuar você estará concordando com os{' '}
+          <Link href="/termos" className="text-[#00C2FF] font-medium hover:underline">
+            Termos de Uso
+          </Link>{' '}
+          e{' '}
+          <Link href="/privacidade" className="text-[#00C2FF] font-medium hover:underline">
+            Privacidade
+          </Link>
+          .
+        </p>
       </div>
     )
   }
@@ -183,15 +261,16 @@ export default function AppWelcomeScreen() {
       className="fixed bottom-0 left-0 right-0 z-[101] px-5 pt-5 border-t border-[#00C2FF]/20 bg-[#0a1628]"
       style={{ paddingBottom: 'max(20px, calc(env(safe-area-inset-bottom) + 16px))' }}
     >
-      <Link
-        href="/cadastro?plano=teste"
+      <button
+        type="button"
+        onClick={() => setPhase('auth')}
         className="block w-full py-4 rounded-2xl bg-[#007A99] hover:bg-[#006688] text-white font-semibold text-center text-base transition-colors"
       >
         Cadastrar
-      </Link>
+      </button>
       <button
         type="button"
-        onClick={() => setPhase('login')}
+        onClick={() => setPhase('auth')}
         className="block w-full mt-3 text-[#00C2FF] text-sm font-medium text-center"
       >
         Já sou cadastrado
@@ -237,7 +316,7 @@ export default function AppWelcomeScreen() {
         <div className="app-glass w-full max-w-[320px] p-6">
           <button
             type="button"
-            onClick={() => { setPhase('welcome'); setErrorMessage(null); }}
+            onClick={() => { setPhase('auth'); setErrorMessage(null); }}
             className="text-white/80 text-sm mb-4 flex items-center gap-1"
           >
             ← Voltar

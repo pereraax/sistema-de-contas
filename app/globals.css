@@ -166,6 +166,19 @@ body.platform-app .app-btn-pill:active {
   box-shadow: 0 2px 12px rgba(0, 122, 153, 0.35);
 }
 
+/* Tela auth: ícone Plenipay (container com gradiente e glow) */
+body.platform-app .app-auth-icon-box {
+  background: linear-gradient(135deg, #007A99 0%, #00C2FF 100%);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.2), 0 0 40px rgba(0, 194, 255, 0.35);
+}
+
+/* Tela auth: botão claro (Apple, Google) */
+body.platform-app .app-auth-btn-light {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
 /* Glass / vibrancy estilo iOS (tela inicial do app) */
 body.platform-app .app-glass {
   backdrop-filter: saturate(180%) blur(20px);
