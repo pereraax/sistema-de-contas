@@ -1,10 +1,13 @@
 import type { Metadata } from 'next'
+import { cookies } from 'next/headers'
 import './critical.css'
 import './animations.css'
 import './globals.css'
 import ThemeProvider from '@/components/ThemeProvider'
 import { MenuProvider } from '@/components/MobileMenu'
 import BottomNavigation from '@/components/BottomNavigation'
+import { AppPlatformProvider } from '@/components/AppPlatformProvider'
+import AppLayoutWrapper from '@/components/AppLayoutWrapper'
 import dynamicImport from 'next/dynamic'
 import FacebookPixelScript from '@/components/FacebookPixelScript'
 import StructuredData from '@/components/StructuredData'
@@ -130,11 +133,19 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  let isApp = false
+  try {
+    const cookieStore = await cookies()
+    isApp = cookieStore.get('platform')?.value === 'app'
+  } catch {
+    // cookies() pode falhar em alguns contextos (prefetch, RSC); evita 500 e página branca
+  }
+
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
@@ -168,7 +179,8 @@ export default function RootLayout({
       </head>
       <body
         suppressHydrationWarning
-        className="loaded"
+        className={isApp ? 'loaded platform-app' : 'loaded'}
+        data-platform={isApp ? 'app' : 'web'}
         style={{
           margin: 0,
           backgroundColor: '#ffffff',
@@ -177,23 +189,27 @@ export default function RootLayout({
           minHeight: '100vh',
         }}
       >
+        <AppPlatformProvider initialIsApp={isApp}>
         <ThemeProvider>
           <MenuProvider>
             {/* Componentes não críticos - carregar após interação */}
             <VisitorTrackingWrapper />
             <GoogleIndexPing />
-            {/* Conteúdo principal - prioridade máxima */}
-            {children}
+            {/* Conteúdo principal - no app usa container clean (app-shell); no site igual a sempre */}
+            <AppLayoutWrapper>
+              {children}
+            </AppLayoutWrapper>
             {/* Componentes de UI - carregar após conteúdo */}
             <MobileMenu />
             <BottomNavigation />
             <ChatWidget />
             <PlenAssistant />
-            <NotificationPopup />
+            {!isApp && <NotificationPopup />}
             <FacebookPixelWrapper />
-            <CookieConsent />
+            {!isApp && <CookieConsent />}
           </MenuProvider>
         </ThemeProvider>
+        </AppPlatformProvider>
       </body>
     </html>
   )
