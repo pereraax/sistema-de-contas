@@ -79,19 +79,20 @@ export async function sendReplyButtons(
     })
   }
 
-  // Payload conforme doc: telefone, text (com URL no texto), buttons, footer, title, instancia
+  // Payload conforme doc: telefone, text (com URL no texto), buttons, footer, title, instancia (string)
   const payload = {
     telefone: cleanPhone,
     text: textWithUrl,
     buttons: buttonsForApi,
     footer: 'Toque em um botão abaixo',
     title: 'PleniPay',
-    instancia: config.instanceId,
+    instancia: String(config.instanceId),
   }
+  const authHeader = config.token.startsWith('Bearer ') ? config.token : `Bearer ${config.token}`
   try {
     const res = await fetch(urlButtons, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: config.token },
+      headers: { 'Content-Type': 'application/json', Authorization: authHeader },
       body: JSON.stringify(payload),
     })
     let data: any = {}
@@ -106,6 +107,40 @@ export async function sendReplyButtons(
       return { success: true, messageId: data?.data?.notificacao_id ?? data?.data?.id ?? data?.messageId }
     }
     console.warn('⚠️ [Apifacil] enviar-botao falhou. Status:', res.status, 'Resposta:', JSON.stringify(data))
+
+    // Segunda tentativa: só botões de resposta (id + text), sem cta_url — algumas instâncias aceitam apenas reply
+    if (buttonsForApi.some((btn) => 'name' in btn && btn.name === 'cta_url')) {
+      const onlyReplyButtons = buttons.slice(0, 3).map((b) => ({ id: b.id, text: b.title }))
+      const payloadReply = {
+        telefone: cleanPhone,
+        text: bodyText,
+        buttons: onlyReplyButtons,
+        footer: 'Toque em um botão abaixo',
+        title: 'PleniPay',
+        instancia: String(config.instanceId),
+      }
+      try {
+        const res2 = await fetch(urlButtons, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+          body: JSON.stringify(payloadReply),
+        })
+        let data2: any = {}
+        try {
+          data2 = await res2.json()
+        } catch {
+          // ignore
+        }
+        const apiError2 = data2?.error === true || data2?.erro === true
+        if (res2.ok && !apiError2) {
+          console.log('✅ [Apifacil] enviar-botao OK (só reply), botões enviados para', cleanPhone)
+          return { success: true, messageId: data2?.data?.notificacao_id ?? data2?.data?.id ?? data2?.messageId }
+        }
+        console.warn('⚠️ [Apifacil] enviar-botao (só reply) falhou. Status:', res2.status, 'Resposta:', JSON.stringify(data2))
+      } catch (e2) {
+        console.warn('⚠️ [Apifacil] Erro ao chamar enviar-botao (só reply):', e2)
+      }
+    }
   } catch (e) {
     console.warn('⚠️ [Apifacil] Erro ao chamar enviar-botao:', e)
   }
