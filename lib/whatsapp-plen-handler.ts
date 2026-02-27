@@ -512,8 +512,8 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       console.log('👋 [WhatsApp PLEN] ==========================================')
       addLog('info', `👋 [PLEN WhatsApp] QUERO UTILIZAR PLENIPAY: ${text}`)
 
-      // Botões de resposta (reply buttons): CADASTRAR / JÁ CADASTREI.
-      // Ao clicar em CADASTRAR, o webhook envia o link em seguida (sem depender de botão URL).
+      // Resposta exata: 3 mensagens (como no print).
+      // 1) Boas-vindas | 2) Escolha abaixo + botões CADASTRAR / JÁ CADASTREI | 3) Instrução do e-mail.
       return {
         success: true,
         messages: [
@@ -527,7 +527,6 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
             ],
           },
           `Assim que finalizar o cadastro, me envia seu e-mail aqui 📩\nVou verificar tudo certinho e já te liberar pra começar a registrar seus gastos e colocar suas economias em ordem 💸📊✨\n\nEu fico responsável por anotar tudo pra você direto pelo WhatsApp, combinado? 😉`,
-          `Enquanto isso… vou tomar meu cafezinho ☕😄\nMas já estou te esperando por aqui! 🚀💙`,
         ],
       }
     }
