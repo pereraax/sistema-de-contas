@@ -517,6 +517,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
         success: true,
         messages: [
           `Oiii 👋💙\nEu sou a Plen, sua assistente financeira 🤖✨\nE eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!\n\nAntes da gente começar, cria sua conta rapidinho lá no site 🌐\nÉ bem rápido mesmo, prometo! ⏱️💙`,
+          `🔗 Link de cadastro: https://plenipay.com\n\nDepois que você criar sua conta, toque em *JÁ CADASTREI* (ou digite) aqui pra eu pedir seu e-mail e te liberar. 💙`,
           {
             type: 'buttons' as const,
             body: 'Escolha abaixo:',

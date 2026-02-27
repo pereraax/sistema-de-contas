@@ -51,9 +51,10 @@ export async function sendReplyButtons(
   }
   const baseUrl = 'https://apifacil.dev/api/v1'
 
-  // Formato da doc API Fácil: botão simples (id + text) ou URL (name: cta_url + buttonParamsJson).
-  // CADASTRAR = abre plenipay.com; JÁ CADASTREI = botão de resposta (webhook continua o fluxo de verificação).
   const urlButtons = `${baseUrl}/whatsapp/enviar-botao`
+  const cadastroUrl = 'https://plenipay.com'
+
+  // Tentativa 1: formato "buttons" (algumas contas/endpoints aceitam cta_url)
   const buttonsForApi = buttons.slice(0, 3).map((b) => {
     const idLower = (b.id || '').toLowerCase()
     if (idLower === 'cadastrar') {
@@ -61,17 +62,34 @@ export async function sendReplyButtons(
         name: 'cta_url',
         buttonParamsJson: JSON.stringify({
           display_text: b.title || 'CADASTRAR',
-          url: 'https://plenipay.com',
+          url: cadastroUrl,
         }),
       }
     }
     return { id: b.id, text: b.title }
   })
-  const payload = {
-    telefone: cleanPhone,
-    text: bodyText,
-    buttons: buttonsForApi,
+
+  // Tentativa 2: formato "botoes" (id + titulo) — mais comum em integrações brasileiras
+  const botoesForApi = buttons.slice(0, 3).map((b) => ({
+    id: b.id,
+    titulo: b.title,
+    title: b.title,
+    text: b.title,
+    label: b.title,
+  }))
+
+  // Enviar com múltiplos nomes de campos para aumentar compatibilidade com variações do endpoint
+  const payload: Record<string, unknown> = {
     instancia: config.instanceId,
+    id_instancia: config.instanceId,
+    telefone: cleanPhone,
+    para: cleanPhone,
+    numero: cleanPhone,
+    text: bodyText,
+    mensagem: bodyText,
+    message: bodyText,
+    buttons: buttonsForApi,
+    botoes: botoesForApi,
   }
   try {
     const res = await fetch(urlButtons, {
@@ -96,9 +114,10 @@ export async function sendReplyButtons(
 
   // Fallback: enviar como texto (opções em negrito)
   console.log('📝 [Apifacil] Usando fallback (texto + negrito) para botões em', cleanPhone)
-  const textWithOptions = buttons.length
-    ? `${bodyText}\n\n${buttons.map((b) => `*${b.title}*`).join('\n')}`
-    : bodyText
+  const hasCadastrar = buttons.some((b) => (b.id || '').toLowerCase() === 'cadastrar')
+  const linkLine = hasCadastrar ? `🔗 Cadastro: ${cadastroUrl}` : ''
+  const optionsLine = buttons.length ? `${buttons.map((b) => `*${b.title}*`).join('\n')}` : ''
+  const textWithOptions = [bodyText, linkLine, optionsLine].filter((s) => !!s && String(s).trim()).join('\n\n')
   const result = await sendTextMessage(phoneNumber, textWithOptions)
   return { ...result, usedFallback: true }
 }
