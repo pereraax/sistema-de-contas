@@ -72,13 +72,12 @@ export async function sendReplyButtons(
     return { id: b.id, text: b.title }
   })
 
+  // Igual ao print: só "Escolha abaixo:" + botões (sem título/rodapé extra)
   const payload = {
     telefone: cleanPhone,
     text: bodyText,
     buttons: buttonsForApi,
     instancia: config.instanceId,
-    title: 'PleniPay',
-    footer: 'Escolha uma opção abaixo',
   }
   try {
     const res = await fetch(urlButtons, {
