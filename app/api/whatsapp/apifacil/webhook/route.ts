@@ -310,13 +310,22 @@ async function processarEmBackground(parsed: {
     }
     if (!text) return
 
-    // Ignorar eco da nossa própria mensagem (provedor reenvia nossa saudação e gerava "Oops!" em seguida)
+    // Ignorar eco de QUALQUER uma das 3 mensagens que enviamos (provedor reenvia e gerava "Oops!" em seguida)
     const txtLower = String(text).trim().toLowerCase()
-    const pareceNossaMensagem =
-      (txtLower.includes('eu sou a plen') || txtLower.includes('sua assistente financeira')) &&
-      (txtLower.includes('oiii') || txtLower.includes('assistente financeira'))
-    if (pareceNossaMensagem) {
-      console.log('📨 [Apifacil Webhook] Ignorando eco da nossa mensagem (evita enviar Oops):', txtLower.slice(0, 60))
+    const trechosNossasMensagens = [
+      'eu sou a plen',
+      'sua assistente financeira',
+      'oiii',
+      'antes da gente começar',
+      'cria sua conta',
+      'lá no site',
+      'assim que finalizar o cadastro',
+      'me envia seu e-mail',
+      'escolha abaixo',
+    ]
+    const pareceEcoNossaMensagem = trechosNossasMensagens.some((trecho) => txtLower.includes(trecho))
+    if (pareceEcoNossaMensagem) {
+      console.log('📨 [Apifacil Webhook] Ignorando eco da nossa mensagem (evita enviar Oops):', txtLower.slice(0, 80))
       return
     }
 

@@ -685,10 +685,18 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
       }
     }
 
-    // Nunca enviar o texto longo "Oops!" quando a mensagem for nossa própria saudação (eco no webhook)
-    const pareceNossaSaudacao =
-      (t.includes('eu sou a plen') || t.includes('sua assistente financeira')) && (t.includes('oiii') || t.includes('assistente'))
-    if (pareceNossaSaudacao) {
+    // Nunca enviar "Oops!" quando a mensagem for eco de qualquer uma das 3 mensagens do fluxo "quero utilizar"
+    const trechosNossasMensagens = [
+      'eu sou a plen',
+      'sua assistente financeira',
+      'oiii',
+      'antes da gente começar',
+      'cria sua conta',
+      'assim que finalizar o cadastro',
+      'me envia seu e-mail',
+      'escolha abaixo',
+    ]
+    if (trechosNossasMensagens.some((trecho) => t.includes(trecho))) {
       return { response: 'Em que posso ajudar? 😊' }
     }
 

@@ -72,7 +72,6 @@ export async function sendReplyButtons(
     return { id: b.id, text: b.title }
   })
 
-  // Igual ao print: só "Escolha abaixo:" + botões (sem título/rodapé extra)
   const payload = {
     telefone: cleanPhone,
     text: bodyText,
@@ -95,7 +94,7 @@ export async function sendReplyButtons(
       console.log('✅ [Apifacil] enviar-botao OK, botões enviados para', cleanPhone)
       return { success: true, messageId: data?.data?.notificacao_id ?? data?.data?.id ?? data?.messageId }
     }
-    console.warn('⚠️ [Apifacil] enviar-botao falhou. Status:', res.status, 'Resposta:', JSON.stringify(data).slice(0, 300))
+    console.warn('⚠️ [Apifacil] enviar-botao falhou. Status:', res.status, 'Resposta:', JSON.stringify(data))
   } catch (e) {
     console.warn('⚠️ [Apifacil] Erro ao chamar enviar-botao:', e)
   }
