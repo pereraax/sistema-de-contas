@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { X, Loader2, Eye, EyeOff, TrendingUp, TrendingDown, Wallet } from 'lucide-react'
+import { X, Loader2, Eye, EyeOff } from 'lucide-react'
 
 const PLANOS = [
   { id: 'teste' as const, nome: 'Gratuito', preco: 'R$ 0', periodo: 'sempre grátis', destaque: false },
@@ -15,9 +15,9 @@ const PLANOS = [
 
 const SLIDES = [
   { title: 'Controle suas finanças', subtitle: 'Tudo em um só lugar: receitas, despesas, metas e relatórios.' },
-  { title: 'Acompanhe seu saldo', subtitle: 'Receitas, despesas e contas organizadas na palma da mão.', showPreview: true },
+  { title: 'Acompanhe seu saldo', subtitle: 'Receitas, despesas e contas organizadas na palma da mão.' },
   { title: 'Metas e planejamento', subtitle: 'Defina metas e acompanhe sua evolução financeira.' },
-  { title: 'Relatórios completos', subtitle: 'Tenha uma visão clara de onde vai seu dinheiro.' },
+  { title: 'Visualize múltiplos cartões em um só lugar', subtitle: 'Tenha uma visão completa das suas faturas, datas de pagamento e limites.' },
   { title: 'O jeito mais fácil de controlar suas finanças', subtitle: 'Cadastre-se, crie planejamentos, controle todos os seus gastos e muito mais!' },
 ]
 
@@ -155,54 +155,27 @@ export default function AppWelcomeScreen() {
               className="flex-shrink-0 w-full flex flex-col items-center px-5 pt-6 pb-4 snap-center min-h-full"
               style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))' }}
             >
-              {/* Conteúdo logo acima da barra: card + título + descrição + dots */}
+              {/* Conteúdo logo acima da barra: card glass + título + descrição + dots (layout igual à referência, sem imagens) */}
               <div className="mt-auto w-full flex flex-col items-center">
-              {/* Card tipo tela de celular — branco com brilho azul Plenipay */}
-              {slide.showPreview ? (
-                <div
-                  className="w-full max-w-[300px] rounded-[28px] bg-white p-5 mb-8 flex flex-col"
-                  style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 25px 60px -15px rgba(0, 194, 255, 0.2)' }}
-                >
-                  <div className="flex items-center justify-between text-gray-500 text-xs mb-3">
-                    <span>Março</span>
-                    <span>🪙 28</span>
+              {/* Card glass com brilho azul Plenipay — estrutura com placeholders (sem imagens/marcas) */}
+              <div className="app-glass-onboarding w-full max-w-[300px] rounded-[28px] p-5 mb-8 flex flex-col">
+                <p className="text-white/80 text-xs mb-1">Seus cartões em um só lugar</p>
+                <p className="text-lg font-semibold text-white mb-3">Visão geral</p>
+                <div className="flex gap-4 mb-3 text-xs">
+                  <span className="text-white/70">Disponível</span>
+                  <span className="text-white/70 ml-auto">Total faturas</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="rounded-2xl bg-[#E6F7FF]/90 border border-[#00C2FF]/20 p-3 flex items-center justify-between">
+                    <span className="text-[#0D1B2A]/80 text-sm font-medium">Cartão 1</span>
+                    <span className="text-[#0D1B2A]/60 text-xs">R$ ***</span>
                   </div>
-                  <p className="text-gray-500 text-xs mb-0.5">Saldo em contas</p>
-                  <p className="text-2xl font-bold text-[#0D1B2A] mb-3">R$ 870,50</p>
-                  <div className="flex gap-4 mb-3">
-                    <div className="flex items-center gap-1 text-green-600 text-sm">
-                      <TrendingUp size={14} />
-                      <span>R$ 3.877,60</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-red-600 text-sm">
-                      <TrendingDown size={14} />
-                      <span>R$ 3.200,43</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-2">Contas</p>
-                  <div className="flex items-center justify-between py-2.5 border-t border-gray-100">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-xs font-bold">S</div>
-                      <span className="text-sm font-medium">Santander</span>
-                    </div>
-                    <span className="text-sm font-semibold">R$ 550,00</span>
-                  </div>
-                  <div className="flex items-center justify-between py-2.5 border-t border-gray-100">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-xs font-bold">N</div>
-                      <span className="text-sm font-medium">NuConta</span>
-                    </div>
-                    <span className="text-sm font-semibold">R$ 120,50</span>
+                  <div className="rounded-2xl bg-[#E6F7FF]/90 border border-[#00C2FF]/20 p-3 flex items-center justify-between">
+                    <span className="text-[#0D1B2A]/80 text-sm font-medium">Cartão 2</span>
+                    <span className="text-[#0D1B2A]/60 text-xs">R$ ***</span>
                   </div>
                 </div>
-              ) : (
-                <div
-                  className="w-full max-w-[260px] h-[320px] rounded-[28px] bg-[#E6F7FF] flex items-center justify-center mb-8 border border-[#00C2FF]/20"
-                  style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 25px 60px -15px rgba(0, 194, 255, 0.2)' }}
-                >
-                  <Wallet className="text-[#007A99]" size={48} />
-                </div>
-              )}
+              </div>
 
               {/* Título — grande, branco, negrito, centralizado */}
               <h2 className="text-xl font-bold text-white text-center max-w-[320px] mb-2 leading-tight px-1">
