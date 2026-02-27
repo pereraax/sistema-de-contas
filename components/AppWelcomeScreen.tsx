@@ -13,13 +13,7 @@ const PLANOS = [
   { id: 'premium' as const, nome: 'Premium', preco: 'R$ 49,90', periodo: '/mês', destaque: true },
 ]
 
-const SLIDES = [
-  { title: 'Controle suas finanças', subtitle: 'Tudo em um só lugar: receitas, despesas, metas e relatórios.' },
-  { title: 'Acompanhe seu saldo', subtitle: 'Receitas, despesas e contas organizadas na palma da mão.' },
-  { title: 'Metas e planejamento', subtitle: 'Defina metas e acompanhe sua evolução financeira.' },
-  { title: 'Visualize múltiplos cartões em um só lugar', subtitle: 'Tenha uma visão completa das suas faturas, datas de pagamento e limites.' },
-  { title: 'O jeito mais fácil de controlar suas finanças', subtitle: 'Cadastre-se, crie planejamentos, controle todos os seus gastos e muito mais!' },
-]
+const ONBOARDING_SLIDES_COUNT = 4
 
 export default function AppWelcomeScreen() {
   const router = useRouter()
@@ -79,7 +73,7 @@ export default function AppWelcomeScreen() {
   }
 
   const goToSlide = (index: number) => {
-    const next = Math.max(0, Math.min(index, SLIDES.length - 1))
+    const next = Math.max(0, Math.min(index, ONBOARDING_SLIDES_COUNT - 1))
     setSlideIndex(next)
     if (scrollRef.current) {
       scrollRef.current.scrollTo({ left: next * scrollRef.current.offsetWidth, behavior: 'smooth' })
@@ -90,13 +84,100 @@ export default function AppWelcomeScreen() {
     setPhase('welcome')
   }
 
-  const isLastSlide = slideIndex === SLIDES.length - 1
-  const onLastSlideCta = () => {
-    if (isLastSlide) setPhase('welcome')
-    else goToSlide(slideIndex + 1)
+  // ——— Splash: só logo (fundo azul escuro Plenipay)
+  if (phase === 'splash') {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0D1B2A]">
+        <div className="opacity-0 animate-[appSplashFade_0.5s_ease-out_forwards]">
+          <Image
+            src="/logo-header.png"
+            alt="PLENIPAY"
+            width={160}
+            height={56}
+            className="h-14 w-auto object-contain brightness-0 invert"
+            priority
+          />
+        </div>
+      </div>
+    )
   }
 
-  // Barra fixa inferior — fundo próprio atrás de Cadastrar e Já sou cadastrado
+  // ——— Onboarding: gradiente Plenipay, slider com card placeholder, bottom sheet 45%
+  if (phase === 'onboarding') {
+    return (
+      <div className="fixed inset-0 z-[100] flex flex-col app-onboarding-bg overflow-hidden">
+        {/* Parte superior (~55%): slider com card central */}
+        <div
+          ref={scrollRef}
+          className="app-onboarding-scroll flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none]"
+          onScroll={(e) => {
+            const el = e.currentTarget
+            const i = Math.round(el.scrollLeft / el.offsetWidth)
+            if (i !== slideIndex) setSlideIndex(i)
+          }}
+        >
+          {Array.from({ length: ONBOARDING_SLIDES_COUNT }).map((_, i) => (
+            <div
+              key={i}
+              className="flex-shrink-0 w-full flex flex-col items-center justify-center px-6 snap-center min-h-full"
+              style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))', paddingBottom: '1rem' }}
+            >
+              {/* Card central: placeholder neutro (estrutura pronta para imagens futuras) */}
+              <div className="app-card-phone w-full max-w-[300px] rounded-[28px] overflow-hidden flex flex-col items-center justify-center min-h-[280px]">
+                <div className="w-full h-full min-h-[260px] bg-[#E6F7FF]/40 border border-[#00C2FF]/10 rounded-2xl m-3" aria-hidden />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Bottom sheet (~45%): bordas superiores muito arredondadas, fundo contrastante */}
+        <div
+          className="flex-shrink-0 w-full rounded-t-[32px] bg-[#0a1628] border-t border-[#00C2FF]/20 px-6 pt-8 pb-8 flex flex-col items-center"
+          style={{ paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom) + 24px))' }}
+        >
+          <h1 className="text-xl font-bold text-white text-center max-w-[320px] mb-2 leading-tight">
+            Controle total dos seus cartões em um só lugar
+          </h1>
+          <p className="text-white/85 text-sm text-center max-w-[320px] mb-6 leading-snug">
+            Gerencie limites, acompanhe faturas e organize seus pagamentos de forma simples, rápida e inteligente.
+          </p>
+
+          {/* 4 bolinhas: terceira ativa com cor Plenipay, demais opacidade reduzida */}
+          <div className="flex items-center justify-center gap-2 mb-6">
+            {Array.from({ length: ONBOARDING_SLIDES_COUNT }).map((_, j) => (
+              <button
+                key={j}
+                type="button"
+                onClick={() => goToSlide(j)}
+                className={`rounded-full transition-all duration-300 ${
+                  j === slideIndex
+                    ? 'w-6 h-2 bg-[#00C2FF]'
+                    : 'w-2 h-2 bg-white/35'
+                }`}
+                aria-label={`Slide ${j + 1}`}
+              />
+            ))}
+          </div>
+
+          <Link
+            href="/cadastro?plano=teste"
+            className="app-btn-pill block w-full py-4 rounded-full text-white font-semibold text-center text-base"
+          >
+            Criar conta
+          </Link>
+          <button
+            type="button"
+            onClick={() => setPhase('login')}
+            className="mt-4 text-[#00C2FF] text-sm font-medium"
+          >
+            Já tenho conta
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Barra fixa inferior (tela welcome)
   const BottomBar = () => (
     <div
       className="fixed bottom-0 left-0 right-0 z-[101] px-5 pt-5 border-t border-[#00C2FF]/20 bg-[#0a1628]"
@@ -117,99 +198,6 @@ export default function AppWelcomeScreen() {
       </button>
     </div>
   )
-
-  // ——— Splash: só logo (fundo azul escuro Plenipay)
-  if (phase === 'splash') {
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0D1B2A]">
-        <div className="opacity-0 animate-[appSplashFade_0.5s_ease-out_forwards]">
-          <Image
-            src="/logo-header.png"
-            alt="PLENIPAY"
-            width={160}
-            height={56}
-            className="h-14 w-auto object-contain brightness-0 invert"
-            priority
-          />
-        </div>
-      </div>
-    )
-  }
-
-  // ——— Onboarding: fundo azul escuro Plenipay, card com brilho azul, 5 dots, botões embaixo
-  if (phase === 'onboarding') {
-    return (
-      <div className="fixed inset-0 z-[100] flex flex-col bg-[#0D1B2A] overflow-hidden">
-        <div
-          ref={scrollRef}
-          className="app-onboarding-scroll flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none]"
-          onScroll={(e) => {
-            const el = e.currentTarget
-            const i = Math.round(el.scrollLeft / el.offsetWidth)
-            if (i !== slideIndex) setSlideIndex(i)
-          }}
-        >
-          {SLIDES.map((slide, i) => (
-            <div
-              key={i}
-              className="flex-shrink-0 w-full flex flex-col items-center px-5 pt-6 pb-4 snap-center min-h-full"
-              style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))' }}
-            >
-              {/* Conteúdo logo acima da barra: card glass + título + descrição + dots (layout igual à referência, sem imagens) */}
-              <div className="mt-auto w-full flex flex-col items-center">
-              {/* Card glass com brilho azul Plenipay — estrutura com placeholders (sem imagens/marcas) */}
-              <div className="app-glass-onboarding w-full max-w-[300px] rounded-[28px] p-5 mb-8 flex flex-col">
-                <p className="text-white/80 text-xs mb-1">Seus cartões em um só lugar</p>
-                <p className="text-lg font-semibold text-white mb-3">Visão geral</p>
-                <div className="flex gap-4 mb-3 text-xs">
-                  <span className="text-white/70">Disponível</span>
-                  <span className="text-white/70 ml-auto">Total faturas</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="rounded-2xl bg-[#E6F7FF]/90 border border-[#00C2FF]/20 p-3 flex items-center justify-between">
-                    <span className="text-[#0D1B2A]/80 text-sm font-medium">Cartão 1</span>
-                    <span className="text-[#0D1B2A]/60 text-xs">R$ ***</span>
-                  </div>
-                  <div className="rounded-2xl bg-[#E6F7FF]/90 border border-[#00C2FF]/20 p-3 flex items-center justify-between">
-                    <span className="text-[#0D1B2A]/80 text-sm font-medium">Cartão 2</span>
-                    <span className="text-[#0D1B2A]/60 text-xs">R$ ***</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Título — grande, branco, negrito, centralizado */}
-              <h2 className="text-xl font-bold text-white text-center max-w-[320px] mb-2 leading-tight px-1">
-                {slide.title}
-              </h2>
-              {/* Descrição — menor, branco, centralizado */}
-              <p className="text-white/90 text-sm text-center max-w-[300px] mb-6 leading-snug">
-                {slide.subtitle}
-              </p>
-              {/* 5 dots — ativo em azul claro Plenipay */}
-              <div className="flex items-center justify-center gap-2 mb-2">
-                {SLIDES.map((_, j) => (
-                  <button
-                    key={j}
-                    type="button"
-                    onClick={() => goToSlide(j)}
-                    className={`rounded-full transition-all ${
-                      j === slideIndex
-                        ? 'w-6 h-2 bg-[#00C2FF]'
-                        : 'w-2 h-2 bg-white/40'
-                    }`}
-                    aria-label={`Slide ${j + 1}`}
-                  />
-                ))}
-              </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <BottomBar />
-      </div>
-    )
-  }
 
   // ——— Welcome: conteúdo logo acima da barra, barra com fundo
   if (phase === 'welcome') {

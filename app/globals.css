@@ -139,14 +139,31 @@ body.platform-app .app-onboarding-scroll::-webkit-scrollbar {
   display: none;
 }
 
-/* Card glass do onboarding (fundo azul escuro Plenipay) */
-body.platform-app .app-glass-onboarding {
-  backdrop-filter: saturate(160%) blur(20px);
-  -webkit-backdrop-filter: saturate(160%) blur(20px);
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(0, 194, 255, 0.25);
+/* Onboarding: gradiente Plenipay (fundo) */
+body.platform-app .app-onboarding-bg {
+  background: linear-gradient(180deg, #0D1B2A 0%, #1B263B 35%, #0D1B2A 70%, #0a1628 100%);
+}
+
+/* Card “celular” do onboarding: fundo branco + halo azul Plenipay */
+body.platform-app .app-card-phone {
+  background: #fff;
   border-radius: 28px;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 25px 60px -15px rgba(0, 194, 255, 0.2);
+  border: 1px solid rgba(0, 194, 255, 0.3);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.15),
+    0 0 40px 0 rgba(0, 194, 255, 0.35),
+    0 25px 60px -15px rgba(0, 194, 255, 0.25);
+}
+
+/* Botão pill gradiente Plenipay */
+body.platform-app .app-btn-pill {
+  background: linear-gradient(135deg, #007A99 0%, #00C2FF 100%);
+  box-shadow: 0 4px 20px rgba(0, 122, 153, 0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+body.platform-app .app-btn-pill:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 12px rgba(0, 122, 153, 0.35);
 }
 
 /* Glass / vibrancy estilo iOS (tela inicial do app) */
