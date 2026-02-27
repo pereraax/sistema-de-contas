@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation'
 import { ArrowRight, Target, FolderTree, BarChart3, CheckCircle2, Star, ChevronDown, Users, TrendingUp, Calendar, FileText, MessageCircle, Smartphone, ChevronLeft, ChevronRight, Bot, Monitor, Sparkles, DollarSign, Instagram, Mail, Moon, Sun } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import AnimateOnScroll from '@/components/AnimateOnScroll'
+import { useAppPlatform } from '@/components/AppPlatformProvider'
+import AppWelcomeScreen from '@/components/AppWelcomeScreen'
 
 const ALL_TESTIMONIALS = [
   { name: 'Gabriela Bispo', role: 'Advogada', text: '"Consegui organizar minhas finanças de forma incrível! O PLENIPAY me ajudou a economizar mais de R$ 3.000 em apenas 2 meses. Recomendo para todos!"' },
@@ -36,6 +38,7 @@ const FUNCIONALIDADES_PLENIPAY = [
 
 export default function LandingPage() {
   const router = useRouter()
+  const isApp = useAppPlatform()
   const [isVisible, setIsVisible] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
@@ -55,6 +58,17 @@ export default function LandingPage() {
 
   const handleHeroMouseLeave = useCallback(() => {
     setMousePos(null)
+  }, [])
+
+  // OAuth: se retorno do Google/Apple caiu na raiz com ?code=, redirecionar para /auth/callback
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('code') && (window.location.pathname === '/' || window.location.pathname === '/login')) {
+      if (!params.has('next')) params.set('next', '/home')
+      window.location.replace(`/auth/callback?${params.toString()}`)
+      return
+    }
   }, [])
 
   useEffect(() => {
@@ -108,6 +122,13 @@ export default function LandingPage() {
     
     return () => observer.disconnect()
   }, [])
+
+  // No app (Capacitor): se logado, ir para /home; se não, mostrar tela inicial estilo iOS
+  useEffect(() => {
+    if (isApp && isAuthenticated) router.replace('/home')
+  }, [isApp, isAuthenticated, router])
+
+  if (isApp && !isAuthenticated) return <AppWelcomeScreen />
 
   const handleSelecionarPlano = (planoId: 'teste' | 'basico' | 'premium' | 'anual') => {
     if (planoId === 'teste') {

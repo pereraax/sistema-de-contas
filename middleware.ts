@@ -7,11 +7,42 @@ const publicRoutes = ['/', '/login', '/cadastro', '/planos', '/termos', '/privac
 // URL de produção forçada
 const PRODUCTION_URL = 'https://plenipay.com'
 
+// Cookie para modo "app" (iOS/Android): interface pode ser diferente do site sem afetar o web
+const PLATFORM_APP_COOKIE = 'platform'
+const PLATFORM_APP_VALUE = 'app'
+
 // Middleware para forçar renderização dinâmica em rotas específicas
 // Isso evita que o Next.js tente fazer prerendering estático
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
+  const { pathname, searchParams } = request.nextUrl
   const url = request.nextUrl.clone()
+
+  // App Store / Capacitor: ao abrir com ?platform=app, gravar cookie e redirecionar sem o param
+  // Assim o site normal NUNCA vê platform=app; só quem abre pelo app recebe o cookie e vê a UI "app"
+  if (searchParams.get('platform') === PLATFORM_APP_VALUE) {
+    const redirectUrl = new URL(pathname, url.origin)
+    searchParams.forEach((value, key) => {
+      if (key !== 'platform') redirectUrl.searchParams.set(key, value)
+    })
+    const res = NextResponse.redirect(redirectUrl, { status: 302 })
+    res.cookies.set(PLATFORM_APP_COOKIE, PLATFORM_APP_VALUE, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365, // 1 ano
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    })
+    return res
+  }
+
+  // OAuth (Google/Apple): se o retorno caiu em / ou /login com ?code=, enviar para /auth/callback
+  // para trocar o code por sessão e redirecionar para /home (evita usuário ficar na landing)
+  const oauthCode = searchParams.get('code')
+  if (oauthCode && (pathname === '/' || pathname === '/login')) {
+    const callbackUrl = new URL('/auth/callback', url.origin)
+    searchParams.forEach((value, key) => callbackUrl.searchParams.set(key, value))
+    if (!callbackUrl.searchParams.has('next')) callbackUrl.searchParams.set('next', '/home')
+    return NextResponse.redirect(callbackUrl, { status: 303 })
+  }
   
   // CRÍTICO: Verificar o host REAL da requisição (do header Host, não da URL)
   // Com Cloudflare, o Host pode ser plenipay.com, www.plenipay.com ou o host do Railway
