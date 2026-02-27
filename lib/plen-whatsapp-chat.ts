@@ -700,9 +700,9 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
       return { response: 'Em que posso ajudar? 😊' }
     }
 
-    // Só enviar Oops para oi/olá quando NÃO for mensagem de quero utilizar plenipay
+    // Para oi/olá: NUNCA enviar o texto longo "Oops!" — só resposta curta (evita spam após fluxo "quero utilizar")
     if (t.includes('oi') || t.includes('olá') || t.includes('ola')) {
-      return { response: msgNaoEntendi }
+      return { response: 'Em que posso ajudar? 😊' }
     }
     if (t.includes('ajuda') || t.includes('como usar')) {
       return {

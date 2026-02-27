@@ -324,8 +324,10 @@ async function processarEmBackground(parsed: {
       'escolha abaixo',
     ]
     const pareceEcoNossaMensagem = trechosNossasMensagens.some((trecho) => txtLower.includes(trecho))
-    if (pareceEcoNossaMensagem) {
-      console.log('📨 [Apifacil Webhook] Ignorando eco da nossa mensagem (evita enviar Oops):', txtLower.slice(0, 80))
+    // Também ignorar mensagens que são só saudação curta (oi/olá) — podem ser eco ou confirmação do provedor
+    const soSaudacaoCurta = /^(o+i+!?|olá!?|ola!?)\s*$/i.test(String(text).trim()) || txtLower === 'oi' || txtLower === 'olá' || txtLower === 'ola'
+    if (pareceEcoNossaMensagem || soSaudacaoCurta) {
+      console.log('📨 [Apifacil Webhook] Ignorando (eco ou saudação curta, evita Oops):', txtLower.slice(0, 80))
       return
     }
 
