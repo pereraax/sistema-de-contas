@@ -470,6 +470,13 @@ export async function POST(request: NextRequest) {
     const bodyToParse = payload ? { ...rawBody, ...payload } : rawBody
 
     const b = bodyToParse as Record<string, unknown>
+    // Notificação de ERRO de envio (ex.: botão falhou — "Não foi possível enviar sua mensagem"): não processar como mensagem do usuário
+    const erroEnvio = b.erro === true || String(b.status || '').toUpperCase() === 'ERRO'
+    if (erroEnvio) {
+      const msgErro = typeof b.mensagem === 'string' ? b.mensagem : '(sem mensagem)'
+      console.log('📨 [Apifacil Webhook] Notificação de erro de envio ignorada (não é mensagem do usuário):', msgErro.slice(0, 120))
+      return NextResponse.json({ success: true, message: 'Notificação de erro de envio ignorada' })
+    }
     const data = (b.data && typeof b.data === 'object' ? b.data : b) as Record<string, unknown>
     const tipoEnvio = (b.tipo_envio ?? data.tipo_envio) as string | undefined
     const mensagemPreview = (b.mensagem ?? data.mensagem) as string | undefined
