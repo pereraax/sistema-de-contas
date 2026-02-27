@@ -54,22 +54,39 @@ export async function sendReplyButtons(
   const urlButtons = `${baseUrl}/whatsapp/enviar-botao`
   const cadastroUrl = 'https://plenipay.com'
 
-  // Doc API Fácil: "O link no campo url deve estar presente no texto da mensagem" para botão CTA.
-  // Enviamos só botões de RESPOSTA (id + text) para evitar rejeição ao misturar cta_url + reply; ao tocar em CADASTRAR enviamos o link.
-  const buttonsForApi = buttons.slice(0, 3).map((b) => ({ id: b.id, text: b.title }))
-
+  // Conforme doc API Fácil (Enviar Botão WhatsApp):
+  // - Botão simples: { "id": "...", "text": "..." }
+  // - Botão URL: { "name": "cta_url", "buttonParamsJson": "{\"display_text\": \"...\", \"url\": \"...\"}" }
+  // - O link deve estar no texto da mensagem. Máximo 3 botões.
+  const hasCadastrar = buttons.some((b) => (b.id || '').toLowerCase() === 'cadastrar')
   const textWithUrl =
-    bodyText === 'Escolha abaixo:' && buttons.some((b) => (b.id || '').toLowerCase() === 'cadastrar')
-      ? `${bodyText}\n\n${cadastroUrl}`
-      : bodyText
+    bodyText === 'Escolha abaixo:' && hasCadastrar ? `${bodyText}\n\n${cadastroUrl}` : bodyText
 
+  // Ordem como na doc: primeiro reply (id + text), depois cta_url (name + buttonParamsJson)
+  const buttonsForApi: Array<{ id: string; text: string } | { name: string; buttonParamsJson: string }> = []
+  const replyButtons = buttons.slice(0, 3).filter((b) => (b.id || '').toLowerCase() !== 'cadastrar')
+  const cadastrarBtn = buttons.slice(0, 3).find((b) => (b.id || '').toLowerCase() === 'cadastrar')
+  for (const b of replyButtons) {
+    buttonsForApi.push({ id: b.id, text: b.title })
+  }
+  if (cadastrarBtn) {
+    buttonsForApi.push({
+      name: 'cta_url',
+      buttonParamsJson: JSON.stringify({
+        display_text: cadastrarBtn.title || 'CADASTRAR',
+        url: cadastroUrl,
+      }),
+    })
+  }
+
+  // Payload conforme doc: telefone, text (com URL no texto), buttons, footer, title, instancia
   const payload = {
     telefone: cleanPhone,
     text: textWithUrl,
     buttons: buttonsForApi,
-    instancia: config.instanceId,
-    title: 'PleniPay',
     footer: 'Toque em um botão abaixo',
+    title: 'PleniPay',
+    instancia: config.instanceId,
   }
   try {
     const res = await fetch(urlButtons, {
@@ -95,7 +112,6 @@ export async function sendReplyButtons(
 
   // Fallback: enviar como texto (opções em negrito)
   console.log('📝 [Apifacil] Usando fallback (texto + negrito) para botões em', cleanPhone)
-  const hasCadastrar = buttons.some((b) => (b.id || '').toLowerCase() === 'cadastrar')
   const linkLine = hasCadastrar ? `🔗 Cadastro: ${cadastroUrl}` : ''
   const optionsLine = buttons.length ? `${buttons.map((b) => `*${b.title}*`).join('\n')}` : ''
   const textWithOptions = [bodyText, linkLine, optionsLine].filter((s) => !!s && String(s).trim()).join('\n\n')
