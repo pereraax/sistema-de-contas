@@ -5,7 +5,31 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { X, Loader2, Eye, EyeOff, Apple, Mail, BarChart2, Chrome } from 'lucide-react'
+import { X, Loader2, Eye, EyeOff, Mail, BarChart2, ChevronLeft, Check, Circle } from 'lucide-react'
+
+/** Logo oficial Apple (maçã mordida) em preto */
+function AppleLogoIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width={20} height={20} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        fill="#000"
+        d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"
+      />
+    </svg>
+  )
+}
+
+/** Ícone Google "G" multicolor (estilo do print) */
+function GoogleGIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width={20} height={20} viewBox="0 0 24 24" aria-hidden>
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+    </svg>
+  )
+}
 
 const PLANOS = [
   { id: 'teste' as const, nome: 'Gratuito', preco: 'R$ 0', periodo: 'sempre grátis', destaque: false },
@@ -17,14 +41,112 @@ const ONBOARDING_SLIDES_COUNT = 4
 
 export default function AppWelcomeScreen() {
   const router = useRouter()
-  const [phase, setPhase] = useState<'splash' | 'onboarding' | 'welcome' | 'auth' | 'login'>('splash')
+  const [phase, setPhase] = useState<'splash' | 'onboarding' | 'welcome' | 'auth' | 'login' | 'cadastro'>('splash')
   const [slideIndex, setSlideIndex] = useState(0)
   const [showPlanos, setShowPlanos] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({ email: '', senha: '' })
+  const [loginView, setLoginView] = useState<'choice' | 'form'>('choice')
+  const [cadastroView, setCadastroView] = useState<'choice' | 'form'>('choice')
+  const [cadastroForm, setCadastroForm] = useState({ nome: '', email: '', senha: '' })
+  const [showCadastroPassword, setShowCadastroPassword] = useState(false)
+  const [oauthLoading, setOauthLoading] = useState<'apple' | 'google' | null>(null)
+  const [oauthError, setOauthError] = useState<string | null>(null)
+  const [authReveal, setAuthReveal] = useState(false)
+  const [loginReveal, setLoginReveal] = useState(false)
+  const [authExiting, setAuthExiting] = useState(false)
+  const [loginExiting, setLoginExiting] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  const ANIM_DURATION_MS = 450
+
+  const handleAuthBack = () => {
+    setAuthExiting(true)
+  }
+
+  const handleAuthTransitionEnd = (e: React.TransitionEvent) => {
+    if (e.propertyName !== 'transform' || !authExiting) return
+    setPhase('onboarding')
+    setAuthExiting(false)
+  }
+
+  const handleLoginBack = () => {
+    setLoginExiting(true)
+  }
+
+  const handleLoginTransitionEnd = (e: React.TransitionEvent) => {
+    if (e.propertyName !== 'transform' || !loginExiting) return
+    setPhase('auth')
+    setErrorMessage(null)
+    setLoginExiting(false)
+  }
+
+  const getOAuthRedirectUrl = () => {
+    if (typeof window === 'undefined') return ''
+    const origin = window.location.origin
+    const next = '/home'
+    return `${origin}/auth/callback?next=${encodeURIComponent(next)}`
+  }
+
+  const getOAuthErrorMessage = (provider: string, error: { message?: string } | null) => {
+    const msg = error?.message?.toLowerCase() || ''
+    if (msg.includes('not enabled') || msg.includes('provider is not enabled') || msg.includes('unsupported provider')) {
+      return `Login com ${provider} não está habilitado. No painel do Supabase: Authentication → Providers → ative "${provider}" e configure.`
+    }
+    return error?.message || `Não foi possível abrir o login com ${provider}.`
+  }
+
+  const handleSignInWithApple = async () => {
+    setOauthError(null)
+    setOauthLoading('apple')
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'apple',
+        options: { redirectTo: getOAuthRedirectUrl() },
+      })
+      if (error) {
+        setOauthError(getOAuthErrorMessage('Apple', error))
+        return
+      }
+      if (data?.url) {
+        window.location.href = data.url
+        return
+      }
+      setOauthError('Login com Apple não disponível. Habilite em Supabase → Authentication → Providers.')
+    } catch (e) {
+      setOauthError('Erro ao abrir login da Apple.')
+    } finally {
+      setOauthLoading(null)
+    }
+  }
+
+  const handleSignInWithGoogle = async () => {
+    setOauthError(null)
+    setOauthLoading('google')
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: getOAuthRedirectUrl() },
+      })
+      if (error) {
+        setOauthError(getOAuthErrorMessage('Google', error))
+        return
+      }
+      if (data?.url) {
+        window.location.href = data.url
+        return
+      }
+      setOauthError('Login com Google não disponível. Habilite em Supabase → Authentication → Providers.')
+    } catch (e) {
+      setOauthError('Erro ao abrir login do Google.')
+    } finally {
+      setOauthLoading(null)
+    }
+  }
 
   // Splash: logo 2s depois vai para onboarding
   useEffect(() => {
@@ -32,6 +154,29 @@ export default function AppWelcomeScreen() {
     const t = setTimeout(() => setPhase('onboarding'), 2200)
     return () => clearTimeout(t)
   }, [phase])
+
+  // Animação de baixo para cima: tela auth
+  useEffect(() => {
+    if (phase === 'auth') {
+      setAuthReveal(false)
+      const t = setTimeout(() => setAuthReveal(true), 30)
+      return () => clearTimeout(t)
+    }
+    setAuthReveal(false)
+  }, [phase])
+
+  // Animação de baixo para cima: tela login
+  useEffect(() => {
+    if (phase === 'login') {
+      setLoginView('choice')
+      setLoginReveal(false)
+      const t = setTimeout(() => setLoginReveal(true), 30)
+      return () => clearTimeout(t)
+    }
+    setLoginReveal(false)
+  }, [phase])
+
+  // Não resetar cadastroView ao entrar em cadastro: "Continuar com E-mail" já leva direto ao form
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -103,88 +248,95 @@ export default function AppWelcomeScreen() {
   }
 
   // ——— Onboarding: gradiente Plenipay, slider com card placeholder, bottom sheet 45%
-  if (phase === 'onboarding') {
-    return (
-      <div className="fixed inset-0 z-[100] flex flex-col app-onboarding-bg overflow-hidden">
-        {/* Parte superior (~55%): slider com card central */}
-        <div
-          ref={scrollRef}
-          className="app-onboarding-scroll flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none]"
-          onScroll={(e) => {
-            const el = e.currentTarget
-            const i = Math.round(el.scrollLeft / el.offsetWidth)
-            if (i !== slideIndex) setSlideIndex(i)
-          }}
-        >
-          {Array.from({ length: ONBOARDING_SLIDES_COUNT }).map((_, i) => (
-            <div
-              key={i}
-              className="flex-shrink-0 w-full flex flex-col items-center justify-center px-6 snap-center min-h-full"
-              style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))', paddingBottom: '1rem' }}
-            >
-              {/* Card central: placeholder neutro (estrutura pronta para imagens futuras) */}
-              <div className="app-card-phone w-full max-w-[300px] rounded-[28px] overflow-hidden flex flex-col items-center justify-center min-h-[280px]">
-                <div className="w-full h-full min-h-[260px] bg-[#E6F7FF]/40 border border-[#00C2FF]/10 rounded-2xl m-3" aria-hidden />
-              </div>
+  const onboardingScreen = (
+    <div className="fixed inset-0 z-[100] flex flex-col app-onboarding-bg overflow-hidden">
+      <div
+        ref={scrollRef}
+        className="app-onboarding-scroll flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none]"
+        onScroll={(e) => {
+          const el = e.currentTarget
+          const i = Math.round(el.scrollLeft / el.offsetWidth)
+          if (i !== slideIndex) setSlideIndex(i)
+        }}
+      >
+        {Array.from({ length: ONBOARDING_SLIDES_COUNT }).map((_, i) => (
+          <div
+            key={i}
+            className="flex-shrink-0 w-full flex flex-col items-center justify-center px-6 snap-center min-h-full"
+            style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))', paddingBottom: '1rem' }}
+          >
+            <div className="app-card-phone w-full max-w-[300px] rounded-[28px] overflow-hidden flex flex-col items-center justify-center min-h-[280px]">
+              <div className="w-full h-full min-h-[260px] bg-[#E6F7FF]/40 border border-[#00C2FF]/10 rounded-2xl m-3" aria-hidden />
             </div>
+          </div>
+        ))}
+      </div>
+      <div
+        className="flex-shrink-0 w-full rounded-t-[32px] bg-[#0a1628] border-t border-[#00C2FF]/20 px-6 pt-8 pb-8 flex flex-col items-center"
+        style={{ paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom) + 24px))' }}
+      >
+        <h1 className="text-xl font-bold text-white text-center max-w-[320px] mb-2 leading-tight">
+          Controle total dos seus cartões em um só lugar
+        </h1>
+        <p className="text-white/85 text-sm text-center max-w-[320px] mb-6 leading-snug">
+          Gerencie limites, acompanhe faturas e organize seus pagamentos de forma simples, rápida e inteligente.
+        </p>
+        <div className="flex items-center justify-center gap-2 mb-6">
+          {Array.from({ length: ONBOARDING_SLIDES_COUNT }).map((_, j) => (
+            <button
+              key={j}
+              type="button"
+              onClick={() => goToSlide(j)}
+              className={`rounded-full transition-all duration-300 ${
+                j === slideIndex ? 'w-6 h-2 bg-[#00C2FF]' : 'w-2 h-2 bg-white/35'
+              }`}
+              aria-label={`Slide ${j + 1}`}
+            />
           ))}
         </div>
-
-        {/* Bottom sheet (~45%): bordas superiores muito arredondadas, fundo contrastante */}
-        <div
-          className="flex-shrink-0 w-full rounded-t-[32px] bg-[#0a1628] border-t border-[#00C2FF]/20 px-6 pt-8 pb-8 flex flex-col items-center"
-          style={{ paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom) + 24px))' }}
-        >
-          <h1 className="text-xl font-bold text-white text-center max-w-[320px] mb-2 leading-tight">
-            Controle total dos seus cartões em um só lugar
-          </h1>
-          <p className="text-white/85 text-sm text-center max-w-[320px] mb-6 leading-snug">
-            Gerencie limites, acompanhe faturas e organize seus pagamentos de forma simples, rápida e inteligente.
-          </p>
-
-          {/* 4 bolinhas: terceira ativa com cor Plenipay, demais opacidade reduzida */}
-          <div className="flex items-center justify-center gap-2 mb-6">
-            {Array.from({ length: ONBOARDING_SLIDES_COUNT }).map((_, j) => (
-              <button
-                key={j}
-                type="button"
-                onClick={() => goToSlide(j)}
-                className={`rounded-full transition-all duration-300 ${
-                  j === slideIndex
-                    ? 'w-6 h-2 bg-[#00C2FF]'
-                    : 'w-2 h-2 bg-white/35'
-                }`}
-                aria-label={`Slide ${j + 1}`}
-              />
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setPhase('auth')}
-            className="app-btn-pill block w-full py-4 rounded-full text-white font-semibold text-center text-base"
-          >
-            Criar conta
-          </button>
-          <button
-            type="button"
-            onClick={() => setPhase('auth')}
-            className="mt-4 text-[#00C2FF] text-sm font-medium"
-          >
-            Já tenho conta
-          </button>
-        </div>
+        <button type="button" onClick={() => setPhase('auth')} className="app-btn-pill block w-full py-4 rounded-full text-white font-semibold text-center text-base">
+          Criar conta
+        </button>
+        <button type="button" onClick={() => setPhase('auth')} className="mt-4 text-[#00C2FF] text-sm font-medium">
+          Já tenho conta
+        </button>
       </div>
-    )
+    </div>
+  )
+
+  if (phase === 'onboarding' && !authExiting) {
+    return onboardingScreen
   }
 
-  // ——— Tela de autenticação/cadastro inicial (É hora de iniciar sua jornada!)
-  if (phase === 'auth') {
+  // ——— Tela de autenticação: entra por cima (subindo), sai descendo com onboarding já visível por baixo
+  if (phase === 'auth' || authExiting) {
     return (
-      <div
-        className="fixed inset-0 z-[100] flex flex-col app-onboarding-bg overflow-auto"
-        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
-      >
+      <>
+        {authExiting && (
+          <div className="fixed inset-0 z-[99] pointer-events-none" aria-hidden>
+            {onboardingScreen}
+          </div>
+        )}
+        <div
+          className={`fixed inset-0 z-[100] flex flex-col app-onboarding-bg overflow-hidden transition-transform ${
+            authExiting
+              ? 'duration-[450ms] ease-in translate-y-full'
+              : `duration-300 ease-out ${authReveal ? 'translate-y-0' : 'translate-y-full'}`
+          }`}
+          style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+          onTransitionEnd={handleAuthTransitionEnd}
+        >
+        {/* Botão Voltar: canto superior esquerdo, estilo Plenipay */}
+        <button
+          type="button"
+          onClick={handleAuthBack}
+          className="fixed top-0 left-0 z-[102] m-4 p-2.5 rounded-full bg-white/10 border border-[#00C2FF]/25 text-[#00C2FF] flex items-center justify-center transition-transform active:scale-95 hover:bg-white/15"
+          style={{ marginTop: 'max(1rem, env(safe-area-inset-top))' }}
+          aria-label="Voltar"
+        >
+          <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
+        </button>
+
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 min-h-full">
           {/* Ícone Plenipay: container quadrado com gradiente e glow */}
           <div
@@ -203,31 +355,37 @@ export default function AppWelcomeScreen() {
 
           {/* Botões de autenticação */}
           <div className="w-full max-w-[320px] space-y-4">
+            {oauthError && (
+              <p className="text-sm text-red-300 bg-red-500/20 rounded-xl px-3 py-2 text-center">{oauthError}</p>
+            )}
             <button
               type="button"
-              className="app-auth-btn-light w-full py-4 rounded-full flex items-center justify-center gap-3 text-[#0D1B2A] font-semibold text-base transition-transform active:scale-[0.98]"
-              onClick={() => {}}
+              disabled={oauthLoading !== null}
+              className="app-auth-btn-light w-full py-4 rounded-full flex items-center justify-center gap-3 text-[#0D1B2A] font-semibold text-base transition-transform active:scale-[0.98] disabled:opacity-70"
+              onClick={handleSignInWithApple}
               aria-label="Continuar com Apple"
             >
-              <Apple className="w-5 h-5 flex-shrink-0" />
+              {oauthLoading === 'apple' ? <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" /> : <AppleLogoIcon className="w-5 h-5 flex-shrink-0" />}
               <span>Continuar com Apple</span>
             </button>
             <button
               type="button"
-              className="app-auth-btn-light w-full py-4 rounded-full flex items-center justify-center gap-3 text-[#0D1B2A] font-semibold text-base transition-transform active:scale-[0.98]"
-              onClick={() => {}}
+              disabled={oauthLoading !== null}
+              className="app-auth-btn-light w-full py-4 rounded-full flex items-center justify-center gap-3 text-[#0D1B2A] font-semibold text-base transition-transform active:scale-[0.98] disabled:opacity-70"
+              onClick={handleSignInWithGoogle}
               aria-label="Continuar com Google"
             >
-              <Chrome className="w-5 h-5 flex-shrink-0" />
+              {oauthLoading === 'google' ? <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" /> : <GoogleGIcon className="w-5 h-5 flex-shrink-0" />}
               <span>Continuar com Google</span>
             </button>
-            <Link
-              href="/cadastro?plano=teste"
-              className="app-btn-pill w-full py-4 rounded-full flex items-center justify-center gap-3 text-white font-semibold text-base no-underline transition-transform active:scale-[0.98]"
+            <button
+              type="button"
+              onClick={() => { setOauthError(null); setPhase('cadastro'); setCadastroView('form'); }}
+              className="app-btn-pill w-full py-4 rounded-full flex items-center justify-center gap-3 text-white font-semibold text-base transition-transform active:scale-[0.98]"
             >
-              <Mail className="w-5 h-5 flex-shrink-0" />
+              <Mail className="w-5 h-5 flex-shrink-0 text-white" strokeWidth={2} />
               <span>Continuar com E-mail</span>
-            </Link>
+            </button>
           </div>
 
           <button
@@ -237,21 +395,22 @@ export default function AppWelcomeScreen() {
           >
             Entrar
           </button>
-        </div>
 
-        {/* Rodapé legal */}
-        <p className="text-center text-white/55 text-xs px-6 pb-8 pt-4 max-w-[320px] mx-auto leading-snug">
-          Ao continuar você estará concordando com os{' '}
-          <Link href="/termos" className="text-[#00C2FF] font-medium hover:underline">
-            Termos de Uso
-          </Link>{' '}
-          e{' '}
-          <Link href="/privacidade" className="text-[#00C2FF] font-medium hover:underline">
-            Privacidade
-          </Link>
-          .
-        </p>
+          {/* Termos de Uso logo abaixo de Entrar */}
+          <p className="text-center text-white/55 text-xs px-2 mt-4 max-w-[320px] leading-snug">
+            Ao continuar você estará concordando com os{' '}
+            <Link href="/termos" className="text-[#00C2FF] font-medium hover:underline">
+              Termos de Uso
+            </Link>{' '}
+            e{' '}
+            <Link href="/privacidade" className="text-[#00C2FF] font-medium hover:underline">
+              Privacidade
+            </Link>
+            .
+          </p>
+        </div>
       </div>
+      </>
     )
   }
 
@@ -309,70 +468,251 @@ export default function AppWelcomeScreen() {
     )
   }
 
-  // ——— Login (fundo azul escuro Plenipay)
-  return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-[#0D1B2A] overflow-auto">
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
-        <div className="app-glass w-full max-w-[320px] p-6">
-          <button
-            type="button"
-            onClick={() => { setPhase('auth'); setErrorMessage(null); }}
-            className="text-white/80 text-sm mb-4 flex items-center gap-1"
-          >
-            ← Voltar
-          </button>
-          <h2 className="text-xl font-semibold text-white mb-1">Entrar</h2>
-          <p className="text-white/70 text-sm mb-5">Acesse sua conta</p>
-          <form onSubmit={handleLogin} className="space-y-4">
-            {errorMessage && (
-              <p className="text-sm text-red-300 bg-red-500/20 rounded-xl px-3 py-2">{errorMessage}</p>
-            )}
-            <input
-              type="email"
-              placeholder="Email"
-              value={formData.email}
-              onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/25 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/30 text-base"
-              required
-            />
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Senha"
-                value={formData.senha}
-                onChange={e => setFormData(prev => ({ ...prev, senha: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/25 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/30 pr-11 text-base"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70"
-              >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+  // ——— Login: opções (igual print) ou formulário e-mail/senha
+  if (phase === 'login') {
+    const isLoginForm = loginView === 'form'
+    return (
+      <div
+        className={`fixed inset-0 z-[100] flex flex-col app-onboarding-bg overflow-auto transition-transform ${
+          loginExiting
+            ? 'duration-[450ms] ease-in translate-y-full'
+            : `duration-300 ease-out ${loginReveal ? 'translate-y-0' : 'translate-y-full'}`
+        }`}
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        onTransitionEnd={handleLoginTransitionEnd}
+      >
+        <button
+          type="button"
+          onClick={isLoginForm ? () => setLoginView('choice') : handleLoginBack}
+          className="fixed top-0 left-0 z-[102] m-4 p-2.5 rounded-full bg-white/10 border border-[#00C2FF]/25 text-[#00C2FF] flex items-center justify-center transition-transform active:scale-95"
+          style={{ marginTop: 'max(1rem, env(safe-area-inset-top))' }}
+          aria-label="Voltar"
+        >
+          <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
+        </button>
+
+        {!isLoginForm ? (
+          /* Opções de entrar (igual ao print: ícone + título + 3 botões) */
+          <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 min-h-full">
+            <div className="app-auth-icon-box w-16 h-16 rounded-2xl flex items-center justify-center mb-8" aria-hidden>
+              <BarChart2 className="w-8 h-8 text-white" strokeWidth={2.5} />
+            </div>
+            <h1 className="text-2xl font-bold text-white text-center max-w-[320px] mb-2 leading-tight">Entrar</h1>
+            <p className="text-white/75 text-base text-center max-w-[320px] mb-10 leading-snug">
+              Acesse sua conta com Apple, Google ou E-mail.
+            </p>
+            <div className="w-full max-w-[320px] space-y-4">
+              {oauthError && (
+                <p className="text-sm text-red-300 bg-red-500/20 rounded-xl px-3 py-2 text-center">{oauthError}</p>
+              )}
+              <button type="button" disabled={oauthLoading !== null} className="app-auth-btn-light w-full py-4 rounded-full flex items-center justify-center gap-3 text-[#0D1B2A] font-semibold text-base transition-transform active:scale-[0.98] disabled:opacity-70" onClick={handleSignInWithApple} aria-label="Continuar com Apple">
+                {oauthLoading === 'apple' ? <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" /> : <AppleLogoIcon className="w-5 h-5 flex-shrink-0" />}
+                <span>Continuar com Apple</span>
+              </button>
+              <button type="button" disabled={oauthLoading !== null} className="app-auth-btn-light w-full py-4 rounded-full flex items-center justify-center gap-3 text-[#0D1B2A] font-semibold text-base transition-transform active:scale-[0.98] disabled:opacity-70" onClick={handleSignInWithGoogle} aria-label="Continuar com Google">
+                {oauthLoading === 'google' ? <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" /> : <GoogleGIcon className="w-5 h-5 flex-shrink-0" />}
+                <span>Continuar com Google</span>
+              </button>
+              <button type="button" onClick={() => { setOauthError(null); setLoginView('form'); }} className="app-btn-pill w-full py-4 rounded-full flex items-center justify-center gap-3 text-white font-semibold text-base transition-transform active:scale-[0.98]">
+                <Mail className="w-5 h-5 flex-shrink-0 text-white" strokeWidth={2} />
+                <span>Continuar com E-mail</span>
               </button>
             </div>
-            <Link href="/auth/redefinir-senha" className="block text-sm text-white/80 text-right">
-              Esqueceu a senha?
-            </Link>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3.5 rounded-xl bg-[#007A99] hover:bg-[#006688] text-white font-semibold text-base disabled:opacity-70 flex items-center justify-center gap-2 transition-colors"
-            >
-              {loading ? <><Loader2 size={20} className="animate-spin" /> Entrando...</> : 'Entrar'}
-            </button>
-          </form>
-          <p className="text-center text-white/80 text-sm mt-4">
-            Não tem conta?{' '}
-            <Link href="/cadastro?plano=teste" className="text-[#00C2FF] font-medium underline">
-              Criar conta
-            </Link>
-          </p>
-        </div>
+          </div>
+        ) : (
+          /* Formulário E-mail + Senha (estilo print) */
+          <div className="flex-1 flex flex-col items-center px-6 py-8 pt-14 pb-8">
+            <div className="w-full max-w-[320px]">
+              <h2 className="text-xl font-bold text-white text-center mb-6">Entrar com E-mail</h2>
+              <form onSubmit={handleLogin} className="space-y-5">
+                {errorMessage && (
+                  <p className="text-sm text-red-300 bg-red-500/20 rounded-xl px-3 py-2">{errorMessage}</p>
+                )}
+                <div>
+                  <label className="block text-white/90 text-sm font-medium mb-1.5">E-mail</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full px-4 py-3.5 rounded-2xl bg-white/10 border border-[#00C2FF]/30 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#00C2FF]/50 text-base"
+                    placeholder="seu@email.com"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-white/90 text-sm font-medium mb-1.5">Senha</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={formData.senha}
+                      onChange={e => setFormData(prev => ({ ...prev, senha: e.target.value }))}
+                      className="w-full px-4 py-3.5 rounded-2xl bg-white/10 border border-[#00C2FF]/30 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#00C2FF]/50 pr-12 text-base"
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70" aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
+                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+                <Link href="/auth/redefinir-senha" className="block text-sm text-[#00C2FF] text-right mb-4">Esqueceu a senha?</Link>
+                <button type="submit" disabled={loading} className="app-btn-pill w-full py-4 rounded-full text-white font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-transform active:scale-[0.98]">
+                  {loading ? <><Loader2 size={20} className="animate-spin" /> Entrando...</> : 'Entrar'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
-  )
+    )
+  }
+
+  // ——— Cadastro: opções (Apple, Google, E-mail) ou formulário Nome + E-mail + Senha
+  if (phase === 'cadastro') {
+    const isCadastroForm = cadastroView === 'form'
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cadastroForm.email)
+    const senha = cadastroForm.senha
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(senha)
+    const hasUpper = /[A-Z]/.test(senha)
+    const hasLower = /[a-z]/.test(senha)
+    const hasNumber = /\d/.test(senha)
+    const hasMin8 = senha.length >= 8
+    const senhaOk = hasSpecial && hasUpper && hasLower && hasNumber && hasMin8
+    const formValid = cadastroForm.nome.trim().length >= 2 && emailValid && senhaOk
+
+    const handleCadastroSubmit = (e: React.FormEvent) => {
+      e.preventDefault()
+      if (!formValid) return
+      router.push(`/cadastro?plano=teste&nome=${encodeURIComponent(cadastroForm.nome)}&email=${encodeURIComponent(cadastroForm.email)}`)
+    }
+
+    return (
+      <div className="fixed inset-0 z-[100] flex flex-col app-onboarding-bg overflow-auto" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <button
+          type="button"
+          onClick={isCadastroForm ? () => setCadastroView('choice') : () => setPhase('auth')}
+          className="fixed top-0 left-0 z-[102] m-4 p-2.5 rounded-full bg-white/10 border border-[#00C2FF]/25 text-[#00C2FF] flex items-center justify-center transition-transform active:scale-95"
+          style={{ marginTop: 'max(1rem, env(safe-area-inset-top))' }}
+          aria-label="Voltar"
+        >
+          <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
+        </button>
+
+        {!isCadastroForm ? (
+          /* Opções de cadastro: ícone + Bem-vindo + 3 botões */
+          <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 min-h-full">
+            <div className="app-auth-icon-box w-16 h-16 rounded-2xl flex items-center justify-center mb-8" aria-hidden>
+              <BarChart2 className="w-8 h-8 text-white" strokeWidth={2.5} />
+            </div>
+            <h1 className="text-2xl font-bold text-white text-center max-w-[320px] mb-2 leading-tight">Bem-vindo à Plenipay!</h1>
+            <p className="text-white/75 text-base text-center max-w-[320px] mb-10 leading-snug">
+              Crie sua conta com Apple, Google ou E-mail.
+            </p>
+            <div className="w-full max-w-[320px] space-y-4">
+              {oauthError && (
+                <p className="text-sm text-red-300 bg-red-500/20 rounded-xl px-3 py-2 text-center">{oauthError}</p>
+              )}
+              <button type="button" disabled={oauthLoading !== null} className="app-auth-btn-light w-full py-4 rounded-full flex items-center justify-center gap-3 text-[#0D1B2A] font-semibold text-base transition-transform active:scale-[0.98] disabled:opacity-70" onClick={handleSignInWithApple} aria-label="Continuar com Apple">
+                {oauthLoading === 'apple' ? <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" /> : <AppleLogoIcon className="w-5 h-5 flex-shrink-0" />}
+                <span>Continuar com Apple</span>
+              </button>
+              <button type="button" disabled={oauthLoading !== null} className="app-auth-btn-light w-full py-4 rounded-full flex items-center justify-center gap-3 text-[#0D1B2A] font-semibold text-base transition-transform active:scale-[0.98] disabled:opacity-70" onClick={handleSignInWithGoogle} aria-label="Continuar com Google">
+                {oauthLoading === 'google' ? <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" /> : <GoogleGIcon className="w-5 h-5 flex-shrink-0" />}
+                <span>Continuar com Google</span>
+              </button>
+              <button type="button" onClick={() => { setOauthError(null); setCadastroView('form'); }} className="app-btn-pill w-full py-4 rounded-full flex items-center justify-center gap-3 text-white font-semibold text-base transition-transform active:scale-[0.98]">
+                <Mail className="w-5 h-5 flex-shrink-0 text-white" strokeWidth={2} />
+                <span>Continuar com E-mail</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Formulário cadastro: Nome, E-mail, Senha (critérios), Concordar e Continuar */
+          <div className="flex-1 flex flex-col items-center px-6 py-8 pt-14 pb-8 overflow-auto">
+            <div className="w-full max-w-[320px]">
+              <h2 className="text-xl font-bold text-white text-center mb-6">Bem-vindo à Plenipay!</h2>
+              <form onSubmit={handleCadastroSubmit} className="space-y-5">
+                <div>
+                  <label className="block text-white/90 text-sm font-medium mb-1.5">Nome</label>
+                  <input
+                    type="text"
+                    value={cadastroForm.nome}
+                    onChange={e => setCadastroForm(prev => ({ ...prev, nome: e.target.value }))}
+                    className="w-full px-4 py-3.5 rounded-2xl bg-white/10 border border-[#00C2FF]/30 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#00C2FF]/50 text-base"
+                    placeholder="Seu nome"
+                  />
+                </div>
+                <div>
+                  <label className="block text-white/90 text-sm font-medium mb-1.5">E-mail</label>
+                  <input
+                    type="email"
+                    value={cadastroForm.email}
+                    onChange={e => setCadastroForm(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full px-4 py-3.5 rounded-2xl bg-white/10 border border-[#00C2FF]/30 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#00C2FF]/50 text-base"
+                    placeholder="seu@email.com"
+                  />
+                  {(cadastroForm.email.length > 0 || emailValid) && (
+                    <p className={`flex items-center gap-2 mt-1.5 text-xs ${emailValid ? 'text-[#00C2FF]' : 'text-white/45'}`}>
+                      {emailValid ? <Check className="w-4 h-4 flex-shrink-0" /> : <Circle className="w-4 h-4 flex-shrink-0" />}
+                      {emailValid ? 'E-mail válido' : 'E-mail inválido'}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-white/90 text-sm font-medium mb-1.5">Senha</label>
+                  <div className="relative">
+                    <input
+                      type={showCadastroPassword ? 'text' : 'password'}
+                      value={cadastroForm.senha}
+                      onChange={e => setCadastroForm(prev => ({ ...prev, senha: e.target.value }))}
+                      className="w-full px-4 py-3.5 rounded-2xl bg-white/10 border border-[#00C2FF]/30 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#00C2FF]/50 pr-12 text-base"
+                      placeholder="••••••••"
+                    />
+                    <button type="button" onClick={() => setShowCadastroPassword(!showCadastroPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70" aria-label={showCadastroPassword ? 'Ocultar senha' : 'Mostrar senha'}>
+                      {showCadastroPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <ul className="mt-2 space-y-1.5">
+                    {[
+                      { ok: hasSpecial, label: 'Caractere especial' },
+                      { ok: hasUpper, label: 'Letra maiúscula' },
+                      { ok: hasLower, label: 'Letra minúscula' },
+                      { ok: hasNumber, label: 'Números' },
+                      { ok: hasMin8, label: 'Mínimo de 8 caracteres' },
+                    ].map(({ ok, label }) => (
+                      <li key={label} className={`flex items-center gap-2 text-xs ${ok ? 'text-[#00C2FF]' : 'text-white/45'}`}>
+                        {ok ? <Check className="w-4 h-4 flex-shrink-0" /> : <Circle className="w-4 h-4 flex-shrink-0" />}
+                        {label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <button
+                  type="submit"
+                  disabled={!formValid}
+                  className={`w-full py-4 rounded-full font-semibold text-base transition-transform active:scale-[0.98] flex items-center justify-center ${
+                    formValid
+                      ? 'app-btn-pill text-white'
+                      : 'bg-white/20 text-white/60 cursor-not-allowed'
+                  }`}
+                >
+                  Concordar e Continuar
+                </button>
+              </form>
+              <p className="text-center text-white/55 text-xs mt-6 leading-snug">
+                Ao continuar você estará concordando com os{' '}
+                <Link href="/termos" className="text-[#00C2FF] font-medium hover:underline">Termos de Uso</Link>{' '}
+                e{' '}
+                <Link href="/privacidade" className="text-[#00C2FF] font-medium hover:underline">Privacidade</Link>.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return null
 }
 
 function PlanosModal({
