@@ -57,7 +57,7 @@ export async function sendReplyButtons(
   // Conforme doc API Fácil (Enviar Botão WhatsApp):
   // - Botão simples: { "id": "...", "text": "..." }
   // - Botão URL: { "name": "cta_url", "buttonParamsJson": "{\"display_text\": \"...\", \"url\": \"...\"}" }
-  // - O link deve estar no texto da mensagem. Máximo 3 botões.
+  // - Atenção doc: "O link deve estar no texto da mensagem" — usamos texto com URL para CTA funcionar.
   const hasCadastrar = buttons.some((b) => (b.id || '').toLowerCase() === 'cadastrar')
   const textWithUrl =
     bodyText === 'Escolha abaixo:' && hasCadastrar ? `${bodyText}\n\n${cadastroUrl}` : bodyText
@@ -79,7 +79,7 @@ export async function sendReplyButtons(
     })
   }
 
-  // Payload conforme doc: telefone, text (com URL no texto), buttons, footer, title, instancia (string)
+  // Payload idêntico ao exemplo da doc (telefone, text, buttons, footer, title, instancia)
   const payload = {
     telefone: cleanPhone,
     text: textWithUrl,
@@ -88,7 +88,9 @@ export async function sendReplyButtons(
     title: 'PleniPay',
     instancia: String(config.instanceId),
   }
-  const authHeader = config.token.startsWith('Bearer ') ? config.token : `Bearer ${config.token}`
+  console.log('📤 [Apifacil] enviar-botao payload (sem token):', JSON.stringify({ ...payload, instancia: payload.instancia ? '[OK]' : '[vazio]' }))
+  // Doc: "Authorization: seu_token_aqui" (token puro, sem Bearer)
+  const authHeader = config.token.trim()
   try {
     const res = await fetch(urlButtons, {
       method: 'POST',
@@ -104,9 +106,10 @@ export async function sendReplyButtons(
     const apiError = data?.error === true || data?.erro === true
     if (res.ok && !apiError) {
       console.log('✅ [Apifacil] enviar-botao OK, botões enviados para', cleanPhone)
-      return { success: true, messageId: data?.data?.notificacao_id ?? data?.data?.id ?? data?.messageId }
+      const msgId = data?.data?.notificacao_id ?? data?.data?.id ?? data?.notificacao_id ?? data?.messageId
+      return { success: true, messageId: msgId }
     }
-    console.warn('⚠️ [Apifacil] enviar-botao falhou. Status:', res.status, 'Resposta:', JSON.stringify(data))
+    console.warn('⚠️ [Apifacil] enviar-botao falhou. Status:', res.status, 'Body:', res.statusText, 'Resposta:', JSON.stringify(data))
 
     // Segunda tentativa: só botões de resposta (id + text), sem cta_url — algumas instâncias aceitam apenas reply
     if (buttonsForApi.some((btn) => 'name' in btn && btn.name === 'cta_url')) {
