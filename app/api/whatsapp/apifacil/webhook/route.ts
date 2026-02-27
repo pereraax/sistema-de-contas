@@ -379,7 +379,17 @@ async function processarEmBackground(parsed: {
             registerSentMessage(phone, textFallback)
             console.log('✅ [Apifacil Webhook] Botões', i + 1, '/', result.messages.length, 'enviados para:', phone, send.usedFallback ? '(fallback texto)' : '')
           } else {
-            console.error('❌ [Apifacil Webhook] Falha ao enviar botões', i + 1, ':', send.error)
+            console.error('❌ [Apifacil Webhook] Falha ao enviar botões', i + 1, ':', send.error, '- enviando link de cadastro como texto')
+            // Garantir que a segunda mensagem (link de cadastro) sempre seja enviada
+            const cadastroUrl = 'https://plenipay.com'
+            const linkMsg = `Escolha abaixo:\n\n🔗 Cadastro: ${cadastroUrl}\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
+            const sendLink = await sendTextMessage(phone, linkMsg)
+            if (sendLink.success) {
+              registerSentMessage(phone, linkMsg)
+              console.log('✅ [Apifacil Webhook] Link de cadastro enviado como fallback para:', phone)
+            } else {
+              console.error('❌ [Apifacil Webhook] Falha ao enviar link de cadastro:', sendLink.error)
+            }
           }
         } else if (typeof msg === 'object' && msg !== null && (msg as any).type === 'button_actions') {
           // API Fácil não suporta botão URL; envio como texto + link
