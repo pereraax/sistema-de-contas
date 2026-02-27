@@ -321,21 +321,52 @@ export async function GET(request: NextRequest) {
     )
 
     const nextPath = request.nextUrl.searchParams.get('next') || '/home'
+    const platformApp = request.nextUrl.searchParams.get('platform') === 'app'
     const redirectPath = nextPath.startsWith('/') ? nextPath : `/${nextPath}`
     const redirectUrl = new URL(redirectPath, productionUrl)
+    if (platformApp) redirectUrl.searchParams.set('platform', 'app')
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (error) {
-      console.error('❌ [Callback] exchangeCodeForSession falhou:', error.message)
-      const loginUrl = new URL('/login', productionUrl)
-      loginUrl.searchParams.set('error', 'Link inválido ou expirado. Solicite um novo link.')
-      return NextResponse.redirect(loginUrl.toString(), { status: 303 })
+      console.error('❌ [Callback] exchangeCodeForSession no servidor falhou:', error.message, '- tentando no cliente')
+      // Fallback: retornar HTML que troca o code no cliente e redireciona para /home (evita cair em /login por cookie/SSR)
+      const nextPath = request.nextUrl.searchParams.get('next') || '/home'
+      const platformApp = request.nextUrl.searchParams.get('platform') === 'app'
+      const fallbackHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Entrando - PleniPay</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#00C2FF,#0099CC);font-family:sans-serif;">
+<div style="background:#fff;padding:2rem;border-radius:16px;text-align:center;max-width:380px;">
+<p style="margin:0 0 1rem;">Entrando na plataforma...</p>
+<script>
+(function(){
+  var supabaseUrl = ${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL || '')};
+  var supabaseKey = ${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '')};
+  var code = ${JSON.stringify(code)};
+  var nextPath = ${JSON.stringify(nextPath)};
+  var fallbackSuffix = ${JSON.stringify(platformApp ? '?platform=app' : '')};
+  var base = ${JSON.stringify(productionUrl)};
+  if (!supabaseUrl || !supabaseKey || !code) { window.location.replace(base + '/login?error=Configuração inválida'); return; }
+  var supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+  supabase.auth.exchangeCodeForSession(code).then(function(r) {
+    if (r.error) { window.location.replace(base + '/login?error=' + encodeURIComponent(r.error.message)); return; }
+    window.location.replace(base + nextPath + fallbackSuffix);
+  }).catch(function(e) { window.location.replace(base + '/login?error=' + encodeURIComponent(e.message)); });
+})();
+</script>
+</div>
+</body>
+</html>`
+      return new NextResponse(fallbackHtml, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+      })
     }
 
-    // No Safari/iPhone, cookies definidos em resposta de redirect (303) podem não ser persistidos.
-    // Retornar 200 com HTML e redirecionar via JS após ~2s para o navegador gravar os cookies.
-    console.log('✅ [Callback] Sessão criada via code - retornando 200 e redirecionando em 2s (Safari fix)')
+    // Redirecionar para /home (dashboard) — delay curto para cookies persistirem, depois vai direto à plataforma
+    console.log('✅ [Callback] Sessão criada via code - redirecionando para', redirectPath)
     const finalRedirectUrl = redirectUrl.toString()
     const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -343,7 +374,7 @@ export async function GET(request: NextRequest) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#00C2FF">
-  <title>Email confirmado - PleniPay</title>
+  <title>Entrando na plataforma - PleniPay</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -387,7 +418,7 @@ export async function GET(request: NextRequest) {
   <script>
     (function() {
       var url = ${JSON.stringify(finalRedirectUrl)};
-      var delay = 2000;
+      var delay = 600;
       setTimeout(function() { window.location.replace(url); }, delay);
     })();
   </script>
@@ -395,8 +426,8 @@ export async function GET(request: NextRequest) {
 <body>
   <div class="card">
     <div class="spinner" aria-hidden="true"></div>
-    <h1>Email confirmado!</h1>
-    <p class="sub">Redirecionando em instantes...</p>
+    <h1>Entrando na plataforma...</h1>
+    <p class="sub">Redirecionando para sua área logada.</p>
     <a class="link" href="${finalRedirectUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">Clique aqui se não redirecionar</a>
   </div>
 </body>
