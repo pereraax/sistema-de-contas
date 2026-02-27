@@ -60,14 +60,22 @@ export default function LandingPage() {
     setMousePos(null)
   }, [])
 
-  // OAuth: se retorno do Google/Apple caiu na raiz com ?code=, redirecionar para /auth/callback
+  // OAuth: se retorno do Google/Apple caiu em / ou /login, enviar para /auth/callback
+  // (code na query OU tokens no hash #access_token= — o hash não chega no servidor, só no cliente)
   useEffect(() => {
     if (typeof window === 'undefined') return
+    const path = window.location.pathname
+    if (path !== '/' && path !== '/login') return
+
     const params = new URLSearchParams(window.location.search)
-    if (params.get('code') && (window.location.pathname === '/' || window.location.pathname === '/login')) {
+    const hasCode = params.get('code')
+    const hash = window.location.hash || ''
+    const hasOAuthHash = hash.includes('access_token') || hash.includes('refresh_token')
+
+    if (hasCode || hasOAuthHash) {
       if (!params.has('next')) params.set('next', '/home')
-      window.location.replace(`/auth/callback?${params.toString()}`)
-      return
+      const qs = params.toString()
+      window.location.replace(`/auth/callback${qs ? `?${qs}` : '?next=/home'}${hash}`)
     }
   }, [])
 

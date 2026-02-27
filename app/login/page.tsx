@@ -86,6 +86,20 @@ function LoginContent() {
     }
   }, [rememberMe])
 
+  // OAuth: se retorno do Google/Apple caiu em /login (code na query ou tokens no hash), enviar para /auth/callback
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const hasCode = params.get('code')
+    const hash = window.location.hash || ''
+    const hasOAuthHash = hash.includes('access_token') || hash.includes('refresh_token')
+    if (hasCode || hasOAuthHash) {
+      if (!params.has('next')) params.set('next', '/home')
+      const qs = params.toString()
+      window.location.replace(`/auth/callback${qs ? `?${qs}` : '?next=/home'}${hash}`)
+    }
+  }, [])
+
   // Prefetch da home para carregamento instantâneo após login
   useEffect(() => {
     router.prefetch('/home')
