@@ -819,67 +819,74 @@ function processarPendentes(registros: Array<{ tipo: string; valor: number; parc
   return { receitasPendentes, despesasPendentes, qtdReceitasPendentes, qtdDespesasPendentes }
 }
 
+const HOME_STATS_FALLBACK = { error: 'Erro ao carregar', stats: null, saldoTotal: 0, saldoMesAnterior: 0 } as const
+
 /**
  * Uma única chamada para carregar todos os dados da home (período, saldo total, mês anterior).
  * Reduz 3 round-trips a 1, deixando o carregamento após login muito mais rápido.
+ * Nunca lança: em caso de erro (env, rede, etc.) retorna objeto com error preenchido.
  */
 export async function obterHomeEstatisticas(dataInicio?: string, dataFim?: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: 'Não autenticado', stats: null, saldoTotal: 0, saldoMesAnterior: 0 }
-  }
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { error: 'Não autenticado', stats: null, saldoTotal: 0, saldoMesAnterior: 0 }
+    }
 
-  const { data: usuarios, error: usuariosError } = await supabase
-    .from('users')
-    .select('id')
-    .eq('account_owner_id', user.id)
+    const { data: usuarios, error: usuariosError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('account_owner_id', user.id)
 
-  if (usuariosError || !usuarios?.length) {
-    return { error: 'Nenhum usuário encontrado', stats: null, saldoTotal: 0, saldoMesAnterior: 0 }
-  }
+    if (usuariosError || !usuarios?.length) {
+      return { error: 'Nenhum usuário encontrado', stats: null, saldoTotal: 0, saldoMesAnterior: 0 }
+    }
 
-  const userIds = usuarios.map(u => u.id)
-  const baseQuery = () =>
-    supabase
-      .from('registros')
-      .select('tipo, valor, parcelas_totais, parcelas_pagas, data_registro')
-      .in('user_id', userIds)
+    const userIds = usuarios.map(u => u.id)
+    const baseQuery = () =>
+      supabase
+        .from('registros')
+        .select('tipo, valor, parcelas_totais, parcelas_pagas, data_registro')
+        .in('user_id', userIds)
 
-  // Primeiro e último dia do mês anterior (ex: se hoje é fev/2025 -> 1 jan a 31 jan)
-  const agora = new Date()
-  const inicioMesAnterior = new Date(agora.getFullYear(), agora.getMonth() - 1, 1, 0, 0, 0, 0)
-  const fimMesAnterior = new Date(agora.getFullYear(), agora.getMonth(), 0, 23, 59, 59, 999)
-  const dataInicioMesAnterior = inicioMesAnterior.toISOString()
-  const dataFimMesAnterior = fimMesAnterior.toISOString()
+    // Primeiro e último dia do mês anterior (ex: se hoje é fev/2025 -> 1 jan a 31 jan)
+    const agora = new Date()
+    const inicioMesAnterior = new Date(agora.getFullYear(), agora.getMonth() - 1, 1, 0, 0, 0, 0)
+    const fimMesAnterior = new Date(agora.getFullYear(), agora.getMonth(), 0, 23, 59, 59, 999)
+    const dataInicioMesAnterior = inicioMesAnterior.toISOString()
+    const dataFimMesAnterior = fimMesAnterior.toISOString()
 
-  const inicioPeriodo = dataInicio || new Date(new Date().getFullYear(), new Date().getMonth(), 1, 0, 0, 0, 0).toISOString()
-  const fimPeriodo = dataFim || new Date().toISOString()
+    const inicioPeriodo = dataInicio || new Date(new Date().getFullYear(), new Date().getMonth(), 1, 0, 0, 0, 0).toISOString()
+    const fimPeriodo = dataFim || new Date().toISOString()
 
-  const [resPeriodo, resTotal, resMesAnterior] = await Promise.all([
-    baseQuery().gte('data_registro', inicioPeriodo).lte('data_registro', fimPeriodo),
-    baseQuery(),
-    baseQuery().gte('data_registro', dataInicioMesAnterior).lte('data_registro', dataFimMesAnterior),
-  ])
+    const [resPeriodo, resTotal, resMesAnterior] = await Promise.all([
+      baseQuery().gte('data_registro', inicioPeriodo).lte('data_registro', fimPeriodo),
+      baseQuery(),
+      baseQuery().gte('data_registro', dataInicioMesAnterior).lte('data_registro', dataFimMesAnterior),
+    ])
 
-  const { totalEntradas, totalSaidas, saldo } = processarRegistrosParaStats(resPeriodo.data)
-  const { saldo: saldoTotal } = processarRegistrosParaStats(resTotal.data)
-  const { saldo: saldoMesAnterior } = processarRegistrosParaStats(resMesAnterior.data)
-  const { receitasPendentes, despesasPendentes, qtdReceitasPendentes, qtdDespesasPendentes } = processarPendentes(resTotal.data)
+    const { totalEntradas, totalSaidas, saldo } = processarRegistrosParaStats(resPeriodo?.data ?? null)
+    const { saldo: saldoTotal } = processarRegistrosParaStats(resTotal?.data ?? null)
+    const { saldo: saldoMesAnterior } = processarRegistrosParaStats(resMesAnterior?.data ?? null)
+    const { receitasPendentes, despesasPendentes, qtdReceitasPendentes, qtdDespesasPendentes } = processarPendentes(resTotal?.data ?? null)
 
-  return {
-    error: null,
-    stats: {
-      totalEntradas,
-      totalSaidas,
-      saldo,
-      receitasPendentes: receitasPendentes ?? 0,
-      despesasPendentes: despesasPendentes ?? 0,
-      qtdReceitasPendentes: qtdReceitasPendentes ?? 0,
-      qtdDespesasPendentes: qtdDespesasPendentes ?? 0,
-    },
-    saldoTotal: saldoTotal ?? 0,
-    saldoMesAnterior: saldoMesAnterior ?? 0,
+    return {
+      error: null,
+      stats: {
+        totalEntradas,
+        totalSaidas,
+        saldo,
+        receitasPendentes: receitasPendentes ?? 0,
+        despesasPendentes: despesasPendentes ?? 0,
+        qtdReceitasPendentes: qtdReceitasPendentes ?? 0,
+        qtdDespesasPendentes: qtdDespesasPendentes ?? 0,
+      },
+      saldoTotal: saldoTotal ?? 0,
+      saldoMesAnterior: saldoMesAnterior ?? 0,
+    }
+  } catch {
+    return { ...HOME_STATS_FALLBACK }
   }
 }
 

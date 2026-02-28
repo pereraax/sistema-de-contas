@@ -7,6 +7,7 @@ import NotificationBell from '@/components/NotificationBell'
 import UserProfileMenu from '@/components/UserProfileMenu'
 import FiltroRapidoDataWrapper, { FiltroDataProvider } from '@/components/FiltroRapidoDataWrapper'
 import HomeLayoutNovo from '@/components/HomeLayoutNovo'
+import AppOnboardingGate from '@/components/AppOnboardingGate'
 import { obterHomeEstatisticas, obterPerfilUsuario } from '@/lib/actions'
 import { Suspense } from 'react'
 import dynamicImport from 'next/dynamic'
@@ -54,13 +55,23 @@ function getCurrentMonthRange() {
 // Middleware já verifica autenticação, não precisa verificar novamente aqui
 
 export default async function HomePage() {
-  const { inicio, fim } = getCurrentMonthRange()
-  const [initialStats, initialUserProfile] = await Promise.all([
-    obterHomeEstatisticas(inicio, fim),
-    obterPerfilUsuario(),
-  ])
+  let initialStats: Awaited<ReturnType<typeof obterHomeEstatisticas>> = { error: null, stats: null, saldoTotal: 0, saldoMesAnterior: 0 }
+  let initialUserProfile: Awaited<ReturnType<typeof obterPerfilUsuario>> = null
+
+  try {
+    const { inicio, fim } = getCurrentMonthRange()
+    const [stats, profile] = await Promise.all([
+      obterHomeEstatisticas(inicio, fim),
+      obterPerfilUsuario(),
+    ])
+    initialStats = stats
+    initialUserProfile = profile
+  } catch {
+    // Evita tela branca (500): usa valores padrão e deixa o layout renderizar
+  }
 
   return (
+    <AppOnboardingGate>
     <FiltroDataProvider>
       <div className="min-h-screen bg-brand-clean dark:bg-[#1A1A1A]">
         <Sidebar />
@@ -135,6 +146,7 @@ export default async function HomePage() {
       </main>
     </div>
     </FiltroDataProvider>
+    </AppOnboardingGate>
   )
 }
 
