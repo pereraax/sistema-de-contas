@@ -63,12 +63,19 @@ export async function hasReceivedWelcome(phone: string): Promise<boolean> {
   return data?.welcome_sent_at != null
 }
 
-/** Verifica se a mensagem indica intenção de usar a Plenipay (fluxo de boas-vindas). Identifica "Olá, quero utilizar a plenipay" e variações. */
+/** Verifica se a mensagem indica intenção de usar a Plenipay (fluxo de boas-vindas). Identifica "Olá! Quero utilizar a plenipay" e variações. */
 export function isQueroUtilizarPlenipay(text: string): boolean {
   if (!text || typeof text !== 'string') return false
-  const t = text.toLowerCase().trim().replace(/\s+/g, ' ')
+  const t = text
+    .toLowerCase()
+    .trim()
+    .replace(/[.,!?]+/g, ' ')
+    .replace(/\s+/g, ' ')
   const temPlenipay = /pleni\s*pay|plenipay/.test(t)
-  const temIntencao = t.includes('quero utilizar') || t.includes('quero usar') || /olá\s*,?\s*quero|ola\s*,?\s*quero/.test(t)
+  const temIntencao =
+    t.includes('quero utilizar') ||
+    t.includes('quero usar') ||
+    /olá\s*,?\s*quero|ola\s*,?\s*quero/.test(t)
   return temPlenipay && temIntencao
 }
 

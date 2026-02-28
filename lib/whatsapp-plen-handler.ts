@@ -508,13 +508,15 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       }
     }
 
-    // PRIORIDADE 2a: "Olá, quero utilizar a plenipay" — resposta com 3 mensagens + botões (nunca enviar "Oops! não entendi").
-    // Normalizar: minúsculas, um espaço, sem pontuação no fim. Aceitar "plenipay", "pleni pay", "pleni  pay".
+    // PRIORIDADE 2a: "Olá! Quero utilizar a Plenipay" — resposta com 3 mensagens + botões (nunca enviar "Oops! não entendi").
+    // Normalizar: minúsculas, um espaço, pontuação removida (incl. "!" no meio: "Olá! Quero").
     const msgUtilizar = text
       .toLowerCase()
       .trim()
       .replace(/\s+/g, ' ')
-      .replace(/[.,!?]+$/g, '')
+      .replace(/[.,!?]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
     const temPlenipay = msgUtilizar.includes('plenipay') || (msgUtilizar.includes('pleni') && msgUtilizar.includes('pay'))
     const hasQueroUtilizar = msgUtilizar.includes('quero utilizar') && temPlenipay
     const hasQueroUsar = msgUtilizar.includes('quero usar') && temPlenipay
