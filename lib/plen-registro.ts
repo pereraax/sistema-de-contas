@@ -259,6 +259,14 @@ export function interpretarMensagem(texto: string): InterpretadoPlen | null {
     return { tipo: 'entrada', valor: valorNum, nome, data_registro, categoria: 'Outros' }
   }
 
+  // Saldo/entrada: "tenho 145,15 na conta", "tenho 200 reais na conta", "esse é meu saldo até agora" (valor já extraído)
+  const tenhoNaContaMatch = t.match(/\btenho\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:na\s+conta|no\s+banco|de\s+saldo)?\s*(.*)/i)
+  if (tenhoNaContaMatch && /\btenho\s+[\d.,]+\s*(?:reais?|r\$|r\b)?/.test(t)) {
+    nome = 'Saldo na conta'
+    const data_registro = parseDataDoTexto(t)
+    return { tipo: 'entrada', valor: valorNum, nome, data_registro, categoria: 'Outros' }
+  }
+
   // Verbos de GASTO: gastei, gasteu, paguei, pagou, etc.
   // \b nas preposições evita "com" em "comida" virar preposição e sobrar "ida"
   const verbosGasto = /(?:gastei|gasteu|gastou|paguei|pagou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?/i

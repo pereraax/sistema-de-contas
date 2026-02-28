@@ -144,13 +144,16 @@ function parseWebhookBody(body: unknown): { from: string; text: string } | null 
     if (from && text) return { from: String(from).replace(/\D/g, ''), text: String(text) }
   }
 
-  // Formato direto: origem, from, numero, mensagem, text
+  // Formato direto: origem, from, numero, mensagem, text, body, content
   const contacts = (b as any).contacts
-  const from = (b.origem ?? b.from ?? b.telefone ?? b.numero ?? contacts?.[0]?.wa_id) as string | undefined
+  const from = (b.origem ?? b.from ?? b.telefone ?? b.numero ?? contacts?.[0]?.wa_id ?? (b as any).payload?.origem ?? (b as any).data?.origem) as string | undefined
   let text: string | undefined
   if (typeof b.mensagem === 'string') text = b.mensagem
   else if (typeof b.text === 'string') text = b.text
   else if (typeof (b as any).body === 'string') text = (b as any).body
+  else if (typeof (b as any).content === 'string') text = (b as any).content
+  else if (b.data && typeof b.data === 'object' && typeof (b.data as any).mensagem === 'string') text = (b.data as any).mensagem
+  else if (b.data && typeof b.data === 'object' && typeof (b.data as any).text === 'string') text = (b.data as any).text
   else if (Array.isArray(b.messages) && b.messages[0] && typeof b.messages[0] === 'object') {
     const msg = (b.messages as any)[0]
     text = msg.text?.body ?? msg.body ?? msg.text
@@ -215,7 +218,14 @@ function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string
 
   const fromClean = String(from).replace(/\D/g, '')
   if (fromClean.length < 10) return null
-  const textRaw = (data.mensagem ?? data.text ?? data.message ?? b.mensagem ?? b.text ?? (b as any).message ?? (data as any)?.body) as string | undefined
+  // Extrair texto de todos os formatos conhecidos (API Fácil, Meta, genérico)
+  const textRaw = (
+    data.mensagem ?? data.text ?? data.message ?? data.body ?? data.content ??
+    b.mensagem ?? b.text ?? (b as any).message ?? (b as any).body ?? (b as any).content ??
+    (data as any)?.body ?? (data as any)?.content ??
+    (b as any).message?.text?.body ?? (data as any)?.message?.text?.body ??
+    (b as any).payload?.mensagem ?? (b as any).payload?.data?.mensagem
+  ) as string | undefined
   const text = textRaw != null ? String(textRaw).trim() : ''
 
   // 1) ÁUDIO: prioridade para tipo_envio AUDIO_RECEBIDO com URL em qualquer campo conhecido
@@ -373,7 +383,11 @@ async function processarEmBackground(parsed: {
 
     // PRIORIDADE MÁXIMA: "Olá! Quero utilizar a Plenipay" — responder IMEDIATAMENTE (antes de qualquer DB)
     // para não depender de hasReceivedWelcome/timeout e garantir resposta em segundos
-    if (isQueroUtilizarPlenipayMessage(text) && isApifacilConfigured()) {
+    if (isQueroUtilizarPlenipayMessage(text)) {
+      if (!isApifacilConfigured()) {
+        console.error('⚠️ [Apifacil Webhook] "Quero utilizar PleniPay" detectado mas APIFACIL não configurado (APIFACIL_INSTANCE_ID/APIFACIL_TOKEN). Configure as variáveis e faça redeploy.')
+      }
+      if (isApifacilConfigured()) {
       console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" detectado — enviando 3 mensagens IMEDIATAMENTE para', phone)
       try {
         for (let i = 0; i < BOAS_VINDAS_QUERO_UTILIZAR.length; i++) {
@@ -400,6 +414,7 @@ async function processarEmBackground(parsed: {
       } catch (err) {
         console.error('❌ [Apifacil Webhook] Erro ao enviar boas-vindas (resposta imediata):', err)
         // segue para o fluxo normal (pode reenviar via PLEN handler)
+      }
       }
     }
 
@@ -578,14 +593,30 @@ async function processarEmBackground(parsed: {
       // Marcar que já respondemos (qualquer quantidade) — assim o contato sai da lista de pendentes
       markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
     } else if (result?.message && typeof result.message === 'string') {
-      const send = await sendTextMessage(phone, result.message)
-      if (send.success) {
-        registerSentMessage(phone, result.message)
-        console.log('✅ [Apifacil Webhook] Resposta enviada para:', phone)
-        // Marcar que já respondemos — contato sai da lista de pendentes (não reenvio)
+      if (result.buttonUrl) {
+        const sendBtn = await sendCtaUrlButton(
+          phone,
+          result.message,
+          result.buttonLabel || 'ABRIR',
+          result.buttonUrl
+        )
+        if (sendBtn.success) {
+          registerSentMessage(phone, `${result.message}\n\n[${result.buttonLabel || 'ABRIR'}]`)
+          console.log('✅ [Apifacil Webhook] Resposta com botão enviada para:', phone)
+        } else {
+          const send = await sendTextMessage(phone, result.message + '\n\n' + result.buttonUrl)
+          if (send.success) registerSentMessage(phone, result.message)
+        }
         markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
       } else {
-        console.error('❌ [Apifacil Webhook] Falha ao enviar resposta:', send.error)
+        const send = await sendTextMessage(phone, result.message)
+        if (send.success) {
+          registerSentMessage(phone, result.message)
+          console.log('✅ [Apifacil Webhook] Resposta enviada para:', phone)
+        } else {
+          console.error('❌ [Apifacil Webhook] Falha ao enviar resposta:', send.error)
+        }
+        markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
       }
     } else if (result === null) {
       console.log('📨 [Apifacil Webhook] Mensagem processada mas sem resposta (assistente desativado ou ignorado).')
@@ -706,6 +737,9 @@ export async function POST(request: NextRequest) {
     // Uma linha só para aparecer em qualquer painel de logs (busque: APIFACIL_WEBHOOK_PAYLOAD)
     const payloadKeysStr = payloadKeys.length ? payloadKeys.join(',') : 'sem_payload'
     const msgPreview = typeof mensagemPreview === 'string' ? mensagemPreview.slice(0, 80).replace(/\n/g, ' ') : 'não_string'
+    // Log para diagnóstico: se a mensagem não aparecer, conferir se o body veio com origem/mensagem
+    const rawPreview = raw.slice(0, 400)
+    console.log('APIFACIL_WEBHOOK_RAW body_preview=' + rawPreview.replace(/\n/g, ' '))
     console.log('APIFACIL_WEBHOOK_PAYLOAD tipo_envio=' + String(tipoEnvio || '') + ' payload_keys=' + payloadKeysStr + ' tem_url_media=' + (!!urlMedia && mensagemEhUrl) + ' mensagem_preview=' + msgPreview + ' from=' + String(b.origem ?? data.origem ?? ''))
     console.log('📨 [Apifacil Webhook] Payload recebido:', {
       keys: Object.keys(bodyToParse),
@@ -731,6 +765,17 @@ export async function POST(request: NextRequest) {
     if (!parsed) {
       const fallback = parseWebhookBody(bodyToParse)
       if (fallback) parsed = { from: fallback.from, text: fallback.text }
+    }
+    // Fallback: API Fácil pode enviar mensagem em payload.data ou no payload raiz
+    if (!parsed && payload && typeof payload === 'object') {
+      const pl = payload as Record<string, unknown>
+      const inner = (pl.data && typeof pl.data === 'object' ? pl.data : pl) as Record<string, unknown>
+      const fromVal = String(inner.origem ?? pl.origem ?? inner.from ?? pl.from ?? '').replace(/\D/g, '')
+      const textVal = (inner.mensagem ?? pl.mensagem ?? inner.text ?? pl.text ?? (inner as any).body ?? (pl as any).body) as string | undefined
+      if (fromVal.length >= 10 && textVal && typeof textVal === 'string' && textVal.trim()) {
+        parsed = { from: fromVal, text: textVal.trim() }
+        console.log('📨 [Apifacil Webhook] Payload obtido via fallback payload.data:', { from: fromVal, textPreview: textVal.slice(0, 60) })
+      }
     }
     if (parsed && !parsed.media) {
       const data = (bodyToParse as any).data || bodyToParse
@@ -792,16 +837,10 @@ export async function POST(request: NextRequest) {
       console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" — processando para qualquer número:', from)
     }
 
-    // Aguardar o processamento terminar antes de responder 200, para o envio automático (boas-vindas) concluir
-    // em ambiente serverless (Railway/Vercel). Timeout 25s para não travar se algo falhar.
-    const WEBHOOK_PROCESS_TIMEOUT_MS = 25_000
-    await Promise.race([
-      processarEmBackground(parsed),
-      new Promise<void>((_, reject) =>
-        setTimeout(() => reject(new Error('Webhook process timeout')), WEBHOOK_PROCESS_TIMEOUT_MS)
-      ),
-    ]).catch((err) => {
-      console.error('❌ [Apifacil Webhook] Erro ou timeout em processamento:', err instanceof Error ? err.message : err)
+    // Responder 200 IMEDIATAMENTE para a API Fácil não dar timeout (muitos provedores cortam em 10–15s).
+    // O processamento roda em background; em serverless a execução continua até o término ou limite do plano.
+    processarEmBackground(parsed).catch((err) => {
+      console.error('❌ [Apifacil Webhook] Erro em processamento em background:', err instanceof Error ? err.message : err)
     })
     return NextResponse.json({ success: true })
   } catch (err) {

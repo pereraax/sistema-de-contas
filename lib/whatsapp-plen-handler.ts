@@ -1311,6 +1311,7 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
     return {
       success: true,
       message: result.response,
+      ...(result.buttonUrl && { buttonUrl: result.buttonUrl, buttonLabel: result.buttonLabel || 'ABRIR' }),
     }
   } catch (error: any) {
     const errMsg = error?.message ?? String(error)

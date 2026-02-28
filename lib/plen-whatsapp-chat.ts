@@ -6,12 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/server'
 import { interpretarMensagem, formatarRespostaRegistro, categoriaInteligente, normalizarNumerosPorExtenso } from '@/lib/plen-registro'
-import {
-  getPlenLLMResponse,
-  getRespostaPlanos,
-  RESPOSTA_OPEN_FINANCE,
-  RESPOSTA_NAO_SEI,
-} from '@/lib/plen-llm-fallback'
+import { getRespostaPlanos, RESPOSTA_OPEN_FINANCE } from '@/lib/plen-llm-fallback'
 
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
 const MSG_ENTENDER_MELHOR = `Para te entender melhor, você pode começar dizendo o que deseja:
@@ -28,7 +23,12 @@ Em seguida explique: o que foi, qual data e horário (se for lembrete). Exemplos
 • "Gastei 50 reais no mercado"
 • "Tenho uma dívida de 200 reais no cartão"`
 
-export type ProcessPlenWhatsAppResult = { response: string }
+export type ProcessPlenWhatsAppResult = {
+  response: string
+  /** Quando preenchido, a resposta deve ser enviada com botão de link (sem preview). */
+  buttonUrl?: string
+  buttonLabel?: string
+}
 
 /** Estatísticas por conta (para consultas/relatórios no WhatsApp). */
 type StatsPlen = {
@@ -362,6 +362,66 @@ export async function processPlenWhatsAppMessage(
       /conta\s+de\s+(luz|água|agua|internet)\s+dia\s+\d/i.test(t)
     if (isLembreteIntent) {
       return { response: MSG_ENTENDER_MELHOR }
+    }
+
+    // Empréstimo: "emprestei 500 para João", "emprestei 200 reais para Maria"
+    const empresteiMatch = rawMessage.match(
+      /emprestei\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?\s*(?:para|pro|a)\s+([a-záàâãéêíóôõúç\s]+?)(?:\s*$|\.|,)/i
+    )
+    if (empresteiMatch) {
+      const valorStr = empresteiMatch[1].replace(',', '.').replace(/\s/g, '')
+      const valorNum = Math.round(parseFloat(valorStr) * 100) / 100
+      const nomePessoa = empresteiMatch[2].trim().replace(/\s+/g, ' ').substring(0, 200)
+      if (Number.isFinite(valorNum) && valorNum >= 1 && valorNum <= 500_000 && nomePessoa.length >= 2) {
+        const { data: profile } = await supabase.from('profiles').select('plano').eq('id', userId).single()
+        const plano = (profile?.plano ?? 'teste').toString().toLowerCase().trim()
+        if (plano === 'premium') {
+          const dataEmprestimo = new Date()
+          const dataPagamento = new Date()
+          dataPagamento.setMonth(dataPagamento.getMonth() + 1)
+          const { error: errEmp } = await supabase.from('emprestimos').insert({
+            nome_pessoa: nomePessoa,
+            valor: valorNum,
+            observacao: `Empréstimo registrado via WhatsApp`,
+            data_emprestimo: dataEmprestimo.toISOString(),
+            data_pagamento: dataPagamento.toISOString(),
+            parcelas_totais: 1,
+            parcelas_pagas: 0,
+          })
+          if (errEmp) {
+            return { response: `Não consegui registrar o empréstimo: ${errEmp.message}. Tente pelo site em plenipay.com.` }
+          }
+          const { data: usuarios } = await supabase.from('users').select('id').eq('account_owner_id', userId).limit(1)
+          const primeiroUserId = usuarios?.[0]?.id
+          if (primeiroUserId) {
+            await supabase.from('registros').insert({
+              user_id: primeiroUserId,
+              nome: `Empréstimo - ${nomePessoa}`,
+              observacao: `Empréstimo para ${nomePessoa} (via WhatsApp)`,
+              tipo: 'divida',
+              valor: valorNum,
+              categoria: 'Empréstimo',
+              etiquetas: ['empréstimo', nomePessoa.toLowerCase().replace(/\s+/g, '-')],
+              parcelas_totais: 1,
+              parcelas_pagas: 0,
+              data_registro: dataEmprestimo.toISOString(),
+            })
+          }
+          const fmtVal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorNum)
+          return {
+            response: `✅ Empréstimo registrado!\n\n💰 ${fmtVal} para ${nomePessoa}\n\nConfira em plenipay.com na área de empréstimos.`,
+          }
+        }
+        const planosUrl = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL?.trim())
+          ? (process.env.NEXT_PUBLIC_SITE_URL.startsWith('http') ? process.env.NEXT_PUBLIC_SITE_URL : `https://${process.env.NEXT_PUBLIC_SITE_URL}`).replace(/\/+$/, '')
+          : 'https://plenipay.com'
+        const planosLink = `${planosUrl}/planos`
+        return {
+          response: `Ops, você está no plano básico. Acesse o link para obter essa e outras dezenas de funções.\n\nAcesse:`,
+          buttonUrl: planosLink,
+          buttonLabel: 'Ver planos',
+        }
+      }
     }
 
     // Suporte a "gastei 30 usuario NOME" na mesma linha OU segunda linha = nome do usuário
@@ -711,16 +771,8 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
       }
     }
 
-    // Fallback com LLM: resposta natural e amigável, só sobre Plenipay
-    const llmReply = await getPlenLLMResponse({
-      userMessage: rawMessage,
-      context: 'O usuário enviou uma mensagem que não foi reconhecida como comando de registro ou consulta. Responda de forma amigável e, se fizer sentido, sugira frases que funcionam (ex.: "Ganhei 40 reais", "Recebi 100", "Me mostre o relatório"). Se for pergunta fora do escopo ou você não souber, use a mensagem exata de suporte humano (Parar assistente Plen).',
-    })
-    if (llmReply) {
-      return { response: llmReply }
-    }
-
-    return { response: RESPOSTA_NAO_SEI }
+    // Quando a IA não souber: enviar o texto que explica o que o usuário pode mandar para registrar
+    return { response: msgNaoEntendi }
   } catch (err: any) {
     const msg = err?.message ?? String(err)
     console.error('[PLEN whatsapp-chat] Exceção:', err)
