@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, X, AlertCircle, Info, AlertTriangle, CheckCircle, Trash2, Eye, EyeOff } from 'lucide-react'
+import { Plus, X, AlertCircle, Info, AlertTriangle, CheckCircle, Trash2, Eye, EyeOff, Pencil } from 'lucide-react'
 import CheckboxModerno from '../CheckboxModerno'
-import { criarAvisoAdmin, desativarAviso, ativarAviso, deletarAviso } from '@/lib/admin-actions'
+import { criarAvisoAdmin, atualizarAvisoAdmin, desativarAviso, ativarAviso, deletarAviso } from '@/lib/admin-actions'
 import { useRouter } from 'next/navigation'
 import ModalConfirmacao from '@/components/ModalConfirmacao'
 import DatePicker from '@/components/DatePicker'
@@ -33,6 +33,7 @@ export default function CentralAvisos({ avisos: avisosIniciais, adminId }: Centr
   const [showModal, setShowModal] = useState(false)
   const [loading, setLoading] = useState(false)
   const [avisoParaDeletar, setAvisoParaDeletar] = useState<string | null>(null)
+  const [editingAviso, setEditingAviso] = useState<AdminAviso | null>(null)
   
   const [formData, setFormData] = useState({
     titulo: '',
@@ -56,40 +57,50 @@ export default function CentralAvisos({ avisos: avisosIniciais, adminId }: Centr
     setLoading(true)
 
     try {
-      // Calcular data de expiração se necessário
       let dataExpiracao: string | null = null
-      
       if (formData.usar_data_expiracao) {
         if (formData.expira_em_dias) {
-          // Calcular a partir de hoje + X dias
           const dias = parseInt(formData.expira_em_dias)
           const data = new Date()
           data.setDate(data.getDate() + dias)
           dataExpiracao = data.toISOString()
         } else if (formData.expira_em) {
-          // Usar data/hora específica
           dataExpiracao = new Date(formData.expira_em).toISOString()
         }
       }
 
-      const resultado = await criarAvisoAdmin({
-        titulo: formData.titulo,
-        mensagem: formData.mensagem,
-        tipo: formData.tipo,
-        mostrar_popup: formData.mostrar_popup,
-        adminId,
-        data_expiracao: dataExpiracao,
-      })
-
-      if (resultado.error) {
-        alert(`Erro: ${resultado.error}`)
-        setLoading(false)
-        return
+      if (editingAviso) {
+        const resultado = await atualizarAvisoAdmin(editingAviso.id, {
+          titulo: formData.titulo,
+          mensagem: formData.mensagem,
+          tipo: formData.tipo,
+          mostrar_popup: formData.mostrar_popup,
+          data_expiracao: dataExpiracao,
+        })
+        if (resultado.error) {
+          alert(`Erro: ${resultado.error}`)
+          setLoading(false)
+          return
+        }
+      } else {
+        const resultado = await criarAvisoAdmin({
+          titulo: formData.titulo,
+          mensagem: formData.mensagem,
+          tipo: formData.tipo,
+          mostrar_popup: formData.mostrar_popup,
+          adminId,
+          data_expiracao: dataExpiracao,
+        })
+        if (resultado.error) {
+          alert(`Erro: ${resultado.error}`)
+          setLoading(false)
+          return
+        }
       }
 
-      // Atualizar lista
       router.refresh()
       setShowModal(false)
+      setEditingAviso(null)
       setFormData({
         titulo: '',
         mensagem: '',
@@ -100,10 +111,45 @@ export default function CentralAvisos({ avisos: avisosIniciais, adminId }: Centr
         usar_data_expiracao: false,
       })
     } catch (error) {
-      alert('Erro ao criar aviso')
+      alert(editingAviso ? 'Erro ao atualizar aviso' : 'Erro ao criar aviso')
     } finally {
       setLoading(false)
     }
+  }
+
+  const openEditModal = (aviso: AdminAviso) => {
+    let expira_em = ''
+    if (aviso.data_expiracao) {
+      const d = new Date(aviso.data_expiracao)
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+      expira_em = `${dateStr}T${timeStr}`
+    }
+    setFormData({
+      titulo: aviso.titulo,
+      mensagem: aviso.mensagem,
+      tipo: aviso.tipo,
+      mostrar_popup: aviso.mostrar_popup,
+      expira_em,
+      expira_em_dias: '',
+      usar_data_expiracao: !!aviso.data_expiracao,
+    })
+    setEditingAviso(aviso)
+    setShowModal(true)
+  }
+
+  const closeModal = () => {
+    setShowModal(false)
+    setEditingAviso(null)
+    setFormData({
+      titulo: '',
+      mensagem: '',
+      tipo: 'info',
+      mostrar_popup: false,
+      expira_em: '',
+      expira_em_dias: '',
+      usar_data_expiracao: false,
+    })
   }
 
   const handleToggleAtivo = async (avisoId: string, ativo: boolean) => {
@@ -190,6 +236,13 @@ export default function CentralAvisos({ avisos: avisosIniciais, adminId }: Centr
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => openEditModal(aviso)}
+                    className="p-2 bg-sky-900/20 text-sky-400 rounded-lg hover:bg-sky-900/30 transition-smooth"
+                    title="Editar"
+                  >
+                    <Pencil size={18} />
+                  </button>
+                  <button
                     onClick={() => handleToggleAtivo(aviso.id, aviso.ativo)}
                     className={`p-2 rounded-lg transition-smooth ${
                       aviso.ativo
@@ -220,16 +273,16 @@ export default function CentralAvisos({ avisos: avisosIniciais, adminId }: Centr
         </div>
       )}
 
-      {/* Modal criar aviso */}
+      {/* Modal criar/editar aviso */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 glass-backdrop">
           <div className="bg-brand-royal rounded-3xl p-6 shadow-2xl border border-white/20 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-display font-bold text-brand-clean">
-                Criar Novo Aviso
+                {editingAviso ? 'Editar Aviso' : 'Criar Novo Aviso'}
               </h2>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={closeModal}
                 className="p-2 hover:bg-white/10 rounded-lg transition-smooth"
               >
                 <X size={24} className="text-brand-clean" />
@@ -353,11 +406,11 @@ export default function CentralAvisos({ avisos: avisosIniciais, adminId }: Centr
                   disabled={loading}
                   className="flex-1 px-6 py-3 bg-brand-aqua text-brand-midnight rounded-xl font-semibold hover:bg-brand-aqua/90 transition-smooth disabled:opacity-50"
                 >
-                  {loading ? 'Criando...' : 'Criar Aviso'}
+                  {loading ? (editingAviso ? 'Salvando...' : 'Criando...') : (editingAviso ? 'Salvar' : 'Criar Aviso')}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={closeModal}
                   className="px-6 py-3 bg-brand-midnight text-brand-clean rounded-xl font-semibold hover:bg-white/10 transition-smooth"
                 >
                   Cancelar

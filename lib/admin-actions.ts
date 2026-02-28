@@ -51,6 +51,40 @@ export async function criarAvisoAdmin(data: {
   return { data: aviso, error: null }
 }
 
+// Atualizar aviso existente
+export async function atualizarAvisoAdmin(avisoId: string, data: {
+  titulo: string
+  mensagem: string
+  tipo: 'info' | 'warning' | 'error' | 'success'
+  mostrar_popup: boolean
+  data_expiracao?: string | null
+}) {
+  const supabase = await createClient()
+
+  const { data: aviso, error } = await supabase
+    .from('admin_avisos')
+    .update({
+      titulo: data.titulo,
+      mensagem: data.mensagem,
+      tipo: data.tipo,
+      mostrar_popup: data.mostrar_popup,
+      data_expiracao: data.data_expiracao ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', avisoId)
+    .select()
+    .single()
+
+  if (error) {
+    return { error: error.message, data: null }
+  }
+
+  revalidatePath('/administracaosecr/avisos')
+  revalidatePath('/home')
+
+  return { data: aviso, error: null }
+}
+
 // Obter todos os avisos
 export async function obterAvisosAdmin() {
   const supabase = await createClient()
