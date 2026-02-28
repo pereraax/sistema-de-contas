@@ -18,7 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
-import { recordIncomingMessage, markWelcomeSent } from '@/lib/whatsapp-contatos-pendentes'
+import { recordIncomingMessage, markWelcomeSent, normalizarPhone } from '@/lib/whatsapp-contatos-pendentes'
 import { ensureAudioWebhookEnabled } from '@/lib/whatsapp-apifacil-config'
 import { detectMedia, processComprovanteImage, downloadMedia, transcribeAudio } from '@/lib/whatsapp-media-processor'
 import { createAdminClient } from '@/lib/supabase/server'
@@ -255,6 +255,13 @@ gastei 50 no mercado
 paguei 80 para João
 recebi 100 de Maria`
 
+/** Mensagem "quero utilizar plenipay" deve SEMPRE receber as 3 de boas-vindas, mesmo com assistente pausada. */
+function isQueroUtilizarPlenipayMessage(t: string): boolean {
+  if (!t || typeof t !== 'string') return false
+  const msg = t.toLowerCase().trim().replace(/\s+/g, ' ')
+  return (msg.includes('quero utilizar') && msg.includes('plenipay')) || (msg.includes('quero usar') && msg.includes('plenipay'))
+}
+
 /** Processar mensagem e enviar resposta em background (não bloqueia a resposta do webhook) */
 async function processarEmBackground(parsed: {
   from: string
@@ -263,10 +270,6 @@ async function processarEmBackground(parsed: {
 }) {
   const { from, text: textInicial, media } = parsed
   const phoneDigits = from.replace(/\D/g, '')
-  if (await isAssistentePausadaParaNumero(phoneDigits)) {
-    console.log('⏸️ [Apifacil Webhook] Assistente pausada para este contato — não enviando resposta automática (humano pode atender).', phoneDigits)
-    return
-  }
   let text = textInicial
   let origemMensagem: 'texto' | 'áudio' | 'imagem' = 'texto'
   try {
@@ -340,6 +343,15 @@ async function processarEmBackground(parsed: {
     }
     if (!text) return
 
+    // Assistente pausada: não responder automaticamente, EXCETO para "quero utilizar plenipay" (sempre enviar as 3 de boas-vindas)
+    if (await isAssistentePausadaParaNumero(phoneDigits)) {
+      if (!isQueroUtilizarPlenipayMessage(text)) {
+        console.log('⏸️ [Apifacil Webhook] Assistente pausada para este contato — não enviando resposta automática (humano pode atender).', phoneDigits)
+        return
+      }
+      console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" — respondendo com as 3 mensagens mesmo com assistente pausada:', phoneDigits)
+    }
+
     // Ignorar eco de QUALQUER uma das 3 mensagens que enviamos (provedor reenvia e gerava "Oops!" em seguida)
     const txtLower = String(text).trim().toLowerCase()
     const trechosNossasMensagens = [
@@ -390,7 +402,7 @@ async function processarEmBackground(parsed: {
     if (origemMensagem !== 'texto') {
       console.log('📤 [Apifacil Webhook] Resposta do PLEN (origem:', origemMensagem + '):', result?.message ? String(result.message).slice(0, 80) : result?.messages?.length ? `${result.messages.length} msg(s)` : '—')
     }
-    const phone = from.startsWith('55') ? from : `55${from}`
+    const phone = normalizarPhone(from)
 
     const apifacilOk = isApifacilConfigured()
     if (!apifacilOk) {
@@ -425,16 +437,27 @@ async function processarEmBackground(parsed: {
             }
           }
         } else if (typeof msg === 'object' && msg !== null && (msg as any).type === 'button_actions') {
-          // API Fácil não suporta botão URL; envio como texto + link
+          // API Fácil não suporta botão URL. Enviar texto e link em mensagens separadas para evitar
+          // o preview do site (imagem/card) no WhatsApp — fica só o link clicável na segunda mensagem.
           const { body, buttonActions } = msg as { type: 'button_actions'; body: string; buttonActions: { type: string; url?: string; label: string }[] }
           const urlBtn = buttonActions?.find((a) => a.type === 'URL' && a.url)
-          const text = urlBtn ? `${body}\n\n🔗 ${urlBtn.label}: ${urlBtn.url}` : body
-          const send = await sendTextMessage(phone, text)
-          if (send.success) {
-            registerSentMessage(phone, text)
-            console.log('✅ [Apifacil Webhook] Link (fallback texto)', i + 1, '/', result.messages.length, 'enviado para:', phone)
+          const sendBody = await sendTextMessage(phone, body)
+          if (sendBody.success) {
+            registerSentMessage(phone, body)
+            console.log('✅ [Apifacil Webhook] Texto (sem link)', i + 1, '/', result.messages.length, 'enviado para:', phone)
           } else {
-            console.error('❌ [Apifacil Webhook] Falha ao enviar link', i + 1, ':', send.error)
+            console.error('❌ [Apifacil Webhook] Falha ao enviar texto', i + 1, ':', sendBody.error)
+          }
+          if (urlBtn?.url) {
+            await delay(600)
+            const linkOnly = `${urlBtn.label}: ${urlBtn.url}`
+            const sendLink = await sendTextMessage(phone, linkOnly)
+            if (sendLink.success) {
+              registerSentMessage(phone, linkOnly)
+              console.log('✅ [Apifacil Webhook] Link (só URL)', i + 1, 'enviado para:', phone)
+            } else {
+              console.error('❌ [Apifacil Webhook] Falha ao enviar link:', sendLink.error)
+            }
           }
         } else if (typeof msg === 'string' && msg.trim()) {
           const send = await sendTextMessage(phone, msg)
@@ -447,8 +470,8 @@ async function processarEmBackground(parsed: {
         }
         if (i < result.messages.length - 1) await delay(1500)
       }
-      // Marcar que as 3 mensagens de boas-vindas foram enviadas (para não reaparecer no painel de reenvio)
-      if (result.messages.length === 3) {
+      // Marcar que as 3 mensagens de boas-vindas foram enviadas (para não reaparecer no painel de reenvio; phone já normalizado = mesmo formato da tabela)
+      if (result.messages.length >= 3) {
         markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
       }
     } else if (result?.message && typeof result.message === 'string') {

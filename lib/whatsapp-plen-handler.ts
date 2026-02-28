@@ -1101,7 +1101,7 @@ async function handleWhatsAppAuthentication(
         messages: [
           {
             type: 'button_actions' as const,
-            body: `✅ *E-mail verificado!*\n\nAgora me envie sua *chave key* (código de ativação):\n\nEntre em *Configurações* no site da PleniPay, copie o código da sua chave e me envie aqui.`,
+            body: `✅ *E-mail verificado!*\n\nAgora me envie sua *chave key* (código de ativação):\n\nEntre em *Configurações*, copie o código da sua chave e me envie aqui.`,
             buttonActions: [{ type: 'URL' as const, url: 'https://plenipay.com/configuracoes?tab=perfil', label: 'CHAVE KEY' }],
           },
         ],
