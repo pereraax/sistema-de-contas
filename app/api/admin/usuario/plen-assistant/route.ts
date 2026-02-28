@@ -28,21 +28,31 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
 
     if (session?.plen_activated === true) {
-      return NextResponse.json({ success: true, plenActivated: true })
+      const { data: profilePause } = await supabase
+        .from('profiles')
+        .select('assistente_pausada')
+        .eq('id', userId)
+        .maybeSingle()
+      return NextResponse.json({
+        success: true,
+        plenActivated: true,
+        assistentePausada: profilePause?.assistente_pausada === true,
+      })
     }
 
-    // 2) Status por ativação do admin (profiles.plen_activated_by_admin)
+    // 2) Status por ativação do admin (profiles.plen_activated_by_admin) e assistente_pausada
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('plen_activated_by_admin')
+      .select('plen_activated_by_admin, assistente_pausada')
       .eq('id', userId)
       .maybeSingle()
 
     if (profileError && (profileError.message?.includes('plen_activated_by_admin') || (profileError as any).code === '42703')) {
-      return NextResponse.json({ success: true, plenActivated: false })
+      return NextResponse.json({ success: true, plenActivated: false, assistentePausada: false })
     }
     const byAdmin = profile?.plen_activated_by_admin === true
-    return NextResponse.json({ success: true, plenActivated: byAdmin })
+    const assistentePausada = profile?.assistente_pausada === true
+    return NextResponse.json({ success: true, plenActivated: byAdmin, assistentePausada })
   } catch (e) {
     console.error('[admin/plen-assistant GET]', e)
     return NextResponse.json({ success: false, error: 'Erro ao consultar status' }, { status: 500 })
@@ -59,7 +69,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}))
     const userId = body?.userId
-    const activated = body?.activated === true
+    const activated = body?.activated
+    const paused = body?.paused
 
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json({ success: false, error: 'userId é obrigatório' }, { status: 400 })
@@ -70,17 +81,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Serviço indisponível' }, { status: 503 })
     }
 
+    // Atualizar activated e/ou paused conforme enviado
+    const updates: Record<string, boolean> = {}
+    if (typeof activated === 'boolean') updates.plen_activated_by_admin = activated
+    if (typeof paused === 'boolean') updates.assistente_pausada = paused
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ success: false, error: 'Envie activated e/ou paused no body' }, { status: 400 })
+    }
+
     const { error } = await supabase
       .from('profiles')
-      .update({ plen_activated_by_admin: activated })
+      .update(updates)
       .eq('id', userId)
 
     if (error) {
       // Coluna pode não existir ainda (migração não rodou)
-      if (error.message?.includes('plen_activated_by_admin') || error.code === '42703') {
+      if (error.message?.includes('plen_activated_by_admin') || error.message?.includes('assistente_pausada') || error.code === '42703') {
         return NextResponse.json({
           success: false,
-          error: 'Execute o SQL ADICIONAR-PLEN-ACTIVATED-BY-ADMIN.sql no Supabase para habilitar ativação pelo admin.',
+          error: 'Execute os SQL ADICIONAR-PLEN-ACTIVATED-BY-ADMIN.sql e ADICIONAR-ASSISTENTE-PAUSADA.sql no Supabase.',
         }, { status: 500 })
       }
       console.error('[admin/plen-assistant POST]', error)
@@ -89,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     // Se ativou e o usuário tem telefone/whatsapp, criar/atualizar whatsapp_sessions para esse número
     // para que a próxima mensagem já encontre a sessão
-    if (activated) {
+    if (typeof activated === 'boolean' && activated) {
       const { data: profile } = await supabase
         .from('profiles')
         .select('id, telefone, whatsapp')
@@ -111,7 +131,7 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString(),
         }, { onConflict: 'phone_number' })
       }
-    } else {
+    } else if (typeof activated === 'boolean' && !activated) {
       // Desativar: remover plen_activated das sessões desse usuário
       await supabase
         .from('whatsapp_sessions')
@@ -119,10 +139,18 @@ export async function POST(request: NextRequest) {
         .eq('user_id', userId)
     }
 
+    const msgParts: string[] = []
+    if (typeof activated === 'boolean') {
+      msgParts.push(activated ? 'Assistente PLEN ativada.' : 'Assistente PLEN desativada.')
+    }
+    if (typeof paused === 'boolean') {
+      msgParts.push(paused ? 'Assistente pausada — humano pode atender no WhatsApp.' : 'Assistente despausada — voltará a responder.')
+    }
     return NextResponse.json({
       success: true,
-      plenActivated: activated,
-      message: activated ? 'Assistente PLEN ativada para este usuário. Quando ele enviar mensagem do número cadastrado, será atendido normalmente.' : 'Assistente PLEN desativada para este usuário.',
+      plenActivated: typeof activated === 'boolean' ? activated : undefined,
+      assistentePausada: typeof paused === 'boolean' ? paused : undefined,
+      message: msgParts.join(' ') || 'Atualizado.',
     })
   } catch (e) {
     console.error('[admin/plen-assistant POST]', e)

@@ -21,6 +21,7 @@ import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/w
 import { recordIncomingMessage, markWelcomeSent } from '@/lib/whatsapp-contatos-pendentes'
 import { ensureAudioWebhookEnabled } from '@/lib/whatsapp-apifacil-config'
 import { detectMedia, processComprovanteImage, downloadMedia, transcribeAudio } from '@/lib/whatsapp-media-processor'
+import { createAdminClient } from '@/lib/supabase/server'
 
 /** Uma vez por deploy: ao detectar texto "paguei 2.00" em vez de áudio, tenta corrigir tipos_envio na API Fácil. */
 let audioConfigFixTried = false
@@ -74,6 +75,29 @@ function isAllowedTestNumber(from: string, testNumbers: string[]): boolean {
   const normalized = from.replace(/\D/g, '')
   const with55 = normalized.startsWith('55') ? normalized : `55${normalized}`
   return testNumbers.some((t) => t === with55 || t === normalized)
+}
+
+/** Retorna true se a assistente está pausada para este número (humano deve atender). */
+async function isAssistentePausadaParaNumero(phoneDigits: string): Promise<boolean> {
+  const admin = createAdminClient()
+  if (!admin) return false
+  const phone = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`
+  try {
+    const { data: session } = await admin
+      .from('whatsapp_sessions')
+      .select('user_id')
+      .eq('phone_number', phone)
+      .maybeSingle()
+    if (!session?.user_id) return false
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('assistente_pausada')
+      .eq('id', session.user_id)
+      .maybeSingle()
+    return profile?.assistente_pausada === true
+  } catch {
+    return false
+  }
 }
 
 /** Extrair from e text do body em vários formatos (API Fácil / Meta / genérico). Só mensagens RECEBIDAS. */
@@ -238,6 +262,11 @@ async function processarEmBackground(parsed: {
   media?: { type: 'audio'; url: string; mimetype: string } | { type: 'image'; url: string; mimetype: string; caption?: string }
 }) {
   const { from, text: textInicial, media } = parsed
+  const phoneDigits = from.replace(/\D/g, '')
+  if (await isAssistentePausadaParaNumero(phoneDigits)) {
+    console.log('⏸️ [Apifacil Webhook] Assistente pausada para este contato — não enviando resposta automática (humano pode atender).', phoneDigits)
+    return
+  }
   let text = textInicial
   let origemMensagem: 'texto' | 'áudio' | 'imagem' = 'texto'
   try {

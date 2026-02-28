@@ -1,6 +1,6 @@
 'use client'
 
-import { X, Mail, Phone, Calendar, CreditCard, Key, User, Send, Loader2, Crown, Settings, AlertTriangle, FileText, Trash2, RefreshCw, MessageCircle, Power, Gift, Users, Circle } from 'lucide-react'
+import { X, Mail, Phone, Calendar, CreditCard, Key, User, Send, Loader2, Crown, Settings, AlertTriangle, FileText, Trash2, RefreshCw, MessageCircle, Power, Gift, Users, Circle, Pause, Play } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale/pt-BR'
 import { useState, useEffect } from 'react'
@@ -73,8 +73,10 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
   const [excluindo, setExcluindo] = useState(false)
   const [mostrarConfirmacaoExclusao, setMostrarConfirmacaoExclusao] = useState(false)
   const [plenActivated, setPlenActivated] = useState<boolean | null>(null)
+  const [assistentePausada, setAssistentePausada] = useState<boolean | null>(null)
   const [carregandoPlenStatus, setCarregandoPlenStatus] = useState(false)
   const [alterandoPlenStatus, setAlterandoPlenStatus] = useState(false)
+  const [alterandoPausa, setAlterandoPausa] = useState(false)
   const [referralsData, setReferralsData] = useState<ReferralsData | null>(null)
   const [carregandoReferrals, setCarregandoReferrals] = useState(false)
 
@@ -156,12 +158,15 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
         
         if (response.ok && data.success) {
           setPlenActivated(data.plenActivated)
+          setAssistentePausada(data.assistentePausada === true)
         } else {
           setPlenActivated(null)
+          setAssistentePausada(null)
         }
       } catch (error) {
         console.error('Erro ao buscar status do assistente PLEN:', error)
         setPlenActivated(null)
+        setAssistentePausada(null)
       } finally {
         setCarregandoPlenStatus(false)
       }
@@ -415,6 +420,35 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
     } finally {
       setExcluindo(false)
       setMostrarConfirmacaoExclusao(false)
+    }
+  }
+
+  const handleTogglePausaAssistente = async () => {
+    if (!usuarioLocal?.id) return
+    const novaPausa = !assistentePausada
+    setAlterandoPausa(true)
+    setMensagem(null)
+    try {
+      const response = await fetch('/api/admin/usuario/plen-assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: usuarioLocal.id, paused: novaPausa }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        setMensagem({ tipo: 'error', texto: data.error || 'Erro ao alterar pausa da assistente' })
+      } else {
+        setAssistentePausada(novaPausa)
+        setMensagem({
+          tipo: 'success',
+          texto: novaPausa ? 'Assistente pausada — você pode atender no WhatsApp.' : 'Assistente ativada novamente.',
+        })
+        setTimeout(() => setMensagem(null), 3000)
+      }
+    } catch (error: any) {
+      setMensagem({ tipo: 'error', texto: error?.message || 'Erro ao conectar' })
+    } finally {
+      setAlterandoPausa(false)
     }
   }
 
@@ -864,6 +898,30 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
                   ? 'O assistente PLEN está ativo e responderá mensagens do usuário no WhatsApp (ou pelo número cadastrado).'
                   : 'O assistente PLEN está desativado. Ative para o usuário ser atendido pelo número cadastrado.'}
               </p>
+              {/* Pausar assistente: quando pausada, humano atende; ao despausar, assistente volta a responder */}
+              {plenActivated === true && assistentePausada !== null && (
+                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-white/10 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-medium text-brand-midnight dark:text-brand-clean/80">Pausar assistente</span>
+                    <p className="text-xs text-brand-midnight/60 dark:text-brand-clean/60 mt-0.5">
+                      {assistentePausada ? 'Pausada — a assistente não responde; você pode conversar no WhatsApp. Ative de novo para a assistente voltar.' : 'Ativa — a assistente responde. Pause para um humano atender.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleTogglePausaAssistente}
+                    disabled={alterandoPausa}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 disabled:opacity-50 shrink-0 ${
+                      assistentePausada
+                        ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/30'
+                        : 'bg-gray-200 dark:bg-brand-midnight/50 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-white/20'
+                    }`}
+                  >
+                    {alterandoPausa ? <Loader2 size={12} className="animate-spin" /> : assistentePausada ? <Play size={12} /> : <Pause size={12} />}
+                    {alterandoPausa ? '...' : assistentePausada ? 'Despausar' : 'Pausar'}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Data de Cadastro */}
