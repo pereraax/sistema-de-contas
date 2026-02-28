@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { obterHomeEstatisticas } from '@/lib/actions'
-import { TrendingUp, TrendingDown, ChevronDown, ChevronLeft, ChevronRight, Check, Moon, Sun, User, Crown, Wallet } from 'lucide-react'
+import { TrendingUp, TrendingDown, ChevronDown, ChevronLeft, ChevronRight, Check, Moon, Sun, User, Crown, Wallet, Info, AlertTriangle, AlertCircle, CheckCircle } from 'lucide-react'
 import { useFiltroData } from './FiltroRapidoDataWrapper'
 import { MenuButton } from './MobileMenu'
 import NotificationBell from './NotificationBell'
@@ -96,6 +96,7 @@ export default function HomeLayoutNovo({ initialStats, initialUserProfile }: { i
   const [dropdownAberto, setDropdownAberto] = useState(false)
   const [isFading, setIsFading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [avisos, setAvisos] = useState<Array<{ id: string; titulo: string; mensagem: string; tipo: string }>>([])
 
   // Sincronizar filtro de data: se filtro por dias ativo usa últimos N dias; senão usa o mês
   useEffect(() => {
@@ -136,6 +137,19 @@ export default function HomeLayoutNovo({ initialStats, initialUserProfile }: { i
     const savedTheme = localStorage.getItem('theme')
     const darkMode = savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
     setIsDarkMode(darkMode)
+  }, [])
+
+  // Avisos do admin (exibir acima de Pendências e alertas)
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/user/avisos', { cache: 'no-store' })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (cancelled || !data?.avisos?.length) return
+        setAvisos(data.avisos)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
   }, [])
 
   const applyTheme = (dark: boolean) => {
@@ -529,6 +543,42 @@ export default function HomeLayoutNovo({ initialStats, initialUserProfile }: { i
           </div>
         </div>
       </div>
+
+      {/* Avisos (acima de Pendências e alertas) — layout moderno e clean */}
+      {avisos.length > 0 && (
+        <div className="mb-6 w-full max-w-3xl mx-auto space-y-3">
+          {avisos.map((aviso) => {
+            const tipoConfig: Record<string, { icon: typeof Info; bg: string; border: string; iconColor: string }> = {
+              info: { icon: Info, bg: 'bg-blue-500/10', border: 'border-blue-400/20', iconColor: 'text-blue-400' },
+              warning: { icon: AlertTriangle, bg: 'bg-amber-500/10', border: 'border-amber-400/20', iconColor: 'text-amber-400' },
+              error: { icon: AlertCircle, bg: 'bg-red-500/10', border: 'border-red-400/20', iconColor: 'text-red-400' },
+              success: { icon: CheckCircle, bg: 'bg-emerald-500/10', border: 'border-emerald-400/20', iconColor: 'text-emerald-400' },
+            }
+            const config = tipoConfig[aviso.tipo] || tipoConfig.info
+            const Icon = config.icon
+            return (
+              <div
+                key={aviso.id}
+                className={`rounded-2xl border ${config.border} bg-white/5 dark:bg-[#252525] px-4 py-4 shadow-sm`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`shrink-0 p-2 rounded-xl ${config.bg}`}>
+                    <Icon size={20} className={config.iconColor} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-brand-midnight dark:text-gray-100">
+                      {aviso.titulo}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 leading-relaxed">
+                      {aviso.mensagem}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Seção Pendências e alertas + Gastos por banco: centralizada, dois blocos lado a lado */}
       <div className="mb-6 flex flex-col items-center">
