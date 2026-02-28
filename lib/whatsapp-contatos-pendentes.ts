@@ -65,7 +65,7 @@ export interface ContatoPendente {
   created_at: string
 }
 
-/** Listar contatos que enviaram mensagem tipo "quero utilizar plenipay" e ainda não receberam as 3 boas-vindas. */
+/** Listar contatos que ainda não receberam as 3 boas-vindas (welcome_sent_at nulo). Inclui quem enviou qualquer mensagem e quem foi adicionado manualmente. */
 export async function listPendentes(): Promise<ContatoPendente[]> {
   const supabase = createAdminClient()
   if (!supabase) return []
@@ -73,14 +73,34 @@ export async function listPendentes(): Promise<ContatoPendente[]> {
     .from(TABLE)
     .select('id, phone, last_message, last_message_at, created_at')
     .is('welcome_sent_at', null)
-    .not('last_message', 'is', null)
     .order('last_message_at', { ascending: false })
   if (error) {
     console.error('[whatsapp-contatos-pendentes] listPendentes error:', error)
     return []
   }
-  const list = (data || []).filter(
-    (row) => row.last_message && isQueroUtilizarPlenipay(row.last_message)
-  ) as ContatoPendente[]
-  return list
+  return (data || []) as ContatoPendente[]
+}
+
+/** Adicionar contato manualmente para reenvio (ex.: número que não aparece porque escreveu antes do deploy). */
+export async function addPendenteManualmente(phone: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createAdminClient()
+  if (!supabase) return { ok: false, error: 'Supabase não configurado' }
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return { ok: false, error: 'Número inválido' }
+  const now = new Date().toISOString()
+  const { error } = await supabase.from(TABLE).upsert(
+    {
+      phone: p,
+      last_message: 'Adicionado manualmente para reenvio',
+      last_message_at: now,
+      welcome_sent_at: null,
+      updated_at: now,
+    },
+    { onConflict: 'phone', ignoreDuplicates: false }
+  )
+  if (error) {
+    console.error('[whatsapp-contatos-pendentes] addPendenteManualmente error:', error)
+    return { ok: false, error: error.message }
+  }
+  return { ok: true }
 }

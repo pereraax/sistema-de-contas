@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Send, RefreshCw, MessageCircle, Loader2 } from 'lucide-react'
+import { Send, RefreshCw, MessageCircle, Loader2, UserPlus } from 'lucide-react'
 import { createNotification } from '@/components/NotificationBell'
 
 interface Pendente {
@@ -16,6 +16,8 @@ export default function AdminWhatsAppPendentesPage() {
   const [pendentes, setPendentes] = useState<Pendente[]>([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState<string | null>(null)
+  const [novoNumero, setNovoNumero] = useState('')
+  const [adding, setAdding] = useState(false)
 
   const fetchPendentes = useCallback(async () => {
     try {
@@ -73,6 +75,34 @@ export default function AdminWhatsAppPendentesPage() {
     return p
   }
 
+  const adicionarNumero = async () => {
+    const num = novoNumero.trim().replace(/\D/g, '')
+    if (num.length < 10) {
+      createNotification('Digite um número com DDD (ex: 11999999999 ou 5511999999999)', 'warning')
+      return
+    }
+    setAdding(true)
+    try {
+      const res = await fetch('/api/admin/whatsapp-pendentes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: num.length === 11 ? `55${num}` : num }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        createNotification('Número adicionado. Atualize a lista.', 'success')
+        setNovoNumero('')
+        fetchPendentes()
+      } else {
+        createNotification(data.error || 'Erro ao adicionar', 'error')
+      }
+    } catch (e) {
+      createNotification('Erro ao adicionar número.', 'error')
+    } finally {
+      setAdding(false)
+    }
+  }
+
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
@@ -82,8 +112,31 @@ export default function AdminWhatsAppPendentesPage() {
         <div>
           <h1 className="text-xl font-bold text-white">Reenvio de boas-vindas WhatsApp</h1>
           <p className="text-sm text-white/70">
-            Contatos que enviaram &quot;quero utilizar a plenipay&quot; e ainda não receberam as 3 mensagens. Atualiza a cada 10s.
+            Contatos que ainda não receberam as 3 mensagens. Você pode adicionar números manualmente (ex.: quem escreveu antes do sistema). Atualiza a cada 10s.
           </p>
+        </div>
+      </div>
+
+      <div className="rounded-xl bg-white/5 border border-white/10 p-4 mb-4">
+        <p className="text-white/80 text-sm mb-2">Adicionar número que não recebeu as 3 mensagens:</p>
+        <div className="flex gap-2">
+          <input
+            type="tel"
+            placeholder="5511999999999 ou 11999999999"
+            value={novoNumero}
+            onChange={(e) => setNovoNumero(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && adicionarNumero()}
+            className="flex-1 rounded-lg bg-white/10 border border-white/20 px-3 py-2 text-white placeholder-white/50 text-sm font-mono"
+          />
+          <button
+            type="button"
+            onClick={adicionarNumero}
+            disabled={adding}
+            className="flex items-center gap-2 shrink-0 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm disabled:opacity-50"
+          >
+            {adding ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
+            Adicionar
+          </button>
         </div>
       </div>
 
@@ -107,7 +160,9 @@ export default function AdminWhatsAppPendentesPage() {
         </div>
       ) : pendentes.length === 0 ? (
         <div className="rounded-xl bg-white/5 border border-white/10 p-8 text-center text-white/70">
-          Nenhum contato pendente. Quem enviar &quot;Olá, quero utilizar a plenipay&quot; e não receber as 3 mensagens aparecerá aqui.
+          <p className="mb-2">Nenhum contato pendente.</p>
+          <p className="text-sm">Use o campo acima para <strong>adicionar números manualmente</strong> (ex.: quem já escreveu e não recebeu as 3 mensagens). Novos contatos que enviarem mensagem também aparecerão aqui.
+          </p>
         </div>
       ) : (
         <ul className="space-y-3">
