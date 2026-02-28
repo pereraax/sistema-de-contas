@@ -577,15 +577,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Em localhost: só processar se WHATSAPP_TEST_NUMBERS estiver definido e o número estiver na lista
+    // Em localhost: só processar se WHATSAPP_TEST_NUMBERS estiver definido e o número estiver na lista.
+    // Exceção: "Olá, quero utilizar a plenipay" (e variações) — sempre responder para QUALQUER número.
+    const msgForBypass = (parsed.text || '').toLowerCase().trim().replace(/\s+/g, ' ')
+    const isQueroUtilizarPlenipay =
+      (msgForBypass.includes('quero utilizar') && msgForBypass.includes('plenipay')) ||
+      (msgForBypass.includes('quero usar') && msgForBypass.includes('plenipay'))
     const isDev = process.env.NODE_ENV === 'development'
     const testNumbers = getTestNumbers()
-    if (isDev && testNumbers.length > 0) {
+    if (isDev && testNumbers.length > 0 && !isQueroUtilizarPlenipay) {
       if (!isAllowedTestNumber(from, testNumbers)) {
         console.log('🔒 [Apifacil Webhook] Modo teste: ignorando número não autorizado.', { from, allowed: testNumbers })
         return NextResponse.json({ success: true, message: 'Modo teste: número ignorado' })
       }
       console.log('✅ [Apifacil Webhook] Modo teste: número autorizado, processando.', { from })
+    } else if (isQueroUtilizarPlenipay) {
+      console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" — processando para qualquer número:', from)
     }
 
     // Responder 200 IMEDIATAMENTE para a API Fácil não marcar webhook como Pendente (timeout ~10s)
