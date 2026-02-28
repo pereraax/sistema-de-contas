@@ -69,10 +69,10 @@ const nextConfig = {
   //   ]
   // },
 
-  // Corrige 404 em assets: se algo pedir /next/static em vez de /_next/static, reescrever
+  // Corrige 404 em assets: WebView/Capacitor às vezes pede /next/ em vez de /_next/
   async rewrites() {
     return [
-      { source: '/next/static/:path*', destination: '/_next/static/:path*' },
+      { source: '/next/:path*', destination: '/_next/:path*' },
     ]
   },
   
@@ -81,6 +81,15 @@ const nextConfig = {
     // Em desenvolvimento, não aplicar headers restritivos que podem causar problemas
     if (process.env.NODE_ENV === 'production') {
       return [
+        // CORS para a extensão CRM (WhatsApp Web → plenipay.com): evita bloqueio mesmo com Cloudflare
+        {
+          source: '/api/whatsapp/send-welcome-extension',
+          headers: [
+            { key: 'Access-Control-Allow-Origin', value: '*' },
+            { key: 'Access-Control-Allow-Methods', value: 'POST, OPTIONS' },
+            { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, X-API-Key' },
+          ],
+        },
         {
           source: '/:path*',
           headers: [
@@ -113,19 +122,22 @@ const nextConfig = {
               value: 'camera=(), microphone=(self), geolocation=()'
             },
             {
+              // Obrigatório para login com Google no APP: sem isso o OAuth quebra e o usuário cai na landing sem sessão.
+              // Se em produção o console ainda mostrar CSP bloqueando Google, faça deploy e confira Cloudflare (não definir CSP lá).
               key: 'Content-Security-Policy',
               value: [
                 "default-src 'self'",
-                "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.googletagmanager.com https://cdn.jsdelivr.net blob:",
+                "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.googletagmanager.com https://cdn.jsdelivr.net https://accounts.google.com https://apis.google.com https://*.google.com https://connect.facebook.net blob:",
+                "script-src-elem 'self' 'unsafe-inline' https://www.googletagmanager.com https://cdn.jsdelivr.net https://accounts.google.com https://apis.google.com https://*.google.com https://connect.facebook.net blob:",
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
                 "img-src 'self' data: https: blob:",
                 "font-src 'self' data: https://fonts.gstatic.com",
-                "connect-src 'self' https://*.supabase.co https://api.asaas.com",
-                "frame-src 'self' https://www.google.com",
+                "connect-src 'self' https://*.supabase.co https://api.asaas.com https://www.google.com https://www.google.com/ping https://*.google.com https://accounts.google.com https://apis.google.com https://connect.facebook.net wss://*.supabase.co",
+                "frame-src 'self' https://www.google.com https://accounts.google.com https://apis.google.com https://*.google.com https://connect.facebook.net",
                 "worker-src 'self' blob:",
                 "object-src 'none'",
                 "base-uri 'self'",
-                "form-action 'self'",
+                "form-action 'self' https://accounts.google.com https://*.google.com",
                 "frame-ancestors 'self'"
               ].join('; ')
             }
