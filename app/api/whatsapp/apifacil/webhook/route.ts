@@ -200,7 +200,10 @@ function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string
   if (tipoEnvio === 'MENSAGEM_ENVIADA') return null
 
   const data = (b.data && typeof b.data === 'object' ? b.data : b) as Record<string, unknown>
-  const isRecebida = /MENSAGEM_RECEBIDA|AUDIO_RECEBIDO|IMAGEM_RECEBIDA/i.test(tipoEnvio)
+  // event whatsapp_insert = mensagem recebida (API Fácil); sem tipo_envio tratamos como recebida para pegar origem/mensagem
+  const isRecebida =
+    b.event === 'whatsapp_insert' ||
+    /MENSAGEM_RECEBIDA|AUDIO_RECEBIDO|IMAGEM_RECEBIDA/i.test(tipoEnvio)
   let from = (isRecebida ? (data.origem ?? b.origem ?? data.numero_telefone_origem ?? b.numero_telefone_origem) : null)
     ?? (data.destino ?? b.destino ?? data.origem ?? data.from ?? b.origem ?? b.from ?? data.telefone ?? data.numero ?? b.telefone ?? b.numero) as string | undefined
   if (from && (String(from).includes('@') || String(from).replace(/\D/g, '').length < 10)) {
@@ -212,7 +215,7 @@ function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string
 
   const fromClean = String(from).replace(/\D/g, '')
   if (fromClean.length < 10) return null
-  const textRaw = (data.mensagem ?? data.text ?? b.mensagem ?? b.text ?? (data as any)?.body) as string | undefined
+  const textRaw = (data.mensagem ?? data.text ?? data.message ?? b.mensagem ?? b.text ?? (b as any).message ?? (data as any)?.body) as string | undefined
   const text = textRaw != null ? String(textRaw).trim() : ''
 
   // 1) ÁUDIO: prioridade para tipo_envio AUDIO_RECEBIDO com URL em qualquer campo conhecido
@@ -753,15 +756,24 @@ export async function POST(request: NextRequest) {
       console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" — processando para qualquer número:', from)
     }
 
-    // Responder 200 IMEDIATAMENTE para a API Fácil não marcar webhook como Pendente (timeout ~10s)
-    processarEmBackground(parsed).catch((err) => {
-      console.error('❌ [Apifacil Webhook] Erro em background:', err)
+    // Aguardar o processamento terminar antes de responder 200, para o envio automático (boas-vindas) concluir
+    // em ambiente serverless (Railway/Vercel). Timeout 25s para não travar se algo falhar.
+    const WEBHOOK_PROCESS_TIMEOUT_MS = 25_000
+    await Promise.race([
+      processarEmBackground(parsed),
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('Webhook process timeout')), WEBHOOK_PROCESS_TIMEOUT_MS)
+      ),
+    ]).catch((err) => {
+      console.error('❌ [Apifacil Webhook] Erro ou timeout em processamento:', err instanceof Error ? err.message : err)
     })
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error('❌ [Apifacil Webhook] Erro (retornando 200 para API Fácil não marcar Pendente):', err)
     if (parsed) {
-      processarEmBackground(parsed).catch((e) => console.error('❌ [Apifacil Webhook] Erro em background após catch:', e))
+      await processarEmBackground(parsed).catch((e) =>
+        console.error('❌ [Apifacil Webhook] Erro em processamento após catch:', e)
+      )
     }
     return NextResponse.json({ success: true })
   }
