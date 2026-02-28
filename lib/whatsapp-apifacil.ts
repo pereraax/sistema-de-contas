@@ -57,10 +57,8 @@ export async function sendReplyButtons(
   // Conforme doc API Fácil (Enviar Botão WhatsApp):
   // - Botão simples: { "id": "...", "text": "..." }
   // - Botão URL: { "name": "cta_url", "buttonParamsJson": "{\"display_text\": \"...\", \"url\": \"...\"}" }
-  // - Atenção doc: "O link deve estar no texto da mensagem" — usamos texto com URL para CTA funcionar.
-  const hasCadastrar = buttons.some((b) => (b.id || '').toLowerCase() === 'cadastrar')
-  const textWithUrl =
-    bodyText === 'Escolha abaixo:' && hasCadastrar ? `${bodyText}\n\n${cadastroUrl}` : bodyText
+  // Link apenas nos botões (CADASTRAR = cta_url). Texto sem URL para não exibir preview do site.
+  const textForMessage = bodyText
 
   // Ordem como na doc: primeiro reply (id + text), depois cta_url (name + buttonParamsJson)
   const buttonsForApi: Array<{ id: string; text: string } | { name: string; buttonParamsJson: string }> = []
@@ -82,7 +80,7 @@ export async function sendReplyButtons(
   // Payload idêntico ao exemplo da doc (telefone, text, buttons, footer, title, instancia)
   const payload = {
     telefone: cleanPhone,
-    text: textWithUrl,
+    text: textForMessage,
     buttons: buttonsForApi,
     footer: 'Toque em um botão abaixo',
     title: 'PleniPay',

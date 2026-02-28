@@ -1039,14 +1039,14 @@ async function handleWhatsAppAuthentication(
       } else {
         return {
           success: true,
-          message: `❌ Email ou código key inválidos.\n\nVerifique se:\n• O email está correto\n• O código key está correto (encontrado em https://plenipay.com/configuracoes)\n• Sua conta está ativa\n\nVamos tentar novamente:\n\n📧 Me envie seu email de cadastro...`,
+          message: `❌ Email ou código key inválidos.\n\nVerifique se:\n• O email está correto\n• O código key está correto (em Configurações no site)\n• Sua conta está ativa\n\nVamos tentar novamente:\n\n📧 Me envie seu email de cadastro...`,
         }
       }
     } else {
       // Não tem key válida, pedir novamente
       return {
         success: true,
-        message: `🔑 Me envie sua chave key agora:\n\n(Encontre seu código key em: https://plenipay.com/configuracoes)`,
+        message: `🔑 Me envie sua chave key agora.\n\nEntre em *Configurações* no site, copie o código da chave e me envie aqui.`,
       }
     }
   } else {
@@ -1098,7 +1098,7 @@ async function handleWhatsAppAuthentication(
       console.log('📧 [WhatsApp PLEN] Email verificado, aguardando chave key:', email)
       return {
         success: true,
-        message: `✅ *E-mail verificado!*\n\nAgora me envie sua *chave key* (código de ativação):\n\n(Encontre em: https://plenipay.com/configuracoes)`,
+        message: `✅ *E-mail verificado!*\n\nAgora me envie sua *chave key* (código de ativação):\n\nEntre em *Configurações* no site da PleniPay, copie o código da sua chave e me envie aqui.`,
       }
     }
 
