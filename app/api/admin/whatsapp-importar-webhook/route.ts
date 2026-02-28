@@ -11,7 +11,10 @@ function normalizarPhone(phone: string): string {
   return limpo.length >= 10 && !limpo.startsWith('55') ? `55${limpo}` : limpo
 }
 
-/** POST: importa só quem enviou "Olá! Quero utilizar a Plenipay" e NÃO recebeu nenhuma resposta da assistente (zero = não foi respondido). */
+/** Número mínimo de mensagens nossas depois da mensagem deles para considerar "já respondido". Quem recebeu 0, 1 ou 2 aparece como pendente. */
+const MIN_RESPOSTAS_PARA_CONSIDERAR_RESPONDIDO = 3
+
+/** POST: importa quem enviou "Olá! Quero utilizar a Plenipay" e recebeu no máximo 2 respostas nossas (0, 1 ou 2 = pendente). */
 export async function POST() {
   const admin = await verifyAdminToken()
   if (!admin) {
@@ -19,12 +22,14 @@ export async function POST() {
   }
   const dataFinal = new Date()
   const dataInicial = new Date()
-  dataInicial.setDate(dataInicial.getDate() - 7)
+  dataInicial.setDate(dataInicial.getDate() - 30)
   const dataInicialStr = dataInicial.toISOString().slice(0, 10)
   const dataFinalStr = dataFinal.toISOString().slice(0, 10)
 
-  let resRecebidas = await listarNotificacoesRecebidas(dataInicialStr, dataFinalStr)
-  let resEnviadas = await listarNotificacoesEnviadas(dataInicialStr, dataFinalStr)
+  // Chamar SEM instancia_id primeiro: a API Fácil costuma retornar dados assim; com instancia_id às vezes vem vazio
+  const optsSemInstancia = { omitirInstanciaId: true }
+  let resRecebidas = await listarNotificacoesRecebidas(dataInicialStr, dataFinalStr, 50, optsSemInstancia)
+  let resEnviadas = await listarNotificacoesEnviadas(dataInicialStr, dataFinalStr, 50, optsSemInstancia)
   if (resRecebidas.error) {
     return NextResponse.json(
       { success: false, error: resRecebidas.error, importados: 0 },
@@ -38,20 +43,12 @@ export async function POST() {
     )
   }
 
-  // Se a API retornou 0 recebidas mas estamos com instancia_id, tentar sem filtro de instância (algumas APIs tratam diferente)
+  // Se ainda 0 recebidas, tentar COM instancia_id (caso a API exija para algumas contas)
   if (resRecebidas.notificacoes.length === 0) {
-    const retryRecebidas = await listarNotificacoesRecebidas(dataInicialStr, dataFinalStr, 50, {
-      omitirInstanciaId: true,
-    })
-    const retryEnviadas = await listarNotificacoesEnviadas(dataInicialStr, dataFinalStr, 50, {
-      omitirInstanciaId: true,
-    })
-    if (retryRecebidas.notificacoes.length > 0 && !retryRecebidas.error) {
-      resRecebidas = retryRecebidas
-    }
-    if (retryEnviadas.notificacoes.length > 0 && !retryEnviadas.error) {
-      resEnviadas = retryEnviadas
-    }
+    const retryR = await listarNotificacoesRecebidas(dataInicialStr, dataFinalStr, 50)
+    const retryE = await listarNotificacoesEnviadas(dataInicialStr, dataFinalStr, 50)
+    if (retryR.notificacoes.length > 0 && !retryR.error) resRecebidas = retryR
+    if (retryE.notificacoes.length > 0 && !retryE.error) resEnviadas = retryE
   }
 
   const recebidas = resRecebidas.notificacoes
@@ -86,14 +83,14 @@ export async function POST() {
     timestamps.sort((a, b) => a - b)
   }
 
-  // Incluir só quem NÃO FOI RESPONDIDO: zero respostas nossas depois da mensagem "Olá! Quero utilizar a Plenipay"
+  // Incluir quem recebeu menos de MIN_RESPOSTAS (0, 1 ou 2 mensagens nossas depois da mensagem "quero utilizar plenipay")
   const paraImportar: { origem: string; mensagem: string; created_at: string }[] = []
   for (const [, info] of porPhone) {
     const p = normalizarPhone(info.origem)
     const tsMensagem = new Date(info.created_at).getTime()
     const nossosEnvios = respostasPorDestino.get(p) ?? []
-    const teveAlgumaResposta = nossosEnvios.some((ts) => ts > tsMensagem)
-    if (!teveAlgumaResposta) {
+    const qtdRespostasDepois = nossosEnvios.filter((ts) => ts > tsMensagem).length
+    if (qtdRespostasDepois < MIN_RESPOSTAS_PARA_CONSIDERAR_RESPONDIDO) {
       paraImportar.push({ origem: info.origem, mensagem: info.mensagem, created_at: info.created_at })
     }
   }
@@ -107,9 +104,9 @@ export async function POST() {
   }
   const mensagem =
     recebidas.length === 0
-      ? 'Nenhuma mensagem recebida na API Fácil nos últimos 7 dias. Verifique: 1) APIFACIL_INSTANCE_ID e APIFACIL_TOKEN no servidor; 2) no painel apifacil.dev se há notificações/histórico nesse período; 3) se o endpoint de notificações está habilitado para sua conta.'
+      ? 'Nenhuma mensagem recebida na API Fácil nos últimos 30 dias. Verifique: 1) APIFACIL_TOKEN no servidor; 2) no painel apifacil.dev se há notificações/histórico; 3) se o endpoint de notificações está habilitado para sua conta.'
       : paraImportar.length === 0
-        ? `Encontradas ${recebidas.length} mensagens recebidas, ${porPhone.size} com "quero utilizar plenipay", mas todos já foram respondidos (receberam pelo menos 1 mensagem nossa).`
+        ? `Encontradas ${recebidas.length} mensagens recebidas, ${porPhone.size} com "quero utilizar plenipay", mas todos já receberam 3 ou mais respostas nossas nos últimos 30 dias.`
         : undefined
 
   return NextResponse.json({

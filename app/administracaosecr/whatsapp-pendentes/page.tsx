@@ -111,7 +111,7 @@ export default function AdminWhatsAppPendentesPage() {
           data.importados > 0
             ? `${data.importados} contato(s) importado(s).`
             : data.mensagem ||
-              `Nenhum contato que não foi respondido no período (últimos 7 dias). Recebidas: ${data.total_recebidas ?? '?'}, com "quero utilizar plenipay": ${data.total_quero_utilizar ?? '?'}.`
+              `Nenhum contato com menos de 3 respostas no período. Recebidas: ${data.total_recebidas ?? '?'}, com "quero utilizar plenipay": ${data.total_quero_utilizar ?? '?'}.`
         createNotification(msg, data.importados > 0 ? 'success' : 'info')
         fetchPendentes()
       } else {
@@ -162,7 +162,7 @@ export default function AdminWhatsAppPendentesPage() {
         <div>
           <h1 className="text-xl font-bold text-white">Reenvio de boas-vindas WhatsApp</h1>
           <p className="text-sm text-white/70">
-            Só aparecem aqui quem enviou &quot;Olá! Quero utilizar a Plenipay&quot; e <strong>não foi respondido</strong> — ou seja, não recebeu nenhuma mensagem da assistente depois disso. São esses que você reenvia manualmente. Atualiza a cada 10s.
+            Só aparecem aqui quem enviou &quot;Olá! Quero utilizar a Plenipay&quot; e recebeu <strong>menos de 3 mensagens</strong> da assistente (0, 1 ou 2). Quem já recebeu 3 ou mais não aparece. São esses que você reenvia manualmente. Atualiza a cada 10s.
           </p>
         </div>
       </div>
@@ -222,7 +222,7 @@ export default function AdminWhatsAppPendentesPage() {
       ) : pendentes.length === 0 ? (
         <div className="rounded-xl bg-white/5 border border-white/10 p-8 text-center text-white/70">
           <p className="mb-2">Nenhum contato pendente.</p>
-          <p className="text-sm">Quem enviar &quot;Olá! Quero utilizar a Plenipay&quot; e <strong>não for respondido</strong> (nenhuma mensagem da assistente) será identificado aqui. Use &quot;Importar contatos do webhook&quot; ou adicione números manualmente.
+          <p className="text-sm">Quem enviar &quot;Olá! Quero utilizar a Plenipay&quot; e receber <strong>menos de 3 mensagens</strong> da assistente será identificado aqui. Use &quot;Importar contatos do webhook&quot; ou adicione números manualmente.
           </p>
         </div>
       ) : (
