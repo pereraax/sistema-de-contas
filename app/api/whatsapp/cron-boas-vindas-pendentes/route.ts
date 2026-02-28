@@ -1,5 +1,7 @@
 /**
  * Checagem periódica: envia as 3 mensagens de boas-vindas para quem ainda não recebeu.
+ * Antes de enviar, busca mensagens recebidas na API Fácil (últimas 48h) e preenche a tabela,
+ * assim quem mandou mensagem mas o webhook não foi chamado também entra na fila.
  * Chamar a cada 1 minuto via cron (cron-job.org, Railway cron, etc.).
  *
  * Autenticação: header Authorization: Bearer <CRON_SECRET> ou X-Cron-Secret: <CRON_SECRET>
@@ -7,7 +9,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { listPhonesPendentesParaCron, markWelcomeSent } from '@/lib/whatsapp-contatos-pendentes'
+import {
+  listPhonesPendentesParaCron,
+  markWelcomeSent,
+  backfillFromNotificacoes,
+  isQueroUtilizarPlenipay,
+} from '@/lib/whatsapp-contatos-pendentes'
+import { listarNotificacoesRecebidas } from '@/lib/whatsapp-apifacil-notificacoes'
 import { sendBoasVindasToNumber } from '@/lib/whatsapp-enviar-boas-vindas-lib'
 import { isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 
@@ -46,7 +54,28 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
     )
   }
 
-  // Últimos 7 dias: quem mandou mensagem e ainda não tem welcome_sent_at
+  // 1) Buscar na API Fácil mensagens recebidas nas últimas 48h ("quero utilizar plenipay") e preencher a tabela.
+  // Assim, mesmo quando o webhook não foi chamado, o contato entra na fila e recebe as 3 mensagens.
+  let backfillImported = 0
+  try {
+    const dataFinal = new Date()
+    const dataInicial = new Date()
+    dataInicial.setHours(dataInicial.getHours() - 48)
+    const dataInicialStr = dataInicial.toISOString().slice(0, 10)
+    const dataFinalStr = dataFinal.toISOString().slice(0, 10)
+    const res = await listarNotificacoesRecebidas(dataInicialStr, dataFinalStr, 100, { omitirInstanciaId: true })
+    if (!res.error && res.notificacoes?.length) {
+      const paraBackfill = res.notificacoes
+        .filter((n) => isQueroUtilizarPlenipay((n.mensagem ?? '').trim()))
+        .map((n) => ({ origem: n.origem, mensagem: n.mensagem ?? '', created_at: n.created_at }))
+      const { importados } = await backfillFromNotificacoes(paraBackfill)
+      backfillImported = importados
+    }
+  } catch (e) {
+    console.error('[cron-boas-vindas-pendentes] backfill from API Fácil:', e)
+  }
+
+  // 2) Últimos 7 dias: quem está na tabela sem welcome_sent_at recebe as 3 mensagens
   const pendentes = await listPhonesPendentesParaCron(168)
   const errors: string[] = []
   let processed = 0
@@ -68,6 +97,7 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
 
   return NextResponse.json({
     ok: true,
+    backfillImported,
     processed,
     total: pendentes.length,
     errors: errors.length ? errors : undefined,
