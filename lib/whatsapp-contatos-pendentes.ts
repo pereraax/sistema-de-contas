@@ -97,6 +97,29 @@ export interface ContatoPendente {
 
 const LAST_MESSAGE_MANUAL = 'Adicionado manualmente para reenvio'
 
+/**
+ * Lista números que ainda não receberam as 3 mensagens de boas-vindas, para a checagem periódica (cron).
+ * Retorna apenas contatos com última mensagem nos últimos maxAgeHours (evita enviar para números muito antigos).
+ * @param maxAgeHours default 168 (7 dias)
+ */
+export async function listPhonesPendentesParaCron(maxAgeHours: number = 168): Promise<{ phone: string }[]> {
+  const supabase = createAdminClient()
+  if (!supabase) return []
+  const since = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000).toISOString()
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('phone')
+    .is('welcome_sent_at', null)
+    .not('last_message_at', 'is', null)
+    .gte('last_message_at', since)
+    .order('last_message_at', { ascending: false })
+  if (error) {
+    console.error('[whatsapp-contatos-pendentes] listPhonesPendentesParaCron error:', error)
+    return []
+  }
+  return (data || []).map((r) => ({ phone: r.phone as string }))
+}
+
 /** Lista contatos que o sistema identifica como não tendo recebido o fluxo de boas-vindas: mensagem tipo "quero utilizar plenipay" e welcome_sent_at nulo, ou adicionados manualmente. */
 export async function listPendentes(): Promise<ContatoPendente[]> {
   const supabase = createAdminClient()
