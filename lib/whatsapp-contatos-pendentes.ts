@@ -86,6 +86,48 @@ export async function listPendentes(): Promise<ContatoPendente[]> {
   )
 }
 
+/** Notificação vinda da API Fácil (listar notificações). */
+export interface NotificacaoParaBackfill {
+  origem: string
+  mensagem: string
+  created_at: string
+}
+
+/** Preenche whatsapp_contatos a partir de notificações MENSAGEM_RECEBIDA (ex.: histórico da API Fácil). Só insere/atualiza quem tem mensagem tipo "quero utilizar plenipay". Não sobrescreve welcome_sent_at. */
+export async function backfillFromNotificacoes(
+  notificacoes: NotificacaoParaBackfill[]
+): Promise<{ importados: number; error?: string }> {
+  const supabase = createAdminClient()
+  if (!supabase) return { importados: 0, error: 'Supabase não configurado' }
+  const filtradas = notificacoes.filter((n) => isQueroUtilizarPlenipay(n.mensagem ?? ''))
+  const porPhone = new Map<string | null, NotificacaoParaBackfill>()
+  for (const n of filtradas) {
+    const p = normalizarPhone(n.origem)
+    if (p.length < 10) continue
+    const existente = porPhone.get(p)
+    if (!existente || new Date(n.created_at) > new Date(existente.created_at)) {
+      porPhone.set(p, n)
+    }
+  }
+  let importados = 0
+  const now = new Date().toISOString()
+  for (const [, n] of porPhone) {
+    const p = normalizarPhone(n.origem)
+    if (p.length < 10) continue
+    const { error } = await supabase.from(TABLE).upsert(
+      {
+        phone: p,
+        last_message: (n.mensagem ?? '').slice(0, 2000),
+        last_message_at: n.created_at,
+        updated_at: now,
+      },
+      { onConflict: 'phone', ignoreDuplicates: false }
+    )
+    if (!error) importados += 1
+  }
+  return { importados }
+}
+
 /** Adicionar contato manualmente para reenvio (ex.: número que não aparece porque escreveu antes do deploy). */
 export async function addPendenteManualmente(phone: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = createAdminClient()

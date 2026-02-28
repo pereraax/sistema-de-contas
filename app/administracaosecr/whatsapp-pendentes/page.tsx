@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Send, RefreshCw, MessageCircle, Loader2, UserPlus } from 'lucide-react'
+import { Send, RefreshCw, MessageCircle, Loader2, UserPlus, Download } from 'lucide-react'
 import { createNotification } from '@/components/NotificationBell'
 
 interface Pendente {
@@ -18,6 +18,7 @@ export default function AdminWhatsAppPendentesPage() {
   const [sending, setSending] = useState<string | null>(null)
   const [novoNumero, setNovoNumero] = useState('')
   const [adding, setAdding] = useState(false)
+  const [importingWebhook, setImportingWebhook] = useState(false)
 
   const fetchPendentes = useCallback(async () => {
     try {
@@ -75,6 +76,29 @@ export default function AdminWhatsAppPendentesPage() {
     return p
   }
 
+  const importarDoWebhook = async () => {
+    setImportingWebhook(true)
+    try {
+      const res = await fetch('/api/admin/whatsapp-importar-webhook', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        createNotification(
+          data.importados > 0
+            ? `${data.importados} contato(s) importado(s) do histórico da API Fácil.`
+            : 'Nenhum contato novo com "quero utilizar plenipay" no período (últimos 90 dias).',
+          data.importados > 0 ? 'success' : 'info'
+        )
+        fetchPendentes()
+      } else {
+        createNotification(data.error || 'Erro ao importar do webhook.', 'error')
+      }
+    } catch (e) {
+      createNotification('Erro ao importar do webhook.', 'error')
+    } finally {
+      setImportingWebhook(false)
+    }
+  }
+
   const adicionarNumero = async () => {
     const num = novoNumero.trim().replace(/\D/g, '')
     if (num.length < 10) {
@@ -118,7 +142,18 @@ export default function AdminWhatsAppPendentesPage() {
       </div>
 
       <div className="rounded-xl bg-white/5 border border-white/10 p-4 mb-4">
-        <p className="text-white/80 text-sm mb-2">Adicionar número que não recebeu as 3 mensagens:</p>
+        <p className="text-white/80 text-sm mb-2">Puxar do histórico da API Fácil (quem já enviou mensagem):</p>
+        <button
+          type="button"
+          onClick={importarDoWebhook}
+          disabled={importingWebhook}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm disabled:opacity-50 mb-3"
+        >
+          {importingWebhook ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+          Importar contatos do webhook (API Fácil)
+        </button>
+        <p className="text-white/60 text-xs mb-2">Busca nos últimos 90 dias quem enviou &quot;quero utilizar plenipay&quot; e coloca na lista.</p>
+        <p className="text-white/80 text-sm mb-2">Ou adicionar número manualmente:</p>
         <div className="flex gap-2">
           <input
             type="tel"
