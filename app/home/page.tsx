@@ -36,6 +36,11 @@ const EmailConfirmadoSucessoWrapper = dynamicImport(() => import('@/components/E
   loading: () => null,
 })
 
+const WelcomeOwnerPopupWrapper = dynamicImport(() => import('@/components/WelcomeOwnerPopupWrapper'), {
+  ssr: false,
+  loading: () => null,
+})
+
 export const dynamic = 'force-dynamic'
 
 /**
@@ -58,6 +63,9 @@ export default function HomePage() {
 
           {/* Popup de sucesso quando email é confirmado */}
           <EmailConfirmadoSucessoWrapper />
+
+          {/* Popup de boas-vindas + definir nome do dono (primeiro usuário da conta) */}
+          <WelcomeOwnerPopupWrapper />
 
           {/* Layout da Home - dados carregados no cliente para evitar 500 no servidor */}
           <HomeLayoutNovo />
