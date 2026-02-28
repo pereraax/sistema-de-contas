@@ -298,8 +298,11 @@ export default function UsuariosLista({ usuarios: usuariosIniciais, error }: Usu
                   </td>
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-2 text-sm text-brand-clean/80">
-                      <Calendar size={16} className="text-brand-clean/60" />
-                      {format(new Date(usuario.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                      <Calendar size={16} className="text-brand-clean/60 flex-shrink-0" />
+                      <div className="flex flex-col">
+                        <span>{format(new Date(usuario.created_at), "dd/MM/yyyy", { locale: ptBR })}</span>
+                        <span className="text-xs text-brand-clean/60">às {format(new Date(usuario.created_at), "HH:mm", { locale: ptBR })}</span>
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 py-4">
