@@ -284,7 +284,7 @@ function isQueroUtilizarPlenipayMessage(t: string): boolean {
 /** Conteúdo das 3 mensagens de boas-vindas "quero utilizar plenipay" — usado como fallback se o handler falhar. */
 const BOAS_VINDAS_QUERO_UTILIZAR = [
   `Oiii 👋💙\nEu sou a Plen, sua assistente financeira 🤖✨\nE eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!\n\nAntes da gente começar, cria sua conta rapidinho lá no site 🌐\nÉ bem rápido mesmo, prometo! ⏱️💙`,
-  { type: 'buttons' as const, body: 'Escolha abaixo:', buttons: [{ id: 'cadastrar', title: 'CADASTRAR' }, { id: 'ja_cadastrei', title: 'JÁ CADASTREI' }] },
+  { type: 'buttons' as const, body: 'Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:', buttons: [{ id: 'cadastrar', title: 'CADASTRAR' }, { id: 'ja_cadastrei', title: 'JÁ CADASTREI' }] },
   `Assim que finalizar o cadastro, me envia seu e-mail aqui 📩\nVou verificar tudo certinho e já te liberar pra começar a registrar seus gastos e colocar suas economias em ordem 💸📊✨\n\nEu fico responsável por anotar tudo pra você direto pelo WhatsApp, combinado? 😉`,
 ]
 
@@ -386,7 +386,7 @@ async function processarEmBackground(parsed: {
             const send = await sendReplyButtons(phone, body, buttons)
             if (send.success) registerSentMessage(phone, `${body}\n\n${buttons.map((b) => b.title).join(' / ')}`)
             else {
-              const linkMsg = `Escolha abaixo:\n\n🔗 Cadastro: https://plenipay.com\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
+              const linkMsg = `Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:\n\n🔗 Cadastro: https://plenipay.com\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
               await sendTextMessage(phone, linkMsg)
               registerSentMessage(phone, linkMsg)
             }
@@ -421,7 +421,7 @@ async function processarEmBackground(parsed: {
             const send = await sendReplyButtons(phone, body, buttons)
             if (send.success) registerSentMessage(phone, `${body}\n\n${buttons.map((b) => b.title).join(' / ')}`)
             else {
-              const linkMsg = `Escolha abaixo:\n\n🔗 Cadastro: https://plenipay.com\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
+              const linkMsg = `Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:\n\n🔗 Cadastro: https://plenipay.com\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
               await sendTextMessage(phone, linkMsg)
               registerSentMessage(phone, linkMsg)
             }
@@ -532,7 +532,7 @@ async function processarEmBackground(parsed: {
             console.error('❌ [Apifacil Webhook] Falha ao enviar botões', i + 1, ':', send.error, '- enviando link de cadastro como texto')
             // Garantir que a segunda mensagem (link de cadastro) sempre seja enviada
             const cadastroUrl = 'https://plenipay.com'
-            const linkMsg = `Escolha abaixo:\n\n🔗 Cadastro: ${cadastroUrl}\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
+            const linkMsg = `Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:\n\n🔗 Cadastro: ${cadastroUrl}\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
             const sendLink = await sendTextMessage(phone, linkMsg)
             if (sendLink.success) {
               registerSentMessage(phone, linkMsg)
@@ -625,7 +625,7 @@ async function processarEmBackground(parsed: {
             const send = await sendReplyButtons(phone, body, buttons)
             if (send.success) registerSentMessage(phone, `${body}\n\n${buttons.map((b) => b.title).join(' / ')}`)
             else {
-              const linkMsg = `Escolha abaixo:\n\n🔗 Cadastro: https://plenipay.com\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
+              const linkMsg = `Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:\n\n🔗 Cadastro: https://plenipay.com\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
               await sendTextMessage(phone, linkMsg)
               registerSentMessage(phone, linkMsg)
             }
@@ -682,7 +682,7 @@ export async function POST(request: NextRequest) {
         const phone = destino.startsWith('55') ? destino : destino ? `55${destino}` : ''
         if (phone) {
           const cadastroUrl = 'https://plenipay.com'
-          const fallbackMsg = `Escolha abaixo:\n\n🔗 Cadastre-se aqui: ${cadastroUrl}\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
+          const fallbackMsg = `Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:\n\n🔗 Cadastre-se aqui: ${cadastroUrl}\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
           sendTextMessage(phone, fallbackMsg)
             .then((r) => {
               if (r.success) {

@@ -542,7 +542,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
           `Oiii 👋💙\nEu sou a Plen, sua assistente financeira 🤖✨\nE eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!\n\nAntes da gente começar, cria sua conta rapidinho lá no site 🌐\nÉ bem rápido mesmo, prometo! ⏱️💙`,
           {
             type: 'buttons' as const,
-            body: 'Escolha abaixo:',
+            body: 'Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:',
             buttons: [
               { id: 'cadastrar', title: 'CADASTRAR' },
               { id: 'ja_cadastrei', title: 'JÁ CADASTREI' },
