@@ -47,14 +47,13 @@ export async function markWelcomeSent(phone: string): Promise<void> {
   )
 }
 
-/** Verifica se a mensagem é do tipo "quero utilizar (a) plenipay". */
+/** Verifica se a mensagem indica intenção de usar a Plenipay (fluxo de boas-vindas). Identifica "Olá, quero utilizar a plenipay" e variações. */
 export function isQueroUtilizarPlenipay(text: string): boolean {
   if (!text || typeof text !== 'string') return false
   const t = text.toLowerCase().trim().replace(/\s+/g, ' ')
-  return (
-    (t.includes('quero utilizar') && t.includes('plenipay')) ||
-    (t.includes('quero usar') && t.includes('plenipay'))
-  )
+  const temPlenipay = /pleni\s*pay|plenipay/.test(t)
+  const temIntencao = t.includes('quero utilizar') || t.includes('quero usar') || /olá\s*,?\s*quero|ola\s*,?\s*quero/.test(t)
+  return temPlenipay && temIntencao
 }
 
 export interface ContatoPendente {
@@ -65,7 +64,9 @@ export interface ContatoPendente {
   created_at: string
 }
 
-/** Listar contatos que ainda não receberam as 3 boas-vindas (welcome_sent_at nulo). Inclui quem enviou qualquer mensagem e quem foi adicionado manualmente. */
+const LAST_MESSAGE_MANUAL = 'Adicionado manualmente para reenvio'
+
+/** Lista contatos que o sistema identifica como não tendo recebido o fluxo de boas-vindas: mensagem tipo "quero utilizar plenipay" e welcome_sent_at nulo, ou adicionados manualmente. */
 export async function listPendentes(): Promise<ContatoPendente[]> {
   const supabase = createAdminClient()
   if (!supabase) return []
@@ -78,7 +79,11 @@ export async function listPendentes(): Promise<ContatoPendente[]> {
     console.error('[whatsapp-contatos-pendentes] listPendentes error:', error)
     return []
   }
-  return (data || []) as ContatoPendente[]
+  const list = (data || []) as ContatoPendente[]
+  return list.filter(
+    (row) =>
+      row.last_message === LAST_MESSAGE_MANUAL || isQueroUtilizarPlenipay(row.last_message ?? '')
+  )
 }
 
 /** Adicionar contato manualmente para reenvio (ex.: número que não aparece porque escreveu antes do deploy). */
@@ -91,7 +96,7 @@ export async function addPendenteManualmente(phone: string): Promise<{ ok: boole
   const { error } = await supabase.from(TABLE).upsert(
     {
       phone: p,
-      last_message: 'Adicionado manualmente para reenvio',
+      last_message: LAST_MESSAGE_MANUAL,
       last_message_at: now,
       welcome_sent_at: null,
       updated_at: now,

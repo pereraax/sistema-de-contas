@@ -112,7 +112,7 @@ export default function AdminWhatsAppPendentesPage() {
         <div>
           <h1 className="text-xl font-bold text-white">Reenvio de boas-vindas WhatsApp</h1>
           <p className="text-sm text-white/70">
-            Contatos que ainda não receberam as 3 mensagens. Você pode adicionar números manualmente (ex.: quem escreveu antes do sistema). Atualiza a cada 10s.
+            O sistema identifica quem enviou mensagem tipo &quot;quero utilizar a plenipay&quot; e ainda não recebeu as 3 mensagens. Você pode adicionar números manualmente. Atualiza a cada 10s.
           </p>
         </div>
       </div>
@@ -161,7 +161,7 @@ export default function AdminWhatsAppPendentesPage() {
       ) : pendentes.length === 0 ? (
         <div className="rounded-xl bg-white/5 border border-white/10 p-8 text-center text-white/70">
           <p className="mb-2">Nenhum contato pendente.</p>
-          <p className="text-sm">Use o campo acima para <strong>adicionar números manualmente</strong> (ex.: quem já escreveu e não recebeu as 3 mensagens). Novos contatos que enviarem mensagem também aparecerão aqui.
+          <p className="text-sm">Quem enviar &quot;Olá, quero utilizar a plenipay&quot; (ou similar) e não receber as 3 mensagens será <strong>identificado automaticamente</strong> aqui. Use o campo acima para adicionar números manualmente (ex.: quem escreveu antes do sistema).
           </p>
         </div>
       ) : (

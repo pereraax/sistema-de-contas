@@ -311,9 +311,6 @@ async function processarEmBackground(parsed: {
     }
     if (!text) return
 
-    // Registrar contato e última mensagem (para painel de reenvio de boas-vindas)
-    recordIncomingMessage(from, text).catch((e) => console.error('📨 [Apifacil Webhook] recordIncomingMessage:', e))
-
     // Ignorar eco de QUALQUER uma das 3 mensagens que enviamos (provedor reenvia e gerava "Oops!" em seguida)
     const txtLower = String(text).trim().toLowerCase()
     const trechosNossasMensagens = [
@@ -334,6 +331,9 @@ async function processarEmBackground(parsed: {
       console.log('📨 [Apifacil Webhook] Ignorando (eco ou saudação curta, evita Oops):', txtLower.slice(0, 80))
       return
     }
+
+    // Registrar contato e última mensagem (identificação automática de quem não recebeu o fluxo de boas-vindas)
+    recordIncomingMessage(from, text).catch((e) => console.error('📨 [Apifacil Webhook] recordIncomingMessage:', e))
 
     // Quando a API Fácil envia só TEXTO em vez do áudio (ex.: "paguei 2.00"), não registrar 2 — pedir para digitar
     const txtNorm = text.trim()
