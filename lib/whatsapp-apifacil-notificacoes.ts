@@ -5,6 +5,11 @@
 
 import { getApifacilConfig } from './whatsapp-apifacil'
 
+function normalizarOrigem(origem: string): string {
+  const limpo = String(origem).replace(/\D/g, '')
+  return limpo.length >= 10 && !limpo.startsWith('55') ? `55${limpo}` : limpo
+}
+
 export interface NotificacaoRecebida {
   id: number
   origem: string
@@ -13,55 +18,104 @@ export interface NotificacaoRecebida {
   created_at: string
 }
 
-/** Busca notificações MENSAGEM_RECEBIDA na API Fácil (com paginação). dataInicial/dataFinal em YYYY-MM-DD. */
-export async function listarNotificacoesRecebidas(
+/** Notificação de mensagem enviada por nós (destino = número que recebeu). */
+export interface NotificacaoEnviada {
+  destino: string
+  created_at: string
+}
+
+/** Busca notificações de um tipo (MENSAGEM_RECEBIDA ou MENSAGEM_ENVIADA) na API Fácil (com paginação). */
+async function listarNotificacoes(
   dataInicial: string,
   dataFinal: string,
-  perPage = 50
-): Promise<{ notificacoes: NotificacaoRecebida[]; error?: string }> {
+  tipoEnvio: 'MENSAGEM_RECEBIDA' | 'MENSAGEM_ENVIADA',
+  perPage = 50,
+  opts?: { omitirInstanciaId?: boolean }
+): Promise<{ notificacoes: NotificacaoRecebida[] | NotificacaoEnviada[]; error?: string }> {
   const config = getApifacilConfig()
   if (!config) {
-    return { notificacoes: [], error: 'API Fácil não configurada' }
+    return { notificacoes: [], error: 'API Fácil não configurada (APIFACIL_INSTANCE_ID e APIFACIL_TOKEN)' }
   }
   const baseUrl = 'https://apifacil.dev/api/v1'
-  const all: NotificacaoRecebida[] = []
+  const all: NotificacaoRecebida[] | NotificacaoEnviada[] = []
   let page = 1
   let hasMore = true
+  const useInstanciaId = !opts?.omitirInstanciaId && config.instanceId && String(config.instanceId).trim()
   while (hasMore) {
     const params: Record<string, string> = {
       data_inicial: dataInicial,
       data_final: dataFinal,
-      tipo_envio: 'MENSAGEM_RECEBIDA',
+      tipo_envio: tipoEnvio,
       per_page: String(perPage),
       page: String(page),
     }
-    if (config.instanceId) params.instancia_id = config.instanceId
+    if (useInstanciaId) {
+      params.instancia_id = String(config.instanceId).trim()
+    }
     const url = `${baseUrl}/whatsapp/notificacoes?${new URLSearchParams(params)}`
-    const res = await fetch(url, {
+    const authHeader = config.token.trim()
+    let res = await fetch(url, {
       method: 'GET',
-      headers: { Authorization: config.token.trim() },
+      headers: {
+        Authorization: authHeader,
+        Accept: 'application/json',
+      },
     })
+    if (res.status === 401 && !authHeader.startsWith('Bearer')) {
+      res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${authHeader}`,
+          Accept: 'application/json',
+        },
+      })
+    }
     const json = await res.json().catch(() => ({}))
     if (!res.ok) {
+      const msg = json.message || json.error || json.msg || (typeof json === 'string' ? json : `Erro ${res.status}`)
       return {
         notificacoes: [],
-        error: json.message || json.error || `Erro ${res.status} ao listar notificações`,
+        error: msg,
       }
     }
+    if (json.error === true && json.message) {
+      return { notificacoes: [], error: json.message }
+    }
     const wrap = json.data ?? json
-    const list = Array.isArray(wrap.data) ? wrap.data : Array.isArray(wrap) ? wrap : []
-    const data = wrap
+    const list = Array.isArray(wrap?.data)
+      ? wrap.data
+      : Array.isArray(wrap)
+        ? wrap
+        : Array.isArray(json.data)
+          ? json.data
+          : Array.isArray(json.notificacoes)
+            ? json.notificacoes
+            : Array.isArray(json.mensagens)
+              ? json.mensagens
+              : []
+    const data = typeof wrap === 'object' && wrap !== null ? wrap : {}
     for (const item of list) {
-      const origem = item.origem ?? item.from ?? item.phone
-      const mensagem = item.mensagem ?? item.text ?? item.message ?? ''
-      if (origem && typeof mensagem === 'string') {
-        all.push({
-          id: item.id,
-          origem: String(origem).replace(/\D/g, '').replace(/^(\d{10,11})$/, '55$1'),
-          mensagem,
-          tipo_envio: item.tipo_envio ?? 'MENSAGEM_RECEBIDA',
-          created_at: item.created_at ?? item.createdAt ?? new Date().toISOString(),
-        })
+      const created_at = item.created_at ?? item.createdAt ?? new Date().toISOString()
+      if (tipoEnvio === 'MENSAGEM_RECEBIDA') {
+        const origem = item.origem ?? item.from ?? item.phone
+        const mensagem = item.mensagem ?? item.text ?? item.message ?? ''
+        if (origem && typeof mensagem === 'string') {
+          (all as NotificacaoRecebida[]).push({
+            id: item.id,
+            origem: normalizarOrigem(String(origem)),
+            mensagem,
+            tipo_envio: item.tipo_envio ?? 'MENSAGEM_RECEBIDA',
+            created_at,
+          })
+        }
+      } else {
+        const destino = item.destino ?? item.to ?? item.telefone ?? item.phone
+        if (destino) {
+          (all as NotificacaoEnviada[]).push({
+            destino: normalizarOrigem(String(destino)),
+            created_at,
+          })
+        }
       }
     }
     const lastPage = typeof data.last_page === 'number' ? data.last_page : 1
@@ -69,4 +123,30 @@ export async function listarNotificacoesRecebidas(
     page += 1
   }
   return { notificacoes: all }
+}
+
+/** Busca notificações MENSAGEM_RECEBIDA na API Fácil (com paginação). dataInicial/dataFinal em YYYY-MM-DD. */
+export async function listarNotificacoesRecebidas(
+  dataInicial: string,
+  dataFinal: string,
+  perPage = 50,
+  opts?: { omitirInstanciaId?: boolean }
+): Promise<{ notificacoes: NotificacaoRecebida[]; error?: string }> {
+  return listarNotificacoes(dataInicial, dataFinal, 'MENSAGEM_RECEBIDA', perPage, opts) as Promise<{
+    notificacoes: NotificacaoRecebida[]
+    error?: string
+  }>
+}
+
+/** Busca notificações MENSAGEM_ENVIADA (respostas que a assistente enviou). destino = número que recebeu. */
+export async function listarNotificacoesEnviadas(
+  dataInicial: string,
+  dataFinal: string,
+  perPage = 50,
+  opts?: { omitirInstanciaId?: boolean }
+): Promise<{ notificacoes: NotificacaoEnviada[]; error?: string }> {
+  return listarNotificacoes(dataInicial, dataFinal, 'MENSAGEM_ENVIADA', perPage, opts) as Promise<{
+    notificacoes: NotificacaoEnviada[]
+    error?: string
+  }>
 }

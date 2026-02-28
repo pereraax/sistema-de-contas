@@ -40,10 +40,35 @@ export default function AdminWhatsAppPendentesPage() {
     }
   }, [])
 
+  // Importar direto do webhook (API Fácil) ao abrir a página, depois carregar a lista
   useEffect(() => {
-    fetchPendentes()
+    let cancelled = false
+    async function importarEDepoisListar() {
+      setImportingWebhook(true)
+      try {
+        const res = await fetch('/api/admin/whatsapp-importar-webhook', { method: 'POST' })
+        if (cancelled) return
+        const data = await res.json()
+        if (res.ok && data.success) {
+          if (data.importados > 0) {
+            createNotification(`${data.importados} contato(s) importado(s) do webhook.`, 'success')
+          } else if (data.mensagem) {
+            createNotification(data.mensagem, 'info')
+          }
+        }
+      } catch {
+        if (!cancelled) createNotification('Erro ao importar do webhook.', 'error')
+      } finally {
+        if (!cancelled) setImportingWebhook(false)
+      }
+      if (!cancelled) fetchPendentes()
+    }
+    importarEDepoisListar()
     const interval = setInterval(fetchPendentes, 10_000)
-    return () => clearInterval(interval)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
   }, [fetchPendentes])
 
   const enviarBoasVindas = async (phone: string) => {
@@ -82,15 +107,16 @@ export default function AdminWhatsAppPendentesPage() {
       const res = await fetch('/api/admin/whatsapp-importar-webhook', { method: 'POST' })
       const data = await res.json()
       if (res.ok && data.success) {
-        createNotification(
+        const msg =
           data.importados > 0
-            ? `${data.importados} contato(s) importado(s) do histórico da API Fácil.`
-            : 'Nenhum contato novo com "quero utilizar plenipay" no período (últimos 90 dias).',
-          data.importados > 0 ? 'success' : 'info'
-        )
+            ? `${data.importados} contato(s) importado(s).`
+            : data.mensagem ||
+              `Nenhum contato que não foi respondido no período (últimos 7 dias). Recebidas: ${data.total_recebidas ?? '?'}, com "quero utilizar plenipay": ${data.total_quero_utilizar ?? '?'}.`
+        createNotification(msg, data.importados > 0 ? 'success' : 'info')
         fetchPendentes()
       } else {
-        createNotification(data.error || 'Erro ao importar do webhook.', 'error')
+        const errMsg = data.error || 'Erro ao importar do webhook.'
+        createNotification(errMsg, 'error')
       }
     } catch (e) {
       createNotification('Erro ao importar do webhook.', 'error')
@@ -136,7 +162,7 @@ export default function AdminWhatsAppPendentesPage() {
         <div>
           <h1 className="text-xl font-bold text-white">Reenvio de boas-vindas WhatsApp</h1>
           <p className="text-sm text-white/70">
-            O sistema identifica quem enviou mensagem tipo &quot;quero utilizar a plenipay&quot; e ainda não recebeu as 3 mensagens. Você pode adicionar números manualmente. Atualiza a cada 10s.
+            Só aparecem aqui quem enviou &quot;Olá! Quero utilizar a Plenipay&quot; e <strong>não foi respondido</strong> — ou seja, não recebeu nenhuma mensagem da assistente depois disso. São esses que você reenvia manualmente. Atualiza a cada 10s.
           </p>
         </div>
       </div>
@@ -152,7 +178,7 @@ export default function AdminWhatsAppPendentesPage() {
           {importingWebhook ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
           Importar contatos do webhook (API Fácil)
         </button>
-        <p className="text-white/60 text-xs mb-2">Busca nos últimos 90 dias quem enviou &quot;quero utilizar plenipay&quot; e coloca na lista.</p>
+        <p className="text-white/60 text-xs mb-2">Busca nos últimos 7 dias quem enviou &quot;quero utilizar plenipay&quot; e coloca na lista.</p>
         <p className="text-white/80 text-sm mb-2">Ou adicionar número manualmente:</p>
         <div className="flex gap-2">
           <input
@@ -196,7 +222,7 @@ export default function AdminWhatsAppPendentesPage() {
       ) : pendentes.length === 0 ? (
         <div className="rounded-xl bg-white/5 border border-white/10 p-8 text-center text-white/70">
           <p className="mb-2">Nenhum contato pendente.</p>
-          <p className="text-sm">Quem enviar &quot;Olá, quero utilizar a plenipay&quot; (ou similar) e não receber as 3 mensagens será <strong>identificado automaticamente</strong> aqui. Use o campo acima para adicionar números manualmente (ex.: quem escreveu antes do sistema).
+          <p className="text-sm">Quem enviar &quot;Olá! Quero utilizar a Plenipay&quot; e <strong>não for respondido</strong> (nenhuma mensagem da assistente) será identificado aqui. Use &quot;Importar contatos do webhook&quot; ou adicione números manualmente.
           </p>
         </div>
       ) : (
