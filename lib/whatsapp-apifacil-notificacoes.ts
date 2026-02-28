@@ -18,10 +18,11 @@ export interface NotificacaoRecebida {
   created_at: string
 }
 
-/** Notificação de mensagem enviada por nós (destino = número que recebeu). */
+/** Notificação de mensagem enviada por nós (destino = número que recebeu). mensagem opcional (API pode não retornar). */
 export interface NotificacaoEnviada {
   destino: string
   created_at: string
+  mensagem?: string
 }
 
 /** Busca notificações de um tipo (MENSAGEM_RECEBIDA ou MENSAGEM_ENVIADA) na API Fácil (com paginação). */
@@ -110,10 +111,12 @@ async function listarNotificacoes(
         }
       } else {
         const destino = item.destino ?? item.to ?? item.telefone ?? item.phone
+        const mensagem = (item.mensagem ?? item.text ?? item.body ?? item.conteudo ?? item.content ?? '').trim()
         if (destino) {
           (all as NotificacaoEnviada[]).push({
             destino: normalizarOrigem(String(destino)),
             created_at,
+            ...(mensagem ? { mensagem } : {}),
           })
         }
       }

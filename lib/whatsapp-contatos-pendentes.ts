@@ -56,6 +56,21 @@ export function isQueroUtilizarPlenipay(text: string): boolean {
   return temPlenipay && temIntencao
 }
 
+/** Mensagem de saudação automática "Olá, Bem vindo (a) a Plenipay" que NÃO conta como resposta do fluxo de 3. Quem só recebeu isso ainda é pendente. */
+export function isMensagemSaudacaoBoasVindas(text: string): boolean {
+  if (!text || typeof text !== 'string') return false
+  const t = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+  return (
+    /ola\s*,?\s*bem\s*vindo\s*\(?\s*a\s*\)?\s*a\s*pleni\s*pay/.test(t) ||
+    (t.includes('bem vindo') && (t.includes('plenipay') || t.includes('pleni pay')))
+  )
+}
+
 export interface ContatoPendente {
   id: string
   phone: string

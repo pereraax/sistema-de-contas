@@ -4,7 +4,7 @@ import {
   listarNotificacoesRecebidas,
   listarNotificacoesEnviadas,
 } from '@/lib/whatsapp-apifacil-notificacoes'
-import { backfillFromNotificacoes, isQueroUtilizarPlenipay } from '@/lib/whatsapp-contatos-pendentes'
+import { backfillFromNotificacoes, isQueroUtilizarPlenipay, isMensagemSaudacaoBoasVindas } from '@/lib/whatsapp-contatos-pendentes'
 
 function normalizarPhone(phone: string): string {
   const limpo = String(phone).replace(/\D/g, '')
@@ -70,27 +70,35 @@ export async function POST() {
     }
   }
 
-  // Montar set: para cada (destino, data_envio) das nossas respostas
-  const respostasPorDestino = new Map<string, number[]>()
+  // Por destino: lista de { ts, mensagem? }. Ignoramos "Olá, Bem vindo (a) a Plenipay" ao contar (não conta como resposta do fluxo).
+  const respostasPorDestino = new Map<string, { ts: number; mensagem?: string }[]>()
   for (const e of enviadas) {
     const dest = normalizarPhone(e.destino)
     if (dest.length < 10) continue
     const ts = new Date(e.created_at).getTime()
+    const mensagem = e.mensagem ?? ''
     if (!respostasPorDestino.has(dest)) respostasPorDestino.set(dest, [])
-    respostasPorDestino.get(dest)!.push(ts)
+    respostasPorDestino.get(dest)!.push({ ts, mensagem: mensagem || undefined })
   }
-  for (const [, timestamps] of respostasPorDestino) {
-    timestamps.sort((a, b) => a - b)
+  for (const [, arr] of respostasPorDestino) {
+    arr.sort((a, b) => a.ts - b.ts)
   }
 
-  // Incluir quem recebeu menos de MIN_RESPOSTAS (0, 1 ou 2 mensagens nossas depois da mensagem "quero utilizar plenipay")
+  // Contar só mensagens do fluxo (excluindo a saudação "Olá, Bem vindo (a) a Plenipay"). Se a API não mandar texto, a 1ª msg depois da do usuário não conta (possível saudação).
   const paraImportar: { origem: string; mensagem: string; created_at: string }[] = []
   for (const [, info] of porPhone) {
     const p = normalizarPhone(info.origem)
     const tsMensagem = new Date(info.created_at).getTime()
     const nossosEnvios = respostasPorDestino.get(p) ?? []
-    const qtdRespostasDepois = nossosEnvios.filter((ts) => ts > tsMensagem).length
-    if (qtdRespostasDepois < MIN_RESPOSTAS_PARA_CONSIDERAR_RESPONDIDO) {
+    const depois = nossosEnvios.filter((x) => x.ts > tsMensagem).sort((a, b) => a.ts - b.ts)
+    let qtdFluxoDepois = 0
+    for (let i = 0; i < depois.length; i++) {
+      const { mensagem } = depois[i]
+      if (mensagem && isMensagemSaudacaoBoasVindas(mensagem)) continue
+      if (!mensagem && i === 0) continue
+      qtdFluxoDepois++
+    }
+    if (qtdFluxoDepois < MIN_RESPOSTAS_PARA_CONSIDERAR_RESPONDIDO) {
       paraImportar.push({ origem: info.origem, mensagem: info.mensagem, created_at: info.created_at })
     }
   }

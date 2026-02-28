@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminToken } from '@/lib/admin-middleware'
-import { listPendentes, addPendenteManualmente } from '@/lib/whatsapp-contatos-pendentes'
+import { listPendentes, addPendenteManualmente, isMensagemSaudacaoBoasVindas } from '@/lib/whatsapp-contatos-pendentes'
 import { listarNotificacoesEnviadas } from '@/lib/whatsapp-apifacil-notificacoes'
 
 function normalizarPhone(phone: string): string {
@@ -31,16 +31,17 @@ export async function GET() {
     return NextResponse.json({ pendentes: list })
   }
 
-  const respostasPorDestino = new Map<string, number[]>()
+  const respostasPorDestino = new Map<string, { ts: number; mensagem?: string }[]>()
   for (const e of enviadas) {
     const dest = normalizarPhone(e.destino)
     if (dest.length < 10) continue
     const ts = new Date(e.created_at).getTime()
+    const mensagem = e.mensagem ?? ''
     if (!respostasPorDestino.has(dest)) respostasPorDestino.set(dest, [])
-    respostasPorDestino.get(dest)!.push(ts)
+    respostasPorDestino.get(dest)!.push({ ts, mensagem: mensagem || undefined })
   }
-  for (const [, timestamps] of respostasPorDestino) {
-    timestamps.sort((a, b) => a - b)
+  for (const [, arr] of respostasPorDestino) {
+    arr.sort((a, b) => a.ts - b.ts)
   }
 
   const MIN_RESPOSTAS_PARA_CONSIDERAR_RESPONDIDO = 3
@@ -50,8 +51,15 @@ export async function GET() {
       ? new Date(row.last_message_at || row.created_at).getTime()
       : 0
     const nossosEnvios = respostasPorDestino.get(p) ?? []
-    const qtdRespostasDepois = nossosEnvios.filter((ts) => ts > tsMensagem).length
-    return qtdRespostasDepois < MIN_RESPOSTAS_PARA_CONSIDERAR_RESPONDIDO
+    const depois = nossosEnvios.filter((x) => x.ts > tsMensagem).sort((a, b) => a.ts - b.ts)
+    let qtdFluxoDepois = 0
+    for (let i = 0; i < depois.length; i++) {
+      const { mensagem } = depois[i]
+      if (mensagem && isMensagemSaudacaoBoasVindas(mensagem)) continue
+      if (!mensagem && i === 0) continue
+      qtdFluxoDepois++
+    }
+    return qtdFluxoDepois < MIN_RESPOSTAS_PARA_CONSIDERAR_RESPONDIDO
   })
 
   return NextResponse.json({ pendentes: pendentesFiltrados })

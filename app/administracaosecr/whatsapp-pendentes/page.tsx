@@ -162,7 +162,7 @@ export default function AdminWhatsAppPendentesPage() {
         <div>
           <h1 className="text-xl font-bold text-white">Reenvio de boas-vindas WhatsApp</h1>
           <p className="text-sm text-white/70">
-            Só aparecem aqui quem enviou &quot;Olá! Quero utilizar a Plenipay&quot; e recebeu <strong>menos de 3 mensagens</strong> da assistente (0, 1 ou 2). Quem já recebeu 3 ou mais não aparece. São esses que você reenvia manualmente. Atualiza a cada 10s.
+            Aparecem aqui quem enviou &quot;Olá! Quero utilizar a Plenipay&quot; e ainda <strong>não recebeu o fluxo de 3 mensagens</strong>. A mensagem automática &quot;Olá, Bem vindo (a) a Plenipay&quot; não conta — quem só recebeu essa continua na lista para reenvio manual. Atualiza a cada 10s.
           </p>
         </div>
       </div>
@@ -222,7 +222,7 @@ export default function AdminWhatsAppPendentesPage() {
       ) : pendentes.length === 0 ? (
         <div className="rounded-xl bg-white/5 border border-white/10 p-8 text-center text-white/70">
           <p className="mb-2">Nenhum contato pendente.</p>
-          <p className="text-sm">Quem enviar &quot;Olá! Quero utilizar a Plenipay&quot; e receber <strong>menos de 3 mensagens</strong> da assistente será identificado aqui. Use &quot;Importar contatos do webhook&quot; ou adicione números manualmente.
+          <p className="text-sm">Quem enviar &quot;Olá! Quero utilizar a Plenipay&quot; e ainda não receber o fluxo de 3 mensagens (a saudação automática não conta) será identificado aqui. Use &quot;Importar contatos do webhook&quot; ou adicione números manualmente.
           </p>
         </div>
       ) : (
