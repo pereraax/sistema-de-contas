@@ -13,7 +13,8 @@ import {
   Image as ImageIcon,
   TrendingUp,
   Terminal,
-  Wallet
+  Wallet,
+  Send
 } from 'lucide-react'
 import Image from 'next/image'
 
@@ -27,6 +28,7 @@ const menuItems = [
   { href: '/administracaosecr/chat', label: 'Chat de Suporte', icon: MessageCircle },
   { href: '/administracaosecr/tutoriais', label: 'Tutoriais', icon: PlayCircle },
   { href: '/administracaosecr/whatsapp', label: 'WhatsApp PLEN', icon: MessageCircle },
+  { href: '/administracaosecr/whatsapp-pendentes', label: 'Reenvio boas-vindas', icon: Send },
   { href: '/administracaosecr/pixel', label: 'Pixel do Facebook', icon: TrendingUp },
   { href: '/administracaosecr/logs', label: 'Logs do Servidor', icon: Terminal },
 ]

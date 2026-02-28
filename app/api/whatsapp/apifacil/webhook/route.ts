@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
+import { recordIncomingMessage, markWelcomeSent } from '@/lib/whatsapp-contatos-pendentes'
 import { ensureAudioWebhookEnabled } from '@/lib/whatsapp-apifacil-config'
 import { detectMedia, processComprovanteImage, downloadMedia, transcribeAudio } from '@/lib/whatsapp-media-processor'
 
@@ -310,6 +311,9 @@ async function processarEmBackground(parsed: {
     }
     if (!text) return
 
+    // Registrar contato e última mensagem (para painel de reenvio de boas-vindas)
+    recordIncomingMessage(from, text).catch((e) => console.error('📨 [Apifacil Webhook] recordIncomingMessage:', e))
+
     // Ignorar eco de QUALQUER uma das 3 mensagens que enviamos (provedor reenvia e gerava "Oops!" em seguida)
     const txtLower = String(text).trim().toLowerCase()
     const trechosNossasMensagens = [
@@ -413,6 +417,10 @@ async function processarEmBackground(parsed: {
           }
         }
         if (i < result.messages.length - 1) await delay(1500)
+      }
+      // Marcar que as 3 mensagens de boas-vindas foram enviadas (para não reaparecer no painel de reenvio)
+      if (result.messages.length === 3) {
+        markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
       }
     } else if (result?.message && typeof result.message === 'string') {
       const send = await sendTextMessage(phone, result.message)
