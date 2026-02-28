@@ -18,7 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
-import { recordIncomingMessage, markWelcomeSent } from '@/lib/whatsapp-contatos-pendentes'
+import { recordIncomingMessage, markWelcomeSent, hasReceivedWelcome } from '@/lib/whatsapp-contatos-pendentes'
 
 /** Normalizar número (evita dependência do bundle que falhava com normalizarPhone importado). */
 function normalizarPhone(phone: string): string {
@@ -358,7 +358,41 @@ async function processarEmBackground(parsed: {
     }
     if (!text) return
 
-    // Assistente pausada: não responder automaticamente, EXCETO para "quero utilizar plenipay" (sempre enviar as 3 de boas-vindas)
+    // Registrar contato primeiro (para hasReceivedWelcome e lista de pendentes)
+    await recordIncomingMessage(from, text).catch((e) => console.error('📨 [Apifacil Webhook] recordIncomingMessage:', e))
+
+    // CONTATO NOVO: nunca pular — quem ainda não recebeu as 3 mensagens recebe agora (qualquer primeira mensagem)
+    const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits)
+    if (!jaRecebeuBoasVindas && isApifacilConfigured()) {
+      const phone = from.startsWith('55') ? from : `55${from}`
+      console.log('👋 [Apifacil Webhook] Contato novo (sem boas-vindas) — enviando as 3 mensagens para', phone)
+      try {
+        for (let i = 0; i < BOAS_VINDAS_QUERO_UTILIZAR.length; i++) {
+          const msg = BOAS_VINDAS_QUERO_UTILIZAR[i]
+          if (typeof msg === 'string' && msg.trim()) {
+            const send = await sendTextMessage(phone, msg)
+            if (send.success) registerSentMessage(phone, msg)
+          } else if (typeof msg === 'object' && msg !== null && (msg as any).type === 'buttons') {
+            const { body, buttons } = msg as { type: 'buttons'; body: string; buttons: { id: string; title: string }[] }
+            const send = await sendReplyButtons(phone, body, buttons)
+            if (send.success) registerSentMessage(phone, `${body}\n\n${buttons.map((b) => b.title).join(' / ')}`)
+            else {
+              const linkMsg = `Escolha abaixo:\n\n🔗 Cadastro: https://plenipay.com\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
+              await sendTextMessage(phone, linkMsg)
+              registerSentMessage(phone, linkMsg)
+            }
+          }
+          if (i < BOAS_VINDAS_QUERO_UTILIZAR.length - 1) await delay(1500)
+        }
+        await markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
+        console.log('✅ [Apifacil Webhook] 3 mensagens enviadas para contato novo:', phone)
+        return
+      } catch (err) {
+        console.error('❌ [Apifacil Webhook] Erro ao enviar boas-vindas para contato novo:', err)
+      }
+    }
+
+    // Assistente pausada: não responder automaticamente, EXCETO para "quero utilizar plenipay" (reenviar as 3)
     if (await isAssistentePausadaParaNumero(phoneDigits)) {
       if (!isQueroUtilizarPlenipayMessage(text)) {
         console.log('⏸️ [Apifacil Webhook] Assistente pausada para este contato — não enviando resposta automática (humano pode atender).', phoneDigits)
@@ -367,10 +401,9 @@ async function processarEmBackground(parsed: {
       console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" — respondendo com as 3 mensagens mesmo com assistente pausada:', phoneDigits)
     }
 
-    // "Quero utilizar PleniPay" → NUNCA ignorar: sempre processar e enviar as 3 mensagens
+    // "Quero utilizar PleniPay" (quem já recebeu antes): reenviar as 3 mensagens se pedir de novo
     const ehQueroUtilizar = isQueroUtilizarPlenipayMessage(text)
     if (!ehQueroUtilizar) {
-      // Ignorar eco de QUALQUER uma das 3 mensagens que enviamos (provedor reenvia e gerava "Oops!" em seguida)
       const txtLower = String(text).trim().toLowerCase()
       const trechosNossasMensagens = [
         'eu sou a plen',
@@ -384,18 +417,14 @@ async function processarEmBackground(parsed: {
         'escolha abaixo',
       ]
       const pareceEcoNossaMensagem = trechosNossasMensagens.some((trecho) => txtLower.includes(trecho))
-      // Também ignorar mensagens que são só saudação curta (oi/olá) — podem ser eco ou confirmação do provedor
       const soSaudacaoCurta = /^(o+i+!?|olá!?|ola!?)\s*$/i.test(String(text).trim()) || txtLower === 'oi' || txtLower === 'olá' || txtLower === 'ola'
       if (pareceEcoNossaMensagem || soSaudacaoCurta) {
-        console.log('📨 [Apifacil Webhook] Ignorando (eco ou saudação curta, evita Oops):', txtLower.slice(0, 80))
+        console.log('📨 [Apifacil Webhook] Ignorando (eco ou saudação curta):', txtLower.slice(0, 80))
         return
       }
     } else {
-      console.log('👋 [Apifacil Webhook] Mensagem "quero utilizar PleniPay" — sempre processar e enviar as 3 mensagens')
+      console.log('👋 [Apifacil Webhook] Mensagem "quero utilizar PleniPay" — processando (pode reenviar 3 msgs via PLEN)')
     }
-
-    // Registrar contato e última mensagem (identificação automática de quem não recebeu o fluxo de boas-vindas)
-    recordIncomingMessage(from, text).catch((e) => console.error('📨 [Apifacil Webhook] recordIncomingMessage:', e))
 
     // Quando a API Fácil envia só TEXTO em vez do áudio (ex.: "paguei 2.00"), não registrar 2 — pedir para digitar
     const txtNorm = text.trim()

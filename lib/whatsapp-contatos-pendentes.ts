@@ -7,7 +7,8 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 const TABLE = 'whatsapp_contatos'
 
-function normalizarPhone(phone: string): string {
+/** Normalização única para phone (usar ao gravar e ao marcar welcome_sent). */
+export function normalizarPhone(phone: string): string {
   const limpo = phone.replace(/\D/g, '')
   return limpo.length >= 10 ? (limpo.startsWith('55') ? limpo : `55${limpo}`) : limpo
 }
@@ -45,6 +46,21 @@ export async function markWelcomeSent(phone: string): Promise<void> {
     },
     { onConflict: 'phone', ignoreDuplicates: false }
   )
+}
+
+/** Retorna true se este número já recebeu as 3 mensagens de boas-vindas (não pular contato novo). */
+export async function hasReceivedWelcome(phone: string): Promise<boolean> {
+  const supabase = createAdminClient()
+  if (!supabase) return false
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return false
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('welcome_sent_at')
+    .eq('phone', p)
+    .maybeSingle()
+  if (error) return false
+  return data?.welcome_sent_at != null
 }
 
 /** Verifica se a mensagem indica intenção de usar a Plenipay (fluxo de boas-vindas). Identifica "Olá, quero utilizar a plenipay" e variações. */
@@ -108,7 +124,7 @@ export interface NotificacaoParaBackfill {
   created_at: string
 }
 
-/** Preenche whatsapp_contatos a partir de notificações MENSAGEM_RECEBIDA (ex.: histórico da API Fácil). Só insere/atualiza quem tem mensagem tipo "quero utilizar plenipay". Não sobrescreve welcome_sent_at. */
+/** Preenche whatsapp_contatos (last_message, last_message_at). NÃO mexe em welcome_sent_at — quem já recebeu as 3 foi marcado pelo webhook e deve continuar fora da lista. Só novos contatos (insert) ficam com welcome_sent_at null e aparecem. */
 export async function backfillFromNotificacoes(
   notificacoes: NotificacaoParaBackfill[]
 ): Promise<{ importados: number; error?: string }> {
