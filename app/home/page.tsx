@@ -1,15 +1,9 @@
 import Sidebar from '@/components/Sidebar'
-import { MenuButton } from '@/components/MobileMenu'
-import DashboardHorizontalWrapper from '@/components/DashboardHorizontalWrapper'
 import QuickActionCard from '@/components/QuickActionCard'
 import SupportPanel from '@/components/SupportPanel'
-import NotificationBell from '@/components/NotificationBell'
-import UserProfileMenu from '@/components/UserProfileMenu'
 import FiltroRapidoDataWrapper, { FiltroDataProvider } from '@/components/FiltroRapidoDataWrapper'
 import HomeLayoutNovo from '@/components/HomeLayoutNovo'
 import AppOnboardingGate from '@/components/AppOnboardingGate'
-import { obterHomeEstatisticas, obterPerfilUsuario } from '@/lib/actions'
-import { Suspense } from 'react'
 import dynamicImport from 'next/dynamic'
 
 // Lazy load componentes pesados ou menos críticos para carregamento inicial
@@ -44,32 +38,11 @@ const EmailConfirmadoSucessoWrapper = dynamicImport(() => import('@/components/E
 
 export const dynamic = 'force-dynamic'
 
-// Período do mês atual (mesmo critério do FiltroDataProvider) para pré-carregar stats no servidor
-function getCurrentMonthRange() {
-  const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
-  return { inicio: start.toISOString(), fim: end.toISOString() }
-}
-
-// Middleware já verifica autenticação, não precisa verificar novamente aqui
-
-export default async function HomePage() {
-  let initialStats: Awaited<ReturnType<typeof obterHomeEstatisticas>> = { error: null, stats: null, saldoTotal: 0, saldoMesAnterior: 0 }
-  let initialUserProfile: Awaited<ReturnType<typeof obterPerfilUsuario>> = null
-
-  try {
-    const { inicio, fim } = getCurrentMonthRange()
-    const [stats, profile] = await Promise.all([
-      obterHomeEstatisticas(inicio, fim),
-      obterPerfilUsuario(),
-    ])
-    initialStats = stats
-    initialUserProfile = profile
-  } catch {
-    // Evita tela branca (500): usa valores padrão e deixa o layout renderizar
-  }
-
+/**
+ * Página Home: sem dados no servidor para evitar 500 (cookies/Supabase em alguns ambientes).
+ * HomeLayoutNovo e perfis são carregados no cliente.
+ */
+export default function HomePage() {
   return (
     <AppOnboardingGate>
     <FiltroDataProvider>
@@ -86,8 +59,8 @@ export default async function HomePage() {
           {/* Popup de sucesso quando email é confirmado */}
           <EmailConfirmadoSucessoWrapper />
 
-          {/* Novo Layout da Home - dados e perfil já vêm do servidor para evitar delay */}
-          <HomeLayoutNovo initialStats={initialStats} initialUserProfile={initialUserProfile} />
+          {/* Layout da Home - dados carregados no cliente para evitar 500 no servidor */}
+          <HomeLayoutNovo />
 
           {/* Conteúdo Principal - Cards de Ação Rápida */}
           <div className="flex flex-col lg:flex-row gap-6 lg:mt-4">
