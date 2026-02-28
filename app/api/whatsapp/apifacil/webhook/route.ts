@@ -18,7 +18,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
-import { recordIncomingMessage, markWelcomeSent, normalizarPhone } from '@/lib/whatsapp-contatos-pendentes'
+import { recordIncomingMessage, markWelcomeSent } from '@/lib/whatsapp-contatos-pendentes'
+
+/** Normalizar número (evita dependência do bundle que falhava com normalizarPhone importado). */
+function normalizarPhone(phone: string): string {
+  const limpo = String(phone || '').replace(/\D/g, '')
+  return limpo.length >= 10 ? (limpo.startsWith('55') ? limpo : `55${limpo}`) : limpo
+}
 import { ensureAudioWebhookEnabled } from '@/lib/whatsapp-apifacil-config'
 import { detectMedia, processComprovanteImage, downloadMedia, transcribeAudio } from '@/lib/whatsapp-media-processor'
 import { createAdminClient } from '@/lib/supabase/server'
