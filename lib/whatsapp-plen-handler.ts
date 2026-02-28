@@ -1098,7 +1098,13 @@ async function handleWhatsAppAuthentication(
       console.log('📧 [WhatsApp PLEN] Email verificado, aguardando chave key:', email)
       return {
         success: true,
-        message: `✅ *E-mail verificado!*\n\nAgora me envie sua *chave key* (código de ativação):\n\nEntre em *Configurações* no site da PleniPay, copie o código da sua chave e me envie aqui.`,
+        messages: [
+          {
+            type: 'button_actions' as const,
+            body: `✅ *E-mail verificado!*\n\nAgora me envie sua *chave key* (código de ativação):\n\nEntre em *Configurações* no site da PleniPay, copie o código da sua chave e me envie aqui.`,
+            buttonActions: [{ type: 'URL' as const, url: 'https://plenipay.com/configuracoes?tab=perfil', label: 'CHAVE KEY' }],
+          },
+        ],
       }
     }
 
