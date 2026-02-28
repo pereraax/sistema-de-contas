@@ -580,6 +580,18 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
     // CRÍTICO: Verificar contexto do usuário PRIMEIRO para que qualquer contato novo receba resposta
     // (pedindo email/key). Antes checávamos isPlenActivated antes de getUserContext, e novos
     // contatos nunca chegavam ao fluxo de autenticação.
+    // Se a mensagem for só um e-mail, sempre processar no fluxo de autenticação (verificar e pedir chave ou dizer que já está ativo)
+    const trimmedForEmail = text.replace(/\u200B|\uFEFF/g, '').trim()
+    const emailOnlyRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    if (emailOnlyRegex.test(trimmedForEmail)) {
+      const userContextForEmail = await getUserContext(phoneNumber)
+      const authResult = await handleWhatsAppAuthentication(phoneNumber, text, userContextForEmail)
+      if (authResult) {
+        console.log('📧 [WhatsApp PLEN] Mensagem era e-mail, processada no fluxo de autenticação')
+        return authResult
+      }
+    }
+
     console.log('🔍 [WhatsApp PLEN] Buscando contexto do usuário...')
     const userContext = await getUserContext(phoneNumber)
     console.log('👤 [WhatsApp PLEN] ==========================================')
@@ -909,6 +921,38 @@ async function verificarEmailCadastrado(email: string): Promise<boolean> {
 }
 
 /**
+ * Verifica se o e-mail já está ativo (vinculado a este número no WhatsApp).
+ * Retorna { ativo: true } se já existe sessão para este phone com o user_id do email; senão { ativo: false, userId?: string }.
+ */
+async function verificarEmailJaAtivoNoWhatsApp(
+  email: string,
+  phoneNumber: string
+): Promise<{ ativo: boolean; userId?: string }> {
+  try {
+    const { createAdminClient } = await import('./supabase/server')
+    const supabaseAdmin = createAdminClient()
+    if (!supabaseAdmin) return { ativo: false }
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('email', email.toLowerCase().trim())
+      .maybeSingle()
+    if (profileError || !profile?.id) return { ativo: false }
+    const { data: session } = await supabaseAdmin
+      .from('whatsapp_sessions')
+      .select('user_id, expires_at')
+      .eq('phone_number', phoneNumber)
+      .maybeSingle()
+    if (!session || session.user_id !== profile.id) return { ativo: false, userId: profile.id }
+    const exp = session.expires_at ? new Date(session.expires_at) : null
+    if (exp && exp <= new Date()) return { ativo: false, userId: profile.id }
+    return { ativo: true, userId: profile.id }
+  } catch {
+    return { ativo: false }
+  }
+}
+
+/**
  * Processar autenticação via WhatsApp
  * Fluxo: Pedir email → verificar no banco → pedir chave key → autenticar e ativar Plen
  */
@@ -1032,7 +1076,7 @@ async function handleWhatsAppAuthentication(
     }
 
     if (email && emailRegex.test(email)) {
-      // Verificar se o e-mail está cadastrado (aprovar ou não)
+      // Verificar se o e-mail está cadastrado
       const emailExiste = await verificarEmailCadastrado(email)
       if (!emailExiste) {
         console.log('📧 [WhatsApp PLEN] Email não cadastrado:', email)
@@ -1041,11 +1085,20 @@ async function handleWhatsAppAuthentication(
           message: `❌ Este e-mail *não está cadastrado*.\n\nCrie sua conta em https://plenipay.com e depois digite *JÁ CADASTREI* aqui que eu peço seu e-mail de novo. 💙`,
         }
       }
+      // Verificar se o e-mail já está ativo (já vinculado a este número)
+      const { ativo: jaAtivo } = await verificarEmailJaAtivoNoWhatsApp(email, phoneNumber)
+      if (jaAtivo) {
+        console.log('📧 [WhatsApp PLEN] Email já ativo neste número:', email)
+        return {
+          success: true,
+          message: `✅ *Seu e-mail já está ativo!*\n\nVocê pode começar a enviar seus registros. Exemplos:\n• "Gastei 50 no mercado"\n• "Recebi 200"\n• "Quanto gastei no mês?"\n• "Me mostre o relatório" 💙`,
+        }
+      }
       pendingEmails.set(phoneNumber, email)
       console.log('📧 [WhatsApp PLEN] Email verificado, aguardando chave key:', email)
       return {
         success: true,
-        message: `✅ E-mail verificado!\n\n🔑 Agora me envie sua *chave key* (código de ativação):\n\n(Encontre em: https://plenipay.com/configuracoes)`,
+        message: `✅ *E-mail verificado!*\n\nAgora me envie sua *chave key* (código de ativação):\n\n(Encontre em: https://plenipay.com/configuracoes)`,
       }
     }
 
