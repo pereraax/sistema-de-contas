@@ -336,19 +336,31 @@ async function deactivatePlen(phoneNumber: string) {
  */
 export async function processWhatsAppMessage(message: WhatsAppMessage) {
   try {
-    // Importar addLog dinamicamente
-    const { addLog } = await import('@/lib/server-logs')
-    
+    // addLog nunca deve derrubar o processamento (ex.: "quero utilizar plenipay" sempre deve receber resposta)
+    let addLog: (level: string, msg: string) => void = () => {}
+    try {
+      const mod = await import('@/lib/server-logs')
+      addLog = (level, msg) => {
+        try {
+          mod.addLog(level, msg)
+        } catch (_) {
+          // ignorar falha de log
+        }
+      }
+    } catch (_) {
+      // módulo de log indisponível
+    }
+
     console.log('🔄 [WhatsApp PLEN] ==========================================')
     console.log('🔄 [WhatsApp PLEN] PROCESSANDO MENSAGEM WHATSAPP')
     console.log('🔄 [WhatsApp PLEN] Message:', JSON.stringify(message, null, 2).substring(0, 500))
     console.log('🔄 [WhatsApp PLEN] ==========================================')
     
-    // CRÍTICO: Usar addLog para garantir que aparece no Render
     addLog('info', '🔄 [PLEN WhatsApp] PROCESSANDO MENSAGEM WHATSAPP')
     addLog('info', `🔄 [PLEN WhatsApp] Message: ${JSON.stringify(message, null, 2).substring(0, 200)}`)
     
-    const phoneNumber = normalizePhoneNumber(extractPhoneNumber(message.key.remoteJid))
+    const remoteJid = message?.key?.remoteJid ?? ''
+    const phoneNumber = normalizePhoneNumber(extractPhoneNumber(remoteJid))
     let text = extractMessageText(message)
     
     console.log('📱 [WhatsApp PLEN] Phone Number (normalizado):', phoneNumber)
@@ -497,14 +509,15 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
     }
 
     // PRIORIDADE 2a: "Olá, quero utilizar a plenipay" — resposta com 3 mensagens + botões (nunca enviar "Oops! não entendi").
-    // Normalizar: minúsculas, um espaço, sem pontuação no fim para capturar "plenipay." etc.
+    // Normalizar: minúsculas, um espaço, sem pontuação no fim. Aceitar "plenipay", "pleni pay", "pleni  pay".
     const msgUtilizar = text
       .toLowerCase()
       .trim()
       .replace(/\s+/g, ' ')
       .replace(/[.,!?]+$/g, '')
-    const hasQueroUtilizar = msgUtilizar.includes('quero utilizar') && msgUtilizar.includes('plenipay')
-    const hasQueroUsar = msgUtilizar.includes('quero usar') && msgUtilizar.includes('plenipay')
+    const temPlenipay = msgUtilizar.includes('plenipay') || (msgUtilizar.includes('pleni') && msgUtilizar.includes('pay'))
+    const hasQueroUtilizar = msgUtilizar.includes('quero utilizar') && temPlenipay
+    const hasQueroUsar = msgUtilizar.includes('quero usar') && temPlenipay
     const isQueroUtilizarPlenipay =
       msgUtilizar.includes('quero utilizar a plenipay') ||
       msgUtilizar.includes('quero utilizar plenipay') ||
@@ -741,6 +754,7 @@ function normalizePhoneNumber(phone: string): string {
  * Extrair texto da mensagem
  */
 function extractMessageText(message: WhatsAppMessage): string {
+  if (!message || typeof message !== 'object') return ''
   // CRÍTICO: Logar para debug
   console.log('🔍 [WhatsApp PLEN] Extraindo texto da mensagem:', {
     hasConversation: !!message.message?.conversation,

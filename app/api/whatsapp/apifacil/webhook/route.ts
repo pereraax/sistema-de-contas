@@ -259,8 +259,16 @@ recebi 100 de Maria`
 function isQueroUtilizarPlenipayMessage(t: string): boolean {
   if (!t || typeof t !== 'string') return false
   const msg = t.toLowerCase().trim().replace(/\s+/g, ' ')
-  return (msg.includes('quero utilizar') && msg.includes('plenipay')) || (msg.includes('quero usar') && msg.includes('plenipay'))
+  const temPlenipay = msg.includes('plenipay') || (msg.includes('pleni') && msg.includes('pay'))
+  return (msg.includes('quero utilizar') && temPlenipay) || (msg.includes('quero usar') && temPlenipay)
 }
+
+/** Conteúdo das 3 mensagens de boas-vindas "quero utilizar plenipay" — usado como fallback se o handler falhar. */
+const BOAS_VINDAS_QUERO_UTILIZAR = [
+  `Oiii 👋💙\nEu sou a Plen, sua assistente financeira 🤖✨\nE eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!\n\nAntes da gente começar, cria sua conta rapidinho lá no site 🌐\nÉ bem rápido mesmo, prometo! ⏱️💙`,
+  { type: 'buttons' as const, body: 'Escolha abaixo:', buttons: [{ id: 'cadastrar', title: 'CADASTRAR' }, { id: 'ja_cadastrei', title: 'JÁ CADASTREI' }] },
+  `Assim que finalizar o cadastro, me envia seu e-mail aqui 📩\nVou verificar tudo certinho e já te liberar pra começar a registrar seus gastos e colocar suas economias em ordem 💸📊✨\n\nEu fico responsável por anotar tudo pra você direto pelo WhatsApp, combinado? 😉`,
+]
 
 /** Processar mensagem e enviar resposta em background (não bloqueia a resposta do webhook) */
 async function processarEmBackground(parsed: {
@@ -352,25 +360,31 @@ async function processarEmBackground(parsed: {
       console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" — respondendo com as 3 mensagens mesmo com assistente pausada:', phoneDigits)
     }
 
-    // Ignorar eco de QUALQUER uma das 3 mensagens que enviamos (provedor reenvia e gerava "Oops!" em seguida)
-    const txtLower = String(text).trim().toLowerCase()
-    const trechosNossasMensagens = [
-      'eu sou a plen',
-      'sua assistente financeira',
-      'oiii',
-      'antes da gente começar',
-      'cria sua conta',
-      'lá no site',
-      'assim que finalizar o cadastro',
-      'me envia seu e-mail',
-      'escolha abaixo',
-    ]
-    const pareceEcoNossaMensagem = trechosNossasMensagens.some((trecho) => txtLower.includes(trecho))
-    // Também ignorar mensagens que são só saudação curta (oi/olá) — podem ser eco ou confirmação do provedor
-    const soSaudacaoCurta = /^(o+i+!?|olá!?|ola!?)\s*$/i.test(String(text).trim()) || txtLower === 'oi' || txtLower === 'olá' || txtLower === 'ola'
-    if (pareceEcoNossaMensagem || soSaudacaoCurta) {
-      console.log('📨 [Apifacil Webhook] Ignorando (eco ou saudação curta, evita Oops):', txtLower.slice(0, 80))
-      return
+    // "Quero utilizar PleniPay" → NUNCA ignorar: sempre processar e enviar as 3 mensagens
+    const ehQueroUtilizar = isQueroUtilizarPlenipayMessage(text)
+    if (!ehQueroUtilizar) {
+      // Ignorar eco de QUALQUER uma das 3 mensagens que enviamos (provedor reenvia e gerava "Oops!" em seguida)
+      const txtLower = String(text).trim().toLowerCase()
+      const trechosNossasMensagens = [
+        'eu sou a plen',
+        'sua assistente financeira',
+        'oiii',
+        'antes da gente começar',
+        'cria sua conta',
+        'lá no site',
+        'assim que finalizar o cadastro',
+        'me envia seu e-mail',
+        'escolha abaixo',
+      ]
+      const pareceEcoNossaMensagem = trechosNossasMensagens.some((trecho) => txtLower.includes(trecho))
+      // Também ignorar mensagens que são só saudação curta (oi/olá) — podem ser eco ou confirmação do provedor
+      const soSaudacaoCurta = /^(o+i+!?|olá!?|ola!?)\s*$/i.test(String(text).trim()) || txtLower === 'oi' || txtLower === 'olá' || txtLower === 'ola'
+      if (pareceEcoNossaMensagem || soSaudacaoCurta) {
+        console.log('📨 [Apifacil Webhook] Ignorando (eco ou saudação curta, evita Oops):', txtLower.slice(0, 80))
+        return
+      }
+    } else {
+      console.log('👋 [Apifacil Webhook] Mensagem "quero utilizar PleniPay" — sempre processar e enviar as 3 mensagens')
     }
 
     // Registrar contato e última mensagem (identificação automática de quem não recebeu o fluxo de boas-vindas)
@@ -470,15 +484,15 @@ async function processarEmBackground(parsed: {
         }
         if (i < result.messages.length - 1) await delay(1500)
       }
-      // Marcar que as 3 mensagens de boas-vindas foram enviadas (para não reaparecer no painel de reenvio; phone já normalizado = mesmo formato da tabela)
-      if (result.messages.length >= 3) {
-        markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
-      }
+      // Marcar que já respondemos (qualquer quantidade) — assim o contato sai da lista de pendentes
+      markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
     } else if (result?.message && typeof result.message === 'string') {
       const send = await sendTextMessage(phone, result.message)
       if (send.success) {
         registerSentMessage(phone, result.message)
         console.log('✅ [Apifacil Webhook] Resposta enviada para:', phone)
+        // Marcar que já respondemos — contato sai da lista de pendentes (não reenvio)
+        markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
       } else {
         console.error('❌ [Apifacil Webhook] Falha ao enviar resposta:', send.error)
       }
@@ -497,8 +511,36 @@ async function processarEmBackground(parsed: {
     }
   } catch (err) {
     console.error('❌ [Apifacil Webhook] Erro no processamento em background:', err)
+    const phone = from.startsWith('55') ? from : `55${from}`
+    // Fallback: se a mensagem era "quero utilizar plenipay", enviar as 3 de boas-vindas mesmo com erro no handler
+    const textoRecebido = typeof text === 'string' ? text : (text ? String(text) : '')
+    if (isApifacilConfigured() && isQueroUtilizarPlenipayMessage(textoRecebido)) {
+      try {
+        console.log('👋 [Apifacil Webhook] Fallback: enviando 3 mensagens de boas-vindas após erro no handler')
+        for (let i = 0; i < BOAS_VINDAS_QUERO_UTILIZAR.length; i++) {
+          const msg = BOAS_VINDAS_QUERO_UTILIZAR[i]
+          if (typeof msg === 'string' && msg.trim()) {
+            const send = await sendTextMessage(phone, msg)
+            if (send.success) registerSentMessage(phone, msg)
+          } else if (typeof msg === 'object' && msg !== null && (msg as any).type === 'buttons') {
+            const { body, buttons } = msg as { type: 'buttons'; body: string; buttons: { id: string; title: string }[] }
+            const send = await sendReplyButtons(phone, body, buttons)
+            if (send.success) registerSentMessage(phone, `${body}\n\n${buttons.map((b) => b.title).join(' / ')}`)
+            else {
+              const linkMsg = `Escolha abaixo:\n\n🔗 Cadastro: https://plenipay.com\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
+              await sendTextMessage(phone, linkMsg)
+              registerSentMessage(phone, linkMsg)
+            }
+          }
+          if (i < BOAS_VINDAS_QUERO_UTILIZAR.length - 1) await delay(1500)
+        }
+        markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
+        return
+      } catch (fallbackErr) {
+        console.error('❌ [Apifacil Webhook] Fallback boas-vindas também falhou:', fallbackErr)
+      }
+    }
     try {
-      const phone = from.startsWith('55') ? from : `55${from}`
       if (isApifacilConfigured()) {
         await sendTextMessage(phone, 'Desculpe, tive um problema. Tente novamente.')
         registerSentMessage(phone, 'Erro no processamento.')
