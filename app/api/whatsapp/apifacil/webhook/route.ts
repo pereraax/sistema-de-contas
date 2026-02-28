@@ -77,25 +77,26 @@ function isAllowedTestNumber(from: string, testNumbers: string[]): boolean {
   return testNumbers.some((t) => t === with55 || t === normalized)
 }
 
-/** Retorna true se a assistente está pausada para este número (humano deve atender). */
+/** Retorna true se a assistente está pausada para este número (humano deve atender). Nunca lança. */
 async function isAssistentePausadaParaNumero(phoneDigits: string): Promise<boolean> {
-  const admin = createAdminClient()
-  if (!admin) return false
-  const phone = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`
   try {
-    const { data: session } = await admin
+    const admin = createAdminClient()
+    if (!admin) return false
+    const phone = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`
+    const { data: session, error: sessionError } = await admin
       .from('whatsapp_sessions')
       .select('user_id')
       .eq('phone_number', phone)
       .maybeSingle()
-    if (!session?.user_id) return false
-    const { data: profile } = await admin
+    if (sessionError || !session?.user_id) return false
+    const { data: profile, error: profileError } = await admin
       .from('profiles')
       .select('assistente_pausada')
       .eq('id', session.user_id)
       .maybeSingle()
+    if (profileError) return false
     return profile?.assistente_pausada === true
-  } catch {
+  } catch (_) {
     return false
   }
 }
@@ -412,7 +413,20 @@ async function processarEmBackground(parsed: {
 
     // Texto (digitado, transcrito do áudio ou extraído da imagem) → PLEN interpreta e gera resposta
     const plenMessage = buildPlenMessage(from, text)
-    const result = await processWhatsAppMessage(plenMessage as any)
+    let result: Awaited<ReturnType<typeof processWhatsAppMessage>> = null
+    try {
+      result = await processWhatsAppMessage(plenMessage as any)
+    } catch (plenErr: unknown) {
+      const msg = plenErr instanceof Error ? plenErr.message : String(plenErr)
+      const stack = plenErr instanceof Error ? plenErr.stack : ''
+      console.error('❌ [Apifacil Webhook] processWhatsAppMessage lançou:', msg)
+      console.error('❌ [Apifacil Webhook] Stack:', stack?.substring(0, 600) ?? '')
+      try {
+        const { addLog } = await import('@/lib/server-logs')
+        addLog('error', `[Apifacil Webhook] processWhatsAppMessage: ${msg}`)
+      } catch (_) {}
+      result = { success: true, message: 'Desculpe, tive um problema. Tente novamente.' }
+    }
     if (origemMensagem !== 'texto') {
       console.log('📤 [Apifacil Webhook] Resposta do PLEN (origem:', origemMensagem + '):', result?.message ? String(result.message).slice(0, 80) : result?.messages?.length ? `${result.messages.length} msg(s)` : '—')
     }
@@ -509,8 +523,15 @@ async function processarEmBackground(parsed: {
         registerSentMessage(phone, 'Não consegui processar.')
       }
     }
-  } catch (err) {
-    console.error('❌ [Apifacil Webhook] Erro no processamento em background:', err)
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err)
+    const errStack = err instanceof Error ? err.stack : ''
+    console.error('❌ [Apifacil Webhook] Erro no processamento em background:', errMsg)
+    console.error('❌ [Apifacil Webhook] Stack:', errStack?.substring(0, 800) ?? '')
+    try {
+      const { addLog } = await import('@/lib/server-logs')
+      addLog('error', `[Apifacil Webhook] Erro no processamento: ${errMsg}`)
+    } catch (_) {}
     const phone = from.startsWith('55') ? from : `55${from}`
     // Fallback: se a mensagem era "quero utilizar plenipay", enviar as 3 de boas-vindas mesmo com erro no handler
     const textoRecebido = typeof text === 'string' ? text : (text ? String(text) : '')
