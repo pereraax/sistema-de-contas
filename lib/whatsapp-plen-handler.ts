@@ -890,16 +890,35 @@ async function getUserContext(phoneNumber: string): Promise<UserContext> {
 }
 
 /**
+ * Verifica se o e-mail está cadastrado na base (profiles).
+ */
+async function verificarEmailCadastrado(email: string): Promise<boolean> {
+  try {
+    const { createAdminClient } = await import('./supabase/server')
+    const supabaseAdmin = createAdminClient()
+    if (!supabaseAdmin) return false
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('email', email.toLowerCase().trim())
+      .maybeSingle()
+    return !error && !!data?.id
+  } catch {
+    return false
+  }
+}
+
+/**
  * Processar autenticação via WhatsApp
- * Fluxo: Pedir email primeiro, depois pedir key
+ * Fluxo: Pedir email → verificar no banco → pedir chave key → autenticar e ativar Plen
  */
 async function handleWhatsAppAuthentication(
   phoneNumber: string,
   text: string,
   context: UserContext
 ) {
-  const lowerText = text.toLowerCase().trim()
-  const trimmedText = text.trim()
+  const trimmedText = text.replace(/\u200B|\uFEFF/g, '').trim()
+  const lowerText = trimmedText.toLowerCase()
 
   // Botão "JÁ CADASTREI" — usuário avisou que já se cadastrou; pedir e-mail
   if (lowerText === 'já cadastrei' || lowerText === 'ja cadastrei' || lowerText === 'já cadastrei.' || lowerText === 'ja cadastrei.' || lowerText.includes('já cadastrei') || lowerText.includes('ja cadastrei')) {
@@ -988,36 +1007,45 @@ async function handleWhatsAppAuthentication(
     }
   } else {
     // Não tem email pendente, está esperando email
-    // Tentar extrair email da mensagem
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
     let email: string | null = null
 
-    // Tentar extrair email de diferentes formatos
+    // Formato "email: xxx@yyy" ou "e-mail: xxx@yyy"
     const emailMatch = trimmedText.match(/(?:email|e-mail|e mail)[\s:]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i)
     if (emailMatch) {
       email = emailMatch[1].toLowerCase().trim()
     } else {
-      // Se não encontrou no formato, procurar por @ na mensagem
-      const atIndex = trimmedText.indexOf('@')
-      if (atIndex > 0) {
-        // Encontrar início e fim do email
-        const beforeAt = trimmedText.substring(0, atIndex).trim()
-        const afterAt = trimmedText.substring(atIndex + 1).trim()
-        const emailCandidate = `${beforeAt.split(/\s+/).pop()}@${afterAt.split(/\s+/)[0]}`
-        
-        // Validar formato básico de email
-        if (/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(emailCandidate)) {
-          email = emailCandidate.toLowerCase()
+      // Mensagem é só o e-mail (ex.: Contacomerciaal01@gmail.com)
+      if (emailRegex.test(trimmedText)) {
+        email = trimmedText.toLowerCase().trim()
+      } else {
+        const atIndex = trimmedText.indexOf('@')
+        if (atIndex > 0) {
+          const beforeAt = trimmedText.substring(0, atIndex).trim()
+          const afterAt = trimmedText.substring(atIndex + 1).trim()
+          const emailCandidate = `${beforeAt.split(/\s+/).pop()}@${afterAt.split(/\s+/)[0]}`
+          if (emailRegex.test(emailCandidate)) {
+            email = emailCandidate.toLowerCase()
+          }
         }
       }
     }
 
-    if (email && /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
-      // Email válido encontrado, salvar e pedir key
+    if (email && emailRegex.test(email)) {
+      // Verificar se o e-mail está cadastrado (aprovar ou não)
+      const emailExiste = await verificarEmailCadastrado(email)
+      if (!emailExiste) {
+        console.log('📧 [WhatsApp PLEN] Email não cadastrado:', email)
+        return {
+          success: true,
+          message: `❌ Este e-mail *não está cadastrado*.\n\nCrie sua conta em https://plenipay.com e depois digite *JÁ CADASTREI* aqui que eu peço seu e-mail de novo. 💙`,
+        }
+      }
       pendingEmails.set(phoneNumber, email)
-      console.log('📧 [WhatsApp PLEN] Email recebido, aguardando key:', email)
+      console.log('📧 [WhatsApp PLEN] Email verificado, aguardando chave key:', email)
       return {
         success: true,
-        message: `✅ Email recebido: ${email}\n\n🔑 Me envie sua chave key agora:\n\n(Encontre seu código key em: https://plenipay.com/configuracoes)`,
+        message: `✅ E-mail verificado!\n\n🔑 Agora me envie sua *chave key* (código de ativação):\n\n(Encontre em: https://plenipay.com/configuracoes)`,
       }
     }
 
