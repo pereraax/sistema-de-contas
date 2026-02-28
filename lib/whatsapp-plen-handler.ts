@@ -1031,10 +1031,13 @@ async function handleWhatsAppAuthentication(
         // Ativar assistente automaticamente após autenticação bem-sucedida
         await activatePlen(phoneNumber)
         console.log('✅ [WhatsApp PLEN] Assistente ativado automaticamente após autenticação')
-        
+
+        const welcomeMsg = `✅ Autenticação realizada com sucesso!\n\nOlá, ${authResult.nome || 'usuário'}! 👋\n\nAgora você pode usar o assistente PLEN. Como posso ajudá-lo hoje?`
+        const msgInstrucoes = `Estou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n* Gastos: "paguei 50 reais no mercado"\n* Entradas: "recebi 1000 reais"\n* Dívidas: "tenho uma dívida de 200 reais"\n* Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n* "quais são minhas dívidas?"\n* "quanto gastei na semana?"\n* "quanto gastei no mês?"\n* "quanto tenho de saldo?"\n* "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n* "me mostre o relatório"\n* "quero ver meu relatório financeiro"\n* "mostre meu resumo do mês"\n* "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n* "gastei 30 reais de ônibus hoje"\n* "paguei 150 reais de conta de luz"\n* "recebi 500 reais do cliente"\n* "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
+
         return {
           success: true,
-          message: `✅ Autenticação realizada com sucesso!\n\nOlá, ${authResult.nome || 'usuário'}! 👋\n\nAgora você pode usar o assistente PLEN. Como posso ajudá-lo hoje?`,
+          messages: [welcomeMsg, msgInstrucoes],
         }
       } else {
         return {

@@ -231,6 +231,12 @@ export function interpretarMensagem(texto: string): InterpretadoPlen | null {
     return { tipo: 'entrada', valor: valorNum, nome, data_registro, categoria: 'Salário' }
   }
 
+  // EMPRÉSTIMO (saída): "emprestimo 528", "empréstimo R$ 528", "esprestimo 528" (typo)
+  if (/(?:empr[eé]stimo|esprestimo)\s+(?:de\s+)?[\d.,]+\s*(?:reais?|r\$|r\b)?/i.test(t)) {
+    const data_registro = parseDataDoTexto(t)
+    return { tipo: 'saida', valor: valorNum, nome: 'Empréstimo', data_registro, categoria: 'Empréstimo' }
+  }
+
   // ENTRADA por "ganhos de X", "novos ganhos de X reais", "entrada de X", "adicione X como ganho"
   const ganhosDeMatch = t.match(/(?:novos?\s+)?ganhos?\s+de\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(.*)/i)
   if (ganhosDeMatch) {
