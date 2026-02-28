@@ -156,6 +156,70 @@ export async function sendReplyButtons(
 }
 
 /**
+ * Enviar mensagem com um único botão que abre URL (cta_url).
+ * Não coloca o link no texto, assim o WhatsApp não exibe preview da página — só o botão clicável.
+ */
+export async function sendCtaUrlButton(
+  phoneNumber: string,
+  bodyText: string,
+  buttonLabel: string,
+  buttonUrl: string
+): Promise<{ success: boolean; messageId?: string; error?: string; usedFallback?: boolean }> {
+  const config = getApifacilConfig()
+  if (!config) {
+    return { success: false, error: 'Apifacil não está configurado' }
+  }
+  let cleanPhone = phoneNumber.replace(/\D/g, '')
+  if (!cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
+    cleanPhone = `55${cleanPhone}`
+  }
+  const baseUrl = 'https://apifacil.dev/api/v1'
+  const urlButtons = `${baseUrl}/whatsapp/enviar-botao`
+  const buttonsForApi = [
+    {
+      name: 'cta_url',
+      buttonParamsJson: JSON.stringify({
+        display_text: buttonLabel || 'ABRIR',
+        url: buttonUrl,
+      }),
+    },
+  ]
+  const payload = {
+    telefone: cleanPhone,
+    text: bodyText,
+    buttons: buttonsForApi,
+    footer: '',
+    title: 'PleniPay',
+    instancia: String(config.instanceId),
+  }
+  const authHeader = config.token.trim()
+  try {
+    const res = await fetch(urlButtons, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+      body: JSON.stringify(payload),
+    })
+    let data: any = {}
+    try {
+      data = await res.json()
+    } catch {}
+    const apiError = data?.error === true || data?.erro === true
+    if (res.ok && !apiError) {
+      console.log('✅ [Apifacil] enviar-botao (cta_url) OK para', cleanPhone)
+      const msgId = data?.data?.notificacao_id ?? data?.data?.id ?? data?.notificacao_id ?? data?.messageId
+      return { success: true, messageId: msgId }
+    }
+    console.warn('⚠️ [Apifacil] enviar-botao (cta_url) falhou. Status:', res.status, 'Resposta:', JSON.stringify(data))
+  } catch (e) {
+    console.warn('⚠️ [Apifacil] Erro ao chamar enviar-botao (cta_url):', e)
+  }
+  // Fallback: texto + link em linha separada (sem colocar URL no meio do texto para reduzir chance de preview)
+  const fallbackText = `${bodyText}\n\n*${buttonLabel}* — toque para copiar e abrir no navegador:\n${buttonUrl}`
+  const result = await sendTextMessage(phoneNumber, fallbackText)
+  return { ...result, usedFallback: true }
+}
+
+/**
  * Enviar mensagem de texto via apifacil.dev
  */
 export async function sendTextMessage(

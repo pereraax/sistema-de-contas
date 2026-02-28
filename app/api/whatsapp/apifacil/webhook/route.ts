@@ -17,7 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
-import { sendTextMessage, sendReplyButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
+import { sendTextMessage, sendReplyButtons, sendCtaUrlButton, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 import { recordIncomingMessage, markWelcomeSent, hasReceivedWelcome } from '@/lib/whatsapp-contatos-pendentes'
 
 /** Normalizar número (evita dependência do bundle que falhava com normalizarPhone importado). */
@@ -503,26 +503,26 @@ async function processarEmBackground(parsed: {
             }
           }
         } else if (typeof msg === 'object' && msg !== null && (msg as any).type === 'button_actions') {
-          // API Fácil não suporta botão URL. Enviar texto e link em mensagens separadas para evitar
-          // o preview do site (imagem/card) no WhatsApp — fica só o link clicável na segunda mensagem.
+          // Botão com URL: enviar via cta_url para aparecer como botão sem preview da página.
           const { body, buttonActions } = msg as { type: 'button_actions'; body: string; buttonActions: { type: string; url?: string; label: string }[] }
           const urlBtn = buttonActions?.find((a) => a.type === 'URL' && a.url)
-          const sendBody = await sendTextMessage(phone, body)
-          if (sendBody.success) {
-            registerSentMessage(phone, body)
-            console.log('✅ [Apifacil Webhook] Texto (sem link)', i + 1, '/', result.messages.length, 'enviado para:', phone)
-          } else {
-            console.error('❌ [Apifacil Webhook] Falha ao enviar texto', i + 1, ':', sendBody.error)
-          }
           if (urlBtn?.url) {
-            await delay(600)
-            const linkOnly = `${urlBtn.label}: ${urlBtn.url}`
-            const sendLink = await sendTextMessage(phone, linkOnly)
-            if (sendLink.success) {
-              registerSentMessage(phone, linkOnly)
-              console.log('✅ [Apifacil Webhook] Link (só URL)', i + 1, 'enviado para:', phone)
+            const sendBtn = await sendCtaUrlButton(phone, body, urlBtn.label || 'ABRIR', urlBtn.url)
+            if (sendBtn.success) {
+              registerSentMessage(phone, `${body}\n\n[${urlBtn.label}]`)
+              console.log('✅ [Apifacil Webhook] Botão (cta_url) enviado para:', phone, sendBtn.usedFallback ? '(fallback)' : '')
             } else {
-              console.error('❌ [Apifacil Webhook] Falha ao enviar link:', sendLink.error)
+              console.error('❌ [Apifacil Webhook] Falha ao enviar botão cta_url:', sendBtn.error)
+              const sendBody = await sendTextMessage(phone, body)
+              if (sendBody.success) registerSentMessage(phone, body)
+              await delay(600)
+              await sendTextMessage(phone, `${urlBtn.label}: ${urlBtn.url}`)
+            }
+          } else {
+            const sendBody = await sendTextMessage(phone, body)
+            if (sendBody.success) {
+              registerSentMessage(phone, body)
+              console.log('✅ [Apifacil Webhook] Texto (button_actions sem URL)', i + 1, 'enviado para:', phone)
             }
           }
         } else if (typeof msg === 'string' && msg.trim()) {
