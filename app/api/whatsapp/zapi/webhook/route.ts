@@ -32,10 +32,8 @@ function parseZapiBody(body: unknown): { from: string; text: string; messageId?:
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
 
-  const type = String((b.type as string) || '').toLowerCase()
-  if (type && type !== 'receivedcallback') {
-    return null
-  }
+  // Aceitar qualquer evento de mensagem recebida (Z-API pode enviar "ReceivedCallBack" ou outros tipos por versão).
+  // Só ignorar se for mensagem enviada por nós (fromMe).
   if (b.fromMe === true) return null
 
   const rawPhone = (b.phone as string) || ''
