@@ -3,6 +3,8 @@
 
   const SIDEBAR_ID = 'plenipay-crm-sidebar';
   const STORAGE_KEYS = { baseUrl: 'plenipay_crm_base_url', apiKey: 'plenipay_crm_api_key', messages: 'plenipay_crm_messages' };
+  var cachedApi = { baseUrl: '', apiKey: '', at: 0 };
+  var CACHE_TTL = 60000;
 
   function getStored() {
     return new Promise((resolve) => {
@@ -228,8 +230,6 @@
       }, 2800);
     }
 
-    var cachedApi = { baseUrl: '', apiKey: '', at: 0 };
-    var CACHE_TTL = 60000;
     function getApi() {
       if (cachedApi.apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
         return Promise.resolve({ baseUrl: cachedApi.baseUrl, apiKey: cachedApi.apiKey });
@@ -241,27 +241,12 @@
     }
 
     function doSend(baseUrl, apiKey, payload) {
-      fetch(baseUrl + '/api/whatsapp/send-custom-extension', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + apiKey,
-          'X-API-Key': apiKey,
-        },
-        body: JSON.stringify(payload),
-      })
-        .then(function (res) {
-          return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; });
-        })
-        .then(function (out) {
-          if (out.res.status === 401) cachedApi.at = 0;
-          if (out.data.success) return;
-          showQuickStatus(out.data.error || 'Erro ao enviar', true);
-        })
-        .catch(function (err) {
-          cachedApi.at = 0;
-          showQuickStatus((err && err.message) || 'Erro de rede', true);
-        });
+      chrome.runtime.sendMessage({
+        action: 'sendCustom',
+        baseUrl: baseUrl,
+        apiKey: apiKey,
+        payload: payload,
+      }).catch(function () {});
     }
 
     function sendCustomMessage(msg) {
@@ -334,14 +319,16 @@
 
     updatePhoneDisplay();
     loadAndRenderMessages();
-    getStored().then(function (r) {
-      cachedApi.baseUrl = r.baseUrl;
-      cachedApi.apiKey = r.apiKey;
-      cachedApi.at = Date.now();
-      if (r.baseUrl) {
-        fetch(r.baseUrl.replace(/\/+$/, '') + '/api/health', { method: 'HEAD' }).catch(function () {});
-      }
-    });
+    if (!cachedApi.apiKey) {
+      getStored().then(function (r) {
+        cachedApi.baseUrl = r.baseUrl;
+        cachedApi.apiKey = r.apiKey;
+        cachedApi.at = Date.now();
+        if (r.baseUrl) {
+          fetch(r.baseUrl.replace(/\/+$/, '') + '/api/health', { method: 'HEAD' }).catch(function () {});
+        }
+      });
+    }
     chrome.storage.onChanged.addListener(function (changes, areaName) {
       if (areaName !== 'sync') return;
       if (changes[STORAGE_KEYS.messages]) {
@@ -437,7 +424,27 @@
     });
   }
 
-  // Só injetar a barra depois que o WhatsApp Web tiver tempo de carregar (evita travar a página)
+  getStored().then(function (r) {
+    cachedApi.baseUrl = r.baseUrl;
+    cachedApi.apiKey = r.apiKey;
+    cachedApi.at = Date.now();
+    if (r.baseUrl) {
+      fetch(r.baseUrl.replace(/\/+$/, '') + '/api/health', { method: 'HEAD' }).catch(function () {});
+    }
+  });
+
+  chrome.runtime.onMessage.addListener(function (msg) {
+    if (msg.type !== 'sendCustomResult') return;
+    if (msg.invalidateCache) cachedApi.at = 0;
+    if (!msg.error) return;
+    var el = document.getElementById('plenipay-crm-status');
+    if (!el) return;
+    el.textContent = msg.error;
+    el.className = 'crm-status error';
+    el.style.display = 'block';
+    setTimeout(function () { el.style.display = 'none'; }, 2800);
+  });
+
   function init() {
     setTimeout(createSidebar, 8000);
   }
