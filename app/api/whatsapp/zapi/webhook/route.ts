@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendButtonList, sendButtonActions, isZapiConfigured } from '@/lib/whatsapp-zapi'
+import { sendTextMessage as apifacilSendText, sendCustomButtons as apifacilSendCustomButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage } from '@/lib/whatsapp-contatos-pendentes'
 import { sendBoasVindasToNumber, isBoasVindasConfigured } from '@/lib/whatsapp-enviar-boas-vindas-lib'
 
@@ -81,11 +82,62 @@ function isQueroUtilizarPlenipayMessage(t: string): boolean {
   return !!(temPlenipay && temIntencao)
 }
 
+/** Envia texto: tenta Z-API; se não configurada ou falhar, usa API Fácil. */
+async function sendTextReply(phone: string, message: string): Promise<{ success: boolean; error?: string }> {
+  if (isZapiConfigured()) {
+    const r = await sendTextMessage(phone, message)
+    if (r.success) return r
+    console.warn('⚠️ [Z-API Webhook] Envio Z-API falhou, tentando API Fácil:', r.error)
+  }
+  if (isApifacilConfigured()) {
+    const r = await apifacilSendText(phone, message)
+    return r.success ? r : { success: false, error: r.error }
+  }
+  return { success: false, error: 'Nenhum provedor configurado (Z-API ou API Fácil). Configure no Railway.' }
+}
+
+/** Envia botão link (button_actions): Z-API ou fallback API Fácil. */
+async function sendButtonActionsReply(
+  phone: string,
+  body: string,
+  buttonActions: { type: string; url?: string; label: string }[]
+): Promise<{ success: boolean; error?: string }> {
+  if (isZapiConfigured()) {
+    const r = await sendButtonActions(phone, body, buttonActions as any)
+    if (r.success) return r
+    console.warn('⚠️ [Z-API Webhook] Botão Z-API falhou, tentando API Fácil:', r.error)
+  }
+  if (isApifacilConfigured()) {
+    const buttons = buttonActions.map((a) => ({ id: (a.label || a.url || '').slice(0, 20), title: a.label || 'Abrir', url: a.url }))
+    const r = await apifacilSendCustomButtons(phone, body, buttons)
+    return r.success ? r : { success: false, error: r.error }
+  }
+  return { success: false, error: 'Nenhum provedor configurado.' }
+}
+
+/** Envia lista de botões (reply): Z-API ou fallback API Fácil. */
+async function sendButtonListReply(
+  phone: string,
+  body: string,
+  buttons: { id: string; title: string }[]
+): Promise<{ success: boolean; error?: string }> {
+  if (isZapiConfigured()) {
+    const r = await sendButtonList(phone, body, buttons)
+    if (r.success) return r
+    console.warn('⚠️ [Z-API Webhook] Botões Z-API falharam, tentando API Fácil:', r.error)
+  }
+  if (isApifacilConfigured()) {
+    const r = await apifacilSendCustomButtons(phone, body, buttons.map((b) => ({ id: b.id, title: b.title })))
+    return r.success ? r : { success: false, error: r.error }
+  }
+  return { success: false, error: 'Nenhum provedor configurado.' }
+}
+
 async function processarEmBackground(parsed: { from: string; text: string }) {
   const { from, text } = parsed
   try {
-    if (!isZapiConfigured()) {
-      console.warn('⚠️ [Z-API Webhook] ZAPI_INSTANCE_ID ou ZAPI_TOKEN não configurados.')
+    if (!isZapiConfigured() && !isApifacilConfigured()) {
+      console.warn('⚠️ [Z-API Webhook] Nenhum provedor configurado (Z-API ou API Fácil). Configure variáveis no Railway.')
       return
     }
     const phone = from.startsWith('55') ? from : `55${from}`
@@ -123,7 +175,7 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
         const msg = result.messages[i]
         if (typeof msg === 'object' && msg !== null && (msg as any).type === 'buttons') {
           const { body, buttons } = msg as { type: 'buttons'; body: string; buttons: { id: string; title: string }[] }
-          const send = await sendButtonList(phone, body, buttons)
+          const send = await sendButtonListReply(phone, body, buttons)
           if (send.success) {
             registerSentMessage(phone, `${body} [botões]`)
             console.log('✅ [Z-API Webhook] Botões', i + 1, '/', result.messages.length, 'enviados para:', phone)
@@ -132,7 +184,7 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
           }
         } else if (typeof msg === 'object' && msg !== null && (msg as any).type === 'button_actions') {
           const { body, buttonActions } = msg as { type: 'button_actions'; body: string; buttonActions: { type: string; url?: string; label: string }[] }
-          const send = await sendButtonActions(phone, body, buttonActions as any)
+          const send = await sendButtonActionsReply(phone, body, buttonActions)
           if (send.success) {
             registerSentMessage(phone, `${body} [botão link]`)
             console.log('✅ [Z-API Webhook] Botão link', i + 1, '/', result.messages.length, 'enviado para:', phone)
@@ -140,7 +192,7 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
             console.error('❌ [Z-API Webhook] Falha ao enviar botão link:', send.error)
           }
         } else if (typeof msg === 'string' && msg.trim()) {
-          const send = await sendTextMessage(phone, msg)
+          const send = await sendTextReply(phone, msg)
           if (send.success) {
             registerSentMessage(phone, msg)
             console.log('✅ [Z-API Webhook] Mensagem', i + 1, '/', result.messages.length, 'enviada para:', phone)
@@ -151,7 +203,7 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
         if (i < result.messages.length - 1) await delay(500)
       }
     } else if (result?.message && typeof result.message === 'string') {
-      const send = await sendTextMessage(phone, result.message)
+      const send = await sendTextReply(phone, result.message)
       if (send.success) {
         registerSentMessage(phone, result.message)
         console.log('✅ [Z-API Webhook] Resposta enviada para:', phone)

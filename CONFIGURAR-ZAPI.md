@@ -82,6 +82,18 @@ Se o webhook estiver correto e as variáveis certas no ambiente que responde pel
 
 ---
 
+## Webhook Z-API mas variáveis só da API Fácil no Railway
+
+Se você configurou o webhook da Z-API (URL "Ao receber" apontando para `/api/whatsapp/zapi/webhook`) mas **não** colocou `ZAPI_INSTANCE_ID` e `ZAPI_TOKEN` no Railway:
+
+- O sistema **continua processando** as mensagens (incluindo cliques em "JÁ CADASTREI").
+- As **respostas** (ex.: "Me envia seu e-mail") são enviadas pela **API Fácil** (fallback), desde que `APIFACIL_*` esteja configurado no Railway.
+- As **3 mensagens de boas-vindas** e a **mensagem com botão** (CADASTRAR) saem pela **API Fácil**, por isso o visual pode ser diferente do botão nativo da Z-API.
+
+Para a mensagem com botão ser no formato Z-API e todas as respostas saírem pela Z-API, configure no Railway: **ZAPI_INSTANCE_ID**, **ZAPI_TOKEN** e, se exigido, **ZAPI_CLIENT_TOKEN**.
+
+---
+
 ## Assistente não responde – o que verificar
 
 1. **Webhook “Ao receber”**  
