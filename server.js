@@ -86,6 +86,43 @@ app.prepare().then(() => {
     // NOTA: Módulo TypeScript não pode ser importado diretamente com require() em runtime
     // O keep-alive do apifacil é opcional e não é crítico para o funcionamento da aplicação
     console.log('ℹ️ [Apifacil] Keep-alive desabilitado em produção (módulo TypeScript)')
+
+    // Automação interna: a cada 2 min chama a rota de boas-vindas pendentes (sem precisar de cron externo)
+    const cronSecret = process.env.CRON_SECRET?.trim()
+    if (cronSecret && !dev) {
+      const cronUrl = `http://${hostname === '0.0.0.0' ? '127.0.0.1' : hostname}:${port}/api/whatsapp/cron-boas-vindas-pendentes?secret=${encodeURIComponent(cronSecret)}`
+      const runCron = () => {
+        const http = require('http')
+        const url = new URL(cronUrl)
+        const options = {
+          hostname: url.hostname,
+          port: url.port,
+          path: url.pathname + url.search,
+          method: 'GET',
+          timeout: 120000,
+        }
+        const req = http.request(options, (res) => {
+          let body = ''
+          res.on('data', (chunk) => { body += chunk })
+          res.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}')
+              if (data.ok && (data.processed > 0 || data.total > 0)) {
+                console.log('[Cron boas-vindas]', data.processed, 'de', data.total, 'pendentes enviados')
+              }
+            } catch (_) {}
+          })
+        })
+        req.on('error', () => {})
+        req.on('timeout', () => req.destroy())
+        req.end()
+      }
+      setInterval(runCron, 2 * 60 * 1000) // a cada 2 minutos
+      setTimeout(runCron, 60 * 1000)      // primeira execução após 1 minuto
+      console.log('✅ [Cron] Boas-vindas pendentes: verificação automática a cada 2 minutos (sem cron externo)')
+    } else if (!cronSecret && !dev) {
+      console.log('ℹ️ [Cron] CRON_SECRET não definido: configure para ativar envio automático de boas-vindas pendentes')
+    }
   })
 })
 

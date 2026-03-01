@@ -1,6 +1,17 @@
 # Cron: checagem de boas-vindas pendentes
 
-O sistema envia as 3 mensagens de boas-vindas quando alguém manda a primeira mensagem (webhook). Se o webhook falhar naquela hora, a pessoa pode ficar sem receber. Para **ninguém ficar de fora**, existe uma checagem periódica que você pode rodar **a cada 2 minutos**.
+O sistema envia as 3 mensagens de boas-vindas quando alguém manda a primeira mensagem (webhook). Se o webhook falhar naquela hora, a pessoa pode ficar sem receber. Para **ninguém ficar de fora**, existe uma checagem periódica **a cada 2 minutos**.
+
+## Automação sem cron externo (recomendado)
+
+Se o app sobe com **`node server.js`** (Railway, Render, VPS, Docker) e a variável **`CRON_SECRET`** está definida, o próprio servidor **já dispara a checagem a cada 2 minutos** — não é preciso configurar cron-job.org nem nada externo. Basta:
+
+1. Definir `CRON_SECRET` no Railway (ou no ambiente onde o app roda).
+2. Garantir que o start command seja `node server.js` (ou `npm start`).
+
+Nos logs você verá: `[Cron] Boas-vindas pendentes: verificação automática a cada 2 minutos (sem cron externo)`.
+
+Se você **não** usa o server.js (por exemplo só Vercel serverless), use a opção abaixo (cron externo).
 
 ## O que a checagem faz
 
@@ -9,7 +20,9 @@ O sistema envia as 3 mensagens de boas-vindas quando alguém manda a primeira me
 
 Assim, mesmo que uma mensagem tenha sido “pulada” na hora (erro de rede, API Fácil fora, etc.), em até 2 minutos o sistema envia as boas-vindas para quem ainda não recebeu.
 
-## Configuração (próximos passos)
+## Configuração com cron externo (opcional)
+
+Só é necessário se o app **não** sobe com `node server.js` (ex.: Vercel) ou se quiser disparar a checagem por outro serviço.
 
 1. **Variável de ambiente**  
    No Railway (ou onde o app roda), crie:
