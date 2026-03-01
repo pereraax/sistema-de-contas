@@ -242,14 +242,36 @@
       });
     }
 
-    function doSend(payload) {
+    function doSend(baseUrl, apiKey, payload) {
+      var url = baseUrl + '/api/whatsapp/send-custom-extension';
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + apiKey,
+          'X-API-Key': apiKey,
+        },
+        body: JSON.stringify(payload),
+      })
+        .then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (data) {
+            return { res: res, data: data };
+          });
+        })
+        .then(function (out) {
+          if (out.res.status === 401) cachedApi.at = 0;
+          if (out.data.success) return;
+          showQuickStatus(out.data.error || 'Erro ao enviar', true);
+        })
+        .catch(function (err) {
+          cachedApi.at = 0;
+          showQuickStatus((err && err.message) || 'Erro de rede', true);
+        });
+    }
+
+    function doSendWithPayload(payload) {
       if (cachedApi.apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
-        chrome.runtime.sendMessage({
-          action: 'sendCustom',
-          baseUrl: cachedApi.baseUrl,
-          apiKey: cachedApi.apiKey,
-          payload: payload,
-        }).catch(function () {});
+        doSend(cachedApi.baseUrl, cachedApi.apiKey, payload);
         return;
       }
       getApi().then(function (r) {
@@ -257,12 +279,7 @@
           showQuickStatus('Configure o token nas opções.', true);
           return;
         }
-        chrome.runtime.sendMessage({
-          action: 'sendCustom',
-          baseUrl: r.baseUrl,
-          apiKey: r.apiKey,
-          payload: payload,
-        }).catch(function () {});
+        doSend(r.baseUrl, r.apiKey, payload);
       });
     }
 
@@ -274,7 +291,7 @@
       }
       showQuickStatus('Enviada ✓', false);
       var payload = { phone: phone, text: msg.text || '', buttons: (msg.buttons && msg.buttons.length) ? msg.buttons : undefined };
-      doSend(payload);
+      doSendWithPayload(payload);
     }
 
     function renderMessageButtons(list) {
@@ -440,20 +457,8 @@
     }
   });
 
-  chrome.runtime.onMessage.addListener(function (msg) {
-    if (msg.type !== 'sendCustomResult') return;
-    if (msg.invalidateCache) cachedApi.at = 0;
-    if (!msg.error) return;
-    var el = document.getElementById('plenipay-crm-status');
-    if (!el) return;
-    el.textContent = msg.error;
-    el.className = 'crm-status error';
-    el.style.display = 'block';
-    setTimeout(function () { el.style.display = 'none'; }, 2800);
-  });
-
   function init() {
-    setTimeout(createSidebar, 8000);
+    setTimeout(createSidebar, 2500);
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
