@@ -89,6 +89,29 @@ function wasAlreadyProcessed(messageId: string): boolean {
   return false
 }
 
+/** Dedup por número + texto: Z-API pode enviar 2 eventos (mensagem + callback) com messageIds diferentes; ignorar o segundo. */
+const processedPhoneText = new Map<string, number>()
+const PHONE_TEXT_DEDUP_MS = 60_000
+function normalizeKey(phone: string, text: string): string {
+  const t = (text || '').toLowerCase().trim().replace(/\s+/g, ' ')
+  return `${phone.replace(/\D/g, '')}_${t}`
+}
+function wasRecentlyResponded(phone: string, text: string): boolean {
+  const key = normalizeKey(phone, text)
+  const now = Date.now()
+  const t = processedPhoneText.get(key)
+  if (t && now - t < PHONE_TEXT_DEDUP_MS) return true
+  return false
+}
+function markResponded(phone: string, text: string): void {
+  const key = normalizeKey(phone, text)
+  const now = Date.now()
+  processedPhoneText.set(key, now)
+  for (const [k, time] of processedPhoneText.entries()) {
+    if (now - time >= PHONE_TEXT_DEDUP_MS) processedPhoneText.delete(k)
+  }
+}
+
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 function isQueroUtilizarPlenipayMessage(t: string): boolean {
@@ -159,6 +182,12 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
     }
     const phone = from.startsWith('55') ? from : `55${from}`
     const phoneDigits = phone.replace(/\D/g, '')
+
+    if (wasRecentlyResponded(phone, text ?? '')) {
+      console.log('📨 [Z-API Webhook] Duplicado por número+texto (resposta já enviada nos últimos 60s), ignorando:', phone, text?.slice(0, 30))
+      return
+    }
+
     await recordIncomingMessage(phone, text ?? '').catch((e) => console.error('📨 [Z-API Webhook] recordIncomingMessage:', e))
 
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
@@ -166,6 +195,7 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
       const result = await sendBoasVindasToNumber(phone)
       await markWelcomeSent(phone).catch(() => {})
       if (result.success) {
+        markResponded(phone, text ?? '')
         console.log('✅ [Z-API Webhook] 3 mensagens de boas-vindas enviadas:', phone)
         return
       }
@@ -178,6 +208,7 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
       const result = await sendBoasVindasToNumber(phone)
       await markWelcomeSent(phone).catch(() => {})
       if (result.success) {
+        markResponded(phone, text ?? '')
         console.log('✅ [Z-API Webhook] 3 mensagens enviadas para contato novo:', phone)
         return
       }
@@ -219,9 +250,11 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
         }
         if (i < result.messages.length - 1) await delay(500)
       }
+      markResponded(phone, text ?? '')
     } else if (result?.message && typeof result.message === 'string') {
       const send = await sendTextReply(phone, result.message)
       if (send.success) {
+        markResponded(phone, text ?? '')
         registerSentMessage(phone, result.message)
         console.log('✅ [Z-API Webhook] Resposta enviada para:', phone)
       } else {
