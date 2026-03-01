@@ -773,8 +773,8 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
       }
     }
 
-    // Quando a IA não souber: enviar o texto que explica o que o usuário pode mandar para registrar
-    return { response: msgNaoEntendi }
+    // Não enviar mensagem longa fora do funil (evita "Oops! não entendi" e instruções repetidas)
+    return { response: '' }
   } catch (err: any) {
     const msg = err?.message ?? String(err)
     console.error('[PLEN whatsapp-chat] Exceção:', err)

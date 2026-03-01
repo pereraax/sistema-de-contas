@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendReplyButtons, sendCtaUrlButton, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 import { recordIncomingMessage, markWelcomeSent, hasReceivedWelcome } from '@/lib/whatsapp-contatos-pendentes'
+import { sendBoasVindasToNumber, isBoasVindasConfigured } from '@/lib/whatsapp-enviar-boas-vindas-lib'
 
 /** Normalizar número (evita dependência do bundle que falhava com normalizarPhone importado). */
 function normalizarPhone(phone: string): string {
@@ -61,6 +62,15 @@ function isAlreadyProcessed(bodyToParse: Record<string, unknown>, from: string):
   }
   if (processedWebhookIds.has(key)) return true
   processedWebhookIds.set(key, now)
+  return false
+}
+
+/** Bloquear envio de mensagens longas fora do funil (evita "Oops! não entendi" e instruções repetidas). */
+function isRespostaForaDoFunilBloqueada(msg: string): boolean {
+  const t = (msg || '').trim()
+  if (!t) return true
+  if (t === 'Em que posso ajudar? 😊') return true
+  if (t.includes('Oops! não entendi') || t.includes('Como eu entendo você')) return true
   return false
 }
 
@@ -291,12 +301,7 @@ function isQueroUtilizarPlenipayMessage(t: string): boolean {
   return temPlenipay && temIntencao
 }
 
-/** Conteúdo das 3 mensagens de boas-vindas "quero utilizar plenipay" — usado como fallback se o handler falhar. */
-const BOAS_VINDAS_QUERO_UTILIZAR = [
-  `Oiii 👋💙\nEu sou a Plen, sua assistente financeira 🤖✨\nE eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!\n\nAntes da gente começar, cria sua conta rapidinho lá no site 🌐\nÉ bem rápido mesmo, prometo! ⏱️💙`,
-  { type: 'buttons' as const, body: 'Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:', buttons: [{ id: 'cadastrar', title: 'CADASTRAR' }, { id: 'ja_cadastrei', title: 'JÁ CADASTREI' }] },
-  `Assim que finalizar o cadastro, me envia seu e-mail aqui 📩\nVou verificar tudo certinho e já te liberar pra começar a registrar seus gastos e colocar suas economias em ordem 💸📊✨\n\nEu fico responsável por anotar tudo pra você direto pelo WhatsApp, combinado? 😉`,
-]
+/** Conteúdo das 3 mensagens de boas-vindas — definido em whatsapp-enviar-boas-vindas-lib; envio via sendBoasVindasToNumber (Z-API quando configurada). */
 
 /** Processar mensagem e enviar resposta em background (não bloqueia a resposta do webhook) */
 async function processarEmBackground(parsed: {
@@ -381,71 +386,38 @@ async function processarEmBackground(parsed: {
 
     const phone = from.startsWith('55') ? from : `55${from}`
 
-    // PRIORIDADE MÁXIMA: "Olá! Quero utilizar a Plenipay" — responder IMEDIATAMENTE (antes de qualquer DB)
-    // para não depender de hasReceivedWelcome/timeout e garantir resposta em segundos
-    if (isQueroUtilizarPlenipayMessage(text)) {
-      if (!isApifacilConfigured()) {
-        console.error('⚠️ [Apifacil Webhook] "Quero utilizar PleniPay" detectado mas APIFACIL não configurado (APIFACIL_INSTANCE_ID/APIFACIL_TOKEN). Configure as variáveis e faça redeploy.')
-      }
-      if (isApifacilConfigured()) {
-      console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" detectado — enviando 3 mensagens IMEDIATAMENTE para', phone)
+    // PRIORIDADE MÁXIMA: "Olá! Quero utilizar a Plenipay" — enviar as 3 mensagens via Z-API (ou API Fácil) imediatamente
+    if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
+      console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" detectado — enviando 3 mensagens (Z-API/API Fácil) para', phone)
       try {
-        for (let i = 0; i < BOAS_VINDAS_QUERO_UTILIZAR.length; i++) {
-          const msg = BOAS_VINDAS_QUERO_UTILIZAR[i]
-          if (typeof msg === 'string' && msg.trim()) {
-            const send = await sendTextMessage(phone, msg)
-            if (send.success) registerSentMessage(phone, msg)
-          } else if (typeof msg === 'object' && msg !== null && (msg as any).type === 'buttons') {
-            const { body, buttons } = msg as { type: 'buttons'; body: string; buttons: { id: string; title: string }[] }
-            const send = await sendReplyButtons(phone, body, buttons)
-            if (send.success) registerSentMessage(phone, `${body}\n\n${buttons.map((b) => b.title).join(' / ')}`)
-            else {
-              const linkMsg = `Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:\n\n🔗 Cadastro: https://plenipay.com\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
-              await sendTextMessage(phone, linkMsg)
-              registerSentMessage(phone, linkMsg)
-            }
-          }
-          if (i < BOAS_VINDAS_QUERO_UTILIZAR.length - 1) await delay(1200)
-        }
+        const result = await sendBoasVindasToNumber(phone)
         await recordIncomingMessage(from, text).catch((e) => console.error('📨 [Apifacil Webhook] recordIncomingMessage:', e))
         await markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
-        console.log('✅ [Apifacil Webhook] 3 mensagens de boas-vindas enviadas (resposta imediata):', phone)
-        return
+        if (result.success) {
+          console.log('✅ [Apifacil Webhook] 3 mensagens de boas-vindas enviadas:', phone)
+          return
+        }
+        console.error('❌ [Apifacil Webhook] sendBoasVindasToNumber falhou:', result.error)
       } catch (err) {
-        console.error('❌ [Apifacil Webhook] Erro ao enviar boas-vindas (resposta imediata):', err)
-        // segue para o fluxo normal (pode reenviar via PLEN handler)
-      }
+        console.error('❌ [Apifacil Webhook] Erro ao enviar boas-vindas:', err)
       }
     }
 
     // Registrar contato (para lista de pendentes e hasReceivedWelcome)
     await recordIncomingMessage(from, text).catch((e) => console.error('📨 [Apifacil Webhook] recordIncomingMessage:', e))
 
-    // CONTATO NOVO (não é "quero utilizar"): quem ainda não recebeu as 3 mensagens recebe agora
+    // CONTATO NOVO (primeira mensagem): quem ainda não recebeu as 3 mensagens recebe agora (via Z-API ou API Fácil)
     const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits)
-    if (!jaRecebeuBoasVindas && isApifacilConfigured()) {
-      console.log('👋 [Apifacil Webhook] Contato novo (sem boas-vindas) — enviando as 3 mensagens para', phone)
+    if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
+      console.log('👋 [Apifacil Webhook] Contato novo (primeira mensagem) — enviando as 3 mensagens de boas-vindas para', phone)
       try {
-        for (let i = 0; i < BOAS_VINDAS_QUERO_UTILIZAR.length; i++) {
-          const msg = BOAS_VINDAS_QUERO_UTILIZAR[i]
-          if (typeof msg === 'string' && msg.trim()) {
-            const send = await sendTextMessage(phone, msg)
-            if (send.success) registerSentMessage(phone, msg)
-          } else if (typeof msg === 'object' && msg !== null && (msg as any).type === 'buttons') {
-            const { body, buttons } = msg as { type: 'buttons'; body: string; buttons: { id: string; title: string }[] }
-            const send = await sendReplyButtons(phone, body, buttons)
-            if (send.success) registerSentMessage(phone, `${body}\n\n${buttons.map((b) => b.title).join(' / ')}`)
-            else {
-              const linkMsg = `Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:\n\n🔗 Cadastro: https://plenipay.com\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
-              await sendTextMessage(phone, linkMsg)
-              registerSentMessage(phone, linkMsg)
-            }
-          }
-          if (i < BOAS_VINDAS_QUERO_UTILIZAR.length - 1) await delay(1500)
-        }
+        const result = await sendBoasVindasToNumber(phone)
         await markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
-        console.log('✅ [Apifacil Webhook] 3 mensagens enviadas para contato novo:', phone)
-        return
+        if (result.success) {
+          console.log('✅ [Apifacil Webhook] 3 mensagens enviadas para contato novo:', phone)
+          return
+        }
+        console.error('❌ [Apifacil Webhook] sendBoasVindasToNumber falhou para contato novo:', result.error)
       } catch (err) {
         console.error('❌ [Apifacil Webhook] Erro ao enviar boas-vindas para contato novo:', err)
       }
@@ -592,8 +564,11 @@ async function processarEmBackground(parsed: {
       }
       // Marcar que já respondemos (qualquer quantidade) — assim o contato sai da lista de pendentes
       markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
-    } else if (result?.message && typeof result.message === 'string') {
-      if (result.buttonUrl) {
+    } else if (result?.message && typeof result.message === 'string' && result.message.trim()) {
+      const msg = result.message.trim()
+      if (isRespostaForaDoFunilBloqueada(msg)) {
+        console.log('📨 [Apifacil Webhook] Resposta bloqueada (fora do funil):', msg.slice(0, 40))
+      } else if (result.buttonUrl) {
         const sendBtn = await sendCtaUrlButton(
           phone,
           result.message,
@@ -618,18 +593,10 @@ async function processarEmBackground(parsed: {
         }
         markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
       }
-    } else if (result === null) {
-      console.log('📨 [Apifacil Webhook] Mensagem processada mas sem resposta (assistente desativado ou ignorado).')
-      if (apifacilOk) {
-        await sendTextMessage(phone, 'Processei sua mensagem. Se precisar de algo, digite ou fale de novo. 😊')
-        registerSentMessage(phone, 'Processei sua mensagem.')
-      }
-    } else if (!result?.message && (!result?.messages || result.messages.length === 0)) {
-      console.log('📨 [Apifacil Webhook] Resposta vazia do assistente.')
-      if (apifacilOk) {
-        await sendTextMessage(phone, 'Não consegui processar. Tente novamente ou digite, por exemplo: gastei 50 no mercado.')
-        registerSentMessage(phone, 'Não consegui processar.')
-      }
+    } else if (result === null || !result?.message?.trim?.()) {
+      console.log('📨 [Apifacil Webhook] Sem resposta do assistente (não enviar mensagem fora do funil).')
+    } else if (!result?.messages?.length) {
+      console.log('📨 [Apifacil Webhook] Resposta vazia (não enviar).')
     }
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err)
@@ -643,27 +610,11 @@ async function processarEmBackground(parsed: {
     const phone = from.startsWith('55') ? from : `55${from}`
     // Fallback: se a mensagem era "quero utilizar plenipay", enviar as 3 de boas-vindas mesmo com erro no handler
     const textoRecebido = typeof text === 'string' ? text : (text ? String(text) : '')
-    if (isApifacilConfigured() && isQueroUtilizarPlenipayMessage(textoRecebido)) {
+    if (isBoasVindasConfigured() && isQueroUtilizarPlenipayMessage(textoRecebido)) {
       try {
         console.log('👋 [Apifacil Webhook] Fallback: enviando 3 mensagens de boas-vindas após erro no handler')
-        for (let i = 0; i < BOAS_VINDAS_QUERO_UTILIZAR.length; i++) {
-          const msg = BOAS_VINDAS_QUERO_UTILIZAR[i]
-          if (typeof msg === 'string' && msg.trim()) {
-            const send = await sendTextMessage(phone, msg)
-            if (send.success) registerSentMessage(phone, msg)
-          } else if (typeof msg === 'object' && msg !== null && (msg as any).type === 'buttons') {
-            const { body, buttons } = msg as { type: 'buttons'; body: string; buttons: { id: string; title: string }[] }
-            const send = await sendReplyButtons(phone, body, buttons)
-            if (send.success) registerSentMessage(phone, `${body}\n\n${buttons.map((b) => b.title).join(' / ')}`)
-            else {
-              const linkMsg = `Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:\n\n🔗 Cadastro: https://plenipay.com\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
-              await sendTextMessage(phone, linkMsg)
-              registerSentMessage(phone, linkMsg)
-            }
-          }
-          if (i < BOAS_VINDAS_QUERO_UTILIZAR.length - 1) await delay(1500)
-        }
-        markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
+        const result = await sendBoasVindasToNumber(phone)
+        if (result.success) markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
         return
       } catch (fallbackErr) {
         console.error('❌ [Apifacil Webhook] Fallback boas-vindas também falhou:', fallbackErr)

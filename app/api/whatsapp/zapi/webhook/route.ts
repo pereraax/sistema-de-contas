@@ -140,10 +140,14 @@ function markWelcomeJustSent(phone: string): void {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-/** Mensagem removida da automação: nunca enviar. */
+/** Mensagens fora do funil: nunca enviar (evita repetição e "Oops! não entendi" / instruções longas). */
 const MSG_BLOQUEADA = 'Em que posso ajudar? 😊'
 function isMsgBloqueada(msg: string): boolean {
-  return (msg || '').trim() === MSG_BLOQUEADA
+  const t = (msg || '').trim()
+  if (!t) return true
+  if (t === MSG_BLOQUEADA) return true
+  if (t.includes('Oops! não entendi') || t.includes('Como eu entendo você')) return true
+  return false
 }
 
 function isQueroUtilizarPlenipayMessage(t: string): boolean {
