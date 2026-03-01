@@ -266,7 +266,13 @@
     }
 
     function sendViaZapi(phone, text, buttons) {
-      var base = 'https://api.z-api.io/instances/' + cachedZapi.instanceId + '/token/' + cachedZapi.token;
+      var instanceId = cachedZapi.instanceId;
+      var token = cachedZapi.token;
+      if ((instanceId.indexOf('z-api.io') !== -1 || instanceId.indexOf('http') === 0)) {
+        var m = instanceId.match(/instances\/([^/]+)\/token\/([^/]+)/i);
+        if (m) { instanceId = m[1]; token = token || m[2]; }
+      }
+      var base = 'https://api.z-api.io/instances/' + instanceId + '/token/' + token;
       var hasButtons = Array.isArray(buttons) && buttons.length > 0;
       var url = base + (hasButtons ? '/send-button-actions' : '/send-text');
       var body;

@@ -26,13 +26,27 @@ document.getElementById('saveApi').addEventListener('click', () => {
   });
 });
 
+function parseZapiUrl(input) {
+  if (!input || typeof input !== 'string') return null;
+  const s = input.trim();
+  const match = s.match(/instances\/([^/]+)\/token\/([^/]+)/i);
+  if (match) return { instanceId: match[1], token: match[2] };
+  return null;
+}
+
 document.getElementById('saveZapi').addEventListener('click', () => {
-  const instanceId = document.getElementById('zapiInstanceId').value.trim();
-  const token = document.getElementById('zapiToken').value.trim();
+  let instanceId = document.getElementById('zapiInstanceId').value.trim();
+  let token = document.getElementById('zapiToken').value.trim();
   const clientToken = document.getElementById('zapiClientToken').value.trim();
+  const parsed = parseZapiUrl(instanceId);
+  if (parsed) {
+    instanceId = parsed.instanceId;
+    if (!token) token = parsed.token;
+  }
   chrome.storage.sync.set({ [STORAGE_KEYS.zapiInstanceId]: instanceId, [STORAGE_KEYS.zapiToken]: token, [STORAGE_KEYS.zapiClientToken]: clientToken }, () => {
     const el = document.getElementById('savedZapi');
     el.style.display = 'block';
+    el.textContent = 'Salvo. Envio direto ativado.';
     setTimeout(() => { el.style.display = 'none'; }, 2000);
   });
 });
