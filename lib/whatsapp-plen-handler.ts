@@ -380,6 +380,20 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       return null
     }
 
+    // PRIORIDADE MÁXIMA: "JÁ CADASTREI" / "ja cadastrei" — sempre pedir e-mail (antes de qualquer outro fluxo)
+    const normalizedForJaCadastrei = String(text).toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.,!?]+/g, '')
+    const isJaCadastrei =
+      normalizedForJaCadastrei === 'ja cadastrei' ||
+      normalizedForJaCadastrei === 'já cadastrei' ||
+      (normalizedForJaCadastrei.includes('cadastrei') && (normalizedForJaCadastrei.includes('ja') || normalizedForJaCadastrei.includes('já')))
+    if (isJaCadastrei) {
+      console.log('📧 [WhatsApp PLEN] "JÁ CADASTREI" detectado no início — pedindo e-mail')
+      return {
+        success: true,
+        message: `📩 Beleza! Agora me envia seu *e-mail* de cadastro aqui que eu verifico e já te libero pra usar tudo pelo WhatsApp. 💙`,
+      }
+    }
+
     // CRÍTICO: Verificar se esta mensagem foi enviada por nós recentemente
     const isSentByUs = isRecentlySentMessage(phoneNumber, text)
     console.log('🔍 [WhatsApp PLEN] Verificando se mensagem foi enviada por nós:', {
@@ -535,20 +549,17 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       console.log('👋 [WhatsApp PLEN] ==========================================')
       addLog('info', `👋 [PLEN WhatsApp] QUERO UTILIZAR PLENIPAY: ${text}`)
 
-      // Resposta exata: 3 mensagens (1 boas-vindas, 2 botões CADASTRAR / JÁ CADASTREI, 3 e-mail).
+      // 3 mensagens iguais ao fluxo de boas-vindas: texto, botão CADASTRAR (link só no botão), texto.
       return {
         success: true,
         messages: [
           `Oiii 👋💙\nEu sou a Plen, sua assistente financeira 🤖✨\nE eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!\n\nAntes da gente começar, cria sua conta rapidinho lá no site 🌐\nÉ bem rápido mesmo, prometo! ⏱️💙`,
           {
-            type: 'buttons' as const,
-            body: 'Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:',
-            buttons: [
-              { id: 'cadastrar', title: 'CADASTRAR' },
-              { id: 'ja_cadastrei', title: 'JÁ CADASTREI' },
-            ],
+            type: 'button_actions' as const,
+            body: 'Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺 AGORA É SÓ CADASTRAR! 📝',
+            buttonActions: [{ type: 'URL', url: 'https://plenipay.com', label: 'CADASTRAR' }],
           },
-          `Assim que finalizar o cadastro, me envia seu e-mail aqui 📩\nVou verificar tudo certinho e já te liberar pra começar a registrar seus gastos e colocar suas economias em ordem 💸📊✨\n\nEu fico responsável por anotar tudo pra você direto pelo WhatsApp, combinado? 😉`,
+          `Assim que finalizar o cadastro, me envia seu e-mail aqui ✉️ Vou verificar tudo certinho e já te liberar pra começar a registrar seus gastos e colocar suas economias em ordem 💵📈✨ Eu fico responsável por anotar tudo pra você direto pelo WhatsApp, combinado? 😉`,
         ],
       }
     }
@@ -980,8 +991,13 @@ async function handleWhatsAppAuthentication(
   const trimmedText = text.replace(/\u200B|\uFEFF/g, '').trim()
   const lowerText = trimmedText.toLowerCase()
 
-  // Botão "JÁ CADASTREI" — usuário avisou que já se cadastrou; pedir e-mail
-  if (lowerText === 'já cadastrei' || lowerText === 'ja cadastrei' || lowerText === 'já cadastrei.' || lowerText === 'ja cadastrei.' || lowerText.includes('já cadastrei') || lowerText.includes('ja cadastrei')) {
+  // Botão "JÁ CADASTREI" — usuário avisou que já se cadastrou; pedir e-mail (qualquer variação)
+  const norm = trimmedText.toLowerCase().replace(/\s+/g, ' ').replace(/[.,!?]+/g, '').trim()
+  if (
+    norm === 'ja cadastrei' ||
+    norm === 'já cadastrei' ||
+    (norm.includes('cadastrei') && (norm.includes('ja') || norm.includes('já')))
+  ) {
     return {
       success: true,
       message: `📩 Beleza! Agora me envia seu *e-mail* de cadastro aqui que eu verifico e já te libero pra usar tudo pelo WhatsApp. 💙`,
@@ -1101,7 +1117,13 @@ async function handleWhatsAppAuthentication(
         console.log('📧 [WhatsApp PLEN] Email não cadastrado:', email)
         return {
           success: true,
-          message: `❌ Este e-mail *não está cadastrado*.\n\nCrie sua conta em https://plenipay.com e depois digite *JÁ CADASTREI* aqui que eu peço seu e-mail de novo. 💙`,
+          messages: [
+            {
+              type: 'button_actions' as const,
+              body: `❌ Este e-mail *não está cadastrado*.\n\nCrie sua conta no site (botão abaixo) e depois digite *JÁ CADASTREI* aqui que eu peço seu e-mail de novo. 💙`,
+              buttonActions: [{ type: 'URL' as const, url: 'https://plenipay.com', label: 'Criar conta / Plenipay' }],
+            },
+          ],
         }
       }
       // Verificar se o e-mail já está ativo (já vinculado a este número)

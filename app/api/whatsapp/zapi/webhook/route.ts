@@ -27,8 +27,8 @@ function buttonIdToText(buttonId: string, label?: string): string {
   return label || buttonId || ''
 }
 
-/** Extrair phone e text do payload Z-API (on-message-received). Doc: text.message, phone, fromMe. */
-function parseZapiBody(body: unknown): { from: string; text: string } | null {
+/** Extrair phone, text e messageId do payload Z-API (on-message-received). Doc: text.message, phone, fromMe, messageId. */
+function parseZapiBody(body: unknown): { from: string; text: string; messageId?: string } | null {
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
 
@@ -69,7 +69,24 @@ function parseZapiBody(body: unknown): { from: string; text: string } | null {
   if (!text.trim()) return null
 
   const from = String(rawPhone).replace(/\D/g, '')
-  return { from: from.startsWith('55') ? from : `55${from}`, text: text.trim() }
+  const messageId = typeof b.messageId === 'string' ? b.messageId : undefined
+  return { from: from.startsWith('55') ? from : `55${from}`, text: text.trim(), messageId }
+}
+
+/** Cache de messageIds já processados (evitar resposta duplicada quando Z-API envia 2 eventos para o mesmo ato). TTL 90s. */
+const processedMessageIds = new Map<string, number>()
+const DEDUP_TTL_MS = 90_000
+function wasAlreadyProcessed(messageId: string): boolean {
+  if (!messageId) return false
+  const now = Date.now()
+  const t = processedMessageIds.get(messageId)
+  if (t && now - t < DEDUP_TTL_MS) return true
+  processedMessageIds.set(messageId, now)
+  // Limpar entradas antigas
+  for (const [id, time] of processedMessageIds.entries()) {
+    if (now - time >= DEDUP_TTL_MS) processedMessageIds.delete(id)
+  }
+  return false
 }
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -236,7 +253,11 @@ export async function POST(request: NextRequest) {
       console.warn('📨 [Z-API Webhook] Payload ignorado (sem phone/text ou fromMe). Body keys:', body && typeof body === 'object' ? Object.keys(body as object).join(', ') : 'null')
       return NextResponse.json({ success: true, message: 'Payload ignorado' })
     }
-    console.log('📨 [Z-API Webhook] Mensagem recebida:', { from: parsed.from, textPreview: parsed.text.slice(0, 80) })
+    if (parsed.messageId && wasAlreadyProcessed(parsed.messageId)) {
+      console.log('📨 [Z-API Webhook] Mensagem duplicada (messageId já processado), ignorando:', parsed.messageId)
+      return NextResponse.json({ success: true, message: 'Duplicado ignorado' })
+    }
+    console.log('📨 [Z-API Webhook] Mensagem recebida:', { from: parsed.from, textPreview: parsed.text.slice(0, 80), messageId: parsed.messageId })
     processarEmBackground(parsed).catch((e) => console.error('❌ [Z-API Webhook]', e))
     return NextResponse.json({ success: true })
   } catch (err) {
