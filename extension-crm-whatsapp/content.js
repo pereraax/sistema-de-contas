@@ -8,19 +8,21 @@
     messages: 'plenipay_crm_messages',
     zapiInstanceId: 'plenipay_zapi_instance',
     zapiToken: 'plenipay_zapi_token',
+    zapiClientToken: 'plenipay_zapi_client_token',
   };
   var cachedApi = { baseUrl: '', apiKey: '', at: 0 };
-  var cachedZapi = { instanceId: '', token: '', at: 0 };
+  var cachedZapi = { instanceId: '', token: '', clientToken: '', at: 0 };
   var CACHE_TTL = 60000;
 
   function getStored() {
     return new Promise((resolve) => {
-      chrome.storage.sync.get([STORAGE_KEYS.baseUrl, STORAGE_KEYS.apiKey, STORAGE_KEYS.zapiInstanceId, STORAGE_KEYS.zapiToken], (r) => {
+      chrome.storage.sync.get([STORAGE_KEYS.baseUrl, STORAGE_KEYS.apiKey, STORAGE_KEYS.zapiInstanceId, STORAGE_KEYS.zapiToken, STORAGE_KEYS.zapiClientToken], (r) => {
         resolve({
           baseUrl: (r[STORAGE_KEYS.baseUrl] || 'https://plenipay.com').replace(/\/+$/, ''),
           apiKey: r[STORAGE_KEYS.apiKey] || '',
           zapiInstanceId: (r[STORAGE_KEYS.zapiInstanceId] || '').trim(),
           zapiToken: (r[STORAGE_KEYS.zapiToken] || '').trim(),
+          zapiClientToken: (r[STORAGE_KEYS.zapiClientToken] || '').trim(),
         });
       });
     });
@@ -241,7 +243,7 @@
 
     function getApi() {
       if (cachedApi.apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
-        return Promise.resolve({ baseUrl: cachedApi.baseUrl, apiKey: cachedApi.apiKey, zapiInstanceId: cachedZapi.instanceId, zapiToken: cachedZapi.token });
+        return Promise.resolve({ baseUrl: cachedApi.baseUrl, apiKey: cachedApi.apiKey, zapiInstanceId: cachedZapi.instanceId, zapiToken: cachedZapi.token, zapiClientToken: cachedZapi.clientToken });
       }
       return getStored().then(function (r) {
         cachedApi.baseUrl = r.baseUrl;
@@ -250,6 +252,7 @@
         if (r.zapiInstanceId && r.zapiToken) {
           cachedZapi.instanceId = r.zapiInstanceId;
           cachedZapi.token = r.zapiToken;
+          cachedZapi.clientToken = r.zapiClientToken || '';
           cachedZapi.at = Date.now();
         }
         return r;
@@ -276,7 +279,9 @@
       } else {
         body = JSON.stringify({ phone: cleanPhone(phone), message: text });
       }
-      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body })
+      var headers = { 'Content-Type': 'application/json' };
+      if (cachedZapi.clientToken) headers['Client-Token'] = cachedZapi.clientToken;
+      fetch(url, { method: 'POST', headers: headers, body: body })
         .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; }); })
         .then(function (out) {
           if (!out.ok && out.data) showQuickStatus((out.data.message || out.data.error) || ('Erro ' + out.status), true);
@@ -316,6 +321,7 @@
         if (r.zapiInstanceId && r.zapiToken) {
           cachedZapi.instanceId = r.zapiInstanceId;
           cachedZapi.token = r.zapiToken;
+          cachedZapi.clientToken = r.zapiClientToken || '';
           cachedZapi.at = Date.now();
           sendViaZapi(phone, text, buttons);
           return;
@@ -400,7 +406,7 @@
       if (changes[STORAGE_KEYS.messages]) {
         renderMessageButtons(Array.isArray(changes[STORAGE_KEYS.messages].newValue) ? changes[STORAGE_KEYS.messages].newValue : []);
       }
-      if (changes[STORAGE_KEYS.baseUrl] || changes[STORAGE_KEYS.apiKey] || changes[STORAGE_KEYS.zapiInstanceId] || changes[STORAGE_KEYS.zapiToken]) {
+      if (changes[STORAGE_KEYS.baseUrl] || changes[STORAGE_KEYS.apiKey] || changes[STORAGE_KEYS.zapiInstanceId] || changes[STORAGE_KEYS.zapiToken] || changes[STORAGE_KEYS.zapiClientToken]) {
         getStored().then(function (r) {
           cachedApi.baseUrl = r.baseUrl;
           cachedApi.apiKey = r.apiKey;
@@ -408,6 +414,7 @@
           if (r.zapiInstanceId && r.zapiToken) {
             cachedZapi.instanceId = r.zapiInstanceId;
             cachedZapi.token = r.zapiToken;
+            cachedZapi.clientToken = r.zapiClientToken || '';
             cachedZapi.at = Date.now();
           }
         });
@@ -502,6 +509,7 @@
     if (r.zapiInstanceId && r.zapiToken) {
       cachedZapi.instanceId = r.zapiInstanceId;
       cachedZapi.token = r.zapiToken;
+      cachedZapi.clientToken = r.zapiClientToken || '';
       cachedZapi.at = Date.now();
     }
     if (r.baseUrl) {

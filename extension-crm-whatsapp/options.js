@@ -4,14 +4,16 @@ const STORAGE_KEYS = {
   messages: 'plenipay_crm_messages',
   zapiInstanceId: 'plenipay_zapi_instance',
   zapiToken: 'plenipay_zapi_token',
+  zapiClientToken: 'plenipay_zapi_client_token',
 };
 
 // ——— API ———
-chrome.storage.sync.get([STORAGE_KEYS.baseUrl, STORAGE_KEYS.apiKey, STORAGE_KEYS.zapiInstanceId, STORAGE_KEYS.zapiToken], (r) => {
+chrome.storage.sync.get([STORAGE_KEYS.baseUrl, STORAGE_KEYS.apiKey, STORAGE_KEYS.zapiInstanceId, STORAGE_KEYS.zapiToken, STORAGE_KEYS.zapiClientToken], (r) => {
   document.getElementById('baseUrl').value = r[STORAGE_KEYS.baseUrl] || 'https://plenipay.com';
   document.getElementById('apiKey').value = r[STORAGE_KEYS.apiKey] || '';
   document.getElementById('zapiInstanceId').value = r[STORAGE_KEYS.zapiInstanceId] || '';
   document.getElementById('zapiToken').value = r[STORAGE_KEYS.zapiToken] || '';
+  document.getElementById('zapiClientToken').value = r[STORAGE_KEYS.zapiClientToken] || '';
 });
 
 document.getElementById('saveApi').addEventListener('click', () => {
@@ -27,7 +29,8 @@ document.getElementById('saveApi').addEventListener('click', () => {
 document.getElementById('saveZapi').addEventListener('click', () => {
   const instanceId = document.getElementById('zapiInstanceId').value.trim();
   const token = document.getElementById('zapiToken').value.trim();
-  chrome.storage.sync.set({ [STORAGE_KEYS.zapiInstanceId]: instanceId, [STORAGE_KEYS.zapiToken]: token }, () => {
+  const clientToken = document.getElementById('zapiClientToken').value.trim();
+  chrome.storage.sync.set({ [STORAGE_KEYS.zapiInstanceId]: instanceId, [STORAGE_KEYS.zapiToken]: token, [STORAGE_KEYS.zapiClientToken]: clientToken }, () => {
     const el = document.getElementById('savedZapi');
     el.style.display = 'block';
     setTimeout(() => { el.style.display = 'none'; }, 2000);

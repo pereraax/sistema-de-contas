@@ -53,6 +53,9 @@
   <input type="text" id="zapiInstanceId" placeholder="Ex: 3B48E..." />
   <label for="zapiToken">Z-API Token</label>
   <input type="password" id="zapiToken" placeholder="Token da instância" />
+  <label for="zapiClientToken">Z-API Client Token (se pedir "client-token is not configured")</label>
+  <input type="password" id="zapiClientToken" placeholder="Opcional: painel Z-API → Segurança → Token de segurança" />
+  <p class="hint">Se aparecer erro "your client-token is not configured", pegue o token em: painel Z-API → Segurança → Token de segurança da conta.</p>
   <button id="saveZapi" class="secondary">Salvar</button>
   <p id="savedZapi" class="ok" style="display:none;">Salvo. Envio direto ativado.</p>
 
