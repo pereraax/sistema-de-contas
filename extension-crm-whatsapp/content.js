@@ -2,25 +2,16 @@
   'use strict';
 
   const SIDEBAR_ID = 'plenipay-crm-sidebar';
-  const STORAGE_KEYS = {
-    baseUrl: 'plenipay_crm_base_url',
-    apiKey: 'plenipay_crm_api_key',
-    messages: 'plenipay_crm_messages',
-    zapiInstanceId: 'plenipay_direct_zapi_instance',
-    zapiToken: 'plenipay_direct_zapi_token',
-  };
+  const STORAGE_KEYS = { baseUrl: 'plenipay_crm_base_url', apiKey: 'plenipay_crm_api_key', messages: 'plenipay_crm_messages' };
   var cachedApi = { baseUrl: '', apiKey: '', at: 0 };
-  var cachedDirectZapi = { instanceId: '', token: '', at: 0 };
   var CACHE_TTL = 60000;
 
   function getStored() {
     return new Promise((resolve) => {
-      chrome.storage.sync.get([STORAGE_KEYS.baseUrl, STORAGE_KEYS.apiKey, STORAGE_KEYS.zapiInstanceId, STORAGE_KEYS.zapiToken], (r) => {
+      chrome.storage.sync.get([STORAGE_KEYS.baseUrl, STORAGE_KEYS.apiKey], (r) => {
         resolve({
           baseUrl: (r[STORAGE_KEYS.baseUrl] || 'https://plenipay.com').replace(/\/+$/, ''),
           apiKey: r[STORAGE_KEYS.apiKey] || '',
-          zapiInstanceId: (r[STORAGE_KEYS.zapiInstanceId] || '').trim(),
-          zapiToken: (r[STORAGE_KEYS.zapiToken] || '').trim(),
         });
       });
     });
@@ -241,35 +232,17 @@
 
     function getApi() {
       if (cachedApi.apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
-        return Promise.resolve({
-          baseUrl: cachedApi.baseUrl,
-          apiKey: cachedApi.apiKey,
-          zapiInstanceId: cachedDirectZapi.instanceId,
-          zapiToken: cachedDirectZapi.token,
-        });
+        return Promise.resolve({ baseUrl: cachedApi.baseUrl, apiKey: cachedApi.apiKey });
       }
       return getStored().then(function (r) {
         cachedApi.baseUrl = r.baseUrl;
         cachedApi.apiKey = r.apiKey;
         cachedApi.at = Date.now();
-        if (r.zapiInstanceId && r.zapiToken) {
-          cachedDirectZapi.instanceId = r.zapiInstanceId;
-          cachedDirectZapi.token = r.zapiToken;
-          cachedDirectZapi.at = Date.now();
-        }
         return r;
       });
     }
 
     function doSend(payload) {
-      if (cachedDirectZapi.instanceId && cachedDirectZapi.token && (Date.now() - cachedDirectZapi.at) < CACHE_TTL) {
-        chrome.runtime.sendMessage({
-          action: 'sendCustom',
-          directZapi: { instanceId: cachedDirectZapi.instanceId, token: cachedDirectZapi.token },
-          payload: payload,
-        }).catch(function () {});
-        return;
-      }
       if (cachedApi.apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
         chrome.runtime.sendMessage({
           action: 'sendCustom',
@@ -280,17 +253,6 @@
         return;
       }
       getApi().then(function (r) {
-        if (r.zapiInstanceId && r.zapiToken) {
-          cachedDirectZapi.instanceId = r.zapiInstanceId;
-          cachedDirectZapi.token = r.zapiToken;
-          cachedDirectZapi.at = Date.now();
-          chrome.runtime.sendMessage({
-            action: 'sendCustom',
-            directZapi: { instanceId: r.zapiInstanceId, token: r.zapiToken },
-            payload: payload,
-          }).catch(function () {});
-          return;
-        }
         if (!r.apiKey) {
           showQuickStatus('Configure o token nas opções.', true);
           return;
@@ -379,16 +341,11 @@
       if (changes[STORAGE_KEYS.messages]) {
         renderMessageButtons(Array.isArray(changes[STORAGE_KEYS.messages].newValue) ? changes[STORAGE_KEYS.messages].newValue : []);
       }
-      if (changes[STORAGE_KEYS.baseUrl] || changes[STORAGE_KEYS.apiKey] || changes[STORAGE_KEYS.zapiInstanceId] || changes[STORAGE_KEYS.zapiToken]) {
+      if (changes[STORAGE_KEYS.baseUrl] || changes[STORAGE_KEYS.apiKey]) {
         getStored().then(function (r) {
           cachedApi.baseUrl = r.baseUrl;
           cachedApi.apiKey = r.apiKey;
           cachedApi.at = Date.now();
-          if (r.zapiInstanceId && r.zapiToken) {
-            cachedDirectZapi.instanceId = r.zapiInstanceId;
-            cachedDirectZapi.token = r.zapiToken;
-            cachedDirectZapi.at = Date.now();
-          }
         });
       }
     });
@@ -478,11 +435,6 @@
     cachedApi.baseUrl = r.baseUrl;
     cachedApi.apiKey = r.apiKey;
     cachedApi.at = Date.now();
-    if (r.zapiInstanceId && r.zapiToken) {
-      cachedDirectZapi.instanceId = r.zapiInstanceId;
-      cachedDirectZapi.token = r.zapiToken;
-      cachedDirectZapi.at = Date.now();
-    }
     if (r.baseUrl) {
       fetch(r.baseUrl.replace(/\/+$/, '') + '/api/health', { method: 'HEAD' }).catch(function () {});
     }
