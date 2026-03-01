@@ -187,12 +187,14 @@
         <input type="tel" class="crm-phone-input" id="plenipay-crm-phone-input" placeholder="Ex: 5511999999999" />
         <div class="crm-phone-label" style="margin-top:12px;">Mensagens (clique para enviar uma)</div>
         <div class="crm-buttons-row" id="plenipay-crm-msg-list"></div>
-        <p class="crm-phone-hint" id="plenipay-crm-msg-empty" style="display:none;">Configure mensagens nas opções da extensão.</p>
+        <p class="crm-phone-hint" id="plenipay-crm-msg-empty" style="display:none;">Nenhuma mensagem. Abra o painel abaixo para criar.</p>
+        <button type="button" class="crm-btn-panel" id="plenipay-crm-open-panel">Abrir painel de configuração</button>
+        <p class="crm-phone-hint" style="margin-top:6px;">No painel você configura API (URL e token) e cria/edita mensagens (com botões).</p>
         <button type="button" class="crm-btn-refresh" id="plenipay-crm-btn-test" style="margin-top:8px;width:100%;">Testar conexão com a URL</button>
         <div id="plenipay-crm-status" class="crm-status"></div>
       </div>
       <div class="crm-config-link">
-        <a href="#" id="plenipay-crm-open-options">Configurar API (token e URL)</a>
+        <a href="#" id="plenipay-crm-open-options">Abrir painel de configuração (API e mensagens)</a>
       </div>
     `;
 
@@ -223,40 +225,57 @@
       statusEl.style.display = 'block';
       setTimeout(function () {
         statusEl.style.display = 'none';
-      }, 2200);
+      }, 2800);
     }
 
-    async function sendCustomMessage(msg) {
+    var cachedApi = { baseUrl: '', apiKey: '', at: 0 };
+    var CACHE_TTL = 60000;
+    function getApi() {
+      if (cachedApi.apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
+        return Promise.resolve({ baseUrl: cachedApi.baseUrl, apiKey: cachedApi.apiKey });
+      }
+      return getStored().then(function (r) {
+        cachedApi = { baseUrl: r.baseUrl, apiKey: r.apiKey, at: Date.now() };
+        return r;
+      });
+    }
+
+    function sendCustomMessage(msg) {
       const phone = getPhoneForSend();
       if (!phone) {
         showStatus(statusEl, 'warning', 'Digite o número ou abra a conversa no WhatsApp.');
         return;
       }
-      const { baseUrl, apiKey } = await getStored();
-      if (!apiKey) {
-        showStatus(statusEl, 'warning', null, 'Configure o token nas opções primeiro.');
-        return;
-      }
-      const payload = { phone, text: msg.text || '', buttons: (msg.buttons && msg.buttons.length) ? msg.buttons : undefined };
-      try {
-        const res = await fetch(baseUrl + '/api/whatsapp/send-custom-extension', {
+      getApi().then(function (r) {
+        if (!r.apiKey) {
+          showStatus(statusEl, 'warning', null, 'Configure o token nas opções primeiro.');
+          return;
+        }
+        var label = msg.label || '(sem nome)';
+        showQuickStatus('Enviada ✓', false);
+        var payload = { phone: phone, text: msg.text || '', buttons: (msg.buttons && msg.buttons.length) ? msg.buttons : undefined };
+        fetch(r.baseUrl + '/api/whatsapp/send-custom-extension', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + apiKey,
-            'X-API-Key': apiKey,
+            'Authorization': 'Bearer ' + r.apiKey,
+            'X-API-Key': r.apiKey,
           },
           body: JSON.stringify(payload),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data.success) {
-          showQuickStatus('Enviada ✓', false);
-        } else {
-          showQuickStatus(data.error || 'Erro ao enviar', true);
-        }
-      } catch (err) {
-        showQuickStatus((err && err.message) || 'Erro de rede', true);
-      }
+        })
+          .then(function (res) {
+            return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; });
+          })
+          .then(function (out) {
+            if (out.res.status === 401) cachedApi.at = 0;
+            if (out.data.success) return;
+            showQuickStatus(out.data.error || 'Erro ao enviar', true);
+          })
+          .catch(function (err) {
+            cachedApi.at = 0;
+            showQuickStatus((err && err.message) || 'Erro de rede', true);
+          });
+      });
     }
 
     function renderMessageButtons(list) {
@@ -272,12 +291,7 @@
         btn.className = 'crm-btn-msg';
         btn.textContent = msg.label || '(sem nome)';
         btn.addEventListener('click', function () {
-          btn.disabled = true;
-          btn.textContent = '...';
-          sendCustomMessage(msg).finally(function () {
-            btn.disabled = false;
-            btn.textContent = msg.label || '(sem nome)';
-          });
+          sendCustomMessage(msg);
         });
         msgListEl.appendChild(btn);
       });
@@ -366,12 +380,15 @@
       applySidebarMargin(!hidden);
     });
 
+    function openConfigPanel() {
+      chrome.runtime.sendMessage({ action: 'openOptions' }).catch(() => {});
+      try { chrome.runtime.openOptionsPage(); } catch (_) {}
+    }
     document.getElementById('plenipay-crm-open-options').addEventListener('click', (e) => {
       e.preventDefault();
-      chrome.runtime.sendMessage({ action: 'openOptions' }).catch(() => {
-        try { chrome.runtime.openOptionsPage(); } catch (_) {}
-      });
+      openConfigPanel();
     });
+    document.getElementById('plenipay-crm-open-panel').addEventListener('click', openConfigPanel);
 
     document.getElementById('plenipay-crm-btn-test').addEventListener('click', async () => {
       const { baseUrl } = await getStored();

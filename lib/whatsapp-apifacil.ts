@@ -249,6 +249,8 @@ export async function sendCustomButtons(
   }
   const baseUrl = 'https://apifacil.dev/api/v1'
   const authHeader = config.token.trim()
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 10000)
   try {
     const res = await fetch(`${baseUrl}/whatsapp/enviar-botao`, {
       method: 'POST',
@@ -261,12 +263,15 @@ export async function sendCustomButtons(
         title: 'PleniPay',
         instancia: String(config.instanceId),
       }),
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
     const data = (await res.json().catch(() => ({}))) as any
     if (res.ok && data?.error !== true && data?.erro !== true) {
       return { success: true, messageId: data?.data?.notificacao_id ?? data?.data?.id }
     }
   } catch (e) {
+    clearTimeout(timeoutId)
     console.warn('[Apifacil] sendCustomButtons erro:', e)
   }
   const fallbackText = bodyText + '\n\n' + buttons.map((b) => (b.url ? `*${b.title}*: ${b.url}` : `*${b.title}*`)).join('\n')
@@ -313,19 +318,27 @@ export async function sendTextMessage(
       // Ignorar erro
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': config.token,
-      },
-      body: JSON.stringify({
-        para: cleanPhone,
-        telefone: cleanPhone,
-        mensagem: message,
-        instancia: config.instanceId,
-      }),
-    })
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': config.token,
+        },
+        body: JSON.stringify({
+          para: cleanPhone,
+          telefone: cleanPhone,
+          mensagem: message,
+          instancia: config.instanceId,
+        }),
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timeoutId)
+    }
 
     const responseText = await response.text()
     let responseData: any = {}
@@ -370,7 +383,7 @@ export async function sendTextMessage(
     console.error('❌ [Apifacil] Erro ao enviar mensagem:', error.message)
     return {
       success: false,
-      error: error.message || 'Erro ao enviar mensagem',
+      error: error?.name === 'AbortError' ? 'Timeout ao enviar (10s)' : (error?.message || 'Erro ao enviar mensagem'),
     }
   }
 }

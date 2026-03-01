@@ -65,12 +65,16 @@ export async function sendTextMessage(
   const base = getBaseUrl()
   if (!base) return { success: false, error: 'Z-API não configurado (ZAPI_INSTANCE_ID e ZAPI_TOKEN)' }
   const phone = cleanPhone(phoneNumber)
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 10000)
   try {
     const res = await fetch(`${base}/send-text`, {
       method: 'POST',
       headers: defaultHeaders(),
       body: JSON.stringify({ phone, message }),
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
       const msg = data?.message || data?.error || `Erro ${res.status}`
@@ -78,7 +82,8 @@ export async function sendTextMessage(
     }
     return { success: true, messageId: data.messageId || data.id }
   } catch (e: any) {
-    return { success: false, error: e?.message || 'Erro ao enviar' }
+    clearTimeout(timeoutId)
+    return { success: false, error: e?.name === 'AbortError' ? 'Timeout ao enviar (10s)' : (e?.message || 'Erro ao enviar') }
   }
 }
 
@@ -143,12 +148,16 @@ export async function sendButtonActions(
   }
   if (options?.title) payload.title = options.title
   if (options?.footer) payload.footer = options.footer
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 10000)
   try {
     const res = await fetch(`${base}/send-button-actions`, {
       method: 'POST',
       headers: defaultHeaders(),
       body: JSON.stringify(payload),
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
       const msg = data?.message || data?.error || `Erro ${res.status}`
@@ -156,6 +165,7 @@ export async function sendButtonActions(
     }
     return { success: true, messageId: data.messageId || data.id }
   } catch (e: any) {
-    return { success: false, error: e?.message || 'Erro ao enviar botões de ação' }
+    clearTimeout(timeoutId)
+    return { success: false, error: e?.name === 'AbortError' ? 'Timeout ao enviar (10s)' : (e?.message || 'Erro ao enviar botões de ação') }
   }
 }
