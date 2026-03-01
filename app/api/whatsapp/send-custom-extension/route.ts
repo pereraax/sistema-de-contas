@@ -82,18 +82,10 @@ export async function POST(request: NextRequest) {
           url: typeof (b as any).url === 'string' ? (b as any).url.trim() : undefined,
         }))
     : undefined
-  let result: { success: boolean; error?: string }
-  try {
-    result = await sendCustomMessage(phone, text, buttons && buttons.length > 0 ? buttons : undefined)
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao enviar: ' + msg, phone },
-      { status: 500, headers: corsHeaders }
-    )
-  }
-  return NextResponse.json(
-    { success: result.success, error: result.error, phone },
-    { headers: corsHeaders }
-  )
+
+  // Resposta imediata: extensão recebe 200 na hora; envio ao WhatsApp roda em background
+  sendCustomMessage(phone, text, buttons && buttons.length > 0 ? buttons : undefined).catch((err) => {
+    console.error('[send-custom-extension] envio em background falhou:', err?.message || err)
+  })
+  return NextResponse.json({ success: true, phone }, { headers: corsHeaders })
 }
