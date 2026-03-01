@@ -2,16 +2,25 @@
   'use strict';
 
   const SIDEBAR_ID = 'plenipay-crm-sidebar';
-  const STORAGE_KEYS = { baseUrl: 'plenipay_crm_base_url', apiKey: 'plenipay_crm_api_key', messages: 'plenipay_crm_messages' };
+  const STORAGE_KEYS = {
+    baseUrl: 'plenipay_crm_base_url',
+    apiKey: 'plenipay_crm_api_key',
+    messages: 'plenipay_crm_messages',
+    zapiInstanceId: 'plenipay_zapi_instance',
+    zapiToken: 'plenipay_zapi_token',
+  };
   var cachedApi = { baseUrl: '', apiKey: '', at: 0 };
+  var cachedZapi = { instanceId: '', token: '', at: 0 };
   var CACHE_TTL = 60000;
 
   function getStored() {
     return new Promise((resolve) => {
-      chrome.storage.sync.get([STORAGE_KEYS.baseUrl, STORAGE_KEYS.apiKey], (r) => {
+      chrome.storage.sync.get([STORAGE_KEYS.baseUrl, STORAGE_KEYS.apiKey, STORAGE_KEYS.zapiInstanceId, STORAGE_KEYS.zapiToken], (r) => {
         resolve({
           baseUrl: (r[STORAGE_KEYS.baseUrl] || 'https://plenipay.com').replace(/\/+$/, ''),
           apiKey: r[STORAGE_KEYS.apiKey] || '',
+          zapiInstanceId: (r[STORAGE_KEYS.zapiInstanceId] || '').trim(),
+          zapiToken: (r[STORAGE_KEYS.zapiToken] || '').trim(),
         });
       });
     });
@@ -232,14 +241,47 @@
 
     function getApi() {
       if (cachedApi.apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
-        return Promise.resolve({ baseUrl: cachedApi.baseUrl, apiKey: cachedApi.apiKey });
+        return Promise.resolve({ baseUrl: cachedApi.baseUrl, apiKey: cachedApi.apiKey, zapiInstanceId: cachedZapi.instanceId, zapiToken: cachedZapi.token });
       }
       return getStored().then(function (r) {
         cachedApi.baseUrl = r.baseUrl;
         cachedApi.apiKey = r.apiKey;
         cachedApi.at = Date.now();
+        if (r.zapiInstanceId && r.zapiToken) {
+          cachedZapi.instanceId = r.zapiInstanceId;
+          cachedZapi.token = r.zapiToken;
+          cachedZapi.at = Date.now();
+        }
         return r;
       });
+    }
+
+    function cleanPhone(num) {
+      var n = (num || '').replace(/\D/g, '');
+      if (n.length === 10 || n.length === 11) n = '55' + n;
+      return n;
+    }
+
+    function sendViaZapi(phone, text, buttons) {
+      var base = 'https://api.z-api.io/instances/' + cachedZapi.instanceId + '/token/' + cachedZapi.token;
+      var hasButtons = Array.isArray(buttons) && buttons.length > 0;
+      var url = base + (hasButtons ? '/send-button-actions' : '/send-text');
+      var body;
+      if (hasButtons) {
+        var actions = buttons.slice(0, 3).map(function (b) {
+          if (b.url && b.url.trim()) return { type: 'URL', url: b.url.trim(), label: (b.title || b.id || '').trim() };
+          return { type: 'REPLY', label: (b.title || b.id || '').trim(), id: (b.id || b.title || '').trim() };
+        });
+        body = JSON.stringify({ phone: cleanPhone(phone), message: text, buttonActions: actions });
+      } else {
+        body = JSON.stringify({ phone: cleanPhone(phone), message: text });
+      }
+      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body })
+        .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; }); })
+        .then(function (out) {
+          if (!out.ok && out.data) showQuickStatus((out.data.message || out.data.error) || ('Erro ' + out.status), true);
+        })
+        .catch(function (err) { showQuickStatus((err && err.message) || 'Erro de rede', true); });
     }
 
     function sendCustomMessage(msg) {
@@ -249,13 +291,17 @@
         return;
       }
       showQuickStatus('Enviada ✓', false);
-      var payload = { phone: phone, text: msg.text || '', buttons: (msg.buttons && msg.buttons.length) ? msg.buttons : undefined };
-      var baseUrl = cachedApi.baseUrl;
-      var apiKey = cachedApi.apiKey;
-      if (apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
-        fetch(baseUrl + '/api/whatsapp/send-custom-extension', {
+      var text = msg.text || '';
+      var buttons = (msg.buttons && msg.buttons.length) ? msg.buttons : undefined;
+      if (cachedZapi.instanceId && cachedZapi.token && (Date.now() - cachedZapi.at) < CACHE_TTL) {
+        sendViaZapi(phone, text, buttons);
+        return;
+      }
+      if (cachedApi.apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
+        var payload = { phone: phone, text: text, buttons: buttons };
+        fetch(cachedApi.baseUrl + '/api/whatsapp/send-custom-extension', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey, 'X-API-Key': apiKey },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cachedApi.apiKey, 'X-API-Key': cachedApi.apiKey },
           body: JSON.stringify(payload),
         })
           .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; }); })
@@ -267,7 +313,15 @@
         return;
       }
       getApi().then(function (r) {
+        if (r.zapiInstanceId && r.zapiToken) {
+          cachedZapi.instanceId = r.zapiInstanceId;
+          cachedZapi.token = r.zapiToken;
+          cachedZapi.at = Date.now();
+          sendViaZapi(phone, text, buttons);
+          return;
+        }
         if (!r.apiKey) { showQuickStatus('Configure o token nas opções.', true); return; }
+        var payload = { phone: phone, text: text, buttons: buttons };
         fetch(r.baseUrl + '/api/whatsapp/send-custom-extension', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + r.apiKey, 'X-API-Key': r.apiKey },
@@ -346,11 +400,16 @@
       if (changes[STORAGE_KEYS.messages]) {
         renderMessageButtons(Array.isArray(changes[STORAGE_KEYS.messages].newValue) ? changes[STORAGE_KEYS.messages].newValue : []);
       }
-      if (changes[STORAGE_KEYS.baseUrl] || changes[STORAGE_KEYS.apiKey]) {
+      if (changes[STORAGE_KEYS.baseUrl] || changes[STORAGE_KEYS.apiKey] || changes[STORAGE_KEYS.zapiInstanceId] || changes[STORAGE_KEYS.zapiToken]) {
         getStored().then(function (r) {
           cachedApi.baseUrl = r.baseUrl;
           cachedApi.apiKey = r.apiKey;
           cachedApi.at = Date.now();
+          if (r.zapiInstanceId && r.zapiToken) {
+            cachedZapi.instanceId = r.zapiInstanceId;
+            cachedZapi.token = r.zapiToken;
+            cachedZapi.at = Date.now();
+          }
         });
       }
     });
@@ -440,6 +499,11 @@
     cachedApi.baseUrl = r.baseUrl;
     cachedApi.apiKey = r.apiKey;
     cachedApi.at = Date.now();
+    if (r.zapiInstanceId && r.zapiToken) {
+      cachedZapi.instanceId = r.zapiInstanceId;
+      cachedZapi.token = r.zapiToken;
+      cachedZapi.at = Date.now();
+    }
     if (r.baseUrl) {
       fetch(r.baseUrl.replace(/\/+$/, '') + '/api/health', { method: 'HEAD' }).catch(function () {});
     }

@@ -47,6 +47,15 @@
   <button id="saveApi">Salvar API</button>
   <p id="savedApi" class="ok" style="display:none;">Configuração salva.</p>
 
+  <h2>Máxima velocidade (opcional)</h2>
+  <p class="hint">Para a mensagem <strong>aparecer no chat no mesmo instante</strong>: preencha Z-API abaixo. A extensão envia direto para a Z-API (sem passar pelo servidor). Deixe em branco para usar só a API do site.</p>
+  <label for="zapiInstanceId">Z-API Instance ID</label>
+  <input type="text" id="zapiInstanceId" placeholder="Ex: 3B48E..." />
+  <label for="zapiToken">Z-API Token</label>
+  <input type="password" id="zapiToken" placeholder="Token da instância" />
+  <button id="saveZapi" class="secondary">Salvar</button>
+  <p id="savedZapi" class="ok" style="display:none;">Salvo. Envio direto ativado.</p>
+
   <h2>Mensagens (lista no WhatsApp)</h2>
   <p class="hint">Crie quantas mensagens quiser. Cada uma aparece como um botão na barra do WhatsApp; ao clicar, envia só essa mensagem. Você pode adicionar botões (ex.: CADASTRAR com link) na mensagem.</p>
   <ul id="msgList" class="msg-list"></ul>
