@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendButtonList, sendButtonActions, isZapiConfigured } from '@/lib/whatsapp-zapi'
+import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage } from '@/lib/whatsapp-contatos-pendentes'
+import { sendBoasVindasToNumber, isBoasVindasConfigured } from '@/lib/whatsapp-enviar-boas-vindas-lib'
 
 function buildPlenMessage(from: string, text: string) {
   const remoteJid = from.includes('@') ? from : `${from.replace(/\D/g, '')}@s.whatsapp.net`
@@ -28,11 +30,24 @@ function buttonIdToText(buttonId: string, label?: string): string {
 function parseZapiBody(body: unknown): { from: string; text: string } | null {
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
+
+  const type = String((b.type as string) || '').toLowerCase()
+  if (type && type !== 'receivedcallback') {
+    return null
+  }
   if (b.fromMe === true) return null
 
-  // Destino da resposta: phone (contato ou grupo); connectedPhone é o número da instância
-  const rawPhone = (b.phone as string) || (b.connectedPhone as string) || ''
+  const rawPhone = (b.phone as string) || ''
   if (!rawPhone) return null
+  const connectedPhone = String((b.connectedPhone as string) || '').replace(/\D/g, '')
+  const phoneDigits = String(rawPhone).replace(/\D/g, '')
+  if (connectedPhone && phoneDigits === connectedPhone) {
+    return null
+  }
+  if (!connectedPhone && phoneDigits.length >= 10 && phoneDigits.length <= 13) {
+    const envPhone = process.env.ZAPI_CONNECTED_PHONE?.replace(/\D/g, '')
+    if (envPhone && phoneDigits === envPhone) return null
+  }
 
   let text = ''
   if (b.buttonsResponseMessage && typeof b.buttonsResponseMessage === 'object') {
@@ -58,6 +73,14 @@ function parseZapiBody(body: unknown): { from: string; text: string } | null {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+function isQueroUtilizarPlenipayMessage(t: string): boolean {
+  if (!t || typeof t !== 'string') return false
+  const msg = t.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.,!?]+/g, ' ')
+  const temPlenipay = msg.includes('plenipay') || (msg.includes('pleni') && msg.includes('pay'))
+  const temIntencao = msg.includes('quero utilizar') || msg.includes('quero usar') || (msg.includes('quero') && (msg.includes('utilizar') || msg.includes('usar') || msg.includes('plenipay')))
+  return !!(temPlenipay && temIntencao)
+}
+
 async function processarEmBackground(parsed: { from: string; text: string }) {
   const { from, text } = parsed
   try {
@@ -65,9 +88,35 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
       console.warn('⚠️ [Z-API Webhook] ZAPI_INSTANCE_ID ou ZAPI_TOKEN não configurados.')
       return
     }
+    const phone = from.startsWith('55') ? from : `55${from}`
+    const phoneDigits = phone.replace(/\D/g, '')
+    await recordIncomingMessage(phone, text ?? '').catch((e) => console.error('📨 [Z-API Webhook] recordIncomingMessage:', e))
+
+    if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
+      console.log('👋 [Z-API Webhook] "Quero utilizar PleniPay" — enviando 3 mensagens para', phone)
+      const result = await sendBoasVindasToNumber(phone)
+      await markWelcomeSent(phone).catch(() => {})
+      if (result.success) {
+        console.log('✅ [Z-API Webhook] 3 mensagens de boas-vindas enviadas:', phone)
+        return
+      }
+      console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou:', result.error)
+    }
+
+    const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits)
+    if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
+      console.log('👋 [Z-API Webhook] Contato novo — enviando 3 mensagens de boas-vindas para', phone)
+      const result = await sendBoasVindasToNumber(phone)
+      await markWelcomeSent(phone).catch(() => {})
+      if (result.success) {
+        console.log('✅ [Z-API Webhook] 3 mensagens enviadas para contato novo:', phone)
+        return
+      }
+      console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou para contato novo:', result.error)
+    }
+
     const plenMessage = buildPlenMessage(from, text)
     const result = await processWhatsAppMessage(plenMessage as any)
-    const phone = from.startsWith('55') ? from : `55${from}`
 
     if (result?.messages && Array.isArray(result.messages) && result.messages.length > 0) {
       for (let i = 0; i < result.messages.length; i++) {
@@ -99,7 +148,7 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
             console.error('❌ [Z-API Webhook] Falha ao enviar:', send.error)
           }
         }
-        if (i < result.messages.length - 1) await delay(1500)
+        if (i < result.messages.length - 1) await delay(500)
       }
     } else if (result?.message && typeof result.message === 'string') {
       const send = await sendTextMessage(phone, result.message)
