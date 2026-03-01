@@ -273,32 +273,54 @@
         if (m) { instanceId = m[1]; token = token || m[2]; }
       }
       var base = 'https://api.z-api.io/instances/' + instanceId + '/token/' + token;
-      var hasButtons = Array.isArray(buttons) && buttons.length > 0;
-      var url = base + (hasButtons ? '/send-button-actions' : '/send-text');
-      var body;
-      if (hasButtons) {
-        var actions = buttons.slice(0, 3).map(function (b) {
-          if (b.url && b.url.trim()) return { type: 'URL', url: b.url.trim(), label: (b.title || b.id || '').trim() };
-          return { type: 'REPLY', label: (b.title || b.id || '').trim(), id: (b.id || b.title || '').trim() };
-        });
-        body = JSON.stringify({ phone: cleanPhone(phone), message: text, buttonActions: actions });
-      } else {
-        body = JSON.stringify({ phone: cleanPhone(phone), message: text });
-      }
       var headers = { 'Content-Type': 'application/json' };
       if (cachedZapi.clientToken) headers['Client-Token'] = cachedZapi.clientToken;
-      fetch(url, { method: 'POST', headers: headers, body: body })
-        .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; }); })
-        .then(function (out) {
-          if (!out.ok && out.data) {
-            var msg = (out.data.message || out.data.error) || ('Erro ' + out.status);
-            if ((msg + '').toLowerCase().indexOf('instance not found') !== -1) {
-              msg = 'Instance ID ou Token incorretos. No painel Z-API vá em Dados da instância e copie o ID e o Token.';
+      var phoneClean = cleanPhone(phone);
+      function doReq(body, cb) {
+        fetch(base + (body.buttonActions ? '/send-button-actions' : '/send-text'), { method: 'POST', headers: headers, body: JSON.stringify(body) })
+          .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; }); })
+          .then(function (out) {
+            if (!out.ok && out.data) {
+              var msg = (out.data.message || out.data.error) || ('Erro ' + out.status);
+              if ((msg + '').toLowerCase().indexOf('instance not found') !== -1) {
+                msg = 'Instance ID ou Token incorretos. No painel Z-API vá em Dados da instância e copie o ID e o Token.';
+              }
+              showQuickStatus(msg, true);
             }
-            showQuickStatus(msg, true);
-          }
-        })
-        .catch(function (err) { showQuickStatus((err && err.message) || 'Erro de rede', true); });
+            if (cb) cb();
+          })
+          .catch(function (err) { showQuickStatus((err && err.message) || 'Erro de rede', true); if (cb) cb(); });
+      }
+      if (!Array.isArray(buttons) || buttons.length === 0) {
+        doReq({ phone: phoneClean, message: text });
+        return;
+      }
+      var urlButtons = [];
+      var replyButtons = [];
+      buttons.slice(0, 3).forEach(function (b) {
+        var label = (b.title || b.id || '').trim();
+        if (!label) return;
+        if (b.url && b.url.trim()) {
+          var u = b.url.trim();
+          if (u.indexOf('http') !== 0) u = 'https://' + u;
+          urlButtons.push({ type: 'URL', url: u, label: label, id: (b.id || b.title || '').trim() });
+        } else {
+          replyButtons.push({ type: 'REPLY', label: label, id: (b.id || b.title || '').trim() });
+        }
+      });
+      if (urlButtons.length > 0 && replyButtons.length > 0) {
+        doReq({ phone: phoneClean, message: text, buttonActions: urlButtons }, function () {
+          setTimeout(function () {
+            doReq({ phone: phoneClean, message: 'Ou escolha:', buttonActions: replyButtons });
+          }, 1200);
+        });
+      } else if (urlButtons.length > 0) {
+        doReq({ phone: phoneClean, message: text, buttonActions: urlButtons });
+      } else if (replyButtons.length > 0) {
+        doReq({ phone: phoneClean, message: text, buttonActions: replyButtons });
+      } else {
+        doReq({ phone: phoneClean, message: text });
+      }
     }
 
     function sendCustomMessage(msg) {
