@@ -242,56 +242,44 @@
       });
     }
 
-    function doSend(baseUrl, apiKey, payload) {
-      var url = baseUrl + '/api/whatsapp/send-custom-extension';
-      fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + apiKey,
-          'X-API-Key': apiKey,
-        },
-        body: JSON.stringify(payload),
-      })
-        .then(function (res) {
-          return res.json().catch(function () { return {}; }).then(function (data) {
-            return { res: res, data: data };
-          });
-        })
-        .then(function (out) {
-          if (out.res.status === 401) cachedApi.at = 0;
-          if (out.data.success) return;
-          showQuickStatus(out.data.error || 'Erro ao enviar', true);
-        })
-        .catch(function (err) {
-          cachedApi.at = 0;
-          showQuickStatus((err && err.message) || 'Erro de rede', true);
-        });
-    }
-
-    function doSendWithPayload(payload) {
-      if (cachedApi.apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
-        doSend(cachedApi.baseUrl, cachedApi.apiKey, payload);
-        return;
-      }
-      getApi().then(function (r) {
-        if (!r.apiKey) {
-          showQuickStatus('Configure o token nas opções.', true);
-          return;
-        }
-        doSend(r.baseUrl, r.apiKey, payload);
-      });
-    }
-
     function sendCustomMessage(msg) {
-      const phone = getPhoneForSend();
+      var phone = getPhoneForSend();
       if (!phone) {
         showStatus(statusEl, 'warning', 'Digite o número ou abra a conversa no WhatsApp.');
         return;
       }
       showQuickStatus('Enviada ✓', false);
       var payload = { phone: phone, text: msg.text || '', buttons: (msg.buttons && msg.buttons.length) ? msg.buttons : undefined };
-      doSendWithPayload(payload);
+      var baseUrl = cachedApi.baseUrl;
+      var apiKey = cachedApi.apiKey;
+      if (apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
+        fetch(baseUrl + '/api/whatsapp/send-custom-extension', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey, 'X-API-Key': apiKey },
+          body: JSON.stringify(payload),
+        })
+          .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; }); })
+          .then(function (out) {
+            if (out.res.status === 401) cachedApi.at = 0;
+            if (!out.data.success) showQuickStatus(out.data.error || 'Erro ao enviar', true);
+          })
+          .catch(function (err) { cachedApi.at = 0; showQuickStatus((err && err.message) || 'Erro de rede', true); });
+        return;
+      }
+      getApi().then(function (r) {
+        if (!r.apiKey) { showQuickStatus('Configure o token nas opções.', true); return; }
+        fetch(r.baseUrl + '/api/whatsapp/send-custom-extension', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + r.apiKey, 'X-API-Key': r.apiKey },
+          body: JSON.stringify(payload),
+        })
+          .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; }); })
+          .then(function (out) {
+            if (out.res.status === 401) cachedApi.at = 0;
+            if (!out.data.success) showQuickStatus(out.data.error || 'Erro ao enviar', true);
+          })
+          .catch(function (err) { cachedApi.at = 0; showQuickStatus((err && err.message) || 'Erro de rede', true); });
+      });
     }
 
     function renderMessageButtons(list) {
@@ -458,7 +446,7 @@
   });
 
   function init() {
-    setTimeout(createSidebar, 2500);
+    setTimeout(createSidebar, 1000);
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
