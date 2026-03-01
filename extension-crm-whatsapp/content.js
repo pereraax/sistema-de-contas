@@ -240,6 +240,30 @@
       });
     }
 
+    function doSend(baseUrl, apiKey, payload) {
+      fetch(baseUrl + '/api/whatsapp/send-custom-extension', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + apiKey,
+          'X-API-Key': apiKey,
+        },
+        body: JSON.stringify(payload),
+      })
+        .then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; });
+        })
+        .then(function (out) {
+          if (out.res.status === 401) cachedApi.at = 0;
+          if (out.data.success) return;
+          showQuickStatus(out.data.error || 'Erro ao enviar', true);
+        })
+        .catch(function (err) {
+          cachedApi.at = 0;
+          showQuickStatus((err && err.message) || 'Erro de rede', true);
+        });
+    }
+
     function sendCustomMessage(msg) {
       const phone = getPhoneForSend();
       if (!phone) {
@@ -248,32 +272,16 @@
       }
       showQuickStatus('Enviada ✓', false);
       var payload = { phone: phone, text: msg.text || '', buttons: (msg.buttons && msg.buttons.length) ? msg.buttons : undefined };
+      if (cachedApi.apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
+        doSend(cachedApi.baseUrl, cachedApi.apiKey, payload);
+        return;
+      }
       getApi().then(function (r) {
         if (!r.apiKey) {
           showQuickStatus('Configure o token nas opções.', true);
           return;
         }
-        fetch(r.baseUrl + '/api/whatsapp/send-custom-extension', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + r.apiKey,
-            'X-API-Key': r.apiKey,
-          },
-          body: JSON.stringify(payload),
-        })
-          .then(function (res) {
-            return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; });
-          })
-          .then(function (out) {
-            if (out.res.status === 401) cachedApi.at = 0;
-            if (out.data.success) return;
-            showQuickStatus(out.data.error || 'Erro ao enviar', true);
-          })
-          .catch(function (err) {
-            cachedApi.at = 0;
-            showQuickStatus((err && err.message) || 'Erro de rede', true);
-          });
+        doSend(r.baseUrl, r.apiKey, payload);
       });
     }
 
@@ -330,6 +338,9 @@
       cachedApi.baseUrl = r.baseUrl;
       cachedApi.apiKey = r.apiKey;
       cachedApi.at = Date.now();
+      if (r.baseUrl) {
+        fetch(r.baseUrl.replace(/\/+$/, '') + '/api/health', { method: 'HEAD' }).catch(function () {});
+      }
     });
     chrome.storage.onChanged.addListener(function (changes, areaName) {
       if (areaName !== 'sync') return;
