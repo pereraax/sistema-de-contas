@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     const userId = body?.userId
     const idCurto = typeof body?.idCurto === 'string' ? body.idCurto : undefined
     const plano = body?.plano
+    const planoStatus = body?.planoStatus as string | undefined
 
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json({ error: 'userId é obrigatório' }, { status: 400 })
@@ -32,6 +33,13 @@ export async function POST(request: NextRequest) {
     if (!PLANOS.includes(plano)) {
       return NextResponse.json({ error: 'plano inválido. Use: teste, basico ou premium' }, { status: 400 })
     }
+
+    // Para o app desbloquear as funções, plano_status deve ser 'ativo' (ou 'trial') e plano_data_fim futura (lib/plano.ts).
+    const statusValido = planoStatus === 'ativo' || planoStatus === 'trial' || planoStatus === 'cancelado' || planoStatus === 'expirado'
+    const novoStatus = statusValido ? planoStatus : (plano === 'teste' ? 'trial' : 'ativo')
+    const dataFimUmAno = new Date()
+    dataFimUmAno.setFullYear(dataFimUmAno.getFullYear() + 1)
+    const novoDataFim = plano === 'basico' || plano === 'premium' ? dataFimUmAno.toISOString() : null
 
     const doRevalidate = () => {
       try {
@@ -68,11 +76,20 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      const updatePayload: Record<string, unknown> = { plano }
+      if (plano === 'basico' || plano === 'premium') {
+        updatePayload.plano_status = novoStatus
+        updatePayload.plano_data_fim = novoDataFim
+      } else if (plano === 'teste') {
+        updatePayload.plano_status = 'trial'
+        updatePayload.plano_data_fim = null
+      }
+
       const { data, error } = await supabaseAdmin
         .from('profiles')
-        .update({ plano })
+        .update(updatePayload)
         .eq('id', idToUpdate)
-        .select('id, email, nome, plano')
+        .select('id, email, nome, plano, plano_status, plano_data_fim')
         .maybeSingle()
 
       if (error) {
@@ -94,13 +111,26 @@ export async function POST(request: NextRequest) {
 
     const supabase = createPublicClient()
 
+    const rpcPayloadIdCurto = {
+      p_id_curto: idCurto,
+      p_plano: plano,
+      p_plano_status: novoStatus,
+      p_plano_data_fim: novoDataFim,
+    }
+    const rpcPayloadUuid = {
+      p_user_id: userId,
+      p_plano: plano,
+      p_plano_status: novoStatus,
+      p_plano_data_fim: novoDataFim,
+    }
+
     if (idCurto) {
-      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_update_profile_plano_by_id_curto', {
-        p_id_curto: idCurto,
-        p_plano: plano,
-      })
-      if (!rpcError) {
-        const row = Array.isArray(rpcData) ? rpcData[0] : rpcData
+      let result = await supabase.rpc('admin_update_profile_plano_by_id_curto', rpcPayloadIdCurto)
+      if (result.error && (result.error.message?.includes('does not exist') || result.error.message?.includes('argument'))) {
+        result = await supabase.rpc('admin_update_profile_plano_by_id_curto', { p_id_curto: idCurto, p_plano: plano })
+      }
+      if (!result.error) {
+        const row = Array.isArray(result.data) ? result.data[0] : result.data
         if (row) {
           doRevalidate()
           return NextResponse.json({
@@ -114,17 +144,17 @@ export async function POST(request: NextRequest) {
           })
         }
       } else {
-        console.error('[admin/alterar-plano] Erro RPC by_id_curto:', rpcError)
+        console.error('[admin/alterar-plano] Erro RPC by_id_curto:', result.error)
       }
     }
 
     if (isUuid(userId)) {
-      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_update_profile_plano', {
-        p_user_id: userId,
-        p_plano: plano,
-      })
-      if (!rpcError) {
-        const row = Array.isArray(rpcData) ? rpcData[0] : rpcData
+      let result = await supabase.rpc('admin_update_profile_plano', rpcPayloadUuid)
+      if (result.error && (result.error.message?.includes('does not exist') || result.error.message?.includes('argument'))) {
+        result = await supabase.rpc('admin_update_profile_plano', { p_user_id: userId, p_plano: plano })
+      }
+      if (!result.error) {
+        const row = Array.isArray(result.data) ? result.data[0] : result.data
         if (row) {
           doRevalidate()
           return NextResponse.json({
@@ -138,11 +168,11 @@ export async function POST(request: NextRequest) {
           })
         }
       } else {
-        console.error('[admin/alterar-plano] Erro RPC:', rpcError)
+        console.error('[admin/alterar-plano] Erro RPC:', result.error)
       }
     }
 
-    const msg = 'Usuário não encontrado ou funções RPC não existem. Execute CRIAR-RPC-ALTERAR-PLANO.sql no Supabase.'
+    const msg = 'Usuário não encontrado ou funções RPC não existem. Execute CRIAR-RPC-ALTERAR-PLANO.sql no Supabase (a versão atual também define plano_status e plano_data_fim para o app desbloquear).'
     return NextResponse.json({ error: msg }, { status: 404 })
   } catch (err) {
     console.error('[admin/alterar-plano]', err)
