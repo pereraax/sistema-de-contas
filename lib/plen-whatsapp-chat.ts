@@ -762,6 +762,13 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
     if (trechosNossasMensagens.some((trecho) => t.includes(trecho))) {
       return { response: '' }
     }
+    // Eco da nossa confirmação de registro (evita enviar "Oops!" logo após "Seu gasto foi registrado com sucesso!")
+    if (
+      /registrado com sucesso/i.test(t) ||
+      (t.includes('plenipay.com') && (/confira todos os seus registros|seu gasto foi|sua entrada foi|sua d[ií]vida foi/i.test(t)))
+    ) {
+      return { response: '' }
+    }
     // oi/olá e confirmações curtas: não enviar nada (evita "Em que posso ajudar?" e spam)
     if (/\b(oi|olá|ola|ok|tá|combinado|beleza|obrigad[oa]|valeu|entendi)\b/.test(t)) {
       return { response: '' }
