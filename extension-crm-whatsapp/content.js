@@ -283,8 +283,11 @@
         fetch(urlReq, { method: 'POST', headers: headers, body: JSON.stringify(body) })
           .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; }); })
           .then(function (out) {
-            if (!out.ok && out.data) {
-              var msg = (out.data.message || out.data.error || out.data.errorMessage) || ('Erro ' + out.status);
+            var isError = out.data && (out.data.error === true || out.data.erro === true || (out.data.message && String(out.data.message).toLowerCase().indexOf('error') !== -1));
+            if (out.ok && !isError) {
+              showQuickStatus('Enviada ✓', false);
+            } else if (!out.ok || isError) {
+              var msg = (out.data && (out.data.message || out.data.error || out.data.errorMessage)) || ('Erro ' + out.status);
               if ((msg + '').toLowerCase().indexOf('instance not found') !== -1) {
                 msg = 'Instance ID ou Token incorretos.';
               }
@@ -336,10 +339,10 @@
         showStatus(statusEl, 'warning', 'Digite o número ou abra a conversa no WhatsApp.');
         return;
       }
-      showQuickStatus('Enviada ✓', false);
       var text = msg.text || '';
       var buttons = (msg.buttons && msg.buttons.length) ? msg.buttons : undefined;
       if (cachedZapi.instanceId && cachedZapi.token && (Date.now() - cachedZapi.at) < CACHE_TTL) {
+        showQuickStatus('Enviando...', false);
         sendViaZapi(phone, text, buttons);
         return;
       }
@@ -353,7 +356,8 @@
           .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; }); })
           .then(function (out) {
             if (out.res.status === 401) cachedApi.at = 0;
-            if (!out.data.success) showQuickStatus(out.data.error || 'Erro ao enviar', true);
+            if (out.data.success) showQuickStatus('Enviada ✓', false);
+            else showQuickStatus(out.data.error || 'Erro ao enviar', true);
           })
           .catch(function (err) { cachedApi.at = 0; showQuickStatus((err && err.message) || 'Erro de rede', true); });
         return;
@@ -364,6 +368,7 @@
           cachedZapi.token = r.zapiToken;
           cachedZapi.clientToken = r.zapiClientToken || '';
           cachedZapi.at = Date.now();
+          showQuickStatus('Enviando...', false);
           sendViaZapi(phone, text, buttons);
           return;
         }
@@ -377,7 +382,8 @@
           .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; }); })
           .then(function (out) {
             if (out.res.status === 401) cachedApi.at = 0;
-            if (!out.data.success) showQuickStatus(out.data.error || 'Erro ao enviar', true);
+            if (out.data.success) showQuickStatus('Enviada ✓', false);
+            else showQuickStatus(out.data.error || 'Erro ao enviar', true);
           })
           .catch(function (err) { cachedApi.at = 0; showQuickStatus((err && err.message) || 'Erro de rede', true); });
       });
