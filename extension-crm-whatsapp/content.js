@@ -2,7 +2,7 @@
   'use strict';
 
   const SIDEBAR_ID = 'plenipay-crm-sidebar';
-  const STORAGE_KEYS = { baseUrl: 'plenipay_crm_base_url', apiKey: 'plenipay_crm_api_key' };
+  const STORAGE_KEYS = { baseUrl: 'plenipay_crm_base_url', apiKey: 'plenipay_crm_api_key', messages: 'plenipay_crm_messages' };
 
   function getStored() {
     return new Promise((resolve) => {
@@ -15,9 +15,28 @@
     });
   }
 
+  function getStoredMessages() {
+    return new Promise((resolve) => {
+      chrome.storage.sync.get([STORAGE_KEYS.messages], (r) => {
+        const list = r[STORAGE_KEYS.messages];
+        resolve(Array.isArray(list) ? list : []);
+      });
+    });
+  }
+
+  /** Extrai número BR de um texto (10-13 dígitos). */
+  function extractPhoneFromText(text) {
+    if (!text || typeof text !== 'string') return null;
+    const d = text.replace(/\D/g, '');
+    if (d.length < 10 || d.length > 13) return null;
+    const digits = d.startsWith('55') ? d : '55' + d;
+    if (digits.length >= 12 && digits.length <= 13 && /^55\d{10,11}$/.test(digits)) return digits;
+    return null;
+  }
+
   /** Tenta obter o número do chat atual no WhatsApp Web (DOM ou URL). */
   function getCurrentChatPhone() {
-    // 1) URL: ?phone= ou &phone= (alguns fluxos)
+    // 1) URL: ?phone= ou &ph=
     const u = new URL(window.location.href);
     const fromUrl = u.searchParams.get('phone') || u.searchParams.get('ph');
     if (fromUrl) {
@@ -25,51 +44,105 @@
       if (digits.length >= 10) return digits.startsWith('55') ? digits : '55' + digits;
     }
 
-    const viewportCenter = window.innerWidth / 2;
-    function digitsFromTitle(title) {
-      const d = (title || '').replace(/\D/g, '');
-      if (d.length < 10 || d.length > 13) return null;
-      const digits = d.startsWith('55') ? d : '55' + d;
-      if (digits.length >= 12 && digits.length <= 13 && /^55\d{10,11}$/.test(digits)) return digits;
-      return null;
+    // Lista de chats = só a faixa à esquerda (~320–380px); painel da conversa começa depois.
+    const listRightEdge = Math.min(380, Math.floor(window.innerWidth * 0.32));
+
+    // 2) data-id / data-jid no painel da conversa (ex.: 554598463061 ou 554598463061@c.us)
+    const byDataId = document.querySelector('[data-id][data-id*="55"]');
+    if (byDataId) {
+      const raw = (byDataId.getAttribute('data-id') || '').replace(/@.*$/, '').replace(/\D/g, '');
+      if (raw.length >= 12 && raw.length <= 13 && raw.startsWith('55')) return raw;
+    }
+    const byJid = document.querySelector('[data-jid]');
+    if (byJid) {
+      const jid = (byJid.getAttribute('data-jid') || '').replace(/@.*$/, '').replace(/\D/g, '');
+      if (jid.length >= 12 && jid.length <= 13) return jid.startsWith('55') ? jid : '55' + jid;
     }
 
-    // 2) Priorizar número que está no painel da direita (conversa aberta), não na lista da esquerda
-    const allSpansWithTitle = document.querySelectorAll('header span[title], [role="main"] span[title]');
-    for (let i = 0; i < Math.min(allSpansWithTitle.length, 40); i++) {
-      const span = allSpansWithTitle[i];
-      const rect = span.getBoundingClientRect();
-      if (rect.left < viewportCenter) continue; // ignorar elementos na metade esquerda (lista de chats)
-      const title = (span.getAttribute('title') || '').trim();
-      const digits = digitsFromTitle(title);
+    // 3) Painel da conversa (centro): header com número — está à direita da lista, não no meio da tela
+    const headers = document.querySelectorAll('header');
+    for (let i = 0; i < headers.length; i++) {
+      const h = headers[i];
+      if (h.getBoundingClientRect().left < listRightEdge) continue;
+      const fullText = (h.textContent || '').trim();
+      const digits = extractPhoneFromText(fullText);
       if (digits) return digits;
+      const title = (h.getAttribute('title') || '').trim();
+      const fromTitle = extractPhoneFromText(title);
+      if (fromTitle) return fromTitle;
     }
 
-    // 3) Qualquer header (fallback)
-    const mainHeader = document.querySelector('header');
-    if (mainHeader) {
-      const spans = mainHeader.querySelectorAll('span[title]');
-      for (let i = 0; i < Math.min(spans.length, 25); i++) {
-        const t = (spans[i].getAttribute('title') || '').trim();
-        const digits = digitsFromTitle(t);
-        if (digits) return digits;
+    // 4) Lista da esquerda: linha selecionada (aria-selected ou fundo destacado)
+    const listItems = document.querySelectorAll('[role="listitem"], [data-testid="cell-frame-container"], [role="gridcell"]');
+    for (let i = 0; i < listItems.length; i++) {
+      const el = listItems[i];
+      const rect = el.getBoundingClientRect();
+      if (rect.left > listRightEdge || rect.width < 50) continue;
+      const isAriaSelected = el.getAttribute('aria-selected') === 'true';
+      const bg = window.getComputedStyle(el).backgroundColor;
+      const looksSelected = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
+      if (!isAriaSelected && !looksSelected) continue;
+      const text = (el.textContent || el.getAttribute('title') || '').trim();
+      const digits = extractPhoneFromText(text);
+      if (digits) return digits;
+      const link = el.querySelector('a[href*="phone="]');
+      if (link) {
+        const m = (link.getAttribute('href') || '').match(/phone=(\d{10,13})/);
+        if (m && m[1]) return m[1].startsWith('55') ? m[1] : '55' + m[1];
+      }
+      const anyLink = el.querySelector('a[href]');
+      if (anyLink) {
+        const href = anyLink.getAttribute('href') || '';
+        const fromHref = href.replace(/\D/g, '');
+        if (fromHref.length >= 12 && fromHref.length <= 13 && fromHref.startsWith('55')) return fromHref;
       }
     }
 
-    // 4) data-testid do header da conversa
-    const convHeader = document.querySelector('[data-testid="conversation-info-header-chat-title"]');
-    if (convHeader) {
-      const title = convHeader.getAttribute('title') || convHeader.textContent || '';
-      const digits = title.replace(/\D/g, '');
-      if (digits.length >= 10 && digits.length <= 13) return digits.startsWith('55') ? digits : '55' + digits;
+    // 5) Qualquer span com title no painel da conversa (à direita da lista)
+    const allSpans = document.querySelectorAll('header span[title], [role="main"] span[title]');
+    for (let i = 0; i < Math.min(allSpans.length, 50); i++) {
+      const span = allSpans[i];
+      if (span.getBoundingClientRect().left < listRightEdge) continue;
+      const digits = extractPhoneFromText(span.getAttribute('title') || '');
+      if (digits) return digits;
     }
 
-    // 5) Título da página
+    // 5b) Painel da conversa: qualquer elemento com atributo contendo número (title, data-*, aria-*)
+    const rightPanel = document.querySelector('[role="main"]') || document.body;
+    const walker = document.createTreeWalker(rightPanel, NodeFilter.SHOW_ELEMENT, null, false);
+    let node;
+    let count = 0;
+    while ((node = walker.nextNode()) && count < 100) {
+      count++;
+      if (node.getBoundingClientRect && node.getBoundingClientRect().left < listRightEdge) continue;
+      const el = node;
+      const title = el.getAttribute('title');
+      if (title) {
+        const d = extractPhoneFromText(title);
+        if (d) return d;
+      }
+      for (let j = 0; j < el.attributes.length; j++) {
+        const a = el.attributes[j];
+        if (a.name.startsWith('data-') || a.name.startsWith('aria-')) {
+          const d = extractPhoneFromText(a.value);
+          if (d) return d;
+        }
+      }
+    }
+
+    // 6) data-testid do header da conversa
+    const convHeader = document.querySelector('[data-testid="conversation-info-header-chat-title"]');
+    if (convHeader) {
+      const raw = (convHeader.getAttribute('title') || convHeader.textContent || '').replace(/\D/g, '');
+      if (raw.length >= 10) return raw.startsWith('55') ? raw : '55' + raw;
+    }
+
+    // 7) Título da página
     const pageTitle = document.title || '';
-    const titleMatch = pageTitle.match(/(\d{10,13})/) || pageTitle.match(/\+?(\d{2})\s*(\d{4,5})[\s\-]*(\d{4})/);
-    if (titleMatch) {
-      const n = (titleMatch[1] + (titleMatch[2] || '') + (titleMatch[3] || '')).replace(/\D/g, '');
-      if (n.length >= 10) return n.startsWith('55') ? n : '55' + n;
+    const titleMatch = pageTitle.match(/(\d{10,13})/);
+    if (titleMatch && titleMatch[1]) {
+      const n = titleMatch[1];
+      return n.startsWith('55') ? n : '55' + n;
     }
 
     return null;
@@ -104,7 +177,7 @@
     wrap.innerHTML = `
       <div class="crm-header">
         <h2>PleniPay CRM</h2>
-        <p>Envie as 3 mensagens de boas-vindas na conversa aberta</p>
+        <p>Envie as mensagens de boas-vindas (clique e envia na hora)</p>
       </div>
       <div class="crm-body">
         <div class="crm-phone-label">Conversa atual</div>
@@ -112,9 +185,9 @@
         <button type="button" class="crm-btn-refresh" id="plenipay-crm-refresh">Atualizar número</button>
         <div class="crm-phone-hint">Se não detectou, cole o número abaixo (com DDD)</div>
         <input type="tel" class="crm-phone-input" id="plenipay-crm-phone-input" placeholder="Ex: 5511999999999" />
-        <button type="button" class="crm-btn-send" id="plenipay-crm-btn-send">
-          <span class="crm-btn-icon">✈</span> Enviar 3 mensagens
-        </button>
+        <div class="crm-phone-label" style="margin-top:12px;">Mensagens (clique para enviar uma)</div>
+        <div class="crm-buttons-row" id="plenipay-crm-msg-list"></div>
+        <p class="crm-phone-hint" id="plenipay-crm-msg-empty" style="display:none;">Configure mensagens nas opções da extensão.</p>
         <button type="button" class="crm-btn-refresh" id="plenipay-crm-btn-test" style="margin-top:8px;width:100%;">Testar conexão com a URL</button>
         <div id="plenipay-crm-status" class="crm-status"></div>
       </div>
@@ -133,8 +206,86 @@
 
     const phoneDisplay = document.getElementById('plenipay-crm-phone-display');
     const phoneInput = document.getElementById('plenipay-crm-phone-input');
-    const btnSend = document.getElementById('plenipay-crm-btn-send');
+    const msgListEl = document.getElementById('plenipay-crm-msg-list');
+    const msgEmptyEl = document.getElementById('plenipay-crm-msg-empty');
     const statusEl = document.getElementById('plenipay-crm-status');
+
+    function getPhoneForSend() {
+      let phone = phoneInput.value.trim().replace(/\D/g, '') || getCurrentChatPhone();
+      if (!phone || phone.length < 10) return null;
+      if (!phone.startsWith('55')) phone = '55' + phone;
+      return phone;
+    }
+
+    function showQuickStatus(text, isError) {
+      statusEl.textContent = text;
+      statusEl.className = 'crm-status ' + (isError ? 'error' : 'success');
+      statusEl.style.display = 'block';
+      setTimeout(function () {
+        statusEl.style.display = 'none';
+      }, 2200);
+    }
+
+    async function sendCustomMessage(msg) {
+      const phone = getPhoneForSend();
+      if (!phone) {
+        showStatus(statusEl, 'warning', 'Digite o número ou abra a conversa no WhatsApp.');
+        return;
+      }
+      const { baseUrl, apiKey } = await getStored();
+      if (!apiKey) {
+        showStatus(statusEl, 'warning', null, 'Configure o token nas opções primeiro.');
+        return;
+      }
+      const payload = { phone, text: msg.text || '', buttons: (msg.buttons && msg.buttons.length) ? msg.buttons : undefined };
+      try {
+        const res = await fetch(baseUrl + '/api/whatsapp/send-custom-extension', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + apiKey,
+            'X-API-Key': apiKey,
+          },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) {
+          showQuickStatus('Enviada ✓', false);
+        } else {
+          showQuickStatus(data.error || 'Erro ao enviar', true);
+        }
+      } catch (err) {
+        showQuickStatus((err && err.message) || 'Erro de rede', true);
+      }
+    }
+
+    function renderMessageButtons(list) {
+      msgListEl.innerHTML = '';
+      if (!list || list.length === 0) {
+        msgEmptyEl.style.display = 'block';
+        return;
+      }
+      msgEmptyEl.style.display = 'none';
+      list.forEach((msg) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'crm-btn-msg';
+        btn.textContent = msg.label || '(sem nome)';
+        btn.addEventListener('click', function () {
+          btn.disabled = true;
+          btn.textContent = '...';
+          sendCustomMessage(msg).finally(function () {
+            btn.disabled = false;
+            btn.textContent = msg.label || '(sem nome)';
+          });
+        });
+        msgListEl.appendChild(btn);
+      });
+    }
+
+    function loadAndRenderMessages() {
+      getStoredMessages().then(renderMessageButtons);
+    }
     const SIDEBAR_WIDTH = 280;
 
     function updatePhoneDisplay() {
@@ -148,18 +299,33 @@
       }
     }
 
+    const SIDEBAR_CSS_CLASS = 'plenipay-crm-sidebar-visible';
+
     function applySidebarMargin(visible) {
-      document.body.style.marginRight = visible ? SIDEBAR_WIDTH + 'px' : '';
+      if (visible) {
+        document.body.style.marginRight = SIDEBAR_WIDTH + 'px';
+        document.body.classList.add(SIDEBAR_CSS_CLASS);
+      } else {
+        document.body.style.marginRight = '';
+        document.body.classList.remove(SIDEBAR_CSS_CLASS);
+      }
     }
 
     updatePhoneDisplay();
+    loadAndRenderMessages();
+    chrome.storage.onChanged.addListener(function (changes, areaName) {
+      if (areaName === 'sync' && changes[STORAGE_KEYS.messages]) {
+        const list = changes[STORAGE_KEYS.messages].newValue;
+        renderMessageButtons(Array.isArray(list) ? list : []);
+      }
+    });
     setTimeout(function () {
       updatePhoneDisplay();
       lastPhone = getCurrentChatPhone();
     }, 1000);
     applySidebarMargin(true);
 
-    // Atualizar "Conversa atual" ao trocar de chat (polling a cada 1,5 s + ao clicar na página)
+    // Atualizar "Conversa atual" ao trocar de chat (polling 1s + clique + mudança no DOM)
     let lastPhone = getCurrentChatPhone();
     function syncPhoneFromPage() {
       const phone = getCurrentChatPhone();
@@ -177,10 +343,17 @@
     setInterval(function () {
       if (wrap.classList.contains('hidden')) return;
       syncPhoneFromPage();
-    }, 1500);
+    }, 800);
     document.addEventListener('click', function () {
-      setTimeout(syncPhoneFromPage, 400);
+      setTimeout(syncPhoneFromPage, 200);
+      setTimeout(syncPhoneFromPage, 600);
     }, true);
+    window.addEventListener('focus', function () { setTimeout(syncPhoneFromPage, 300); });
+    try {
+      const main = document.querySelector('[role="main"]') || document.body;
+      const obs = new MutationObserver(function () { syncPhoneFromPage(); });
+      obs.observe(main, { childList: true, subtree: true });
+    } catch (_) {}
 
     document.getElementById('plenipay-crm-refresh').addEventListener('click', function () {
       lastPhone = getCurrentChatPhone();
@@ -222,57 +395,6 @@
         const m = (err && err.message) ? err.message : '';
         showStatus(statusEl, 'error', 'Falhou: ' + (m || 'verifique a URL (ex: https://seu-app.up.railway.app, sem barra no final) e recarregue a extensão.'));
       }
-    });
-
-    btnSend.addEventListener('click', async () => {
-      const { baseUrl, apiKey } = await getStored();
-      if (!apiKey) {
-        showStatus(statusEl, 'warning', null,
-          'Para enviar, configure o token. ' +
-          '<button type="button" data-open-options style="margin-top:8px;padding:6px 12px;background:#059669;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Abrir configuração</button>');
-        return;
-      }
-
-      let phone = phoneInput.value.trim().replace(/\D/g, '') || getCurrentChatPhone();
-      if (!phone) {
-        showStatus(statusEl, 'warning', 'Digite o número ou abra a conversa no WhatsApp.');
-        return;
-      }
-      if (phone.length < 10) {
-        showStatus(statusEl, 'error', 'Número inválido. Use DDD + número.');
-        return;
-      }
-      if (!phone.startsWith('55')) phone = '55' + phone;
-
-      btnSend.disabled = true;
-      showStatus(statusEl, 'warning', 'Enviando...');
-
-      try {
-        const res = await fetch(baseUrl + '/api/whatsapp/send-welcome-extension', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + apiKey,
-            'X-API-Key': apiKey,
-          },
-          body: JSON.stringify({ phone }),
-        });
-        const data = await res.json().catch(() => ({}));
-
-        if (res.ok && data.success) {
-          showStatus(statusEl, 'success', '✓ 3 mensagens enviadas para ' + formatPhone(phone));
-        } else {
-          showStatus(statusEl, 'error', data.error || 'Erro ao enviar. Verifique o token e a URL.');
-        }
-      } catch (err) {
-        const msg = (err && err.message) ? err.message : '';
-        const dica = msg.includes('Failed to fetch') || msg.includes('NetworkError')
-          ? 'Verifique: (1) URL nas opções (ex: https://plenipay.com, sem barra no final); (2) site no ar; (3) recarregue a extensão após mudar a URL.'
-          : 'Erro de rede. Verifique a URL nas opções (https, sem barra no final) e se o site está no ar.';
-        showStatus(statusEl, 'error', dica);
-      }
-
-      btnSend.disabled = false;
     });
   }
 

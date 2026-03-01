@@ -219,6 +219,61 @@ export async function sendCtaUrlButton(
   return { ...result, usedFallback: true }
 }
 
+/** Botão customizado: id, título e opcionalmente URL (abre link). */
+export type CustomButton = { id: string; title: string; url?: string }
+
+/**
+ * Enviar mensagem com botões customizados (cada botão pode ser reply ou cta_url se tiver url).
+ */
+export async function sendCustomButtons(
+  phoneNumber: string,
+  bodyText: string,
+  buttons: CustomButton[]
+): Promise<{ success: boolean; messageId?: string; error?: string; usedFallback?: boolean }> {
+  const config = getApifacilConfig()
+  if (!config) return { success: false, error: 'Apifacil não está configurado' }
+  let cleanPhone = phoneNumber.replace(/\D/g, '')
+  if (!cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
+    cleanPhone = `55${cleanPhone}`
+  }
+  const buttonsForApi: Array<{ id: string; text: string } | { name: string; buttonParamsJson: string }> = []
+  for (const b of buttons.slice(0, 3)) {
+    if (b.url && b.url.trim()) {
+      buttonsForApi.push({
+        name: 'cta_url',
+        buttonParamsJson: JSON.stringify({ display_text: b.title || b.id, url: b.url.trim() }),
+      })
+    } else {
+      buttonsForApi.push({ id: b.id || b.title, text: b.title })
+    }
+  }
+  const baseUrl = 'https://apifacil.dev/api/v1'
+  const authHeader = config.token.trim()
+  try {
+    const res = await fetch(`${baseUrl}/whatsapp/enviar-botao`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+      body: JSON.stringify({
+        telefone: cleanPhone,
+        text: bodyText,
+        buttons: buttonsForApi,
+        footer: '',
+        title: 'PleniPay',
+        instancia: String(config.instanceId),
+      }),
+    })
+    const data = (await res.json().catch(() => ({}))) as any
+    if (res.ok && data?.error !== true && data?.erro !== true) {
+      return { success: true, messageId: data?.data?.notificacao_id ?? data?.data?.id }
+    }
+  } catch (e) {
+    console.warn('[Apifacil] sendCustomButtons erro:', e)
+  }
+  const fallbackText = bodyText + '\n\n' + buttons.map((b) => (b.url ? `*${b.title}*: ${b.url}` : `*${b.title}*`)).join('\n')
+  const result = await sendTextMessage(phoneNumber, fallbackText)
+  return { ...result, usedFallback: true }
+}
+
 /**
  * Enviar mensagem de texto via apifacil.dev
  */
