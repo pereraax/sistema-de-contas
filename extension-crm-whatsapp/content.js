@@ -290,7 +290,13 @@
       fetch(url, { method: 'POST', headers: headers, body: body })
         .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; }); })
         .then(function (out) {
-          if (!out.ok && out.data) showQuickStatus((out.data.message || out.data.error) || ('Erro ' + out.status), true);
+          if (!out.ok && out.data) {
+            var msg = (out.data.message || out.data.error) || ('Erro ' + out.status);
+            if ((msg + '').toLowerCase().indexOf('instance not found') !== -1) {
+              msg = 'Instance ID ou Token incorretos. No painel Z-API vá em Dados da instância e copie o ID e o Token.';
+            }
+            showQuickStatus(msg, true);
+          }
         })
         .catch(function (err) { showQuickStatus((err && err.message) || 'Erro de rede', true); });
     }
