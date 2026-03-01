@@ -118,6 +118,26 @@ function markResponded(phone: string, text: string): void {
   }
 }
 
+/** Cooldown por número após enviar as 3 boas-vindas: evita enviar mensagens extras (intro PLEN) em evento duplicado. Só 3 mensagens. */
+const welcomeSentAtByPhone = new Map<string, number>()
+const WELCOME_COOLDOWN_MS = 120_000 // 2 min
+function wasWelcomeJustSent(phone: string): boolean {
+  const digits = phone.replace(/\D/g, '')
+  const t = welcomeSentAtByPhone.get(digits)
+  const now = Date.now()
+  if (t && now - t < WELCOME_COOLDOWN_MS) return true
+  if (t) welcomeSentAtByPhone.delete(digits)
+  return false
+}
+function markWelcomeJustSent(phone: string): void {
+  const digits = phone.replace(/\D/g, '')
+  const now = Date.now()
+  welcomeSentAtByPhone.set(digits, now)
+  for (const [p, time] of welcomeSentAtByPhone.entries()) {
+    if (now - time >= WELCOME_COOLDOWN_MS) welcomeSentAtByPhone.delete(p)
+  }
+}
+
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 function isQueroUtilizarPlenipayMessage(t: string): boolean {
@@ -199,11 +219,13 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
       if (ok) {
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
+        markWelcomeJustSent(phone)
         console.log('✅ [Z-API Webhook] 3 mensagens de boas-vindas enviadas:', phone)
         return
       }
       console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou após retry. Enviando fallback.')
       await enviarFallbackContatoNovo()
+      markWelcomeJustSent(phone)
       return
     }
 
@@ -214,11 +236,19 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
       if (ok) {
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
+        markWelcomeJustSent(phone)
         console.log('✅ [Z-API Webhook] 3 mensagens enviadas para contato novo:', phone)
         return
       }
       console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou para contato novo após retry. Enviando fallback.')
       await enviarFallbackContatoNovo()
+      markWelcomeJustSent(phone)
+      return
+    }
+
+    // Crítico: não enviar mais nada (intro PLEN, etc.) se acabamos de enviar as 3 boas-vindas — evita 5 mensagens
+    if (wasWelcomeJustSent(phone)) {
+      console.log('📨 [Z-API Webhook] Cooldown pós-boas-vindas: ignorando evento extra para', phone, '(só 3 mensagens)')
       return
     }
 
