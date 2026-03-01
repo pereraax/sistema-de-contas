@@ -57,21 +57,26 @@ function normalizeZapiError(err: string | undefined): string {
 
 /**
  * Enviar mensagem de texto.
+ * @param options.delayTyping - Segundos (1-15) em que o WhatsApp mostra "digitando..." antes de enviar. Deixa a resposta mais natural.
  */
 export async function sendTextMessage(
   phoneNumber: string,
-  message: string
+  message: string,
+  options?: { delayTyping?: number }
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const base = getBaseUrl()
   if (!base) return { success: false, error: 'Z-API não configurado (ZAPI_INSTANCE_ID e ZAPI_TOKEN)' }
   const phone = cleanPhone(phoneNumber)
+  const body: Record<string, unknown> = { phone, message }
+  const typing = options?.delayTyping
+  if (typeof typing === 'number' && typing >= 1 && typing <= 15) body.delayTyping = typing
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 10000)
+  const timeoutId = setTimeout(() => controller.abort(), 15000) // 15s para dar tempo do delayTyping
   try {
     const res = await fetch(`${base}/send-text`, {
       method: 'POST',
       headers: defaultHeaders(),
-      body: JSON.stringify({ phone, message }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     })
     clearTimeout(timeoutId)

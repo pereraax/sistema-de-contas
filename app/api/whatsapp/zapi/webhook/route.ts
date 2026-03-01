@@ -122,10 +122,14 @@ function isQueroUtilizarPlenipayMessage(t: string): boolean {
   return !!(temPlenipay && temIntencao)
 }
 
-/** Envia texto: tenta Z-API; se não configurada ou falhar, usa API Fácil. */
-async function sendTextReply(phone: string, message: string): Promise<{ success: boolean; error?: string }> {
+/** Envia texto: tenta Z-API (com delayTyping para mostrar "digitando..."); se falhar, API Fácil. */
+async function sendTextReply(
+  phone: string,
+  message: string,
+  options?: { delayTyping?: number }
+): Promise<{ success: boolean; error?: string }> {
   if (isZapiConfigured()) {
-    const r = await sendTextMessage(phone, message)
+    const r = await sendTextMessage(phone, message, { delayTyping: options?.delayTyping ?? 2 })
     if (r.success) return r
     console.warn('⚠️ [Z-API Webhook] Envio Z-API falhou, tentando API Fácil:', r.error)
   }
@@ -219,6 +223,7 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
     const result = await processWhatsAppMessage(plenMessage as any)
 
     if (result?.messages && Array.isArray(result.messages) && result.messages.length > 0) {
+      let firstMessageInSequence = true
       for (let i = 0; i < result.messages.length; i++) {
         const msg = result.messages[i]
         if (typeof msg === 'object' && msg !== null && (msg as any).type === 'buttons') {
@@ -240,7 +245,7 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
             console.error('❌ [Z-API Webhook] Falha ao enviar botão link:', send.error)
           }
         } else if (typeof msg === 'string' && msg.trim()) {
-          const send = await sendTextReply(phone, msg)
+          const send = await sendTextReply(phone, msg, { delayTyping: firstMessageInSequence ? 1 : 0 })
           if (send.success) {
             registerSentMessage(phone, msg)
             console.log('✅ [Z-API Webhook] Mensagem', i + 1, '/', result.messages.length, 'enviada para:', phone)
@@ -248,11 +253,12 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
             console.error('❌ [Z-API Webhook] Falha ao enviar:', send.error)
           }
         }
-        if (i < result.messages.length - 1) await delay(500)
+        firstMessageInSequence = false
+        if (i < result.messages.length - 1) await delay(280)
       }
       markResponded(phone, text ?? '')
     } else if (result?.message && typeof result.message === 'string') {
-      const send = await sendTextReply(phone, result.message)
+      const send = await sendTextReply(phone, result.message, { delayTyping: 2 })
       if (send.success) {
         markResponded(phone, text ?? '')
         registerSentMessage(phone, result.message)
