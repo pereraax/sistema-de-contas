@@ -745,7 +745,7 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
       }
     }
 
-    // Nunca enviar "Oops!" quando a mensagem for eco de qualquer uma das 3 mensagens do fluxo "quero utilizar"
+    // Nunca enviar resposta quando for eco das nossas mensagens ou saudações/confirmações (evita spam)
     const trechosNossasMensagens = [
       'eu sou a plen',
       'sua assistente financeira',
@@ -755,12 +755,15 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
       'assim que finalizar o cadastro',
       'me envia seu e-mail',
       'escolha abaixo',
+      'combinado',
+      'anotar tudo pra você',
+      'direto pelo whatsapp',
     ]
-    // Eco das nossas mensagens ou oi/olá: não enviar resposta (evita "Em que posso ajudar?" na automação)
     if (trechosNossasMensagens.some((trecho) => t.includes(trecho))) {
       return { response: '' }
     }
-    if (t.includes('oi') || t.includes('olá') || t.includes('ola')) {
+    // oi/olá e confirmações curtas: não enviar nada (evita "Em que posso ajudar?" e spam)
+    if (/\b(oi|olá|ola|ok|tá|combinado|beleza|obrigad[oa]|valeu|entendi)\b/.test(t)) {
       return { response: '' }
     }
     if (t.includes('ajuda') || t.includes('como usar')) {

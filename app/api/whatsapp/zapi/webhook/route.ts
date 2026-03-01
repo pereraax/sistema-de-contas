@@ -140,6 +140,12 @@ function markWelcomeJustSent(phone: string): void {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/** Mensagem removida da automação: nunca enviar. */
+const MSG_BLOQUEADA = 'Em que posso ajudar? 😊'
+function isMsgBloqueada(msg: string): boolean {
+  return (msg || '').trim() === MSG_BLOQUEADA
+}
+
 function isQueroUtilizarPlenipayMessage(t: string): boolean {
   if (!t || typeof t !== 'string') return false
   const msg = t.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.,!?]+/g, ' ')
@@ -278,6 +284,11 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
             console.error('❌ [Z-API Webhook] Falha ao enviar botão link:', send.error)
           }
         } else if (typeof msg === 'string' && msg.trim()) {
+          if (isMsgBloqueada(msg)) {
+            console.log('📨 [Z-API Webhook] Mensagem bloqueada (não enviar):', msg.slice(0, 30))
+            firstMessageInSequence = false
+            continue
+          }
           const send = await sendTextReply(phone, msg, { delayTyping: firstMessageInSequence ? 1 : 0 })
           if (send.success) {
             registerSentMessage(phone, msg)
@@ -292,6 +303,9 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
       }
       markResponded(phone, text ?? '')
     } else if (result?.message && typeof result.message === 'string') {
+      if (isMsgBloqueada(result.message)) {
+        console.log('📨 [Z-API Webhook] Resposta bloqueada (não enviar):', result.message.slice(0, 30))
+      } else {
       const send = await sendTextReply(phone, result.message, { delayTyping: 2 })
       if (send.success) {
         markResponded(phone, text ?? '')
@@ -300,6 +314,7 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
       } else {
         console.error('❌ [Z-API Webhook] Falha ao enviar resposta:', send.error)
         await sendTextReply(phone, 'Desculpe, tive um problema ao enviar. Tente de novo em um instante. 💙').catch(() => {})
+      }
       }
     } else if (result === null) {
       console.warn('📨 [Z-API Webhook] processWhatsAppMessage retornou null (sem resposta). phone:', phone, 'text:', text?.slice(0, 50))
