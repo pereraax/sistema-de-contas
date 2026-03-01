@@ -246,14 +246,13 @@
         showStatus(statusEl, 'warning', 'Digite o número ou abra a conversa no WhatsApp.');
         return;
       }
+      showQuickStatus('Enviada ✓', false);
+      var payload = { phone: phone, text: msg.text || '', buttons: (msg.buttons && msg.buttons.length) ? msg.buttons : undefined };
       getApi().then(function (r) {
         if (!r.apiKey) {
-          showStatus(statusEl, 'warning', null, 'Configure o token nas opções primeiro.');
+          showQuickStatus('Configure o token nas opções.', true);
           return;
         }
-        var label = msg.label || '(sem nome)';
-        showQuickStatus('Enviada ✓', false);
-        var payload = { phone: phone, text: msg.text || '', buttons: (msg.buttons && msg.buttons.length) ? msg.buttons : undefined };
         fetch(r.baseUrl + '/api/whatsapp/send-custom-extension', {
           method: 'POST',
           headers: {
@@ -327,10 +326,22 @@
 
     updatePhoneDisplay();
     loadAndRenderMessages();
+    getStored().then(function (r) {
+      cachedApi.baseUrl = r.baseUrl;
+      cachedApi.apiKey = r.apiKey;
+      cachedApi.at = Date.now();
+    });
     chrome.storage.onChanged.addListener(function (changes, areaName) {
-      if (areaName === 'sync' && changes[STORAGE_KEYS.messages]) {
-        const list = changes[STORAGE_KEYS.messages].newValue;
-        renderMessageButtons(Array.isArray(list) ? list : []);
+      if (areaName !== 'sync') return;
+      if (changes[STORAGE_KEYS.messages]) {
+        renderMessageButtons(Array.isArray(changes[STORAGE_KEYS.messages].newValue) ? changes[STORAGE_KEYS.messages].newValue : []);
+      }
+      if (changes[STORAGE_KEYS.baseUrl] || changes[STORAGE_KEYS.apiKey]) {
+        getStored().then(function (r) {
+          cachedApi.baseUrl = r.baseUrl;
+          cachedApi.apiKey = r.apiKey;
+          cachedApi.at = Date.now();
+        });
       }
     });
     setTimeout(function () {
