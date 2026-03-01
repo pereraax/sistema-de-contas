@@ -1,12 +1,8 @@
 /**
  * Lógica compartilhada para enviar as 3 mensagens de boas-vindas ("quero utilizar a plenipay").
- * Usado pelo webhook, pela rota de envio em massa e pela rota admin de reenvio.
+ * A partir de agora usamos só Z-API (z-api.io). API Fácil foi removida do fluxo principal.
  *
- * Provedores suportados:
- * - API Fácil (apifacil.dev): env APIFACIL_INSTANCE_ID + APIFACIL_TOKEN
- * - Z-API (z-api.io): env ZAPI_INSTANCE_ID + ZAPI_TOKEN (+ ZAPI_CLIENT_TOKEN se exigido). Prático, com botões nativos.
- *
- * Definir WHATSAPP_BOASVINDAS_PROVIDER=zapi para usar Z-API; caso contrário usa API Fácil se configurada.
+ * Provedor: Z-API — env ZAPI_INSTANCE_ID + ZAPI_TOKEN (+ ZAPI_CLIENT_TOKEN se exigido).
  */
 
 import { sendTextMessage as apifacilSendText, sendReplyButtons, sendCustomButtons as apifacilSendCustomButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
@@ -33,16 +29,15 @@ export const MENSAGENS_BOAS_VINDAS: [string, { type: 'buttons'; body: string; bu
 const CADASTRO_URL = 'https://plenipay.com'
 const FALLBACK_LINK_MSG = `Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:\n\n🔗 Cadastro: ${CADASTRO_URL}\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
 
-/** Qual provedor usar para boas-vindas: Z-API sempre que configurada (envio rápido e botões nativos). */
+/** Provedor de boas-vindas: só Z-API (API Fácil não é mais usada neste fluxo). */
 export function getBoasVindasProvider(): 'zapi' | 'apifacil' | null {
   if (isZapiConfigured()) return 'zapi'
-  if (isApifacilConfigured()) return 'apifacil'
   return null
 }
 
-/** True se pelo menos um provedor (Z-API ou API Fácil) está configurado para enviar boas-vindas. */
+/** True se Z-API está configurada (único provedor em uso para boas-vindas). */
 export function isBoasVindasConfigured(): boolean {
-  return getBoasVindasProvider() !== null
+  return isZapiConfigured()
 }
 
 /** Envia as 3 mensagens via Z-API (texto + botão URL CADASTRAR + texto). Link só no botão. */

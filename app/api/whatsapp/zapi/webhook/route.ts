@@ -1,12 +1,12 @@
 /**
  * Webhook da Z-API (z-api.io) para mensagens WhatsApp.
- * Recebe mensagens e cliques em botões; processa com o mesmo handler PLEN e responde via Z-API (com botões quando for o caso).
+ * Único provedor em uso: toda recepção e envio é via Z-API (sem API Fácil).
+ * Recebe mensagens e cliques em botões; processa com o handler PLEN e responde via Z-API.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendButtonList, sendButtonActions, isZapiConfigured } from '@/lib/whatsapp-zapi'
-import { sendTextMessage as apifacilSendText, sendCustomButtons as apifacilSendCustomButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage } from '@/lib/whatsapp-contatos-pendentes'
 import { sendBoasVindasToNumber, isBoasVindasConfigured } from '@/lib/whatsapp-enviar-boas-vindas-lib'
 
@@ -27,22 +27,21 @@ function buttonIdToText(buttonId: string, label?: string): string {
   return label || buttonId || ''
 }
 
-/** Extrair phone, text e messageId do payload Z-API (on-message-received). Doc: text.message, phone, fromMe, messageId. */
+/** Extrair phone, text e messageId do payload Z-API. Aceita vários formatos (on-message-received, ReceivedCallBack, data.text, etc.). */
 function parseZapiBody(body: unknown): { from: string; text: string; messageId?: string } | null {
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
 
-  // Aceitar qualquer evento de mensagem recebida (Z-API pode enviar "ReceivedCallBack" ou outros tipos por versão).
-  // Só ignorar se for mensagem enviada por nós (fromMe).
   if (b.fromMe === true) return null
 
-  const rawPhone = (b.phone as string) || ''
+  const rawPhone =
+    (b.phone as string) ||
+    (b.data && typeof b.data === 'object' && (b.data as Record<string, unknown>).phone as string) ||
+    ''
   if (!rawPhone) return null
   const connectedPhone = String((b.connectedPhone as string) || '').replace(/\D/g, '')
   const phoneDigits = String(rawPhone).replace(/\D/g, '')
-  if (connectedPhone && phoneDigits === connectedPhone) {
-    return null
-  }
+  if (connectedPhone && phoneDigits === connectedPhone) return null
   if (!connectedPhone && phoneDigits.length >= 10 && phoneDigits.length <= 13) {
     const envPhone = process.env.ZAPI_CONNECTED_PHONE?.replace(/\D/g, '')
     if (envPhone && phoneDigits === envPhone) return null
@@ -59,15 +58,23 @@ function parseZapiBody(body: unknown): { from: string; text: string; messageId?:
     text = b.text
   } else if (typeof b.message === 'string') {
     text = b.message
-  } else if (b.body && typeof (b.body as any).message === 'string') {
-    text = (b.body as any).message
+  } else if (b.body && typeof (b.body as { message?: string }).message === 'string') {
+    text = (b.body as { message: string }).message
   } else if (typeof b.body === 'string') {
     text = b.body
+  } else if (b.data && typeof b.data === 'object') {
+    const d = b.data as Record<string, unknown>
+    text = (d.text as string) || (d.message as string) || (d.body as string) || ''
   }
+  if (typeof b.messageText === 'string') text = text || b.messageText
   if (!text.trim()) return null
 
   const from = String(rawPhone).replace(/\D/g, '')
-  const messageId = typeof b.messageId === 'string' ? b.messageId : undefined
+  let messageId: string | undefined = typeof b.messageId === 'string' ? b.messageId : undefined
+  if (!messageId && b.data && typeof b.data === 'object') {
+    const mid = (b.data as Record<string, unknown>).messageId
+    if (typeof mid === 'string') messageId = mid
+  }
   return { from: from.startsWith('55') ? from : `55${from}`, text: text.trim(), messageId }
 }
 
@@ -120,66 +127,44 @@ function isQueroUtilizarPlenipayMessage(t: string): boolean {
   return !!(temPlenipay && temIntencao)
 }
 
-/** Envia texto: tenta Z-API (com delayTyping para mostrar "digitando..."); se falhar, API Fácil. */
+/** Envia texto só via Z-API (com delayTyping para "digitando..."). */
 async function sendTextReply(
   phone: string,
   message: string,
   options?: { delayTyping?: number }
 ): Promise<{ success: boolean; error?: string }> {
-  if (isZapiConfigured()) {
-    const r = await sendTextMessage(phone, message, { delayTyping: options?.delayTyping ?? 2 })
-    if (r.success) return r
-    console.warn('⚠️ [Z-API Webhook] Envio Z-API falhou, tentando API Fácil:', r.error)
-  }
-  if (isApifacilConfigured()) {
-    const r = await apifacilSendText(phone, message)
-    return r.success ? r : { success: false, error: r.error }
-  }
-  return { success: false, error: 'Nenhum provedor configurado (Z-API ou API Fácil). Configure no Railway.' }
+  const r = await sendTextMessage(phone, message, { delayTyping: options?.delayTyping ?? 2 })
+  if (!r.success) console.error('❌ [Z-API Webhook] sendTextMessage falhou:', r.error)
+  return r.success ? r : { success: false, error: r.error }
 }
 
-/** Envia botão link (button_actions): Z-API ou fallback API Fácil. */
+/** Envia botão link (button_actions) só via Z-API. */
 async function sendButtonActionsReply(
   phone: string,
   body: string,
   buttonActions: { type: string; url?: string; label: string }[]
 ): Promise<{ success: boolean; error?: string }> {
-  if (isZapiConfigured()) {
-    const r = await sendButtonActions(phone, body, buttonActions as any)
-    if (r.success) return r
-    console.warn('⚠️ [Z-API Webhook] Botão Z-API falhou, tentando API Fácil:', r.error)
-  }
-  if (isApifacilConfigured()) {
-    const buttons = buttonActions.map((a) => ({ id: (a.label || a.url || '').slice(0, 20), title: a.label || 'Abrir', url: a.url }))
-    const r = await apifacilSendCustomButtons(phone, body, buttons)
-    return r.success ? r : { success: false, error: r.error }
-  }
-  return { success: false, error: 'Nenhum provedor configurado.' }
+  const r = await sendButtonActions(phone, body, buttonActions)
+  if (!r.success) console.error('❌ [Z-API Webhook] sendButtonActions falhou:', r.error)
+  return r.success ? r : { success: false, error: r.error }
 }
 
-/** Envia lista de botões (reply): Z-API ou fallback API Fácil. */
+/** Envia lista de botões (reply) só via Z-API. */
 async function sendButtonListReply(
   phone: string,
   body: string,
   buttons: { id: string; title: string }[]
 ): Promise<{ success: boolean; error?: string }> {
-  if (isZapiConfigured()) {
-    const r = await sendButtonList(phone, body, buttons)
-    if (r.success) return r
-    console.warn('⚠️ [Z-API Webhook] Botões Z-API falharam, tentando API Fácil:', r.error)
-  }
-  if (isApifacilConfigured()) {
-    const r = await apifacilSendCustomButtons(phone, body, buttons.map((b) => ({ id: b.id, title: b.title })))
-    return r.success ? r : { success: false, error: r.error }
-  }
-  return { success: false, error: 'Nenhum provedor configurado.' }
+  const r = await sendButtonList(phone, body, buttons)
+  if (!r.success) console.error('❌ [Z-API Webhook] sendButtonList falhou:', r.error)
+  return r.success ? r : { success: false, error: r.error }
 }
 
 async function processarEmBackground(parsed: { from: string; text: string }) {
   const { from, text } = parsed
   try {
-    if (!isZapiConfigured() && !isApifacilConfigured()) {
-      console.warn('⚠️ [Z-API Webhook] Nenhum provedor configurado (Z-API ou API Fácil). Configure variáveis no Railway.')
+    if (!isZapiConfigured()) {
+      console.error('❌ [Z-API Webhook] Z-API não configurada. Defina ZAPI_INSTANCE_ID e ZAPI_TOKEN no Railway. Não usamos mais API Fácil neste webhook.')
       return
     }
     const phone = from.startsWith('55') ? from : `55${from}`
@@ -249,6 +234,7 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
             console.log('✅ [Z-API Webhook] Mensagem', i + 1, '/', result.messages.length, 'enviada para:', phone)
           } else {
             console.error('❌ [Z-API Webhook] Falha ao enviar:', send.error)
+            await sendTextReply(phone, 'Desculpe, tive um problema ao enviar. Tente de novo em um instante. 💙').catch(() => {})
           }
         }
         firstMessageInSequence = false
@@ -263,12 +249,19 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
         console.log('✅ [Z-API Webhook] Resposta enviada para:', phone)
       } else {
         console.error('❌ [Z-API Webhook] Falha ao enviar resposta:', send.error)
+        await sendTextReply(phone, 'Desculpe, tive um problema ao enviar. Tente de novo em um instante. 💙').catch(() => {})
       }
     } else if (result === null) {
-      console.log('📨 [Z-API Webhook] Mensagem processada sem resposta.')
+      console.warn('📨 [Z-API Webhook] processWhatsAppMessage retornou null (sem resposta). phone:', phone, 'text:', text?.slice(0, 50))
+    } else {
+      console.warn('📨 [Z-API Webhook] Resultado inesperado do handler. phone:', phone, 'keys:', result ? Object.keys(result) : 'null')
     }
   } catch (err) {
     console.error('❌ [Z-API Webhook] Erro em background:', err)
+    try {
+      const phone = parsed.from.startsWith('55') ? parsed.from : `55${parsed.from}`
+      await sendTextMessage(phone, 'Ocorreu um erro ao processar sua mensagem. Tente de novo em um instante. 💙').catch(() => {})
+    } catch (_) {}
   }
 }
 
@@ -281,8 +274,14 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  // Log imediato para confirmar que a Z-API está chamando o servidor (ver nos logs do Railway)
   console.log('🔔 [Z-API Webhook] POST recebido em', new Date().toISOString())
+  if (!isZapiConfigured()) {
+    console.error('❌ [Z-API Webhook] Z-API não configurada. Configure ZAPI_INSTANCE_ID e ZAPI_TOKEN.')
+    return NextResponse.json(
+      { success: false, error: 'Z-API não configurada. Configure ZAPI_INSTANCE_ID e ZAPI_TOKEN no Railway.' },
+      { status: 503 }
+    )
+  }
   try {
     const body = await request.json().catch(() => null)
     const parsed = parseZapiBody(body)
