@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendButtonList, sendButtonActions, isZapiConfigured } from '@/lib/whatsapp-zapi'
 import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage } from '@/lib/whatsapp-contatos-pendentes'
-import { sendBoasVindasToNumber, isBoasVindasConfigured } from '@/lib/whatsapp-enviar-boas-vindas-lib'
+import { sendBoasVindasToNumber, isBoasVindasConfigured, MENSAGENS_BOAS_VINDAS } from '@/lib/whatsapp-enviar-boas-vindas-lib'
 
 function buildPlenMessage(from: string, text: string) {
   const remoteJid = from.includes('@') ? from : `${from.replace(/\D/g, '')}@s.whatsapp.net`
@@ -67,7 +67,8 @@ function parseZapiBody(body: unknown): { from: string; text: string; messageId?:
     text = (d.text as string) || (d.message as string) || (d.body as string) || ''
   }
   if (typeof b.messageText === 'string') text = text || b.messageText
-  if (!text.trim()) return null
+  // Reforço: se tem phone mas não extraiu texto, tratar como "Olá" para não descartar contato novo
+  if (!text.trim()) text = 'Olá'
 
   const from = String(rawPhone).replace(/\D/g, '')
   let messageId: string | undefined = typeof b.messageId === 'string' ? b.messageId : undefined
@@ -177,29 +178,48 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
 
     await recordIncomingMessage(phone, text ?? '').catch((e) => console.error('📨 [Z-API Webhook] recordIncomingMessage:', e))
 
+    const envioBoasVindasComRetry = async (): Promise<boolean> => {
+      let r = await sendBoasVindasToNumber(phone)
+      if (r.success) return true
+      console.warn('⚠️ [Z-API Webhook] Primeira tentativa falhou, retry em 2s:', r.error)
+      await delay(2000)
+      r = await sendBoasVindasToNumber(phone)
+      return r.success
+    }
+
+    const enviarFallbackContatoNovo = async (): Promise<void> => {
+      const primeiraMsg = typeof MENSAGENS_BOAS_VINDAS[0] === 'string' ? MENSAGENS_BOAS_VINDAS[0] : null
+      const fallback = primeiraMsg ?? 'Olá! 👋 Sou a Plen, assistente da Plenipay. Cria sua conta em plenipay.com e me manda *JÁ CADASTREI* aqui que eu te ajudo. 💙'
+      await sendTextMessage(phone, fallback, { delayTyping: 1 }).catch(() => {})
+    }
+
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
       console.log('👋 [Z-API Webhook] "Quero utilizar PleniPay" — enviando 3 mensagens para', phone)
-      const result = await sendBoasVindasToNumber(phone)
-      await markWelcomeSent(phone).catch(() => {})
-      if (result.success) {
+      const ok = await envioBoasVindasComRetry()
+      if (ok) {
+        await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
         console.log('✅ [Z-API Webhook] 3 mensagens de boas-vindas enviadas:', phone)
         return
       }
-      console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou:', result.error)
+      console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou após retry. Enviando fallback.')
+      await enviarFallbackContatoNovo()
+      return
     }
 
     const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits)
     if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
       console.log('👋 [Z-API Webhook] Contato novo — enviando 3 mensagens de boas-vindas para', phone)
-      const result = await sendBoasVindasToNumber(phone)
-      await markWelcomeSent(phone).catch(() => {})
-      if (result.success) {
+      const ok = await envioBoasVindasComRetry()
+      if (ok) {
+        await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
         console.log('✅ [Z-API Webhook] 3 mensagens enviadas para contato novo:', phone)
         return
       }
-      console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou para contato novo:', result.error)
+      console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou para contato novo após retry. Enviando fallback.')
+      await enviarFallbackContatoNovo()
+      return
     }
 
     const plenMessage = buildPlenMessage(from, text)
@@ -253,8 +273,18 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
       }
     } else if (result === null) {
       console.warn('📨 [Z-API Webhook] processWhatsAppMessage retornou null (sem resposta). phone:', phone, 'text:', text?.slice(0, 50))
+      const aindaNaoRecebeu = await hasReceivedWelcome(phoneDigits).catch(() => false)
+      if (!aindaNaoRecebeu && isBoasVindasConfigured()) {
+        console.log('🔄 [Z-API Webhook] Contato sem resposta e sem boas-vindas — enviando mensagem mínima.')
+        await enviarFallbackContatoNovo()
+      }
     } else {
       console.warn('📨 [Z-API Webhook] Resultado inesperado do handler. phone:', phone, 'keys:', result ? Object.keys(result) : 'null')
+      const aindaNaoRecebeu = await hasReceivedWelcome(phoneDigits).catch(() => false)
+      if (!aindaNaoRecebeu && isBoasVindasConfigured()) {
+        console.log('🔄 [Z-API Webhook] Resultado inesperado e contato sem boas-vindas — enviando mensagem mínima.')
+        await enviarFallbackContatoNovo()
+      }
     }
   } catch (err) {
     console.error('❌ [Z-API Webhook] Erro em background:', err)
