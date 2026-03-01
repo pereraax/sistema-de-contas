@@ -1327,12 +1327,17 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
     const { processPlenWhatsAppMessage } = await import('@/lib/plen-whatsapp-chat')
     const result = await processPlenWhatsAppMessage(userId, text)
     
-    console.log('✅ [WhatsApp PLEN] Resposta direta:', result.response?.substring(0, 80))
-    addLog('info', `✅ [PLEN WhatsApp] Resposta: ${result.response?.substring(0, 100)}`)
+    const resp = (result.response || '').trim()
+    if (!resp) {
+      console.log('📨 [WhatsApp PLEN] Resposta vazia (oi/olá ou eco) — não enviar mensagem')
+      return null
+    }
+    console.log('✅ [WhatsApp PLEN] Resposta direta:', resp.substring(0, 80))
+    addLog('info', `✅ [PLEN WhatsApp] Resposta: ${resp.substring(0, 100)}`)
     
     return {
       success: true,
-      message: result.response,
+      message: resp,
       ...(result.buttonUrl && { buttonUrl: result.buttonUrl, buttonLabel: result.buttonLabel || 'ABRIR' }),
     }
   } catch (error: any) {

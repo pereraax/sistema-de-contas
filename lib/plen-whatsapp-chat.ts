@@ -756,13 +756,12 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
       'me envia seu e-mail',
       'escolha abaixo',
     ]
+    // Eco das nossas mensagens ou oi/olá: não enviar resposta (evita "Em que posso ajudar?" na automação)
     if (trechosNossasMensagens.some((trecho) => t.includes(trecho))) {
-      return { response: 'Em que posso ajudar? 😊' }
+      return { response: '' }
     }
-
-    // Para oi/olá: NUNCA enviar o texto longo "Oops!" — só resposta curta (evita spam após fluxo "quero utilizar")
     if (t.includes('oi') || t.includes('olá') || t.includes('ola')) {
-      return { response: 'Em que posso ajudar? 😊' }
+      return { response: '' }
     }
     if (t.includes('ajuda') || t.includes('como usar')) {
       return {
