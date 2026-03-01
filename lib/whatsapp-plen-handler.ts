@@ -380,6 +380,18 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       return null
     }
 
+    // Pausa global: assistente pausada para todos pelo admin — não responder
+    try {
+      const { getAssistenteGlobalPausada } = await import('@/lib/assistente-global-pausada')
+      if (await getAssistenteGlobalPausada()) {
+        console.log('🛑 [WhatsApp PLEN] Assistente pausada globalmente — não enviar resposta')
+        addLog('info', '🛑 [PLEN WhatsApp] Assistente pausada globalmente (admin)')
+        return null
+      }
+    } catch (e) {
+      // Se falhar a leitura da config, seguir processando
+    }
+
     // PRIORIDADE MÁXIMA: "JÁ CADASTREI" / "ja cadastrei" — sempre pedir e-mail (antes de qualquer outro fluxo)
     const normalizedForJaCadastrei = String(text).toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.,!?]+/g, '')
     const isJaCadastrei =

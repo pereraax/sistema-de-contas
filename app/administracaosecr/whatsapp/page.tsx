@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MessageCircle, CheckCircle, XCircle, Loader2, Phone, QrCode, RefreshCw } from 'lucide-react'
+import { MessageCircle, CheckCircle, XCircle, Loader2, Phone, QrCode, RefreshCw, PauseCircle, PlayCircle } from 'lucide-react'
 import { createNotification } from '@/components/NotificationBell'
 
 interface WhatsAppStatus {
@@ -24,9 +24,45 @@ export default function AdminWhatsAppPage() {
   })
   
   const [loading, setLoading] = useState(false)
+  const [assistentePausada, setAssistentePausada] = useState<boolean | null>(null)
+  const [loadingPausada, setLoadingPausada] = useState(false)
+
+  // Carregar estado da pausa global
+  const carregarPausaGlobal = async () => {
+    try {
+      const res = await fetch('/api/admin/assistente-global-pausada')
+      const data = await res.json()
+      if (data.success && typeof data.pausada === 'boolean') setAssistentePausada(data.pausada)
+    } catch {
+      setAssistentePausada(false)
+    }
+  }
+
+  const alternarPausaGlobal = async () => {
+    if (assistentePausada === null) return
+    setLoadingPausada(true)
+    try {
+      const nova = !assistentePausada
+      const res = await fetch('/api/admin/assistente-global-pausada', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pausada: nova }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setAssistentePausada(nova)
+        createNotification(nova ? 'Assistente pausada para todos.' : 'Assistente retomada para todos.', 'success')
+      } else throw new Error(data.error)
+    } catch (e: any) {
+      createNotification(e?.message || 'Erro ao alterar pausa.', 'warning')
+    } finally {
+      setLoadingPausada(false)
+    }
+  }
 
   // Verificar status ao carregar e periodicamente
   useEffect(() => {
+    carregarPausaGlobal()
     verificarStatus()
     verificarCredenciais()
     
@@ -489,6 +525,34 @@ export default function AdminWhatsAppPage() {
         </div>
       </div>
 
+      {/* Pausar assistente para todos */}
+      <div className="p-6 rounded-xl border-2 bg-brand-royal/50 border-white/10">
+        <h2 className="text-xl font-bold text-brand-clean mb-2 flex items-center gap-2">
+          {assistentePausada ? <PauseCircle className="text-amber-400" size={24} /> : <PlayCircle className="text-green-400" size={24} />}
+          Assistente para todos
+        </h2>
+        <p className="text-brand-clean/60 text-sm mb-4">
+          Quando pausada, a assistente PLEN não responde a ninguém no WhatsApp. Use para atendimento humano ou manutenção.
+        </p>
+        <button
+          onClick={alternarPausaGlobal}
+          disabled={loadingPausada || assistentePausada === null}
+          className={`px-6 py-3 rounded-lg font-bold transition-smooth disabled:opacity-50 flex items-center gap-2 ${
+            assistentePausada
+              ? 'bg-green-600 hover:bg-green-700 text-white'
+              : 'bg-amber-600 hover:bg-amber-700 text-white'
+          }`}
+        >
+          {loadingPausada ? <Loader2 className="animate-spin" size={20} /> : assistentePausada ? <PlayCircle size={20} /> : <PauseCircle size={20} />}
+          {assistentePausada === null ? 'Carregando...' : loadingPausada ? 'Salvando...' : assistentePausada ? 'Retomar assistente para todos' : 'Pausar assistente para todos'}
+        </button>
+        {assistentePausada === true && (
+          <p className="text-amber-300 text-sm mt-3 font-semibold">
+            ⏸ A assistente está pausada. Ninguém receberá respostas automáticas até você retomar.
+          </p>
+        )}
+      </div>
+
       {/* Status Card */}
       <div className={`p-6 rounded-xl border-2 ${
         status.connected 
@@ -829,6 +893,25 @@ export default function AdminWhatsAppPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Testar em localhost */}
+      <div className="bg-blue-900/20 border border-blue-500/50 rounded-xl p-6">
+        <h3 className="font-semibold text-blue-200 mb-3 flex items-center gap-2">
+          🧪 Testar assistente em localhost antes do deploy
+        </h3>
+        <p className="text-sm text-blue-100 mb-3">
+          Para testar o fluxo da assistente (API Fácil ou Z-API) no seu computador antes de subir em produção:
+        </p>
+        <ol className="list-decimal list-inside space-y-2 text-sm text-blue-100">
+          <li>Rode o app: <code className="bg-black/30 px-1 rounded">npm run dev</code></li>
+          <li>Exponha a porta com um túnel (ngrok, Cloudflare Tunnel, etc.): ex.: <code className="bg-black/30 px-1 rounded">ngrok http 3000</code></li>
+          <li>No painel da API Fácil ou Z-API, configure a URL do webhook como <code className="bg-black/30 px-1 rounded">https://SEU-TUNEL/api/whatsapp/apifacil/webhook</code> ou <code className="bg-black/30 px-1 rounded">/api/whatsapp/zapi/webhook</code></li>
+          <li>Use <code className="bg-black/30 px-1 rounded">.env.local</code> com as mesmas variáveis de produção (APIFACIL_*, ZAPI_*, Supabase, etc.)</li>
+        </ol>
+        <p className="text-xs text-blue-200 mt-3">
+          Detalhes no arquivo <strong>CONFIGURAR-ASSISTENTE-LOCALHOST.md</strong> na raiz do projeto.
+        </p>
       </div>
 
       {/* Instruções */}
