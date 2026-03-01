@@ -276,14 +276,17 @@
       var headers = { 'Content-Type': 'application/json' };
       if (cachedZapi.clientToken) headers['Client-Token'] = cachedZapi.clientToken;
       var phoneClean = cleanPhone(phone);
+      var messageText = (text && text.trim()) ? text.trim() : ' ';
       function doReq(body, cb) {
-        fetch(base + (body.buttonActions ? '/send-button-actions' : '/send-text'), { method: 'POST', headers: headers, body: JSON.stringify(body) })
+        if (!body.message) body.message = messageText;
+        var urlReq = base + (body.buttonActions ? '/send-button-actions' : '/send-text');
+        fetch(urlReq, { method: 'POST', headers: headers, body: JSON.stringify(body) })
           .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; }); })
           .then(function (out) {
             if (!out.ok && out.data) {
-              var msg = (out.data.message || out.data.error) || ('Erro ' + out.status);
+              var msg = (out.data.message || out.data.error || out.data.errorMessage) || ('Erro ' + out.status);
               if ((msg + '').toLowerCase().indexOf('instance not found') !== -1) {
-                msg = 'Instance ID ou Token incorretos. No painel Z-API vá em Dados da instância e copie o ID e o Token.';
+                msg = 'Instance ID ou Token incorretos.';
               }
               showQuickStatus(msg, true);
             }
@@ -292,7 +295,7 @@
           .catch(function (err) { showQuickStatus((err && err.message) || 'Erro de rede', true); if (cb) cb(); });
       }
       if (!Array.isArray(buttons) || buttons.length === 0) {
-        doReq({ phone: phoneClean, message: text });
+        doReq({ phone: phoneClean, message: messageText });
         return;
       }
       var urlButtons = [];
@@ -303,23 +306,27 @@
         if (b.url && b.url.trim()) {
           var u = b.url.trim();
           if (u.indexOf('http') !== 0) u = 'https://' + u;
-          urlButtons.push({ type: 'URL', url: u, label: label, id: (b.id || b.title || '').trim() });
+          var btn = { type: 'URL', url: u, label: label };
+          if ((b.id || b.title || '').trim()) btn.id = (b.id || b.title || '').trim();
+          urlButtons.push(btn);
         } else {
-          replyButtons.push({ type: 'REPLY', label: label, id: (b.id || b.title || '').trim() });
+          var rbtn = { type: 'REPLY', label: label };
+          if ((b.id || b.title || '').trim()) rbtn.id = (b.id || b.title || '').trim();
+          replyButtons.push(rbtn);
         }
       });
       if (urlButtons.length > 0 && replyButtons.length > 0) {
-        doReq({ phone: phoneClean, message: text, buttonActions: urlButtons }, function () {
+        doReq({ phone: phoneClean, message: messageText, buttonActions: urlButtons }, function () {
           setTimeout(function () {
             doReq({ phone: phoneClean, message: 'Ou escolha:', buttonActions: replyButtons });
           }, 1200);
         });
       } else if (urlButtons.length > 0) {
-        doReq({ phone: phoneClean, message: text, buttonActions: urlButtons });
+        doReq({ phone: phoneClean, message: messageText, buttonActions: urlButtons });
       } else if (replyButtons.length > 0) {
-        doReq({ phone: phoneClean, message: text, buttonActions: replyButtons });
+        doReq({ phone: phoneClean, message: messageText, buttonActions: replyButtons });
       } else {
-        doReq({ phone: phoneClean, message: text });
+        doReq({ phone: phoneClean, message: messageText });
       }
     }
 
