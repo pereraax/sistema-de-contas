@@ -260,13 +260,11 @@ async function sendButtonListReply(
   return r.success ? r : { success: false, error: r.error }
 }
 
-/** Assistente só responde em localhost (development) ou em produção se ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true.
- * Em produção ASSISTENTE_LOCALHOST é ignorado (evita responder se a variável foi copiada do .env.local). */
+/** Assistente responde em qualquer ambiente (localhost e produção). Para desligar em produção use o painel admin "Pausar assistente para todos" ou DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true. */
 function assistenteDeveResponder(): boolean {
-  if (process.env.NODE_ENV === 'production') {
-    return process.env.ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO === 'true'
+  if (process.env.NODE_ENV === 'production' && process.env.DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO === 'true') {
+    return false
   }
-  if (process.env.ASSISTENTE_LOCALHOST === 'true') return true
   return true
 }
 
@@ -287,7 +285,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
   try {
     // Assistente deve estar sempre ativa para receber mensagens (novos contatos e existentes).
     if (!assistenteDeveResponder()) {
-      console.log('🛑 [Z-API Webhook] Assistente desativada em produção (só ativa em localhost até ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true).')
+      console.log('🛑 [Z-API Webhook] Assistente desativada (DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true ou pausada no admin).')
       return
     }
     if (!isZapiConfigured()) {
@@ -518,8 +516,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'Duplicado ignorado' })
     }
     if (!assistenteDeveResponder()) {
-      console.log('🛑 [Z-API Webhook] Assistente desativada em produção — retornando 200 sem processar.')
-      return NextResponse.json({ success: true, message: 'Assistente pausada (só ativa em localhost)' })
+      console.log('🛑 [Z-API Webhook] Assistente desativada — retornando 200 sem processar.')
+      return NextResponse.json({ success: true, message: 'Assistente pausada' })
     }
     const isBotao = parsed.text === 'CADASTRAR' || parsed.text === 'JÁ CADASTREI' || /^j[aá]\s*criei$/i.test(parsed.text.trim()) || /^j[aá]\s*cadastrei$/i.test(parsed.text.trim())
     console.log('📨 [Z-API Webhook] Mensagem recebida:', { from: parsed.from, textPreview: parsed.text.slice(0, 80), messageId: parsed.messageId, isCliqueBotao: isBotao, media: parsed.media?.type })

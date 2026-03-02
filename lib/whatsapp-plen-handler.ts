@@ -362,12 +362,10 @@ async function deactivatePlen(phoneNumber: string) {
  */
 export async function processWhatsAppMessage(message: WhatsAppMessage) {
   try {
-    // Em produção: só processar se ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true (ASSISTENTE_LOCALHOST é ignorado em produção)
-    if (process.env.NODE_ENV === 'production') {
-      if (process.env.ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO !== 'true') {
-        console.log('🛑 [WhatsApp PLEN] Assistente desativada em produção (ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO não definido).')
-        return null
-      }
+    // Em produção: assistente ativa por padrão. Para desligar: DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true ou "Pausar assistente" no admin.
+    if (process.env.NODE_ENV === 'production' && process.env.DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO === 'true') {
+      console.log('🛑 [WhatsApp PLEN] Assistente desativada em produção (DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true).')
+      return null
     }
     // addLog nunca deve derrubar o processamento (ex.: "quero utilizar plenipay" sempre deve receber resposta)
     let addLog: (level: string, msg: string) => void = () => {}

@@ -65,12 +65,11 @@ function isAlreadyProcessed(bodyToParse: Record<string, unknown>, from: string):
   return false
 }
 
-/** Bloquear envio de mensagens longas fora do funil (evita "Oops! não entendi" e instruções repetidas). */
+/** Bloquear envio de mensagens repetidas. "Oops! não entendi" é enviada quando o usuário manda comando que a assistente não entende. */
 function isRespostaForaDoFunilBloqueada(msg: string): boolean {
   const t = (msg || '').trim()
   if (!t) return true
   if (t === 'Em que posso ajudar? 😊') return true
-  if (t.includes('Oops! não entendi') || t.includes('Como eu entendo você')) return true
   return false
 }
 
@@ -303,13 +302,11 @@ function isQueroUtilizarPlenipayMessage(t: string): boolean {
 
 /** Conteúdo das 3 mensagens de boas-vindas — definido em whatsapp-enviar-boas-vindas-lib; envio via sendBoasVindasToNumber (Z-API quando configurada). */
 
-/** Assistente só responde em localhost (development) ou em produção se ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true.
- * Em produção ASSISTENTE_LOCALHOST é ignorado (evita responder se a variável foi copiada do .env.local). */
+/** Assistente responde em qualquer ambiente (localhost e produção). Para desligar em produção use o painel admin "Pausar assistente para todos" ou DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true. */
 function assistenteDeveResponder(): boolean {
-  if (process.env.NODE_ENV === 'production') {
-    return process.env.ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO === 'true'
+  if (process.env.NODE_ENV === 'production' && process.env.DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO === 'true') {
+    return false
   }
-  if (process.env.ASSISTENTE_LOCALHOST === 'true') return true
   return true
 }
 
@@ -325,7 +322,7 @@ async function processarEmBackground(parsed: {
   let origemMensagem: 'texto' | 'áudio' | 'imagem' = 'texto'
   try {
     if (!assistenteDeveResponder()) {
-      console.log('🛑 [Apifacil Webhook] Assistente desativada em produção (só ativa em localhost até ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true).')
+      console.log('🛑 [Apifacil Webhook] Assistente desativada (DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true ou pausada no admin).')
       return
     }
     if (media?.type === 'audio') {
@@ -803,8 +800,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (!assistenteDeveResponder()) {
-      console.log('🛑 [Apifacil Webhook] Assistente desativada em produção — retornando 200 sem processar.')
-      return NextResponse.json({ success: true, message: 'Assistente pausada (só ativa em localhost)' })
+      console.log('🛑 [Apifacil Webhook] Assistente desativada — retornando 200 sem processar.')
+      return NextResponse.json({ success: true, message: 'Assistente pausada' })
     }
 
     // Responder 200 IMEDIATAMENTE para a API Fácil não dar timeout (muitos provedores cortam em 10–15s).
