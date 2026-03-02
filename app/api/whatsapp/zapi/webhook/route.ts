@@ -21,10 +21,31 @@ function buildPlenMessage(from: string, text: string) {
 
 /** Mapear clique em botão Z-API para o texto que o handler reconhece */
 function buttonIdToText(buttonId: string, label?: string): string {
-  const id = (buttonId || '').toLowerCase()
+  const id = (buttonId || '').toLowerCase().trim().replace(/\s+/g, '_')
+  const lbl = (label || '').trim()
   if (id === 'cadastrar') return 'CADASTRAR'
-  if (id === 'ja_cadastrei') return 'JÁ CADASTREI'
+  if (id === 'ja_cadastrei' || id === 'já_criei' || id === 'ja_criei') return 'JÁ CADASTREI'
+  if (id === 'falar_com_humano') return 'Falar com humano'
+  if (id === 'voltar_plen') return 'Voltar a falar com a PLEN'
+  // Z-API às vezes envia o rótulo do botão como id; reconhecer "JÁ CRIEI" em qualquer campo
+  if (lbl && /^j[aá]\s*criei$/i.test(lbl.replace(/\s+/g, ' '))) return 'JÁ CADASTREI'
+  if (id && /^j[aá]_?criei$/i.test(id)) return 'JÁ CADASTREI'
   return label || buttonId || ''
+}
+
+/** Obter objeto que pode conter buttonsResponseMessage/listResponseMessage (top-level ou em data/messageData). */
+function getButtonPayload(b: Record<string, unknown>): Record<string, unknown> | null {
+  if (b.buttonsResponseMessage && typeof b.buttonsResponseMessage === 'object') return b as Record<string, unknown>
+  if (b.listResponseMessage && typeof b.listResponseMessage === 'object') return b as Record<string, unknown>
+  if (b.data && typeof b.data === 'object') {
+    const d = b.data as Record<string, unknown>
+    if (d.buttonsResponseMessage || d.listResponseMessage) return d
+  }
+  if (b.messageData && typeof b.messageData === 'object') {
+    const m = b.messageData as Record<string, unknown>
+    if (m.buttonsResponseMessage || m.listResponseMessage) return m
+  }
+  return null
 }
 
 /** Extrair phone, text e messageId do payload Z-API. Aceita vários formatos (on-message-received, ReceivedCallBack, data.text, etc.). */
@@ -48,9 +69,19 @@ function parseZapiBody(body: unknown): { from: string; text: string; messageId?:
   }
 
   let text = ''
-  if (b.buttonsResponseMessage && typeof b.buttonsResponseMessage === 'object') {
-    const br = b.buttonsResponseMessage as { buttonId?: string; message?: string }
-    text = buttonIdToText(br.buttonId || '', br.message)
+  const buttonPayload = getButtonPayload(b)
+  if (buttonPayload?.buttonsResponseMessage && typeof buttonPayload.buttonsResponseMessage === 'object') {
+    const br = buttonPayload.buttonsResponseMessage as { buttonId?: string; message?: string; selectedButtonId?: string; selectedButtonText?: string }
+    const id = String(br.selectedButtonId ?? br.buttonId ?? '').trim()
+    const label = String(br.selectedButtonText ?? br.message ?? '').trim()
+    text = buttonIdToText(id, label)
+    if (!text.trim()) text = label || id || 'Olá'
+  } else if (buttonPayload?.listResponseMessage && typeof buttonPayload.listResponseMessage === 'object') {
+    const lr = buttonPayload.listResponseMessage as { singleSelectReply?: string; title?: string }
+    const id = String(lr.singleSelectReply ?? '').trim()
+    const label = String(lr.title ?? '').trim()
+    text = buttonIdToText(id, label)
+    if (!text.trim()) text = label || id || 'Olá'
   } else if (b.text && typeof b.text === 'object') {
     const t = b.text as { message?: string }
     text = (t.message as string) || ''
@@ -142,13 +173,12 @@ function markWelcomeJustSent(phone: string): void {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-/** Mensagens fora do funil: nunca enviar (evita repetição e "Oops! não entendi" / instruções longas). */
+/** Mensagens fora do funil: nunca enviar (evita repetição). "Oops! não entendi" é enviada quando o usuário manda comando que a assistente não entende. */
 const MSG_BLOQUEADA = 'Em que posso ajudar? 😊'
 function isMsgBloqueada(msg: string): boolean {
   const t = (msg || '').trim()
   if (!t) return true
   if (t === MSG_BLOQUEADA) return true
-  if (t.includes('Oops! não entendi') || t.includes('Como eu entendo você')) return true
   return false
 }
 
@@ -163,11 +193,12 @@ function isQueroUtilizarPlenipayMessage(t: string): boolean {
 function shouldIgnoreEventDuringWelcomeCooldown(text: string): boolean {
   const t = (text || '').replace(/\u200B|\uFEFF/g, '').trim()
   if (!t) return true
-  // Se for um e-mail válido, é uma ação real do usuário (não ignorar).
+  // E-mail ou clique em JÁ CRIEI: sempre processar (pedir e-mail ou receber e-mail).
   const emailOnlyRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
   if (emailOnlyRegex.test(t)) return false
+  const lower = t.toLowerCase().replace(/\s+/g, ' ')
+  if (/^j[aá]\s*criei$/.test(lower) || /^j[aá]\s*cadastrei$/.test(lower)) return false
   // Este "Olá" é o fallback do parse quando o payload vem sem texto — típico de evento duplicado.
-  const lower = t.toLowerCase()
   if (lower === 'olá' || lower === 'ola') return true
   return false
 }
@@ -405,7 +436,9 @@ export async function POST(request: NextRequest) {
       console.log('🛑 [Z-API Webhook] Assistente desativada em produção — retornando 200 sem processar.')
       return NextResponse.json({ success: true, message: 'Assistente pausada (só ativa em localhost)' })
     }
-    console.log('📨 [Z-API Webhook] Mensagem recebida:', { from: parsed.from, textPreview: parsed.text.slice(0, 80), messageId: parsed.messageId })
+    const isBotao = parsed.text === 'CADASTRAR' || parsed.text === 'JÁ CADASTREI' || /^j[aá]\s*criei$/i.test(parsed.text.trim()) || /^j[aá]\s*cadastrei$/i.test(parsed.text.trim())
+    console.log('📨 [Z-API Webhook] Mensagem recebida:', { from: parsed.from, textPreview: parsed.text.slice(0, 80), messageId: parsed.messageId, isCliqueBotao: isBotao })
+    if (isBotao) console.log('🔘 [Z-API Webhook] Clique em botão reconhecido:', parsed.text)
     processarEmBackground(parsed).catch((e) => console.error('❌ [Z-API Webhook]', e))
     return NextResponse.json({ success: true })
   } catch (err) {

@@ -399,13 +399,11 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       // Se falhar a leitura da config, seguir processando
     }
 
-    // PRIORIDADE MÁXIMA: "JÁ CADASTREI" / "Já criei" — sempre pedir e-mail (antes de qualquer outro fluxo)
+    // PRIORIDADE MÁXIMA: "JÁ CADASTREI" / "Já criei" / "JÁ CRIEI" (botão) — sempre pedir e-mail (antes de qualquer outro fluxo)
     const normalizedForJaCadastrei = String(text).toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.,!?]+/g, '')
     const isJaCadastrei =
-      normalizedForJaCadastrei === 'ja cadastrei' ||
-      normalizedForJaCadastrei === 'já cadastrei' ||
-      normalizedForJaCadastrei === 'ja criei' ||
-      normalizedForJaCadastrei === 'já criei' ||
+      /^j[aá]\s*criei$/.test(normalizedForJaCadastrei) ||
+      /^j[aá]\s*cadastrei$/.test(normalizedForJaCadastrei) ||
       (normalizedForJaCadastrei.includes('cadastrei') && (normalizedForJaCadastrei.includes('ja') || normalizedForJaCadastrei.includes('já')))
     if (isJaCadastrei) {
       console.log('📧 [WhatsApp PLEN] "JÁ CADASTREI" / "Já criei" detectado — pedindo e-mail')
