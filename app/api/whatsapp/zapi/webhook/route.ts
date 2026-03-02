@@ -173,7 +173,7 @@ function markResponded(phone: string, text: string): void {
   }
 }
 
-/** Cooldown por número após enviar as 3 boas-vindas: evita enviar mensagens extras (intro PLEN) em evento duplicado. Só 3 mensagens. */
+/** Cooldown por número após enviar as 2 boas-vindas (intro + botões): evita enviar mensagens extras em evento duplicado. */
 const welcomeSentAtByPhone = new Map<string, number>()
 // Importante: este cooldown existe só para cortar EVENTOS DUPLICADOS imediatos da Z-API após enviar boas-vindas.
 // Não pode bloquear mensagens reais do usuário (ex.: e-mail após cadastro).
@@ -382,7 +382,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return
     }
 
-    // Contato novo: SEMPRE enviar as mensagens de boas-vindas (intro + CADASTRAR + JÁ CRIEI). Em erro de consulta, tratar como novo.
+    // Contato novo: SEMPRE enviar as 2 mensagens de boas-vindas (intro + uma mensagem com botões CADASTRAR e JÁ CRIEI). Em erro de consulta, tratar como novo.
     const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits).catch(() => false)
     if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
       console.log('👋 [Z-API Webhook] Contato novo — enviando mensagens de boas-vindas para', phone)
@@ -400,7 +400,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return
     }
 
-    // Crítico: não enviar mais nada (intro PLEN, etc.) se acabamos de enviar as 3 boas-vindas — evita 5 mensagens
+    // Crítico: não enviar mais nada (intro PLEN, etc.) se acabamos de enviar as 2 boas-vindas — evita mensagens extras
     if (wasWelcomeJustSent(phone) && shouldIgnoreEventDuringWelcomeCooldown(text)) {
       console.log('📨 [Z-API Webhook] Cooldown pós-boas-vindas: ignorando evento duplicado para', phone)
       return

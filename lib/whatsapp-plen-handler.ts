@@ -584,20 +584,18 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       console.log('👋 [WhatsApp PLEN] ==========================================')
       addLog('info', `👋 [PLEN WhatsApp] QUERO UTILIZAR PLENIPAY: ${text}`)
 
-      // 3 mensagens: intro + botão URL CADASTRAR (abre o site) + botão JÁ CRIEI (pede e-mail). WhatsApp não permite URL + REPLY no mesmo envio.
+      // 2 mensagens: intro + uma mensagem com botões CADASTRAR (URL) e JÁ CRIEI (REPLY) na mesma bolha.
       return {
         success: true,
         messages: [
           `Oi! 👋 Sou a Plen, sua assistente financeira. Vou te ajudar a organizar gastos e receitas direto pelo WhatsApp 💙`,
           {
             type: 'button_actions' as const,
-            body: 'Antes de começar a registrar seus gastos:\n\n1️⃣ Salve meu contato\n2️⃣ Crie sua conta — é rápido, prometo! 😊\n\nToque em *CADASTRAR* para abrir o site:',
-            buttonActions: [{ type: 'URL', url: 'https://plenipay.com', label: 'CADASTRAR' }],
-          },
-          {
-            type: 'buttons' as const,
-            body: 'Se já tem conta, toque em *JÁ CRIEI* que eu peço seu e-mail e te libero aqui. 💙',
-            buttons: [{ id: 'ja_cadastrei', title: 'JÁ CRIEI' }],
+            body: 'Antes de começar a registrar seus gastos:\n\n1️⃣ Salve meu contato\n2️⃣ Crie sua conta — é rápido, prometo! 😊\n\nToque em *CADASTRAR* para abrir o site ou em *JÁ CRIEI* se já tem conta que eu peço seu e-mail e te libero aqui. 💙',
+            buttonActions: [
+              { type: 'URL', url: 'https://plenipay.com', label: 'CADASTRAR' },
+              { type: 'REPLY', label: 'JÁ CRIEI', id: 'ja_cadastrei' },
+            ],
           },
         ],
       }
