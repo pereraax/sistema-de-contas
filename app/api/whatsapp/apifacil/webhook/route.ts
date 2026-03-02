@@ -303,6 +303,16 @@ function isQueroUtilizarPlenipayMessage(t: string): boolean {
 
 /** Conteúdo das 3 mensagens de boas-vindas — definido em whatsapp-enviar-boas-vindas-lib; envio via sendBoasVindasToNumber (Z-API quando configurada). */
 
+/** Assistente só responde em localhost (development) ou em produção se ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true.
+ * Em produção ASSISTENTE_LOCALHOST é ignorado (evita responder se a variável foi copiada do .env.local). */
+function assistenteDeveResponder(): boolean {
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO === 'true'
+  }
+  if (process.env.ASSISTENTE_LOCALHOST === 'true') return true
+  return true
+}
+
 /** Processar mensagem e enviar resposta em background (não bloqueia a resposta do webhook) */
 async function processarEmBackground(parsed: {
   from: string
@@ -314,6 +324,10 @@ async function processarEmBackground(parsed: {
   let text = textInicial
   let origemMensagem: 'texto' | 'áudio' | 'imagem' = 'texto'
   try {
+    if (!assistenteDeveResponder()) {
+      console.log('🛑 [Apifacil Webhook] Assistente desativada em produção (só ativa em localhost até ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true).')
+      return
+    }
     if (media?.type === 'audio') {
       origemMensagem = 'áudio'
       const phoneAudio = from.startsWith('55') ? from : `55${from}`
@@ -788,6 +802,11 @@ export async function POST(request: NextRequest) {
       console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" — processando para qualquer número:', from)
     }
 
+    if (!assistenteDeveResponder()) {
+      console.log('🛑 [Apifacil Webhook] Assistente desativada em produção — retornando 200 sem processar.')
+      return NextResponse.json({ success: true, message: 'Assistente pausada (só ativa em localhost)' })
+    }
+
     // Responder 200 IMEDIATAMENTE para a API Fácil não dar timeout (muitos provedores cortam em 10–15s).
     // O processamento roda em background; em serverless a execução continua até o término ou limite do plano.
     processarEmBackground(parsed).catch((err) => {
@@ -796,7 +815,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error('❌ [Apifacil Webhook] Erro (retornando 200 para API Fácil não marcar Pendente):', err)
-    if (parsed) {
+    if (parsed && assistenteDeveResponder()) {
       await processarEmBackground(parsed).catch((e) =>
         console.error('❌ [Apifacil Webhook] Erro em processamento após catch:', e)
       )

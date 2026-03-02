@@ -120,7 +120,9 @@ function markResponded(phone: string, text: string): void {
 
 /** Cooldown por número após enviar as 3 boas-vindas: evita enviar mensagens extras (intro PLEN) em evento duplicado. Só 3 mensagens. */
 const welcomeSentAtByPhone = new Map<string, number>()
-const WELCOME_COOLDOWN_MS = 120_000 // 2 min
+// Importante: este cooldown existe só para cortar EVENTOS DUPLICADOS imediatos da Z-API após enviar boas-vindas.
+// Não pode bloquear mensagens reais do usuário (ex.: e-mail após cadastro).
+const WELCOME_COOLDOWN_MS = 10_000 // 10s
 function wasWelcomeJustSent(phone: string): boolean {
   const digits = phone.replace(/\D/g, '')
   const t = welcomeSentAtByPhone.get(digits)
@@ -158,6 +160,18 @@ function isQueroUtilizarPlenipayMessage(t: string): boolean {
   return !!(temPlenipay && temIntencao)
 }
 
+function shouldIgnoreEventDuringWelcomeCooldown(text: string): boolean {
+  const t = (text || '').replace(/\u200B|\uFEFF/g, '').trim()
+  if (!t) return true
+  // Se for um e-mail válido, é uma ação real do usuário (não ignorar).
+  const emailOnlyRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+  if (emailOnlyRegex.test(t)) return false
+  // Este "Olá" é o fallback do parse quando o payload vem sem texto — típico de evento duplicado.
+  const lower = t.toLowerCase()
+  if (lower === 'olá' || lower === 'ola') return true
+  return false
+}
+
 /** Envia texto só via Z-API (com delayTyping para "digitando..."). */
 async function sendTextReply(
   phone: string,
@@ -191,9 +205,23 @@ async function sendButtonListReply(
   return r.success ? r : { success: false, error: r.error }
 }
 
+/** Assistente só responde em localhost (development) ou em produção se ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true.
+ * Em produção ASSISTENTE_LOCALHOST é ignorado (evita responder se a variável foi copiada do .env.local). */
+function assistenteDeveResponder(): boolean {
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO === 'true'
+  }
+  if (process.env.ASSISTENTE_LOCALHOST === 'true') return true
+  return true
+}
+
 async function processarEmBackground(parsed: { from: string; text: string }) {
   const { from, text } = parsed
   try {
+    if (!assistenteDeveResponder()) {
+      console.log('🛑 [Z-API Webhook] Assistente desativada em produção (só ativa em localhost até ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true).')
+      return
+    }
     if (!isZapiConfigured()) {
       console.error('❌ [Z-API Webhook] Z-API não configurada. Defina ZAPI_INSTANCE_ID e ZAPI_TOKEN no Railway. Não usamos mais API Fácil neste webhook.')
       return
@@ -257,8 +285,8 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
     }
 
     // Crítico: não enviar mais nada (intro PLEN, etc.) se acabamos de enviar as 3 boas-vindas — evita 5 mensagens
-    if (wasWelcomeJustSent(phone)) {
-      console.log('📨 [Z-API Webhook] Cooldown pós-boas-vindas: ignorando evento extra para', phone, '(só 3 mensagens)')
+    if (wasWelcomeJustSent(phone) && shouldIgnoreEventDuringWelcomeCooldown(text)) {
+      console.log('📨 [Z-API Webhook] Cooldown pós-boas-vindas: ignorando evento duplicado para', phone)
       return
     }
 
@@ -353,7 +381,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('🔔 [Z-API Webhook] POST recebido em', new Date().toISOString())
+  const body = await request.json().catch(() => null)
+  const bodyKeys = body && typeof body === 'object' ? Object.keys(body as object).join(', ') : 'null'
+  console.log('🔔 [Z-API Webhook] POST recebido em', new Date().toISOString(), '| body keys:', bodyKeys)
   if (!isZapiConfigured()) {
     console.error('❌ [Z-API Webhook] Z-API não configurada. Configure ZAPI_INSTANCE_ID e ZAPI_TOKEN.')
     return NextResponse.json(
@@ -362,7 +392,6 @@ export async function POST(request: NextRequest) {
     )
   }
   try {
-    const body = await request.json().catch(() => null)
     const parsed = parseZapiBody(body)
     if (!parsed) {
       console.warn('📨 [Z-API Webhook] Payload ignorado (sem phone/text ou fromMe). Body keys:', body && typeof body === 'object' ? Object.keys(body as object).join(', ') : 'null')
@@ -371,6 +400,10 @@ export async function POST(request: NextRequest) {
     if (parsed.messageId && wasAlreadyProcessed(parsed.messageId)) {
       console.log('📨 [Z-API Webhook] Mensagem duplicada (messageId já processado), ignorando:', parsed.messageId)
       return NextResponse.json({ success: true, message: 'Duplicado ignorado' })
+    }
+    if (!assistenteDeveResponder()) {
+      console.log('🛑 [Z-API Webhook] Assistente desativada em produção — retornando 200 sem processar.')
+      return NextResponse.json({ success: true, message: 'Assistente pausada (só ativa em localhost)' })
     }
     console.log('📨 [Z-API Webhook] Mensagem recebida:', { from: parsed.from, textPreview: parsed.text.slice(0, 80), messageId: parsed.messageId })
     processarEmBackground(parsed).catch((e) => console.error('❌ [Z-API Webhook]', e))

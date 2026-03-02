@@ -336,6 +336,13 @@ async function deactivatePlen(phoneNumber: string) {
  */
 export async function processWhatsAppMessage(message: WhatsAppMessage) {
   try {
+    // Em produção: só processar se ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true (ASSISTENTE_LOCALHOST é ignorado em produção)
+    if (process.env.NODE_ENV === 'production') {
+      if (process.env.ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO !== 'true') {
+        console.log('🛑 [WhatsApp PLEN] Assistente desativada em produção (ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO não definido).')
+        return null
+      }
+    }
     // addLog nunca deve derrubar o processamento (ex.: "quero utilizar plenipay" sempre deve receber resposta)
     let addLog: (level: string, msg: string) => void = () => {}
     try {
@@ -640,8 +647,49 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
     console.log('👤 [WhatsApp PLEN] Phone Number:', phoneNumber)
     console.log('👤 [WhatsApp PLEN] ==========================================')
 
-    // Contato novo ou não autenticado: responder sempre com fluxo de email/key
+    // Contato novo ou não autenticado
     if (!userContext.whatsappAuthenticated) {
+      // Em localhost: usar primeiro usuário do banco para testar "gastei 200" etc. sem precisar vincular número
+      if (process.env.ASSISTENTE_LOCALHOST === 'true') {
+        try {
+          const { createAdminClient } = await import('./supabase/server')
+          const supabaseAdmin = createAdminClient()
+          if (supabaseAdmin) {
+            const { data: firstProfile } = await supabaseAdmin
+              .from('profiles')
+              .select('id, nome, email')
+              .limit(1)
+              .maybeSingle()
+            if (firstProfile?.id) {
+              console.log('🧪 [WhatsApp PLEN] Localhost: número não vinculado — usando usuário de teste:', firstProfile.id)
+              const userContextLocalhost: UserContext = {
+                userId: firstProfile.id,
+                phoneNumber,
+                nome: firstProfile.nome ?? undefined,
+                email: firstProfile.email ?? undefined,
+                registered: true,
+                whatsappAuthenticated: true,
+              }
+              // Ativar sessão em memória para este número (evita isPlenActivated dar false)
+              plenActivated.set(phoneNumber, true)
+              // Seguir fluxo com esse usuário (pula o bloco abaixo e vai para isActivated / processWithPLEN)
+              const isActivation = isActivationMessage(text)
+              if (isActivation) {
+                await activatePlen(phoneNumber)
+                return {
+                  success: true,
+                  message: `👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural.\n\nExemplos: "gastei 50 reais no mercado", "quanto gastei no mês?"\n\nPronto para começar! 🎯`,
+                }
+              }
+              const plenResult = await processWithPLEN(userContextLocalhost.userId!, text, undefined)
+              if (plenResult?.success && plenResult?.message) return plenResult
+              return null
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ [WhatsApp PLEN] Fallback localhost falhou:', (e as Error)?.message)
+        }
+      }
       console.log('📧 [WhatsApp PLEN] Contato não autenticado - iniciando fluxo de email/key')
       const authResult = await handleWhatsAppAuthentication(phoneNumber, text, userContext)
       console.log('📤 [WhatsApp PLEN] Resultado da autenticação:', authResult ? `success: ${authResult.success}` : 'null')
@@ -716,7 +764,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
     console.log('📤 [WhatsApp PLEN] Result completo:', plenResult ? JSON.stringify(plenResult, null, 2).substring(0, 500) : 'null')
     console.log('📤 [WhatsApp PLEN] ==========================================')
     
-    // Se não retornou resultado válido, devolver mensagem útil (nunca genérica)
+    // Se não retornou resultado válido: não enviar mensagem de erro ao usuário; só logar e retornar null
     if (!plenResult || !plenResult.success || !plenResult.message) {
       console.error('❌ [WhatsApp PLEN] RESULTADO INVÁLIDO DO PLEN:', plenResult === null ? 'null' : JSON.stringify(plenResult).slice(0, 300))
       try {
@@ -729,8 +777,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
           error: 'Resultado null ou sem success/message',
         })
       } catch (_) {}
-      const fallback = (plenResult?.message && String(plenResult.message).trim()) || 'Erro: resultado inválido do assistente (sem mensagem).'
-      return { success: true, message: fallback }
+      return null
     }
     
     console.log('✅ [WhatsApp PLEN] Resultado válido, retornando resposta')
