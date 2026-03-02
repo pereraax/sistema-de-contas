@@ -23,7 +23,8 @@ Em seguida explique: o que foi, qual data e horário (se for lembrete). Exemplos
 • "Gastei 50 reais no mercado"
 • "Tenho uma dívida de 200 reais no cartão"`
 
-const PLENIPAY_BASE = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL?.trim()) || 'https://plenipay.com'
+/** URL da plataforma para botões no WhatsApp: sempre produção (plenipay.com) para o usuário abrir no celular. */
+const PLENIPAY_BASE = 'https://plenipay.com'
 
 export type ProcessPlenWhatsAppResult = {
   response: string
