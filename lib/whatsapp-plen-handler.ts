@@ -1426,13 +1426,13 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
       }
     }
     if (result.buttonUrl) {
+      const bodyComBotao = result.buttonBody ? `${resp}\n\n${result.buttonBody}` : resp
       return {
         success: true,
         messages: [
-          resp,
           {
             type: 'button_actions' as const,
-            body: result.buttonBody ?? 'Para mais detalhes e assinar, clique no botão abaixo:',
+            body: bodyComBotao,
             buttonActions: [
               { type: 'URL' as const, url: result.buttonUrl, label: result.buttonLabel || 'Ver planos e assinar' },
             ],
