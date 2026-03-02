@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MessageCircle, CheckCircle, XCircle, Loader2, Phone, QrCode, RefreshCw, PauseCircle, PlayCircle } from 'lucide-react'
+import { MessageCircle, CheckCircle, XCircle, Loader2, QrCode, RefreshCw, PauseCircle, PlayCircle, Download, Users } from 'lucide-react'
 import { createNotification } from '@/components/NotificationBell'
 
 interface WhatsAppStatus {
@@ -26,6 +26,7 @@ export default function AdminWhatsAppPage() {
   const [loading, setLoading] = useState(false)
   const [assistentePausada, setAssistentePausada] = useState<boolean | null>(null)
   const [loadingPausada, setLoadingPausada] = useState(false)
+  const [exportDays, setExportDays] = useState(3)
 
   // Carregar estado da pausa global
   const carregarPausaGlobal = async () => {
@@ -551,6 +552,40 @@ export default function AdminWhatsAppPage() {
             ⏸ A assistente está pausada. Ninguém receberá respostas automáticas até você retomar.
           </p>
         )}
+      </div>
+
+      {/* Exportar contatos que falaram com o assistente (CSV) */}
+      <div className="p-6 rounded-xl border-2 bg-brand-royal/50 border-white/10">
+        <h2 className="text-xl font-bold text-brand-clean mb-2 flex items-center gap-2">
+          <Users className="text-brand-aqua" size={24} />
+          Exportar contatos (CSV)
+        </h2>
+        <p className="text-brand-clean/60 text-sm mb-4">
+          Baixe em CSV todos os números que entraram em contato com o assistente no período escolhido. Colunas: número, data da última mensagem, trecho da mensagem, data em que recebeu boas-vindas.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-brand-clean">
+            <span className="text-sm font-medium">Últimos</span>
+            <input
+              type="number"
+              min={1}
+              max={90}
+              value={exportDays}
+              onChange={(e) => setExportDays(Math.min(90, Math.max(1, parseInt(e.target.value, 10) || 3)))}
+              className="w-20 px-3 py-2 bg-brand-midnight border border-white/10 rounded-lg text-brand-clean focus:border-brand-aqua"
+            />
+            <span className="text-sm font-medium">dias</span>
+          </label>
+          <a
+            href={`/api/admin/whatsapp-contatos/export?days=${exportDays}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-smooth"
+          >
+            <Download size={18} />
+            Baixar CSV
+          </a>
+        </div>
       </div>
 
       {/* Status Card */}
