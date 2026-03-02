@@ -25,6 +25,10 @@ Em seguida explique: o que foi, qual data e horário (se for lembrete). Exemplos
 
 /** URL da plataforma para botões no WhatsApp: sempre produção (plenipay.com) para o usuário abrir no celular. */
 const PLENIPAY_BASE = 'https://plenipay.com'
+/** Texto e rótulo do botão "ver no perfil" em qualquer resposta de registro ou relatório. */
+const PERFIL_BUTTON_BODY = 'Veja com mais detalhes no seu perfil:'
+const PERFIL_BUTTON_LABEL = 'Ver no perfil'
+const PERFIL_URL = `${PLENIPAY_BASE}/registros`
 
 export type ProcessPlenWhatsAppResult = {
   response: string
@@ -394,8 +398,8 @@ export async function processPlenWhatsAppMessage(
       return {
         response: `✅ Lembrete registrado!\n\n📌 ${descricao}\n📅 ${dataBr}`,
         buttonUrl: `${PLENIPAY_BASE}/lembretes`,
-        buttonLabel: 'VER DETALHES DO REGISTRO',
-        buttonBody: 'Confira seus lembretes acessando sua conta',
+        buttonLabel: PERFIL_BUTTON_LABEL,
+        buttonBody: PERFIL_BUTTON_BODY,
       }
     }
 
@@ -454,9 +458,9 @@ export async function processPlenWhatsAppMessage(
           const fmtVal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorNum)
           return {
             response: `✅ Empréstimo registrado!\n\n💰 ${fmtVal} para ${nomePessoa}`,
-            buttonUrl: `${PLENIPAY_BASE}/registros`,
-            buttonLabel: 'VER DETALHES DO REGISTRO',
-            buttonBody: 'Confira seus registros e empréstimos acessando sua conta',
+            buttonUrl: PERFIL_URL,
+            buttonLabel: PERFIL_BUTTON_LABEL,
+            buttonBody: PERFIL_BUTTON_BODY,
           }
         }
         const planosUrl = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL?.trim())
@@ -597,9 +601,9 @@ export async function processPlenWhatsAppMessage(
               categoria,
               nomeUsuario: nomeParaResposta,
             }),
-            buttonUrl: `${PLENIPAY_BASE}/registros`,
-            buttonLabel: 'VER DETALHES DO REGISTRO',
-            buttonBody: 'Confira todos os seus registros acessando sua conta',
+            buttonUrl: PERFIL_URL,
+            buttonLabel: PERFIL_BUTTON_LABEL,
+            buttonBody: PERFIL_BUTTON_BODY,
           }
         }
         return {
@@ -677,9 +681,9 @@ export async function processPlenWhatsAppMessage(
           categoria,
           nomeUsuario: nomeParaResposta,
         }),
-        buttonUrl: `${PLENIPAY_BASE}/registros`,
-        buttonLabel: 'VER DETALHES DO REGISTRO',
-        buttonBody: 'Confira todos os seus registros acessando sua conta',
+        buttonUrl: PERFIL_URL,
+        buttonLabel: PERFIL_BUTTON_LABEL,
+        buttonBody: PERFIL_BUTTON_BODY,
       }
     }
 
@@ -749,7 +753,12 @@ export async function processPlenWhatsAppMessage(
         linhas.push(`📌 Dívidas pendentes: ${fmt(sMes.totalDividasPendentes)}`)
       }
       const text = linhas.length ? linhas.join('\n') : `💰 Saldo: ${fmt(sMes.saldo)}\n📌 Dívidas pendentes: ${fmt(sMes.totalDividasPendentes)}`
-      return { response: text }
+      return {
+        response: text,
+        buttonUrl: PERFIL_URL,
+        buttonLabel: PERFIL_BUTTON_LABEL,
+        buttonBody: PERFIL_BUTTON_BODY,
+      }
     }
 
     const msgNaoEntendi = `Oops! não entendi 🥹
