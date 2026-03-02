@@ -12,13 +12,19 @@ export const RESPOSTA_OPEN_FINANCE = `O Open Finance está em produção e em br
 
 Assim que liberarmos, você poderá conectar seus bancos e ter tudo ainda mais organizado. Fique de olho em plenipay.com para novidades 😊`
 
-/** Mensagem dinâmica sobre planos — sem valor real, estratégica ("por X por dia"). */
+/** Mensagem dinâmica sobre planos — com emojis, breve descrição de cada plano e CTA para o botão. */
 export function getRespostaPlanos(): string {
-  return `Que bom que você quer ter um assistente a seu favor! 💙
+  return `💙 *Nossos planos*
 
-Por apenas poucos centavos por dia você consegue ter a Plen cuidando das suas finanças pelo WhatsApp: registrar gastos, receitas, dívidas e ver relatórios quando quiser.
+📌 *Grátis* — Comece sem pagar nada: registrar gastos e entradas pelo WhatsApp, consultar saldo e relatórios básicos.
 
-Você pode começar grátis e testar. Cadastre em plenipay.com e depois envie seu e-mail aqui no WhatsApp para ativar. 😊`
+📌 *Básico* — Tudo do Grátis + mais categorias, lembretes e controle no dia a dia por poucos centavos por dia.
+
+📌 *Premium* — Controle completo: múltiplos usuários na conta, relatórios avançados, metas e muito mais.
+
+Por poucos centavos por dia você tem a Plen cuidando das suas finanças direto no WhatsApp. 😊
+
+_Para mais detalhes e assinar, clique no botão abaixo._ 👇`
 }
 
 /**
@@ -31,6 +37,7 @@ const PLATAFORMA_PLENIPAY = `
 O que a Plenipay oferece (use isso para responder com clareza):
 - Registrar gastos: "gastei 50 no mercado", "paguei 30 de Uber", "paguei 150,00 de luz"
 - Registrar entradas: "recebi 1000", "ganhei 50", "meu salário é 3000"
+- Registrar empréstimo/saída (dinheiro que saiu para alguém): "emprestei 34 para minha tia", "emprestei 100 reais para o João", "saída de 50 para Maria"
 - Registrar dívidas: "tenho uma dívida de 200 no cartão", "devo 500 para o João"
 - Lembretes: "me lembre de pagar conta amanhã", "lembrete para pagar conta de luz dia 7 de março", "pagar conta de água dia 07 de março", "lembrete: comprar remédio dia 15" (não confundir com dívida; dívida tem valor em reais)
 - Consultar: "quanto gastei na semana?", "quanto gastei no mês?", "quais são minhas dívidas?", "quanto tenho de saldo?", "me mostre o relatório"
@@ -48,7 +55,7 @@ REGRAS OBRIGATÓRIAS:
 2. Seja sempre amigável, educado e use um tom natural (como um amigo que ajuda com as finanças).
 3. Se o usuário pedir algo FORA do escopo (receitas, notícias, outro assunto) ou você não souber responder, responda EXATAMENTE com esta mensagem (copie e cole, sem alterar): "Ops, parece que você precisa de mais suporte 💙⚠️\n\nSe quiser falar com o suporte humano, basta enviar:\n\n\"Parar assistente Plen\"\n\nque já chamo meus especialistas para tirar suas dúvidas com mais clareza 😊"
 4. Se o usuário quiser REGISTRAR DÍVIDA mas não deu detalhes, pergunte de forma amigável: "Sobre o que é essa dívida? Qual o valor? Quando será paga? Quer adicionar alguma observação?" e sugira que depois pode mandar por exemplo: "tenho uma dívida de 200 reais no cartão".
-5. Se parecer que quer REGISTRAR gasto/entrada mas disse de um jeito que o sistema pode não reconhecer, sugira frases que funcionam: "Gastei 50 no mercado", "Recebi 100", "Ganhei 40 reais", "Tenho uma dívida de 200 no cartão". Valores podem ser com vírgula ou ponto (ex.: 1.500,00).
+5. Se parecer que quer REGISTRAR gasto/entrada/empréstimo mas disse de um jeito que o sistema pode não reconhecer, INTERPRETE o que ele quis dizer e responda de forma amigável: (1) confirme o que ele quis fazer, (2) sugira a frase exata que ele pode usar para registrar. Exemplo: se disse "emprestei minha tia 34", responda algo como: "Você quer dizer que emprestou 34 reais para sua tia? Para registrar, me diga assim: *Emprestei 34 reais para minha tia* (ou *Gastei 34 com minha tia*)." Outros exemplos: "Gastei 50 no mercado", "Recebi 100", "Tenho uma dívida de 200 no cartão". Valores podem ser com vírgula ou ponto (ex.: 1.500,00).
 6. Mantenha respostas curtas e claras (ideal para WhatsApp). Use emojis com moderação (1-2 por resposta).
 7. Não invente dados nem valores. Para relatórios ou saldos, sugira "me mostre o relatório" ou "quanto gastei na semana?".
 8. Links: use apenas "plenipay.com" (nunca https:// ou URL completa).
@@ -83,8 +90,8 @@ const buildChatPayload = (systemPrompt: string, prompt: string) => ({
 })
 
 /**
- * Chama Groq (gratuito) ou OpenAI para gerar resposta do assistente PLEN.
- * Ordem: 1) Groq se GROQ_API_KEY estiver definida; 2) OpenAI se OPENAI_API_KEY estiver definida.
+ * Chama Gemini, Groq ou OpenAI para gerar resposta do assistente PLEN.
+ * Ordem: 1) Gemini se GEMINI_API_KEY; 2) Groq se GROQ_API_KEY; 3) OpenAI se OPENAI_API_KEY.
  * Retorna null se nenhuma chave estiver configurada ou em caso de erro.
  */
 export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promise<string | null> {
@@ -96,7 +103,34 @@ export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promi
 
   const body = buildChatPayload(systemPrompt, prompt)
 
-  // 1) Tentar Groq (gratuito) — API compatível com OpenAI
+  // 1) Gemini (Google) — quando GEMINI_API_KEY está definida
+  const geminiKey = process.env.GEMINI_API_KEY?.trim()
+  if (geminiKey) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.6, maxOutputTokens: 320 },
+        }),
+      })
+      if (res.ok) {
+        const data = (await res.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+        if (text) return text
+      } else {
+        console.warn('[PLEN LLM] Gemini respondeu com status:', res.status)
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn('[PLEN LLM] Erro ao chamar Gemini:', msg)
+    }
+  }
+
+  // 2) Groq (gratuito) — API compatível com OpenAI
   const groqKey = process.env.GROQ_API_KEY?.trim()
   if (groqKey) {
     try {
@@ -124,10 +158,9 @@ export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promi
     }
   }
 
-  // 2) Fallback: OpenAI
+  // 3) OpenAI
   const openaiKey = process.env.OPENAI_API_KEY?.trim()
-  if (!openaiKey) return null
-
+  if (openaiKey) {
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -145,12 +178,13 @@ export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promi
 
     const data = await res.json()
     const text = data.choices?.[0]?.message?.content?.trim()
-    return text || null
+    if (text) return text
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.warn('[PLEN LLM] Erro ao chamar OpenAI:', msg)
-    return null
   }
+  }
+  return null
 }
 
 /**

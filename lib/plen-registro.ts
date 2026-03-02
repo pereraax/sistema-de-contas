@@ -34,8 +34,8 @@ export function normalizarNumerosPorExtenso(texto: string): string {
   return out
 }
 
-/** Aceita 50, 1.500,00 (BR), 1,500.00 (US), 50 reais, R$ 1.234,56 */
-function extrairValor(texto: string): number | null {
+/** Aceita 50, 1.500,00 (BR), 1,500.00 (US), 50 reais, R$ 1.234,56. Exportado para uso no chat WhatsApp. */
+export function extrairValor(texto: string): number | null {
   const raw = texto.replace(/\s*(reais?|r\$|r\b)\s*/gi, '').trim()
   const match = raw.match(/[\d.,]+/)
   if (!match) return null
@@ -193,7 +193,7 @@ function todosValoresNoTexto(texto: string): number[] {
 export function interpretarMensagem(texto: string): InterpretadoPlen | null {
   const t = normalizarNumerosPorExtenso(texto.trim().toLowerCase())
   // Preferir o valor que vem logo após o verbo (gastei/paguei/recebi) para não pegar "2" de "dia 2" ou transcrição errada
-  const valorAposVerbo = t.match(/(?:gastei|gasteu|gastou|paguei|pagou|recebi|recebeu|ganhei|ganhou|entrada\s+de)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
+  const valorAposVerbo = t.match(/(?:gastei|gasteu|gastou|paguei|pagou|recebi|recebeu|ganhei|ganhou|emprestei|emprestou|entrada\s+de)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
   let valorStr = valorAposVerbo ?? t.match(/[\d.,]+\s*(?:reais?|r\$|r\b)?/i)?.[0] ?? t.match(/[\d.,]+/)?.[0]
   let valorNum = valorStr ? extrairValor(valorStr) : null
   if (valorNum == null || valorNum <= 0) return null
@@ -235,6 +235,15 @@ export function interpretarMensagem(texto: string): InterpretadoPlen | null {
   if (/(?:empr[eé]stimo|esprestimo)\s+(?:de\s+)?[\d.,]+\s*(?:reais?|r\$|r\b)?/i.test(t)) {
     const data_registro = parseDataDoTexto(t)
     return { tipo: 'saida', valor: valorNum, nome: 'Empréstimo', data_registro, categoria: 'Empréstimo' }
+  }
+
+  // EMPRESTEI / EMPRESTOU (saída): "emprestei 34 para minha tia", "emprestou 100 reais para o João"
+  const empresteiMatch = t.match(/(?:emprestei|emprestou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:para\s+)?(.+?)(?:\s*$|\.|,)/i)
+  if (empresteiMatch && /(?:emprestei|emprestou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?/i.test(t)) {
+    const paraQuem = (empresteiMatch[1] || '').trim().replace(/\s*(hoje|ontem|dia\s+\d{1,2})\s*$/gi, '').trim()
+    nome = paraQuem ? `Emprestado para ${paraQuem.substring(0, 80)}` : 'Empréstimo'
+    const data_registro = parseDataDoTexto(t)
+    return { tipo: 'saida', valor: valorNum, nome, data_registro, categoria: 'Empréstimo' }
   }
 
   // ENTRADA por "ganhos de X", "novos ganhos de X reais", "entrada de X", "adicione X como ganho"

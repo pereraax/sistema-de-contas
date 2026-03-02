@@ -5,8 +5,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/server'
-import { interpretarMensagem, formatarRespostaRegistro, categoriaInteligente, normalizarNumerosPorExtenso } from '@/lib/plen-registro'
-import { getRespostaPlanos, RESPOSTA_OPEN_FINANCE } from '@/lib/plen-llm-fallback'
+import { interpretarMensagem, formatarRespostaRegistro, categoriaInteligente, normalizarNumerosPorExtenso, extrairValor } from '@/lib/plen-registro'
+import { getRespostaPlanos, getPlenLLMResponse, RESPOSTA_OPEN_FINANCE } from '@/lib/plen-llm-fallback'
 
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
 const MSG_ENTENDER_MELHOR = `Para te entender melhor, você pode começar dizendo o que deseja:
@@ -28,6 +28,8 @@ export type ProcessPlenWhatsAppResult = {
   /** Quando preenchido, a resposta deve ser enviada com botão de link (sem preview). */
   buttonUrl?: string
   buttonLabel?: string
+  /** Botões de resposta (ex.: "Falar com humano" na mensagem Oops). */
+  replyButtons?: { body: string; buttons: { id: string; title: string }[] }
 }
 
 /** Estatísticas por conta (para consultas/relatórios no WhatsApp). */
@@ -319,13 +321,47 @@ export async function processPlenWhatsAppMessage(
       return { response: 'Envie uma mensagem. Ex.: "Gastei 50 reais" ou "Recebi 200".' }
     }
 
-    const t = rawMessage.toLowerCase()
+    const t = rawMessage.toLowerCase().replace(/\s+/g, ' ').trim()
+    const norm = t.replace(/_/g, ' ')
 
-    // Planos / preço — mensagem dinâmica sem valor real
+    // "Falar com humano" (clique no botão da mensagem Oops ou digitado)
+    if (norm === 'falar com humano' || t === 'falar_com_humano') {
+      return {
+        response:
+          'Beleza! Vou chamar um humano pra te atender. 💙 Aguarda um momentinho que em breve alguém da nossa equipe vai falar contigo. Enquanto isso, fico na torcida aqui! 😊',
+        replyButtons: {
+          body: 'Quer voltar a falar comigo?',
+          buttons: [{ id: 'voltar_plen', title: 'Voltar a falar com a PLEN' }],
+        },
+      }
+    }
+
+    // "Voltar a falar com a PLEN" (clique no botão após handoff para humano)
+    if (norm === 'voltar a falar com a plen' || t === 'voltar_plen') {
+      return {
+        response:
+          'Oi! Voltei. 😊 Em que posso ajudar? Pode mandar um gasto, uma entrada, pedir relatório ou qualquer coisa. Estou aqui! 💙',
+      }
+    }
+
+    // Planos / preço / "qual valor?" — resposta curta com emojis, descrição dos planos e botão para /planos
     const isPlanos =
-      /\b(plano|planos|pre[cç]o|quanto\s+custa|valor\s+do\s+plano|assinatura|mensalidade)\b/.test(t)
+      /\b(plano|planos|pre[cç]o|quanto\s+custa|qual\s+valor|qual\s+o\s+valor|quanto\s+é|valor\s+do\s+plano|assinatura|mensalidade)\b/.test(t) ||
+      /^qual\s+valor\s*\??\s*$/i.test(rawMessage.trim())
     if (isPlanos) {
-      return { response: getRespostaPlanos() }
+      const planosUrl =
+        typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL?.trim()
+          ? (process.env.NEXT_PUBLIC_SITE_URL.startsWith('http')
+              ? process.env.NEXT_PUBLIC_SITE_URL
+              : `https://${process.env.NEXT_PUBLIC_SITE_URL}`
+            ).replace(/\/+$/, '')
+          : 'https://plenipay.com'
+      const planosLink = `${planosUrl}/planos`
+      return {
+        response: getRespostaPlanos(),
+        buttonUrl: planosLink,
+        buttonLabel: 'Ver planos e assinar',
+      }
     }
 
     // Open Finance — em produção
@@ -441,7 +477,7 @@ export async function processPlenWhatsAppMessage(
       // SOLUÇÃO DEFINITIVA: extrair valor e nome por REGEX da frase (não depender do LLM)
       const valorRegex = msgNorm.match(/(?:gastei|paguei|ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
       const nomeRegex = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)?.[1]?.trim()
-      const valorNum = valorRegex ? parseFloat(valorRegex.replace(',', '.').replace(/\s/g, '')) : NaN
+      const valorNum = valorRegex != null ? (extrairValor(valorRegex) ?? NaN) : NaN
       const tipoFromVerbo: 'entrada' | 'saida' = /\b(ganhei|recebi|ganhou|recebeu)\b/i.test(msgForRegistro) ? 'entrada' : 'saida'
       const valorValido = Number.isFinite(valorNum) && valorNum >= 1 && valorNum <= 500_000
       const nomeValido = nomeRegex && nomeRegex.length >= 2
@@ -477,7 +513,7 @@ export async function processPlenWhatsAppMessage(
     // Salvaguarda: frase tem "ganhei" ou "recebi" mas interpretado deu gasto → forçar ENTRADA
     if (interpretado?.tipo === 'saida' && /\b(ganhei|recebi)\b/i.test(msgForRegistro)) {
       const entVal = msgForRegistro.match(/(?:ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
-      const entNum = entVal ? parseFloat(entVal.replace(',', '.')) : NaN
+      const entNum = entVal != null ? (extrairValor(entVal) ?? NaN) : NaN
       const entNome = msgForRegistro.match(/(?:ganhei|recebi)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|da)\s+([a-záàâãéêíóôõúç\s]+?)(?:\s*$|\.|,)/i)?.[1]?.trim() || msgForRegistro.match(/(?:de|da)\s+([a-záàâãéêíóôõúç]+)/i)?.[1]?.trim() || 'Entrada'
       if (Number.isFinite(entNum) && entNum >= 1 && entNum <= 500_000) {
         const nomeFormatado = entNome.length >= 2 ? entNome.charAt(0).toUpperCase() + entNome.slice(1).toLowerCase() : entNome
@@ -780,8 +816,34 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
       }
     }
 
-    // Não enviar mensagem longa fora do funil (evita "Oops! não entendi" e instruções repetidas)
-    return { response: '' }
+    // Comando não reconhecido: usar Gemini/Groq/OpenAI para entender contexto e sugerir como registrar (ex.: "emprestei minha tia 34" → sugerir frase exata)
+    try {
+      const llmReply = await getPlenLLMResponse({
+        userMessage: rawMessage,
+        context:
+          'O usuário enviou uma mensagem que não foi reconhecida como comando. Entenda o que ele quis fazer (ex.: registrar gasto, entrada, empréstimo para alguém) e responda em UMA mensagem curta para WhatsApp: (1) confirme o que ele quis dizer; (2) sugira a frase exata que ele pode usar para registrar. Ex.: se disse "emprestei minha tia 34", responda que ele quer registrar um empréstimo e sugira "Emprestei 34 reais para minha tia" ou "Gastei 34 com minha tia". Seja amigável e direto.',
+      })
+      if (llmReply && llmReply.trim()) {
+        return {
+          response: llmReply.trim(),
+          replyButtons: {
+            body: 'Precisa de ajuda humana?',
+            buttons: [{ id: 'falar_com_humano', title: 'Falar com humano' }],
+          },
+        }
+      }
+    } catch (e) {
+      console.warn('[PLEN whatsapp-chat] LLM fallback (Gemini/Groq/OpenAI) falhou:', e)
+    }
+
+    // Fallback: "Oops!" com exemplos + botão "Falar com humano"
+    return {
+      response: msgNaoEntendi,
+      replyButtons: {
+        body: 'Precisa de ajuda humana?',
+        buttons: [{ id: 'falar_com_humano', title: 'Falar com humano' }],
+      },
+    }
   } catch (err: any) {
     const msg = err?.message ?? String(err)
     console.error('[PLEN whatsapp-chat] Exceção:', err)
