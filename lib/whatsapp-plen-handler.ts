@@ -1432,7 +1432,7 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
           resp,
           {
             type: 'button_actions' as const,
-            body: 'Para mais detalhes e assinar, clique no botão abaixo:',
+            body: result.buttonBody ?? 'Para mais detalhes e assinar, clique no botão abaixo:',
             buttonActions: [
               { type: 'URL' as const, url: result.buttonUrl, label: result.buttonLabel || 'Ver planos e assinar' },
             ],

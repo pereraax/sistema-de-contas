@@ -350,8 +350,7 @@ function getSiteUrlSemPreview(): string {
  * 🗂️ Categoria: ...
  * usuario: (nome do usuário/pessoa) — opcional
  * ✨ Mensagem de sucesso
- * Confira todos os seus registros acessando sua conta
- * https://plenipay.com
+ * (O link "Ver detalhes" é enviado como botão separado pelo WhatsApp.)
  */
 export function formatarRespostaRegistro(params: {
   nome: string
@@ -387,12 +386,6 @@ export function formatarRespostaRegistro(params: {
   if (nomeUsuario != null && nomeUsuario.trim() !== '') {
     linhas.push(`usuario: ${nomeUsuario.trim()}`)
   }
-  linhas.push(
-    '',
-    mensagemSucesso,
-    '',
-    'Confira todos os seus registros acessando sua conta',
-    'plenipay.com',
-  )
+  linhas.push('', mensagemSucesso)
   return linhas.join('\n')
 }

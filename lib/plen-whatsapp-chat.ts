@@ -23,11 +23,15 @@ Em seguida explique: o que foi, qual data e horário (se for lembrete). Exemplos
 • "Gastei 50 reais no mercado"
 • "Tenho uma dívida de 200 reais no cartão"`
 
+const PLENIPAY_BASE = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL?.trim()) || 'https://plenipay.com'
+
 export type ProcessPlenWhatsAppResult = {
   response: string
-  /** Quando preenchido, a resposta deve ser enviada com botão de link (sem preview). */
+  /** Quando preenchido, a resposta deve ser enviada com botão de link. */
   buttonUrl?: string
   buttonLabel?: string
+  /** Texto da mensagem que contém o botão (ex.: "Confira todos os seus registros..."). */
+  buttonBody?: string
   /** Botões de resposta (ex.: "Falar com humano" na mensagem Oops). */
   replyButtons?: { body: string; buttons: { id: string; title: string }[] }
 }
@@ -387,7 +391,10 @@ export async function processPlenWhatsAppMessage(
       }
       const dataBr = new Date(data_lembrete).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
       return {
-        response: `✅ Lembrete registrado!\n\n📌 ${descricao}\n📅 ${dataBr}\n\nConfira em plenipay.com na área Lembretes.`,
+        response: `✅ Lembrete registrado!\n\n📌 ${descricao}\n📅 ${dataBr}`,
+        buttonUrl: `${PLENIPAY_BASE}/lembretes`,
+        buttonLabel: 'VER DETALHES DO REGISTRO',
+        buttonBody: 'Confira seus lembretes acessando sua conta',
       }
     }
 
@@ -445,7 +452,10 @@ export async function processPlenWhatsAppMessage(
           }
           const fmtVal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorNum)
           return {
-            response: `✅ Empréstimo registrado!\n\n💰 ${fmtVal} para ${nomePessoa}\n\nConfira em plenipay.com na área de empréstimos.`,
+            response: `✅ Empréstimo registrado!\n\n💰 ${fmtVal} para ${nomePessoa}`,
+            buttonUrl: `${PLENIPAY_BASE}/registros`,
+            buttonLabel: 'VER DETALHES DO REGISTRO',
+            buttonBody: 'Confira seus registros e empréstimos acessando sua conta',
           }
         }
         const planosUrl = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL?.trim())
@@ -586,6 +596,9 @@ export async function processPlenWhatsAppMessage(
               categoria,
               nomeUsuario: nomeParaResposta,
             }),
+            buttonUrl: `${PLENIPAY_BASE}/registros`,
+            buttonLabel: 'VER DETALHES DO REGISTRO',
+            buttonBody: 'Confira todos os seus registros acessando sua conta',
           }
         }
         return {
@@ -663,6 +676,9 @@ export async function processPlenWhatsAppMessage(
           categoria,
           nomeUsuario: nomeParaResposta,
         }),
+        buttonUrl: `${PLENIPAY_BASE}/registros`,
+        buttonLabel: 'VER DETALHES DO REGISTRO',
+        buttonBody: 'Confira todos os seus registros acessando sua conta',
       }
     }
 
