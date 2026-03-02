@@ -439,7 +439,7 @@ function extrairComprovanteOCR(texto: string): string | null {
   // 1) Valor: preferir R$ X,XX ou Valor/Total/Valor da fatura; senão maior número no formato X,XX ou X.XX
   const valorCandidatos: number[] = []
   const reR$ = /R\s*\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/g
-  const reValorTotal = /(?:valor\s+da\s+fatura|valor|total|pix\s+enviado|pix\s+recebido|fatura)\s*[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/gi
+  const reValorTotal = /(?:valor\s+do\s+pagamento|valor\s+do\s+documento|valor\s+da\s+fatura|valor|total|pix\s+enviado|pix\s+recebido|fatura)\s*[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/gi
   const reNumeroDecimal = /(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})/g
 
   /** Aceita 80,00 (BR), 80.00 (decimal), 1.500,00 (milhares BR). Nunca converte 80.00 em 8000. */
@@ -477,9 +477,9 @@ function extrairComprovanteOCR(texto: string): string | null {
         : null
   if (valor == null || valor <= 0) return null
 
-  // 2) Nomes: "Quem recebeu"/"Destino" → beneficiário (quem você pagou); "Quem pagou"/"Origem" → pagador (quem te pagou)
-  const quemRecebeuBlock = t.match(/(?:Quem\s+recebeu|recebedor|benefici[aá]rio|Destino)[\s\S]*?(?=Quem\s+pagou|pagador|Origem|Referente|Valor|Total|R\$|$)/i)
-  const quemPagouBlock = t.match(/(?:Quem\s+pagou|pagador|Origem)[\s\S]*?(?=Destino|Referente|Valor|Total|R\$|$)/i)
+  // 2) Nomes: "Quem recebeu"/"Destino"/"Favorecido" → beneficiário (quem você pagou); "Quem pagou"/"Origem" → pagador (quem te pagou)
+  const quemRecebeuBlock = t.match(/(?:Quem\s+recebeu|recebedor|benefici[aá]rio|Destino|Favorecido)[\s\S]*?(?=Quem\s+pagou|pagador|Origem|Referente|Valor|Vencimento|Total|R\$|Código|$)/i)
+  const quemPagouBlock = t.match(/(?:Quem\s+pagou|pagador|Origem)[\s\S]*?(?=Destino|Favorecido|Referente|Valor|Total|R\$|$)/i)
 
   const nomeDepoisDe = (bloco: string | null, label: string): string => {
     if (!bloco) return ''
@@ -490,13 +490,14 @@ function extrairComprovanteOCR(texto: string): string | null {
 
   const pegarPrimeiraLinhaNome = (bloco: string | null): string => {
     if (!bloco) return ''
-    const ignorar = /^(Nome|CPF|CNPJ|Institui[cç][aã]o|Raz[aã]o\s*Social|Destino|Origem)$/i
+    const ignorar = /^(Nome|CPF|CNPJ|Institui[cç][aã]o|Raz[aã]o\s*Social|Destino|Origem|Favorecido)$/i
     const linhas = bloco.split(/\n/).map((l) => l.trim()).filter((l) => l.length > 2 && /^[A-Za-z]/.test(l) && !ignorar.test(l) && !/^\d[\d.\s,-]+$/.test(l))
     const linha = linhas.find((l) => l.length >= 2 && l.length <= 80) ?? linhas[0]
     return linha ? linha.substring(0, 120) : ''
   }
 
   let nomeBeneficiario = nomeDepoisDe(quemRecebeuBlock?.[0] ?? null, 'Nome')
+  if (!nomeBeneficiario) nomeBeneficiario = nomeDepoisDe(quemRecebeuBlock?.[0] ?? null, 'Favorecido')
   if (!nomeBeneficiario && quemRecebeuBlock) nomeBeneficiario = pegarPrimeiraLinhaNome(quemRecebeuBlock[0])
 
   let nomePagador = nomeDepoisDe(quemPagouBlock?.[0] ?? null, 'Nome')
@@ -518,13 +519,15 @@ function comandoFromOcrValorENome(ocrText: string): string | null {
   const valor = extrairValorPrincipalDoTexto(ocrText)
   if (valor == null || valor <= 0) return null
   const t = ocrText.trim()
-  const quemRecebeuBlock = t.match(/(?:Quem\s+recebeu|recebedor|benefici[aá]rio|Destino)[\s\S]*?(?=Quem\s+pagou|pagador|Origem|Referente|Valor|Total|R\$|$)/i)
-  const quemPagouBlock = t.match(/(?:Quem\s+pagou|pagador|Origem)[\s\S]*?(?=Destino|Referente|Valor|Total|R\$|$)/i)
-  const ignorar = /^(Nome|CPF|CNPJ|Institui[cç][aã]o|Raz[aã]o\s*Social|Destino|Origem)$/i
+  const quemRecebeuBlock = t.match(/(?:Quem\s+recebeu|recebedor|benefici[aá]rio|Destino|Favorecido)[\s\S]*?(?=Quem\s+pagou|pagador|Origem|Referente|Valor|Vencimento|Total|R\$|Código|$)/i)
+  const quemPagouBlock = t.match(/(?:Quem\s+pagou|pagador|Origem)[\s\S]*?(?=Destino|Favorecido|Referente|Valor|Total|R\$|$)/i)
+  const ignorar = /^(Nome|CPF|CNPJ|Institui[cç][aã]o|Raz[aã]o\s*Social|Destino|Origem|Favorecido)$/i
   const pegarNome = (bloco: string | null): string => {
     if (!bloco) return ''
     const afterNome = bloco.match(/Nome\s*[:]?\s*([A-Za-z0-9\s.-]{2,}?)(?=\n|CPF|CNPJ|Instituição|$)/i)
     if (afterNome?.[1]) return afterNome[1].replace(/\s+/g, ' ').trim().substring(0, 120)
+    const afterFav = bloco.match(/Favorecido\s*[:]?\s*([A-Za-z0-9\s.-]{2,}?)(?=\n|$)/i)
+    if (afterFav?.[1]) return afterFav[1].replace(/\s+/g, ' ').trim().substring(0, 120)
     const linhas = bloco.split(/\n/).map((l) => l.trim()).filter((l) => l.length >= 2 && l.length <= 80 && /^[A-Za-z]/.test(l) && !ignorar.test(l) && !/^\d[\d.\s,-]+$/.test(l))
     return linhas[0]?.substring(0, 120) ?? ''
   }
@@ -541,7 +544,7 @@ function extrairValorPrincipalDoTexto(texto: string): number | null {
   const t = texto.trim()
   const candidatos: number[] = []
   const reR$ = /R\s*\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/g
-  const reValorTotal = /(?:valor\s+da\s+fatura|valor|total|pix\s+enviado|pix\s+recebido|fatura)\s*[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/gi
+  const reValorTotal = /(?:valor\s+do\s+pagamento|valor\s+do\s+documento|valor\s+da\s+fatura|valor|total|pix\s+enviado|pix\s+recebido|fatura)\s*[:\s]*R?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{2})?)/gi
   const reNumero = /(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})/g
   function parse(s: string): number {
     const limpo = s.replace(/\s/g, '').trim()
@@ -556,8 +559,8 @@ function extrairValorPrincipalDoTexto(texto: string): number | null {
   while ((m = reValorTotal.exec(t)) !== null) candidatos.push(parse(m[1]))
   reNumero.lastIndex = 0
   while ((m = reNumero.exec(t)) !== null) candidatos.push(parse(m[1]))
-  // Fallback PIX/fatura: valor em reais (80,00 ou 15,00). Para fatura aceita valor pequeno.
-  if (/pix|enviado|recebido|comprovante|fatura|valor\s+da\s+fatura/i.test(t)) {
+  // Fallback PIX/fatura/comprovante: valor em reais (80,00 ou 15,00 ou 196,63).
+  if (/pix|enviado|recebido|comprovante|fatura|valor\s+da\s+fatura|valor\s+do\s+pagamento|valor\s+do\s+documento|favorecido/i.test(t)) {
     const reValorGrande = /\b(\d{1,})[.,](\d{2})\b/g
     while ((m = reValorGrande.exec(t)) !== null) {
       const v = parseFloat(m[1] + '.' + m[2])
@@ -752,6 +755,7 @@ REGRAS OBRIGATÓRIAS:
 - PIX enviado (você pagou): tipo = "pix". nome_beneficiario = nome em "Quem recebeu". valor = valor em reais.
 - PIX recebido (você recebeu): tipo = "recebimento". nome_pagador = nome em "Quem pagou". valor = valor em reais.
 - FATURA/BOLETO: use "Valor da fatura" como valor; nome em "Destino" (quem recebe) = nome_beneficiario; nome em "Origem" (quem paga) = nome_pagador. tipo = "pix" (pagamento).
+- COMPROVANTE DE PAGAMENTO: use "Valor do pagamento" ou "Valor do documento" como valor; "Favorecido" = nome_beneficiario (quem recebeu o pagamento). tipo = "pix" (pagamento).
 - Preencha nome_beneficiario ou nome_pagador com o nome REAL do comprovante (não deixe vazio).
 - data: "YYYY-MM-DD" se visível (ex.: Vencimento), senão null.
 
@@ -889,7 +893,8 @@ async function processImageWithGroqVision(base64Image: string, caption?: string,
 REGRAS: Valor = valor da transação em reais (ex.: "Pix enviado R$ 80,00" ou "Valor da fatura R$ 15,00" → 80 ou 15). NUNCA use número de data (12, 2022) ou hora.
 PIX enviado: tipo "pix", nome_beneficiario = nome em "Quem recebeu".
 PIX recebido: tipo "recebimento", nome_pagador = nome em "Quem pagou".
-FATURA/BOLETO: use "Valor da fatura" como valor; "Destino" = nome_beneficiario (quem recebe); "Origem" = nome_pagador (quem paga). tipo "pix".
+FATURA/BOLETO: use "Valor da fatura" como valor; "Destino" = nome_beneficiario; "Origem" = nome_pagador. tipo "pix".
+COMPROVANTE DE PAGAMENTO: use "Valor do pagamento" ou "Valor do documento" como valor; "Favorecido" = nome_beneficiario. tipo "pix".
 Retorne SOMENTE um JSON válido: {"tipo":"pix"|"recebimento","valor":número,"data":null,"nome_beneficiario":"","nome_pagador":"","descricao":""}
 ${caption ? ` Legenda: ${caption}` : ''}`
 
@@ -953,7 +958,8 @@ async function processImageWithOpenAI(base64Image: string, caption?: string, ocr
 IMPORTANTE - Valor: use o valor PRINCIPAL em reais (ex.: R$ 80,00 ou "Valor da fatura R$ 15,00" → 80 ou 15). NÃO use números de data/código/ID.
 PIX enviado: "Quem recebeu" = nome_beneficiario. tipo = "pix".
 PIX recebido: "Quem pagou" = nome_pagador. tipo = "recebimento".
-FATURA/BOLETO: use "Valor da fatura" como valor; "Destino" = nome_beneficiario (quem recebe); "Origem" = nome_pagador (quem paga). tipo = "pix".
+FATURA/BOLETO: use "Valor da fatura" como valor; "Destino" = nome_beneficiario; "Origem" = nome_pagador. tipo = "pix".
+COMPROVANTE DE PAGAMENTO: use "Valor do pagamento" ou "Valor do documento" como valor; "Favorecido" = nome_beneficiario. tipo = "pix".
 Preencha nome_beneficiario ou nome_pagador com o nome real do comprovante (não deixe vazio se estiver visível).
 Data: YYYY-MM-DD se possível (ex.: Vencimento), senão null.
 Retorne SOMENTE um JSON válido: {"tipo":"pix"|"recebimento","valor":número,"data":null ou "YYYY-MM-DD","nome_beneficiario":"","nome_pagador":"","descricao":""}
