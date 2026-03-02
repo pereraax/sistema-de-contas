@@ -34,6 +34,32 @@ interface UserContext {
   whatsappAuthenticated: boolean
 }
 
+/** Mensagem com todos os comandos que o assistente aceita (enviada após confirmação de e-mail ou quando usuário já está liberado). */
+const MSG_COMANDOS_PLEN = `Olá! Se você está pronto para começar a gerenciar suas finanças, basta me dizer como posso ajudar! 😊
+
+💼 O que eu posso fazer por você:
+
+📝 REGISTRAR:
+• Gastos: "paguei 50 reais no mercado"
+• Entradas: "recebi 1000 reais"
+• Dívidas: "tenho uma dívida de 200 reais"
+• Salários: "meu salário é 3000 reais"
+
+📊 CONSULTAR:
+• "quais são minhas dívidas?"
+• "quanto gastei na semana?"
+• "quanto gastei no mês?"
+• "quanto tenho de saldo?"
+• "quanto recebi este mês?"
+
+📈 RELATÓRIOS:
+• "me mostre o relatório"
+• "quero ver meu relatório financeiro"
+• "mostre meu resumo do mês"
+• "como estão minhas finanças?"
+
+💡 Você pode falar de forma natural! Ex: "gastei 30 de ônibus", "paguei 150 de luz", "recebi 500 do cliente". Eu organizo tudo para você! 🎯`
+
 // Cache de mensagens enviadas recentemente (evitar processar nossas próprias mensagens)
 const sentMessages = new Map<string, number>()
 const SENT_MESSAGE_CACHE_TTL = 120000 // 2 minutos
@@ -399,13 +425,24 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       // Se falhar a leitura da config, seguir processando
     }
 
-    // PRIORIDADE MÁXIMA: "JÁ CADASTREI" / "Já criei" / "JÁ CRIEI" (botão) — sempre pedir e-mail (antes de qualquer outro fluxo)
+    // PRIORIDADE MÁXIMA: "JÁ CADASTREI" / "Já criei" / "JÁ CRIEI" (botão) — se já estiver liberado, dizer que já está e enviar comandos; senão pedir e-mail
     const normalizedForJaCadastrei = String(text).toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.,!?]+/g, '')
     const isJaCadastrei =
       /^j[aá]\s*criei$/.test(normalizedForJaCadastrei) ||
       /^j[aá]\s*cadastrei$/.test(normalizedForJaCadastrei) ||
       (normalizedForJaCadastrei.includes('cadastrei') && (normalizedForJaCadastrei.includes('ja') || normalizedForJaCadastrei.includes('já')))
     if (isJaCadastrei) {
+      const userContextJaCriei = await getUserContext(phoneNumber)
+      if (userContextJaCriei.whatsappAuthenticated) {
+        console.log('📧 [WhatsApp PLEN] "JÁ CRIEI" detectado — usuário já liberado, enviando confirmação + comandos')
+        return {
+          success: true,
+          messages: [
+            '✅ Você já está liberado(a)! Seu e-mail já está confirmado. 💙',
+            MSG_COMANDOS_PLEN,
+          ],
+        }
+      }
       console.log('📧 [WhatsApp PLEN] "JÁ CADASTREI" / "Já criei" detectado — pedindo e-mail')
       return {
         success: true,
@@ -1208,10 +1245,13 @@ async function handleWhatsAppAuthentication(
       // Verificar se o e-mail já está ativo (já vinculado a este número)
       const { ativo: jaAtivo } = await verificarEmailJaAtivoNoWhatsApp(email, phoneNumber)
       if (jaAtivo) {
-        console.log('📧 [WhatsApp PLEN] Email já ativo neste número:', email)
+        console.log('📧 [WhatsApp PLEN] Email já ativo neste número — enviando confirmação + comandos:', email)
         return {
           success: true,
-          message: `✅ *Seu e-mail já está ativo!*\n\nVocê pode começar a enviar seus registros. Exemplos:\n• "Gastei 50 no mercado"\n• "Recebi 200"\n• "Quanto gastei no mês?"\n• "Me mostre o relatório" 💙`,
+          messages: [
+            '✅ Seu e-mail já está ativo! Você já pode usar a Plen pelo WhatsApp. 💙',
+            MSG_COMANDOS_PLEN,
+          ],
         }
       }
       pendingEmails.set(phoneNumber, email)
