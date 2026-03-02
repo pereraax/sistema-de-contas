@@ -2,6 +2,10 @@
  * Webhook da Z-API (z-api.io) para mensagens WhatsApp.
  * Único provedor em uso: toda recepção e envio é via Z-API (sem API Fácil).
  * Recebe mensagens e cliques em botões; processa com o handler PLEN e responde via Z-API.
+ *
+ * - TEXTO: mensagem digitada → PLEN interpreta (registro, dúvidas, etc.) → envia resposta.
+ * - ÁUDIO: baixa arquivo → transcreve (Groq/OpenAI/Gemini) → usa texto como se fosse digitado → PLEN registra.
+ * - IMAGEM (comprovante): baixa → OCR/IA extrai valor e nome → comando "paguei X para Y" / "recebi X de Y" → PLEN registra.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -9,6 +13,7 @@ import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen
 import { sendTextMessage, sendButtonList, sendButtonActions, isZapiConfigured } from '@/lib/whatsapp-zapi'
 import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage } from '@/lib/whatsapp-contatos-pendentes'
 import { sendBoasVindasToNumber, isBoasVindasConfigured, MENSAGENS_BOAS_VINDAS } from '@/lib/whatsapp-enviar-boas-vindas-lib'
+import { downloadMedia, transcribeAudio, processComprovanteImage } from '@/lib/whatsapp-media-processor'
 
 function buildPlenMessage(from: string, text: string) {
   const remoteJid = from.includes('@') ? from : `${from.replace(/\D/g, '')}@s.whatsapp.net`
@@ -48,8 +53,15 @@ function getButtonPayload(b: Record<string, unknown>): Record<string, unknown> |
   return null
 }
 
-/** Extrair phone, text e messageId do payload Z-API. Aceita vários formatos (on-message-received, ReceivedCallBack, data.text, etc.). */
-function parseZapiBody(body: unknown): { from: string; text: string; messageId?: string } | null {
+/** Mídia recebida no webhook Z-API (áudio ou imagem de comprovante). */
+type ZapiMedia =
+  | { type: 'audio'; url: string; mimetype: string }
+  | { type: 'image'; url: string; mimetype: string; caption?: string }
+
+export type ZapiParsed = { from: string; text: string; messageId?: string; media?: ZapiMedia }
+
+/** Extrair phone, text, messageId e mídia (áudio/imagem) do payload Z-API. Aceita vários formatos (on-message-received, ReceivedCallBack, data.text, audio.audioUrl, image.imageUrl, etc.). */
+function parseZapiBody(body: unknown): ZapiParsed | null {
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
 
@@ -107,7 +119,19 @@ function parseZapiBody(body: unknown): { from: string; text: string; messageId?:
     const mid = (b.data as Record<string, unknown>).messageId
     if (typeof mid === 'string') messageId = mid
   }
-  return { from: from.startsWith('55') ? from : `55${from}`, text: text.trim(), messageId }
+
+  // Mídia: Z-API envia audio.audioUrl / image.imageUrl (top-level ou em data)
+  let media: ZapiMedia | undefined
+  const data = (b.data && typeof b.data === 'object' ? b.data : b) as Record<string, unknown>
+  const audio = (b.audio ?? data?.audio) as { audioUrl?: string; mimeType?: string } | undefined
+  const image = (b.image ?? data?.image) as { imageUrl?: string; mimeType?: string; caption?: string } | undefined
+  if (audio?.audioUrl && typeof audio.audioUrl === 'string') {
+    media = { type: 'audio', url: audio.audioUrl, mimetype: audio.mimeType || 'audio/ogg; codecs=opus' }
+  } else if (image?.imageUrl && typeof image.imageUrl === 'string') {
+    media = { type: 'image', url: image.imageUrl, mimetype: image.mimeType || 'image/jpeg', caption: image.caption }
+  }
+
+  return { from: from.startsWith('55') ? from : `55${from}`, text: text.trim(), messageId, media }
 }
 
 /** Cache de messageIds já processados (evitar resposta duplicada quando Z-API envia 2 eventos para o mesmo ato). TTL 90s. */
@@ -246,9 +270,22 @@ function assistenteDeveResponder(): boolean {
   return true
 }
 
-async function processarEmBackground(parsed: { from: string; text: string }) {
-  const { from, text } = parsed
+const MSG_AUDIO_NAO_ENTENDI = 'Não consegui entender o áudio 😅 Pode digitar a mensagem? Ex.: gastei 50 no mercado'
+const MSG_COMPROVANTE_NAO_LEU = `Não consegui ler o comprovante 😅
+Envie a foto de novo ou descreva em texto: valor e para quem (ex.: paguei 80 para João).`
+
+/** Headers opcionais para baixar mídia da Z-API (URLs podem ser públicas; se 401, configurar token). */
+function getZapiMediaHeaders(): HeadersInit {
+  const token = process.env.ZAPI_TOKEN?.trim()
+  if (token) return { Authorization: `Bearer ${token}` }
+  return {}
+}
+
+async function processarEmBackground(parsed: ZapiParsed) {
+  const { from } = parsed
+  let text = parsed.text
   try {
+    // Assistente deve estar sempre ativa para receber mensagens (novos contatos e existentes).
     if (!assistenteDeveResponder()) {
       console.log('🛑 [Z-API Webhook] Assistente desativada em produção (só ativa em localhost até ENABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true).')
       return
@@ -259,6 +296,52 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
     }
     const phone = from.startsWith('55') ? from : `55${from}`
     const phoneDigits = phone.replace(/\D/g, '')
+
+    // Áudio: baixar → transcrever → usar texto para o PLEN (registro de gasto/recebimento por voz)
+    if (parsed.media?.type === 'audio') {
+      console.log('🎤 [Z-API Webhook] Áudio recebido, baixando e transcrevendo para', phone)
+      try {
+        const buffer = await downloadMedia(parsed.media.url, getZapiMediaHeaders())
+        if (!buffer || buffer.length === 0) throw new Error('Download do áudio falhou')
+        const transcribed = await transcribeAudio(buffer, parsed.media.mimetype || 'audio/ogg')
+        text = (transcribed || '').trim()
+        if (text) {
+          console.log('🎤 [Z-API Webhook] Áudio transcrito:', text.slice(0, 120), '→ PLEN vai registrar como texto')
+        } else {
+          await sendTextMessage(phone, MSG_AUDIO_NAO_ENTENDI).catch(() => {})
+          registerSentMessage(phone, 'Áudio não transcrito')
+          return
+        }
+      } catch (err) {
+        console.error('🎤 [Z-API Webhook] Erro ao processar áudio:', err)
+        await sendTextMessage(phone, 'Problema ao processar o áudio. Tente enviar de novo ou digite a mensagem (ex.: gastei 50 no mercado).').catch(() => {})
+        registerSentMessage(phone, 'Erro ao processar áudio')
+        return
+      }
+    }
+
+    // Imagem (comprovante): baixar → OCR/IA extrair valor e nome → usar comando para o PLEN registrar
+    if (parsed.media?.type === 'image') {
+      console.log('🖼️ [Z-API Webhook] Imagem de comprovante recebida, baixando e extraindo valor/nome para', phone)
+      try {
+        const buffer = await downloadMedia(parsed.media.url, getZapiMediaHeaders())
+        if (!buffer || buffer.length === 0) throw new Error('Falha ao baixar imagem')
+        const comando = await processComprovanteImage(buffer, parsed.media.caption)
+        text = (comando || '').trim()
+        if (!text) {
+          console.error('🖼️ [Z-API Webhook] Nenhum valor/nome extraído da imagem')
+          await sendTextMessage(phone, MSG_COMPROVANTE_NAO_LEU).catch(() => {})
+          registerSentMessage(phone, MSG_COMPROVANTE_NAO_LEU)
+          return
+        }
+        console.log('🖼️ [Z-API Webhook] Comprovante extraído:', text.slice(0, 80), '→ PLEN vai registrar')
+      } catch (err) {
+        console.error('🖼️ [Z-API Webhook] Erro ao processar imagem:', err)
+        await sendTextMessage(phone, MSG_COMPROVANTE_NAO_LEU).catch(() => {})
+        registerSentMessage(phone, MSG_COMPROVANTE_NAO_LEU)
+        return
+      }
+    }
 
     if (wasRecentlyResponded(phone, text ?? '')) {
       console.log('📨 [Z-API Webhook] Duplicado por número+texto (resposta já enviada nos últimos 60s), ignorando:', phone, text?.slice(0, 30))
@@ -282,14 +365,15 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
       await sendTextMessage(phone, fallback, { delayTyping: 1 }).catch(() => {})
     }
 
+    // "Quero utilizar PleniPay" — sempre enviar mensagens de boas-vindas (intro + botões).
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
-      console.log('👋 [Z-API Webhook] "Quero utilizar PleniPay" — enviando 3 mensagens para', phone)
+      console.log('👋 [Z-API Webhook] "Quero utilizar PleniPay" — enviando mensagens de boas-vindas para', phone)
       const ok = await envioBoasVindasComRetry()
       if (ok) {
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
         markWelcomeJustSent(phone)
-        console.log('✅ [Z-API Webhook] 3 mensagens de boas-vindas enviadas:', phone)
+        console.log('✅ [Z-API Webhook] Boas-vindas enviadas:', phone)
         return
       }
       console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou após retry. Enviando fallback.')
@@ -298,15 +382,16 @@ async function processarEmBackground(parsed: { from: string; text: string }) {
       return
     }
 
-    const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits)
+    // Contato novo: SEMPRE enviar as mensagens de boas-vindas (intro + CADASTRAR + JÁ CRIEI). Em erro de consulta, tratar como novo.
+    const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits).catch(() => false)
     if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
-      console.log('👋 [Z-API Webhook] Contato novo — enviando 3 mensagens de boas-vindas para', phone)
+      console.log('👋 [Z-API Webhook] Contato novo — enviando mensagens de boas-vindas para', phone)
       const ok = await envioBoasVindasComRetry()
       if (ok) {
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
         markWelcomeJustSent(phone)
-        console.log('✅ [Z-API Webhook] 3 mensagens enviadas para contato novo:', phone)
+        console.log('✅ [Z-API Webhook] Boas-vindas enviadas para contato novo:', phone)
         return
       }
       console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou para contato novo após retry. Enviando fallback.')
@@ -437,7 +522,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'Assistente pausada (só ativa em localhost)' })
     }
     const isBotao = parsed.text === 'CADASTRAR' || parsed.text === 'JÁ CADASTREI' || /^j[aá]\s*criei$/i.test(parsed.text.trim()) || /^j[aá]\s*cadastrei$/i.test(parsed.text.trim())
-    console.log('📨 [Z-API Webhook] Mensagem recebida:', { from: parsed.from, textPreview: parsed.text.slice(0, 80), messageId: parsed.messageId, isCliqueBotao: isBotao })
+    console.log('📨 [Z-API Webhook] Mensagem recebida:', { from: parsed.from, textPreview: parsed.text.slice(0, 80), messageId: parsed.messageId, isCliqueBotao: isBotao, media: parsed.media?.type })
     if (isBotao) console.log('🔘 [Z-API Webhook] Clique em botão reconhecido:', parsed.text)
     processarEmBackground(parsed).catch((e) => console.error('❌ [Z-API Webhook]', e))
     return NextResponse.json({ success: true })
