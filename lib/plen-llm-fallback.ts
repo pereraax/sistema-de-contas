@@ -90,8 +90,8 @@ const buildChatPayload = (systemPrompt: string, prompt: string) => ({
 })
 
 /**
- * Chama Gemini, Groq ou OpenAI para gerar resposta do assistente PLEN.
- * Ordem: 1) Gemini se GEMINI_API_KEY; 2) Groq se GROQ_API_KEY; 3) OpenAI se OPENAI_API_KEY.
+ * Chama Grok (xAI), Groq ou OpenAI para gerar resposta do assistente PLEN.
+ * Ordem: 1) Grok (xAI) se XAI_API_KEY; 2) Groq se GROQ_API_KEY; 3) OpenAI se OPENAI_API_KEY.
  * Retorna null se nenhuma chave estiver configurada ou em caso de erro.
  */
 export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promise<string | null> {
@@ -103,30 +103,31 @@ export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promi
 
   const body = buildChatPayload(systemPrompt, prompt)
 
-  // 1) Gemini (Google) — quando GEMINI_API_KEY está definida
-  const geminiKey = process.env.GEMINI_API_KEY?.trim()
-  if (geminiKey) {
+  // 1) Grok (xAI) — API compatível com OpenAI; base URL api.x.ai
+  const xaiKey = process.env.XAI_API_KEY?.trim()
+  if (xaiKey) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`
-      const res = await fetch(url, {
+      const res = await fetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${xaiKey}`,
+        },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.6, maxOutputTokens: 320 },
+          ...body,
+          model: 'grok-4-1-fast-reasoning', // xAI; alternativas: grok-4-fast-non-reasoning, grok-4
         }),
       })
       if (res.ok) {
-        const data = (await res.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+        const data = await res.json()
+        const text = data.choices?.[0]?.message?.content?.trim()
         if (text) return text
       } else {
-        console.warn('[PLEN LLM] Gemini respondeu com status:', res.status)
+        console.warn('[PLEN LLM] Grok (xAI) respondeu com status:', res.status)
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      console.warn('[PLEN LLM] Erro ao chamar Gemini:', msg)
+      console.warn('[PLEN LLM] Erro ao chamar Grok (xAI):', msg)
     }
   }
 

@@ -833,7 +833,7 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
         }
       }
     } catch (e) {
-      console.warn('[PLEN whatsapp-chat] LLM fallback (Gemini/Groq/OpenAI) falhou:', e)
+      console.warn('[PLEN whatsapp-chat] LLM fallback (Grok xAI/Groq/OpenAI) falhou:', e)
     }
 
     // Fallback: "Oops!" com exemplos + botão "Falar com humano"
