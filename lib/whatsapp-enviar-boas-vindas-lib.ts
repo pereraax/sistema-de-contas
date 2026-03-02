@@ -1,11 +1,10 @@
 /**
  * Lógica compartilhada para enviar as 3 mensagens de boas-vindas ("quero utilizar a plenipay").
- * A partir de agora usamos só Z-API (z-api.io). API Fácil foi removida do fluxo principal.
- *
- * Provedor: Z-API — env ZAPI_INSTANCE_ID + ZAPI_TOKEN (+ ZAPI_CLIENT_TOKEN se exigido).
+ * (1) Oi, sou a Plen; (2) Passos + botão URL CADASTRAR (abre o site ao toque); (3) botão JÁ CRIEI → ao tocar o handler pede e-mail.
+ * Provedor: Z-API (z-api.io). API Fácil como fallback.
  */
 
-import { sendTextMessage as apifacilSendText, sendReplyButtons, sendCustomButtons as apifacilSendCustomButtons, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
+import { sendTextMessage as apifacilSendText, sendReplyButtons, sendCustomButtons as apifacilSendCustomButtons } from '@/lib/whatsapp-apifacil'
 import {
   sendTextMessage as zapiSendText,
   sendButtonActions,
@@ -15,19 +14,28 @@ import { registerSentMessage } from '@/lib/whatsapp-plen-handler'
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-/** As 3 mensagens de boas-vindas (igual ao print: link só no botão). */
-export const MENSAGENS_BOAS_VINDAS: [string, { type: 'buttons'; body: string; buttons: { id: string; title: string; url?: string }[] }, string] = [
-  `Oiii 👋💙\nEu sou a Plen, sua assistente financeira 🤖✨\nE eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!\n\nAntes da gente começar, cria sua conta rapidinho lá no site 🌐\nÉ bem rápido mesmo, prometo! ⏱️💙`,
+/** 3 mensagens: (1) intro, (2) passos + botão URL CADASTRAR (abre o site ao toque), (3) botão REPLY JÁ CRIEI (pede e-mail). WhatsApp não permite URL + REPLY no mesmo envio. */
+export type BoasVindasItem =
+  | string
+  | { type: 'button_actions'; body: string; buttonActions: { type: 'URL'; url: string; label: string }[] }
+  | { type: 'buttons'; body: string; buttons: { id: string; title: string; url?: string }[] }
+
+export const MENSAGENS_BOAS_VINDAS: BoasVindasItem[] = [
+  `Oi! 👋 Sou a Plen, sua assistente financeira. Vou te ajudar a organizar gastos e receitas direto pelo WhatsApp 💙`,
+  {
+    type: 'button_actions' as const,
+    body: 'Antes de começar a registrar seus gastos:\n\n1️⃣ Salve meu contato\n2️⃣ Crie sua conta — é rápido, prometo! 😊\n\nToque em *CADASTRAR* para abrir o site:',
+    buttonActions: [{ type: 'URL', url: 'https://plenipay.com', label: 'CADASTRAR' }],
+  },
   {
     type: 'buttons' as const,
-    body: 'Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺 AGORA É SÓ CADASTRAR! 📝',
-    buttons: [{ id: 'cadastrar', title: 'CADASTRAR', url: 'https://plenipay.com' }],
+    body: 'Se já tem conta, toque em *JÁ CRIEI* que eu peço seu e-mail e te libero aqui. 💙',
+    buttons: [{ id: 'ja_cadastrei', title: 'JÁ CRIEI' }],
   },
-  `Assim que finalizar o cadastro, me envia seu e-mail aqui ✉️ Vou verificar tudo certinho e já te liberar pra começar a registrar seus gastos e colocar suas economias em ordem 💵📈✨ Eu fico responsável por anotar tudo pra você direto pelo WhatsApp, combinado? 😉`,
 ]
 
 const CADASTRO_URL = 'https://plenipay.com'
-const FALLBACK_LINK_MSG = `Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺\n\nEscolha abaixo:\n\n🔗 Cadastro: ${CADASTRO_URL}\n\n*CADASTRAR* — abrir site\n*JÁ CADASTREI* — já criei minha conta`
+const FALLBACK_LINK_MSG = `Antes de começar:\n1️⃣ Salve meu contato\n2️⃣ Crie sua conta: ${CADASTRO_URL}\n\nDigite *CADASTRAR* para o link ou *JÁ CRIEI* que eu peço seu e-mail.`
 
 /** Provedor de boas-vindas: só Z-API (API Fácil não é mais usada neste fluxo). */
 export function getBoasVindasProvider(): 'zapi' | 'apifacil' | null {
@@ -40,35 +48,40 @@ export function isBoasVindasConfigured(): boolean {
   return isZapiConfigured()
 }
 
-/** Envia as 3 mensagens via Z-API (texto + botão URL CADASTRAR + texto). Link só no botão. */
+/** Envia 3 mensagens via Z-API: (1) intro, (2) passos + botão URL CADASTRAR (abre site), (3) botão REPLY JÁ CRIEI. */
 async function sendBoasVindasViaZapi(phone: string): Promise<{ success: boolean; error?: string }> {
-  const [msg1, msg2Block, msg3] = MENSAGENS_BOAS_VINDAS
-  const send1 = await zapiSendText(phone, msg1)
-  if (!send1.success) return { success: false, error: send1.error }
-  registerSentMessage(phone, msg1)
-  await delay(300)
-
-  const body2 = msg2Block.type === 'buttons' ? msg2Block.body : ''
-  const urlBtn = msg2Block.type === 'buttons' && msg2Block.buttons?.find((b) => b.url)
-  const send2 = urlBtn
-    ? await sendButtonActions(phone, body2, [{ type: 'URL', url: urlBtn.url || CADASTRO_URL, label: urlBtn.title, id: urlBtn.id }])
-    : await sendButtonActions(phone, body2, [{ type: 'URL', url: CADASTRO_URL, label: 'CADASTRAR', id: 'cadastrar' }])
-  if (send2.success) {
-    registerSentMessage(phone, `${body2}\n\nCADASTRAR`)
-  } else {
-    const fallback = await zapiSendText(phone, FALLBACK_LINK_MSG)
-    if (fallback.success) registerSentMessage(phone, FALLBACK_LINK_MSG)
-    if (!fallback.success) return { success: false, error: send2.error || fallback.error }
+  for (let i = 0; i < MENSAGENS_BOAS_VINDAS.length; i++) {
+    const msg = MENSAGENS_BOAS_VINDAS[i]
+    if (typeof msg === 'string') {
+      const send = await zapiSendText(phone, msg)
+      if (!send.success) return { success: false, error: send.error }
+      registerSentMessage(phone, msg)
+    } else if (msg.type === 'button_actions') {
+      const send = await sendButtonActions(phone, msg.body, msg.buttonActions)
+      if (!send.success) {
+        const fallback = await zapiSendText(phone, FALLBACK_LINK_MSG)
+        if (!fallback.success) return { success: false, error: send.error || fallback.error }
+        registerSentMessage(phone, FALLBACK_LINK_MSG)
+      } else {
+        registerSentMessage(phone, `${msg.body} [botão CADASTRAR]`)
+      }
+    } else if (msg.type === 'buttons' && msg.buttons?.length) {
+      const replyActions = msg.buttons.map((b) => ({ type: 'REPLY' as const, label: b.title, id: b.id }))
+      const send = await sendButtonActions(phone, msg.body, replyActions)
+      if (!send.success) {
+        const fallback = await zapiSendText(phone, msg.body + '\n\nDigite *JÁ CRIEI* que eu peço seu e-mail.')
+        if (!fallback.success) return { success: false, error: send.error || fallback.error }
+        registerSentMessage(phone, msg.body)
+      } else {
+        registerSentMessage(phone, `${msg.body} [${msg.buttons.map((b) => b.title).join(' / ')}]`)
+      }
+    }
+    if (i < MENSAGENS_BOAS_VINDAS.length - 1) await delay(300)
   }
-  await delay(300)
-
-  const send3 = await zapiSendText(phone, msg3)
-  if (!send3.success) return { success: false, error: send3.error }
-  registerSentMessage(phone, msg3)
   return { success: true }
 }
 
-/** Envia as 3 mensagens via API Fácil (segunda mensagem com botão URL quando disponível). */
+/** Envia as 3 mensagens via API Fácil (intro + link CADASTRAR + botão JÁ CRIEI). */
 async function sendBoasVindasViaApifacil(phone: string): Promise<{ success: boolean; error?: string }> {
   for (let i = 0; i < MENSAGENS_BOAS_VINDAS.length; i++) {
     const msg = MENSAGENS_BOAS_VINDAS[i]
@@ -76,17 +89,22 @@ async function sendBoasVindasViaApifacil(phone: string): Promise<{ success: bool
       const send = await apifacilSendText(phone, msg)
       if (!send.success) return { success: false, error: send.error }
       registerSentMessage(phone, msg)
-    } else if (msg.type === 'buttons') {
-      const hasUrl = msg.buttons.some((b) => b.url)
-      const send = hasUrl
-        ? await apifacilSendCustomButtons(phone, msg.body, msg.buttons as { id: string; title: string; url?: string }[])
-        : await sendReplyButtons(phone, msg.body, msg.buttons.map((b) => ({ id: b.id, title: b.title })))
-      if (send.success) {
-        registerSentMessage(phone, `${msg.body}\n\n${msg.buttons.map((b) => b.title).join(' / ')}`)
-      } else {
-        const fallback = await apifacilSendText(phone, FALLBACK_LINK_MSG)
-        if (fallback.success) registerSentMessage(phone, FALLBACK_LINK_MSG)
+    } else if (msg.type === 'button_actions') {
+      const btns = msg.buttonActions.map((a) => ({ id: a.label.toLowerCase().replace(/\s+/g, '_'), title: a.label, url: a.url }))
+      const send = await apifacilSendCustomButtons(phone, msg.body, btns)
+      if (send.success) registerSentMessage(phone, `${msg.body} [botão CADASTRAR]`)
+      else {
+        const fallback = await apifacilSendText(phone, msg.body + '\n\n' + CADASTRO_URL)
         if (!fallback.success) return { success: false, error: send.error || fallback.error }
+        registerSentMessage(phone, msg.body)
+      }
+    } else if (msg.type === 'buttons' && msg.buttons?.length) {
+      const send = await sendReplyButtons(phone, msg.body, msg.buttons.map((b) => ({ id: b.id, title: b.title })))
+      if (send.success) registerSentMessage(phone, `${msg.body}\n\n${msg.buttons.map((b) => b.title).join(' / ')}`)
+      else {
+        const fallback = await apifacilSendText(phone, msg.body + '\n\nDigite *JÁ CRIEI* que eu peço seu e-mail.')
+        if (!fallback.success) return { success: false, error: send.error || fallback.error }
+        registerSentMessage(phone, msg.body)
       }
     }
     if (i < MENSAGENS_BOAS_VINDAS.length - 1) await delay(400)
@@ -94,15 +112,13 @@ async function sendBoasVindasViaApifacil(phone: string): Promise<{ success: bool
   return { success: true }
 }
 
-/** Envia apenas UMA mensagem de boas-vindas (1, 2 ou 3). Envio instantâneo, sem delay. */
+/** Envia apenas UMA mensagem de boas-vindas (índice 1, 2 ou 3). Envio instantâneo, sem delay. */
 export async function sendBoasVindasSingleMessage(
   phone: string,
   index: 1 | 2 | 3
 ): Promise<{ success: boolean; error?: string }> {
   const provider = getBoasVindasProvider()
-  if (!provider) {
-    return { success: false, error: 'Nenhum provedor configurado (Z-API ou API Fácil).' }
-  }
+  if (!provider) return { success: false, error: 'Nenhum provedor configurado (Z-API ou API Fácil).' }
   const msg = MENSAGENS_BOAS_VINDAS[index - 1]
   if (typeof msg === 'string') {
     const send = provider === 'zapi' ? await zapiSendText(phone, msg) : await apifacilSendText(phone, msg)
@@ -110,35 +126,48 @@ export async function sendBoasVindasSingleMessage(
     registerSentMessage(phone, msg)
     return { success: true }
   }
-  const msg2Block = msg
-  const body2 = msg2Block.body
-  const urlBtn = msg2Block.buttons?.find((b) => b.url)
-  if (provider === 'zapi') {
-    const send2 = await sendButtonActions(phone, body2, [
-      { type: 'URL', url: urlBtn?.url || CADASTRO_URL, label: urlBtn?.title || 'CADASTRAR', id: urlBtn?.id || 'cadastrar' },
-    ])
-    if (send2.success) {
-      registerSentMessage(phone, `${body2}\n\nCADASTRAR`)
+  if (msg.type === 'button_actions') {
+    if (provider === 'zapi') {
+      const send = await sendButtonActions(phone, msg.body, msg.buttonActions)
+      if (send.success) {
+        registerSentMessage(phone, `${msg.body} [botão CADASTRAR]`)
+        return { success: true }
+      }
+      const fallback = await zapiSendText(phone, FALLBACK_LINK_MSG)
+      return fallback.success ? { success: true } : { success: false, error: send.error || fallback.error }
+    }
+    const btns = msg.buttonActions.map((a) => ({ id: a.label.toLowerCase().replace(/\s+/g, '_'), title: a.label, url: a.url }))
+    const send = await apifacilSendCustomButtons(phone, msg.body, btns)
+    if (send.success) {
+      registerSentMessage(phone, `${msg.body} [botão CADASTRAR]`)
       return { success: true }
     }
-    const fallback = await zapiSendText(phone, FALLBACK_LINK_MSG)
-    if (fallback.success) registerSentMessage(phone, FALLBACK_LINK_MSG)
-    return fallback.success ? { success: true } : { success: false, error: send2.error || fallback.error }
+    const fallback = await apifacilSendText(phone, msg.body + '\n\n' + CADASTRO_URL)
+    return fallback.success ? { success: true } : { success: false, error: send.error || fallback.error }
   }
-  const hasUrl = msg2Block.buttons?.some((b) => b.url)
-  const send = hasUrl
-    ? await apifacilSendCustomButtons(phone, msg2Block.body, msg2Block.buttons as { id: string; title: string; url?: string }[])
-    : await sendReplyButtons(phone, msg2Block.body, msg2Block.buttons.map((b) => ({ id: b.id, title: b.title })))
+  const block = msg
+  if (provider === 'zapi') {
+    const replyActions = (block.buttons || []).map((b) => ({ type: 'REPLY' as const, label: b.title, id: b.id }))
+    const send = replyActions.length > 0
+      ? await sendButtonActions(phone, block.body, replyActions)
+      : await sendButtonActions(phone, block.body, [{ type: 'REPLY', label: 'JÁ CRIEI', id: 'ja_cadastrei' }])
+    if (send.success) {
+      registerSentMessage(phone, `${block.body}\n\n${block.buttons?.map((b) => b.title).join(' / ') || 'JÁ CRIEI'}`)
+      return { success: true }
+    }
+    const fallback = await zapiSendText(phone, block.body + '\n\nDigite *JÁ CRIEI* que eu peço seu e-mail.')
+    return fallback.success ? { success: true } : { success: false, error: send.error || fallback.error }
+  }
+  const send = await sendReplyButtons(phone, block.body, block.buttons.map((b) => ({ id: b.id, title: b.title })))
   if (send.success) {
-    registerSentMessage(phone, `${msg2Block.body}\n\n${msg2Block.buttons.map((b) => b.title).join(' / ')}`)
+    registerSentMessage(phone, `${block.body}\n\n${block.buttons.map((b) => b.title).join(' / ')}`)
     return { success: true }
   }
-  const fallback = await apifacilSendText(phone, FALLBACK_LINK_MSG)
-  if (fallback.success) registerSentMessage(phone, FALLBACK_LINK_MSG)
+  const fallback = await apifacilSendText(phone, block.body + '\n\nDigite *JÁ CRIEI* que eu peço seu e-mail.')
   return fallback.success ? { success: true } : { success: false, error: send.error || fallback.error }
 }
 
-/** Envia as 3 mensagens de boas-vindas para um número. Usa Z-API ou API Fácil conforme configuração. */
+/** Envia as 3 mensagens de boas-vindas (intro + botão URL CADASTRAR + botão JÁ CRIEI). Usa Z-API ou API Fácil. */
 export async function sendBoasVindasToNumber(phone: string): Promise<{ success: boolean; error?: string }> {
   const provider = getBoasVindasProvider()
   if (provider === 'zapi') return sendBoasVindasViaZapi(phone)

@@ -399,17 +399,35 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       // Se falhar a leitura da config, seguir processando
     }
 
-    // PRIORIDADE MÁXIMA: "JÁ CADASTREI" / "ja cadastrei" — sempre pedir e-mail (antes de qualquer outro fluxo)
+    // PRIORIDADE MÁXIMA: "JÁ CADASTREI" / "Já criei" — sempre pedir e-mail (antes de qualquer outro fluxo)
     const normalizedForJaCadastrei = String(text).toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.,!?]+/g, '')
     const isJaCadastrei =
       normalizedForJaCadastrei === 'ja cadastrei' ||
       normalizedForJaCadastrei === 'já cadastrei' ||
+      normalizedForJaCadastrei === 'ja criei' ||
+      normalizedForJaCadastrei === 'já criei' ||
       (normalizedForJaCadastrei.includes('cadastrei') && (normalizedForJaCadastrei.includes('ja') || normalizedForJaCadastrei.includes('já')))
     if (isJaCadastrei) {
-      console.log('📧 [WhatsApp PLEN] "JÁ CADASTREI" detectado no início — pedindo e-mail')
+      console.log('📧 [WhatsApp PLEN] "JÁ CADASTREI" / "Já criei" detectado — pedindo e-mail')
       return {
         success: true,
         message: `📩 Beleza! Agora me envia seu *e-mail* de cadastro aqui que eu verifico e já te libero pra usar tudo pelo WhatsApp. 💙`,
+      }
+    }
+
+    // "CADASTRAR" (botão ou digitado) — responder na hora com link para a plataforma
+    const isCadastrar = normalizedForJaCadastrei === 'cadastrar'
+    if (isCadastrar) {
+      console.log('📧 [WhatsApp PLEN] "CADASTRAR" detectado — enviando link da plataforma')
+      return {
+        success: true,
+        messages: [
+          {
+            type: 'button_actions' as const,
+            body: '👉 Abra o site para cadastro abaixo. Depois que criar a conta, toque em *JÁ CRIEI* ou digite aqui que eu peço seu e-mail. 🚀',
+            buttonActions: [{ type: 'URL' as const, url: 'https://plenipay.com', label: 'CADASTRAR' }],
+          },
+        ],
       }
     }
 
@@ -568,17 +586,21 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       console.log('👋 [WhatsApp PLEN] ==========================================')
       addLog('info', `👋 [PLEN WhatsApp] QUERO UTILIZAR PLENIPAY: ${text}`)
 
-      // 3 mensagens iguais ao fluxo de boas-vindas: texto, botão CADASTRAR (link só no botão), texto.
+      // 3 mensagens: intro + botão URL CADASTRAR (abre o site) + botão JÁ CRIEI (pede e-mail). WhatsApp não permite URL + REPLY no mesmo envio.
       return {
         success: true,
         messages: [
-          `Oiii 👋💙\nEu sou a Plen, sua assistente financeira 🤖✨\nE eu já estou prontinha pra começar a te ajudar a organizar tudo por aqui!\n\nAntes da gente começar, cria sua conta rapidinho lá no site 🌐\nÉ bem rápido mesmo, prometo! ⏱️💙`,
+          `Oi! 👋 Sou a Plen, sua assistente financeira. Vou te ajudar a organizar gastos e receitas direto pelo WhatsApp 💙`,
           {
             type: 'button_actions' as const,
-            body: 'Para que eu consiga te reconhecer e registrar tudo certinho, preciso que você salve meu contato, tá bem? 💙🥺 AGORA É SÓ CADASTRAR! 📝',
+            body: 'Antes de começar a registrar seus gastos:\n\n1️⃣ Salve meu contato\n2️⃣ Crie sua conta — é rápido, prometo! 😊\n\nToque em *CADASTRAR* para abrir o site:',
             buttonActions: [{ type: 'URL', url: 'https://plenipay.com', label: 'CADASTRAR' }],
           },
-          `Assim que finalizar o cadastro, me envia seu e-mail aqui ✉️ Vou verificar tudo certinho e já te liberar pra começar a registrar seus gastos e colocar suas economias em ordem 💵📈✨ Eu fico responsável por anotar tudo pra você direto pelo WhatsApp, combinado? 😉`,
+          {
+            type: 'buttons' as const,
+            body: 'Se já tem conta, toque em *JÁ CRIEI* que eu peço seu e-mail e te libero aqui. 💙',
+            buttons: [{ id: 'ja_cadastrei', title: 'JÁ CRIEI' }],
+          },
         ],
       }
     }
@@ -682,7 +704,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
                 }
               }
               const plenResult = await processWithPLEN(userContextLocalhost.userId!, text, undefined)
-              if (plenResult?.success && plenResult?.message) return plenResult
+              if (plenResult?.success && (plenResult?.message || plenResult?.messages)) return plenResult
               return null
             }
           }
@@ -765,7 +787,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
     console.log('📤 [WhatsApp PLEN] ==========================================')
     
     // Se não retornou resultado válido: não enviar mensagem de erro ao usuário; só logar e retornar null
-    if (!plenResult || !plenResult.success || !plenResult.message) {
+    if (!plenResult || !plenResult.success || (!plenResult.message && !plenResult.messages)) {
       console.error('❌ [WhatsApp PLEN] RESULTADO INVÁLIDO DO PLEN:', plenResult === null ? 'null' : JSON.stringify(plenResult).slice(0, 300))
       try {
         const { plenWhatsAppLog } = await import('@/lib/plen-whatsapp-logs')
@@ -1050,11 +1072,13 @@ async function handleWhatsAppAuthentication(
   const trimmedText = text.replace(/\u200B|\uFEFF/g, '').trim()
   const lowerText = trimmedText.toLowerCase()
 
-  // Botão "JÁ CADASTREI" — usuário avisou que já se cadastrou; pedir e-mail (qualquer variação)
+  // Botão "JÁ CADASTREI" / "Já criei" — usuário avisou que já se cadastrou; pedir e-mail
   const norm = trimmedText.toLowerCase().replace(/\s+/g, ' ').replace(/[.,!?]+/g, '').trim()
   if (
     norm === 'ja cadastrei' ||
     norm === 'já cadastrei' ||
+    norm === 'ja criei' ||
+    norm === 'já criei' ||
     (norm.includes('cadastrei') && (norm.includes('ja') || norm.includes('já')))
   ) {
     return {
@@ -1063,15 +1087,15 @@ async function handleWhatsAppAuthentication(
     }
   }
 
-  // Botão "CADASTRAR" — enviar como botão que abre o link (Z-API) ou texto com link (fallback)
+  // Botão "CADASTRAR" — enviar mensagem com botão/link para plenipay.com (já pode ter sido tratado no início do handler)
   if (lowerText === 'cadastrar') {
     return {
       success: true,
       messages: [
         {
           type: 'button_actions' as const,
-          body: '👉 Abra o site para cadastro abaixo. Depois que criar a conta, digite *JÁ CADASTREI* aqui que eu peço seu e-mail pra liberar. 🚀',
-          buttonActions: [{ type: 'URL' as const, url: 'https://plenipay.com', label: 'Abrir site de cadastro' }],
+          body: '👉 Abra o site para cadastro abaixo. Depois que criar a conta, toque em *JÁ CRIEI* ou digite aqui que eu peço seu e-mail. 🚀',
+          buttonActions: [{ type: 'URL' as const, url: 'https://plenipay.com', label: 'CADASTRAR' }],
         },
       ],
     }
@@ -1393,11 +1417,34 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
     }
     console.log('✅ [WhatsApp PLEN] Resposta direta:', resp.substring(0, 80))
     addLog('info', `✅ [PLEN WhatsApp] Resposta: ${resp.substring(0, 100)}`)
-    
+
+    if (result.replyButtons && result.replyButtons.buttons?.length > 0) {
+      return {
+        success: true,
+        messages: [
+          resp,
+          { type: 'buttons' as const, body: result.replyButtons.body, buttons: result.replyButtons.buttons },
+        ],
+      }
+    }
+    if (result.buttonUrl) {
+      return {
+        success: true,
+        messages: [
+          resp,
+          {
+            type: 'button_actions' as const,
+            body: 'Para mais detalhes e assinar, clique no botão abaixo:',
+            buttonActions: [
+              { type: 'URL' as const, url: result.buttonUrl, label: result.buttonLabel || 'Ver planos e assinar' },
+            ],
+          },
+        ],
+      }
+    }
     return {
       success: true,
       message: resp,
-      ...(result.buttonUrl && { buttonUrl: result.buttonUrl, buttonLabel: result.buttonLabel || 'ABRIR' }),
     }
   } catch (error: any) {
     const errMsg = error?.message ?? String(error)

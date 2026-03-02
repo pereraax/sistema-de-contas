@@ -1,14 +1,17 @@
 /**
- * POST: envia as 3 mensagens de boas-vindas para um número.
+ * POST: envia mensagem(ns) de boas-vindas para um número.
  * Usado pela extensão Chrome CRM (WhatsApp Web).
  * Autenticação: header Authorization: Bearer <EXTENSION_CRM_API_KEY> ou X-API-Key: <token>
- * Body: { "phone": "5511999999999" }
+ * Body: { "phone": "5511999999999" } ou { "phone": "...", "messageIndex": 1|2|3 } para enviar só uma mensagem (instantâneo).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { sendBoasVindasToNumber } from '@/lib/whatsapp-enviar-boas-vindas-lib'
+import {
+  sendBoasVindasToNumber,
+  sendBoasVindasSingleMessage,
+  isBoasVindasConfigured,
+} from '@/lib/whatsapp-enviar-boas-vindas-lib'
 import { markWelcomeSent } from '@/lib/whatsapp-contatos-pendentes'
-import { isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 
 const EXTENSION_TOKEN = process.env.EXTENSION_CRM_API_KEY?.trim()
 
@@ -46,13 +49,13 @@ export async function POST(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ success: false, error: 'Token inválido' }, { status: 401, headers: corsHeaders })
   }
-  if (!isApifacilConfigured()) {
+  if (!isBoasVindasConfigured()) {
     return NextResponse.json(
-      { success: false, error: 'API Fácil não configurada' },
+      { success: false, error: 'Nenhum provedor configurado (Z-API ou API Fácil)' },
       { status: 503, headers: corsHeaders }
     )
   }
-  let body: { phone?: string }
+  let body: { phone?: string; messageIndex?: number }
   try {
     body = await request.json()
   } catch {
@@ -68,11 +71,16 @@ export async function POST(request: NextRequest) {
       { status: 400, headers: corsHeaders }
     )
   }
+  const messageIndex = body.messageIndex >= 1 && body.messageIndex <= 3 ? (body.messageIndex as 1 | 2 | 3) : null
   let result: { success: boolean; error?: string }
   try {
-    result = await sendBoasVindasToNumber(phone)
-    if (result.success) {
-      await markWelcomeSent(phone)
+    if (messageIndex) {
+      result = await sendBoasVindasSingleMessage(phone, messageIndex)
+    } else {
+      result = await sendBoasVindasToNumber(phone)
+      if (result.success) {
+        await markWelcomeSent(phone)
+      }
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -86,6 +94,7 @@ export async function POST(request: NextRequest) {
       success: result.success,
       error: result.error,
       phone,
+      messageIndex: messageIndex ?? undefined,
     },
     { headers: corsHeaders }
   )
