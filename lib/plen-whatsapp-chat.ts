@@ -141,6 +141,93 @@ async function obterEstatisticasPlen(
   }
 }
 
+/** Lista de dívidas (registros tipo=divida) para exibir em detalhes. */
+async function obterListaDividas(
+  supabase: SupabaseClient,
+  accountOwnerId: string
+): Promise<{ nome: string; valor: number; parcelas_totais: number; parcelas_pagas: number }[]> {
+  const { data: usuarios, error: errU } = await supabase
+    .from('users')
+    .select('id')
+    .eq('account_owner_id', accountOwnerId)
+  if (errU || !usuarios?.length) return []
+  const userIds = usuarios.map((u) => u.id)
+  const { data: rows, error } = await supabase
+    .from('registros')
+    .select('nome, valor, parcelas_totais, parcelas_pagas')
+    .eq('tipo', 'divida')
+    .in('user_id', userIds)
+    .order('data_registro', { ascending: false })
+  if (error || !rows?.length) return []
+  return rows.map((r) => ({
+    nome: String(r.nome || 'Dívida'),
+    valor: Number(r.valor) || 0,
+    parcelas_totais: Number(r.parcelas_totais) || 1,
+    parcelas_pagas: Number(r.parcelas_pagas) || 0,
+  }))
+}
+
+/** Lista de empréstimos (registros tipo=divida com categoria Empréstimo ou nome "Empréstimo - ..."). */
+async function obterListaEmprestimos(
+  supabase: SupabaseClient,
+  accountOwnerId: string
+): Promise<{ nome: string; valor: number; parcelas_totais: number; parcelas_pagas: number }[]> {
+  const { data: usuarios, error: errU } = await supabase
+    .from('users')
+    .select('id')
+    .eq('account_owner_id', accountOwnerId)
+  if (errU || !usuarios?.length) return []
+  const userIds = usuarios.map((u) => u.id)
+  const { data: rows, error } = await supabase
+    .from('registros')
+    .select('nome, valor, parcelas_totais, parcelas_pagas')
+    .eq('tipo', 'divida')
+    .eq('categoria', 'Empréstimo')
+    .in('user_id', userIds)
+    .order('data_registro', { ascending: false })
+  if (error || !rows?.length) return []
+  return rows.map((r) => ({
+    nome: String(r.nome || 'Empréstimo'),
+    valor: Number(r.valor) || 0,
+    parcelas_totais: Number(r.parcelas_totais) || 1,
+    parcelas_pagas: Number(r.parcelas_pagas) || 0,
+  }))
+}
+
+/** Lista de registros da semana (para "me mostre os registros da semana"). */
+async function obterListaRegistrosSemana(
+  supabase: SupabaseClient,
+  accountOwnerId: string
+): Promise<{ nome: string; tipo: string; valor: number; data_registro: string }[]> {
+  const { inicio, fim } = intervaloSemana()
+  const { data: usuarios, error: errU } = await supabase
+    .from('users')
+    .select('id')
+    .eq('account_owner_id', accountOwnerId)
+  if (errU || !usuarios?.length) return []
+  const userIds = usuarios.map((u) => u.id)
+  const { data: rows, error } = await supabase
+    .from('registros')
+    .select('nome, tipo, valor, data_registro')
+    .in('user_id', userIds)
+    .gte('data_registro', inicio)
+    .lte('data_registro', fim)
+    .order('data_registro', { ascending: false })
+  if (error || !rows?.length) return []
+  return rows.map((r) => ({
+    nome: String(r.nome || 'Registro'),
+    tipo: String(r.tipo || ''),
+    valor: Number(r.valor) || 0,
+    data_registro: String(r.data_registro || ''),
+  }))
+}
+
+function formatarDataShort(iso: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
 const MESES_PT: Record<string, number> = {
   janeiro: 0, fevereiro: 1, março: 2, marco: 2, abril: 3, maio: 4, junho: 5,
   julho: 6, agosto: 7, setembro: 8, outubro: 9, novembro: 10, dezembro: 11,
@@ -681,6 +768,97 @@ export async function processPlenWhatsAppMessage(
           categoria,
           nomeUsuario: nomeParaResposta,
         }),
+        buttonUrl: PERFIL_URL,
+        buttonLabel: PERFIL_BUTTON_LABEL,
+        buttonBody: PERFIL_BUTTON_BODY,
+      }
+    }
+
+    // LISTAS DETALHADAS: "me mostre as dívidas" / "me mostre os empréstimos" / "me mostre os registros da semana"
+    const isListaDividas =
+      /me\s+mostr(e|ar)\s+as\s+d[ií]vidas?/i.test(t) ||
+      /quais\s+s[aã]o\s+minhas?\s+d[ií]vidas?/i.test(t) ||
+      /mostr(e|ar)\s+as\s+d[ií]vidas?/i.test(t)
+    const isListaEmprestimos = /me\s+mostr(e|ar)\s+os\s+empr[eé]stimos?/i.test(t) || /mostr(e|ar)\s+os\s+empr[eé]stimos?/i.test(t)
+    const isListaRegistrosSemana =
+      /me\s+mostr(e|ar)\s+(todos\s+)?(os\s+)?registros?\s+(da\s+)?semana/i.test(t) ||
+      /mostr(e|ar)\s+registros?\s+da\s+semana/i.test(t) ||
+      /registros?\s+da\s+semana/i.test(t)
+
+    if (isListaDividas) {
+      const lista = await obterListaDividas(supabase, userId)
+      if (lista.length === 0) {
+        return {
+          response: '📌 Você não tem dívidas cadastradas no momento.',
+          buttonUrl: PERFIL_URL,
+          buttonLabel: PERFIL_BUTTON_LABEL,
+          buttonBody: PERFIL_BUTTON_BODY,
+        }
+      }
+      const linhas: string[] = ['📌 *Dívidas:*', '']
+      let totalPendente = 0
+      lista.forEach((d) => {
+        const parcelas = d.parcelas_totais > 1 ? ` (${d.parcelas_pagas}/${d.parcelas_totais} parcelas)` : ''
+        const pendente = d.valor * (1 - (d.parcelas_pagas || 0) / (d.parcelas_totais || 1))
+        totalPendente += pendente
+        linhas.push(`• ${d.nome}: ${fmt(d.valor)}${parcelas}`)
+      })
+      linhas.push('')
+      linhas.push(`💰 Total pendente: ${fmt(totalPendente)}`)
+      return {
+        response: linhas.join('\n'),
+        buttonUrl: PERFIL_URL,
+        buttonLabel: PERFIL_BUTTON_LABEL,
+        buttonBody: PERFIL_BUTTON_BODY,
+      }
+    }
+
+    if (isListaEmprestimos) {
+      const lista = await obterListaEmprestimos(supabase, userId)
+      if (lista.length === 0) {
+        return {
+          response: '💰 Você não tem empréstimos cadastrados no momento.',
+          buttonUrl: PERFIL_URL,
+          buttonLabel: PERFIL_BUTTON_LABEL,
+          buttonBody: PERFIL_BUTTON_BODY,
+        }
+      }
+      const linhas: string[] = ['💰 *Empréstimos:*', '']
+      let totalPendente = 0
+      lista.forEach((e) => {
+        const parcelas = e.parcelas_totais > 1 ? ` (${e.parcelas_pagas}/${e.parcelas_totais} parcelas)` : ''
+        const pendente = e.valor * (1 - (e.parcelas_pagas || 0) / (e.parcelas_totais || 1))
+        totalPendente += pendente
+        linhas.push(`• ${e.nome}: ${fmt(e.valor)}${parcelas}`)
+      })
+      linhas.push('')
+      linhas.push(`💰 Total pendente: ${fmt(totalPendente)}`)
+      return {
+        response: linhas.join('\n'),
+        buttonUrl: PERFIL_URL,
+        buttonLabel: PERFIL_BUTTON_LABEL,
+        buttonBody: PERFIL_BUTTON_BODY,
+      }
+    }
+
+    if (isListaRegistrosSemana) {
+      const lista = await obterListaRegistrosSemana(supabase, userId)
+      if (lista.length === 0) {
+        return {
+          response: '📅 Nenhum registro nesta semana.',
+          buttonUrl: PERFIL_URL,
+          buttonLabel: PERFIL_BUTTON_LABEL,
+          buttonBody: PERFIL_BUTTON_BODY,
+        }
+      }
+      const linhas: string[] = ['📅 *Registros desta semana:*', '']
+      lista.forEach((r) => {
+        const emoji = r.tipo === 'entrada' ? '🟢' : r.tipo === 'divida' ? '📌' : '🔴'
+        const dataStr = formatarDataShort(r.data_registro)
+        linhas.push(`• ${dataStr} ${emoji} ${r.nome}: ${fmt(r.valor)}`)
+      })
+      return {
+        response: linhas.join('\n'),
         buttonUrl: PERFIL_URL,
         buttonLabel: PERFIL_BUTTON_LABEL,
         buttonBody: PERFIL_BUTTON_BODY,
