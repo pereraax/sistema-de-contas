@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendButtonList, sendButtonActions, isZapiConfigured } from '@/lib/whatsapp-zapi'
 import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage } from '@/lib/whatsapp-contatos-pendentes'
-import { sendBoasVindasToNumber, isBoasVindasConfigured, MENSAGENS_BOAS_VINDAS } from '@/lib/whatsapp-enviar-boas-vindas-lib'
+import { sendBoasVindasToNumber, isBoasVindasConfigured, MENSAGENS_BOAS_VINDAS, getIntroBoasVindas } from '@/lib/whatsapp-enviar-boas-vindas-lib'
 import { downloadMedia, transcribeAudio, processComprovanteImage } from '@/lib/whatsapp-media-processor'
 
 function buildPlenMessage(from: string, text: string) {
@@ -58,7 +58,7 @@ type ZapiMedia =
   | { type: 'audio'; url: string; mimetype: string }
   | { type: 'image'; url: string; mimetype: string; caption?: string }
 
-export type ZapiParsed = { from: string; text: string; messageId?: string; media?: ZapiMedia }
+export type ZapiParsed = { from: string; text: string; messageId?: string; media?: ZapiMedia; contactName?: string }
 
 /** Extrair phone, text, messageId e mídia (áudio/imagem) do payload Z-API. Aceita vários formatos (on-message-received, ReceivedCallBack, data.text, audio.audioUrl, image.imageUrl, etc.). */
 function parseZapiBody(body: unknown, logReject?: (reason: string) => void): ZapiParsed | null {
@@ -158,11 +158,20 @@ function parseZapiBody(body: unknown, logReject?: (reason: string) => void): Zap
   const image = (b.image ?? dataObj?.image) as { imageUrl?: string; mimeType?: string; caption?: string } | undefined
   if (audio?.audioUrl && typeof audio.audioUrl === 'string') {
     media = { type: 'audio', url: audio.audioUrl, mimetype: audio.mimeType || 'audio/ogg; codecs=opus' }
-  } else if (image?.imageUrl && typeof image.imageUrl === 'string') {
+  } else   if (image?.imageUrl && typeof image.imageUrl === 'string') {
     media = { type: 'image', url: image.imageUrl, mimetype: image.mimeType || 'image/jpeg', caption: image.caption }
   }
 
-  return { from: from.startsWith('55') ? from : `55${from}`, text: text.trim(), messageId, media }
+  const contactNameRaw =
+    (b.senderName as string) ||
+    (b.chatName as string) ||
+    (data.senderName as string) ||
+    (data.chatName as string) ||
+    (b.contact && typeof b.contact === 'object' && (b.contact as Record<string, unknown>).displayName as string) ||
+    ''
+  const contactName = typeof contactNameRaw === 'string' && contactNameRaw.trim().length > 0 ? contactNameRaw.trim().slice(0, 80) : undefined
+
+  return { from: from.startsWith('55') ? from : `55${from}`, text: text.trim(), messageId, media, contactName }
 }
 
 /** Cache de messageIds já processados (evitar resposta duplicada quando Z-API envia 2 eventos para o mesmo ato). TTL 90s. */
@@ -228,6 +237,27 @@ function markWelcomeJustSent(phone: string): void {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/** Anti-spam: máximo de mensagens enviadas por número por hora (evita bloqueio WhatsApp Business). */
+const RATE_LIMIT_MS = 60 * 60 * 1000 // 1 hora
+const RATE_LIMIT_MAX = 25 // máx. respostas ao mesmo número por hora
+const rateLimitByPhone = new Map<string, { count: number; windowStart: number }>()
+function isOverRateLimit(phoneDigits: string): boolean {
+  const now = Date.now()
+  let entry = rateLimitByPhone.get(phoneDigits)
+  if (!entry) {
+    rateLimitByPhone.set(phoneDigits, { count: 1, windowStart: now })
+    return false
+  }
+  if (now - entry.windowStart >= RATE_LIMIT_MS) {
+    entry = { count: 1, windowStart: now }
+    rateLimitByPhone.set(phoneDigits, entry)
+    return false
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return true
+  entry.count++
+  return false
+}
+
 /** Mensagens fora do funil: nunca enviar (evita repetição). "Oops! não entendi" é enviada quando o usuário manda comando que a assistente não entende. */
 const MSG_BLOQUEADA = 'Em que posso ajudar? 😊'
 function isMsgBloqueada(msg: string): boolean {
@@ -241,7 +271,12 @@ function isQueroUtilizarPlenipayMessage(t: string): boolean {
   if (!t || typeof t !== 'string') return false
   const msg = t.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.,!?]+/g, ' ')
   const temPlenipay = msg.includes('plenipay') || (msg.includes('pleni') && msg.includes('pay'))
-  const temIntencao = msg.includes('quero utilizar') || msg.includes('quero usar') || (msg.includes('quero') && (msg.includes('utilizar') || msg.includes('usar') || msg.includes('plenipay')))
+  const temIntencao =
+    msg.includes('quero utilizar') ||
+    msg.includes('quero usar') ||
+    msg.includes('utilizar a plenipay') ||
+    msg.includes('usar a plenipay') ||
+    (msg.includes('quero') && (msg.includes('utilizar') || msg.includes('usar') || msg.includes('plenipay')))
   return !!(temPlenipay && temIntencao)
 }
 
@@ -326,6 +361,14 @@ async function processarEmBackground(parsed: ZapiParsed) {
     const phone = from.startsWith('55') ? from : `55${from}`
     const phoneDigits = phone.replace(/\D/g, '')
 
+    if (isOverRateLimit(phoneDigits)) {
+      console.warn('⚠️ [Z-API Webhook] Rate limit: muitos envios para', phone, '— aguardar 1h')
+      const contactName = parsed.contactName
+      const nome = contactName?.trim() ? ` ${contactName.trim().slice(0, 30)}` : ''
+      await sendTextMessage(phone, `Oi${nome}! 💙 Estamos recebendo muitas mensagens. Aguarde alguns minutos para continuar.`, { delayTyping: 1 }).catch(() => {})
+      return
+    }
+
     // Áudio: baixar → transcrever → usar texto para o PLEN (registro de gasto/recebimento por voz)
     if (parsed.media?.type === 'audio') {
       console.log('🎤 [Z-API Webhook] Áudio recebido, baixando e transcrevendo para', phone)
@@ -379,22 +422,41 @@ async function processarEmBackground(parsed: ZapiParsed) {
 
     await recordIncomingMessage(phone, text ?? '').catch((e) => console.error('📨 [Z-API Webhook] recordIncomingMessage:', e))
 
+    const contactName = parsed.contactName
+
     const envioBoasVindasComRetry = async (): Promise<boolean> => {
-      let r = await sendBoasVindasToNumber(phone)
+      let r = await sendBoasVindasToNumber(phone, { contactName })
       if (r.success) return true
       console.warn('⚠️ [Z-API Webhook] Primeira tentativa falhou, retry em 2s:', r.error)
       await delay(2000)
-      r = await sendBoasVindasToNumber(phone)
+      r = await sendBoasVindasToNumber(phone, { contactName })
       return r.success
     }
 
     const enviarFallbackContatoNovo = async (): Promise<void> => {
-      const primeiraMsg = typeof MENSAGENS_BOAS_VINDAS[0] === 'string' ? MENSAGENS_BOAS_VINDAS[0] : null
-      const fallback = primeiraMsg ?? 'Olá! 👋 Sou a Plen, assistente da Plenipay. Cria sua conta em plenipay.com e me manda *JÁ CADASTREI* aqui que eu te ajudo. 💙'
+      const fallback = getIntroBoasVindas(contactName) || 'Olá! 👋 Sou a Plen, assistente da Plenipay. Cria sua conta em plenipay.com e me manda *JÁ CADASTREI* aqui que eu te ajudo. 💙'
       await sendTextMessage(phone, fallback, { delayTyping: 1 }).catch(() => {})
     }
 
-    // "Quero utilizar PleniPay" — sempre enviar mensagens de boas-vindas (intro + botões).
+    // Contato novo: PRIORIDADE — qualquer primeira mensagem recebe boas-vindas (garante que novos contatos sempre sejam atendidos).
+    const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits).catch(() => false)
+    if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
+      console.log('👋 [Z-API Webhook] Contato novo — enviando mensagens de boas-vindas para', phone, '| texto:', text?.slice(0, 50))
+      const ok = await envioBoasVindasComRetry()
+      if (ok) {
+        await markWelcomeSent(phone).catch(() => {})
+        markResponded(phone, text ?? '')
+        markWelcomeJustSent(phone)
+        console.log('✅ [Z-API Webhook] Boas-vindas enviadas para contato novo:', phone)
+        return
+      }
+      console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou para contato novo após retry. Enviando fallback.')
+      await enviarFallbackContatoNovo()
+      markWelcomeJustSent(phone)
+      return
+    }
+
+    // "Quero utilizar PleniPay" (quem já recebeu boas-vindas antes) — reenviar intro + botões.
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
       console.log('👋 [Z-API Webhook] "Quero utilizar PleniPay" — enviando mensagens de boas-vindas para', phone)
       const ok = await envioBoasVindasComRetry()
@@ -406,24 +468,6 @@ async function processarEmBackground(parsed: ZapiParsed) {
         return
       }
       console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou após retry. Enviando fallback.')
-      await enviarFallbackContatoNovo()
-      markWelcomeJustSent(phone)
-      return
-    }
-
-    // Contato novo: SEMPRE enviar as 2 mensagens de boas-vindas (intro + uma mensagem com botões CADASTRAR e JÁ CRIEI). Em erro de consulta, tratar como novo.
-    const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits).catch(() => false)
-    if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
-      console.log('👋 [Z-API Webhook] Contato novo — enviando mensagens de boas-vindas para', phone)
-      const ok = await envioBoasVindasComRetry()
-      if (ok) {
-        await markWelcomeSent(phone).catch(() => {})
-        markResponded(phone, text ?? '')
-        markWelcomeJustSent(phone)
-        console.log('✅ [Z-API Webhook] Boas-vindas enviadas para contato novo:', phone)
-        return
-      }
-      console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou para contato novo após retry. Enviando fallback.')
       await enviarFallbackContatoNovo()
       markWelcomeJustSent(phone)
       return
@@ -500,7 +544,8 @@ async function processarEmBackground(parsed: ZapiParsed) {
         console.log('🔄 [Z-API Webhook] Contato sem resposta e sem boas-vindas — enviando mensagem mínima.')
         await enviarFallbackContatoNovo()
       } else {
-        await sendTextReply(phone, 'Em que posso ajudar? 😊', { delayTyping: 1 }).catch(() => {})
+        const nome = contactName?.trim() ? `, ${contactName.trim().slice(0, 30)}` : ''
+        await sendTextReply(phone, `Em que posso ajudar${nome}? 😊`, { delayTyping: 1 }).catch(() => {})
         markResponded(phone, text ?? '')
       }
     } else {
@@ -510,7 +555,8 @@ async function processarEmBackground(parsed: ZapiParsed) {
         console.log('🔄 [Z-API Webhook] Resultado inesperado e contato sem boas-vindas — enviando mensagem mínima.')
         await enviarFallbackContatoNovo()
       } else {
-        await sendTextReply(phone, 'Em que posso ajudar? 😊', { delayTyping: 1 }).catch(() => {})
+        const nome = contactName?.trim() ? `, ${contactName.trim().slice(0, 30)}` : ''
+        await sendTextReply(phone, `Em que posso ajudar${nome}? 😊`, { delayTyping: 1 }).catch(() => {})
         markResponded(phone, text ?? '')
       }
     }

@@ -20,8 +20,10 @@ export type BoasVindasItem =
   | { type: 'button_actions'; body: string; buttonActions: ({ type: 'URL'; url: string; label: string } | { type: 'REPLY'; label: string; id?: string })[] }
   | { type: 'buttons'; body: string; buttons: { id: string; title: string; url?: string }[] }
 
+const INTRO_SEM_NOME = `Oi! 👋 Sou a Plen, sua assistente financeira. Vou te ajudar a organizar gastos e receitas direto pelo WhatsApp 💙`
+
 export const MENSAGENS_BOAS_VINDAS: BoasVindasItem[] = [
-  `Oi! 👋 Sou a Plen, sua assistente financeira. Vou te ajudar a organizar gastos e receitas direto pelo WhatsApp 💙`,
+  INTRO_SEM_NOME,
   {
     type: 'button_actions' as const,
     body: 'Antes de começar a registrar seus gastos:\n\n1️⃣ Salve meu contato\n2️⃣ Crie sua conta — é rápido, prometo! 😊\n\nToque em *CADASTRAR* para abrir o site ou em *JÁ CRIEI* se já tem conta que eu peço seu e-mail e te libero aqui. 💙',
@@ -46,14 +48,24 @@ export function isBoasVindasConfigured(): boolean {
   return isZapiConfigured()
 }
 
+/** Primeira mensagem de intro, com nome do contato quando disponível. (Exportada para fallback no webhook.) */
+export function getIntroBoasVindas(contactName?: string | null): string {
+  if (contactName && contactName.trim()) {
+    const name = contactName.trim().slice(0, 50)
+    return `Oiii! ${name} 💙✨ Sou a Plen, sua assistente financeira. Vou te ajudar a organizar gastos e receitas direto pelo WhatsApp 💙`
+  }
+  return INTRO_SEM_NOME
+}
+
 /** Envia 2 mensagens via Z-API: (1) intro, (2) passos + botões CADASTRAR (URL) e JÁ CRIEI (REPLY) na mesma mensagem. */
-async function sendBoasVindasViaZapi(phone: string): Promise<{ success: boolean; error?: string }> {
+async function sendBoasVindasViaZapi(phone: string, contactName?: string | null): Promise<{ success: boolean; error?: string }> {
   for (let i = 0; i < MENSAGENS_BOAS_VINDAS.length; i++) {
     const msg = MENSAGENS_BOAS_VINDAS[i]
     if (typeof msg === 'string') {
-      const send = await zapiSendText(phone, msg)
+      const text = i === 0 ? getIntroBoasVindas(contactName) : msg
+      const send = await zapiSendText(phone, text)
       if (!send.success) return { success: false, error: send.error }
-      registerSentMessage(phone, msg)
+      registerSentMessage(phone, text)
     } else if (msg.type === 'button_actions') {
       const send = await sendButtonActions(phone, msg.body, msg.buttonActions)
       if (!send.success) {
@@ -171,9 +183,12 @@ export async function sendBoasVindasSingleMessage(
 }
 
 /** Envia as 2 mensagens de boas-vindas (intro + uma mensagem com botões CADASTRAR e JÁ CRIEI). Usa Z-API ou API Fácil. */
-export async function sendBoasVindasToNumber(phone: string): Promise<{ success: boolean; error?: string }> {
+export async function sendBoasVindasToNumber(
+  phone: string,
+  options?: { contactName?: string | null }
+): Promise<{ success: boolean; error?: string }> {
   const provider = getBoasVindasProvider()
-  if (provider === 'zapi') return sendBoasVindasViaZapi(phone)
+  if (provider === 'zapi') return sendBoasVindasViaZapi(phone, options?.contactName)
   if (provider === 'apifacil') return sendBoasVindasViaApifacil(phone)
   return { success: false, error: 'Nenhum provedor de WhatsApp configurado (Z-API ou API Fácil). Defina ZAPI_* ou APIFACIL_* e opcionalmente WHATSAPP_BOASVINDAS_PROVIDER=zapi.' }
 }
@@ -198,37 +213,21 @@ export async function sendCustomMessage(
     return send.success ? { success: true } : { success: false, error: send.error }
   }
   if (provider === 'zapi') {
-    const urlActions = buttons
-      .slice(0, 3)
-      .filter((b) => b.url && b.url.trim())
-      .map((b) => {
+    // Um único array na ordem dos botões (todos na mesma mensagem, um abaixo do outro)
+    const allActions = buttons.slice(0, 3).map((b) => {
+      if (b.url && b.url.trim()) {
         let u = (b.url as string).trim()
         if (u && !u.startsWith('http')) u = 'https://' + u
         return { type: 'URL' as const, url: u, label: b.title, id: b.id }
-      })
-    const replyActions = buttons
-      .slice(0, 3)
-      .filter((b) => !b.url || !b.url.trim())
-      .map((b) => ({ type: 'REPLY' as const, label: b.title, id: b.id }))
-    // Link só no botão; texto sem URL duplicada na mensagem.
-    const messageOnly = trimmed
-    if (urlActions.length > 0 && replyActions.length > 0) {
-      const [send1, send2] = await Promise.all([
-        sendButtonActions(phone, messageOnly, urlActions),
-        sendButtonActions(phone, 'Ou escolha:', replyActions),
-      ])
-      if (!send1.success) return { success: false, error: send1.error }
-      if (!send2.success) return { success: false, error: send2.error }
-      return { success: true }
-    }
-    if (urlActions.length > 0) {
-      const send = await sendButtonActions(phone, messageOnly, urlActions)
+      }
+      return { type: 'REPLY' as const, label: b.title, id: b.id }
+    })
+    if (allActions.length === 0) {
+      const send = await zapiSendText(phone, trimmed)
       return send.success ? { success: true } : { success: false, error: send.error }
     }
-    if (replyActions.length > 0) {
-      const send = await sendButtonActions(phone, trimmed, replyActions)
-      return send.success ? { success: true } : { success: false, error: send.error }
-    }
+    const send = await sendButtonActions(phone, trimmed, allActions)
+    return send.success ? { success: true } : { success: false, error: send.error }
   }
   const send = await apifacilSendCustomButtons(phone, trimmed, buttons.slice(0, 3))
   return send.success ? { success: true } : { success: false, error: send.error }
