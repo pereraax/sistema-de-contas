@@ -276,10 +276,9 @@
           <button type="button" class="crm-icon-btn crm-icon-test" id="plenipay-crm-btn-test" title="Testar conexão">&#9658;</button>
         </div>
       </div>
-      <div class="crm-phone-bar">
+      <div class="crm-phone-bar" title="Número detectado da conversa aberta no WhatsApp">
         <span class="crm-phone-label">Conversa:</span>
         <span class="crm-phone-value" id="plenipay-crm-phone-display">—</span>
-        <input type="tel" class="crm-phone-input-inline" id="plenipay-crm-phone-input" placeholder="55 11 99999-9999" />
       </div>
       <div class="crm-body">
         <div class="crm-section-title">Mensagens</div>
@@ -304,7 +303,6 @@
     document.body.appendChild(toggle);
 
     const phoneDisplay = document.getElementById('plenipay-crm-phone-display');
-    const phoneInput = document.getElementById('plenipay-crm-phone-input');
     const msgListEl = document.getElementById('plenipay-crm-msg-list');
     const msgEmptyEl = document.getElementById('plenipay-crm-msg-empty');
     const funnelListEl = document.getElementById('plenipay-crm-funnel-list');
@@ -316,7 +314,7 @@
 
     function getPhoneForSend() {
       if (lockedSendPhone) return lockedSendPhone;
-      var phone = phoneInput.value.trim().replace(/\D/g, '') || getCurrentChatPhone();
+      var phone = getCurrentChatPhone();
       if (!phone || phone.length < 10) return null;
       if (!phone.startsWith('55')) phone = '55' + phone;
       return phone;
@@ -476,7 +474,7 @@
         phone = getPhoneForSend();
       }
       if (!phone) {
-        showStatus(statusEl, 'warning', 'Clique na conversa no WhatsApp e tente de novo.');
+        showStatus(statusEl, 'warning', 'Clique na conversa no WhatsApp para identificar o número.');
         return;
       }
       if (isBlockedMessage(msg.text)) {
@@ -614,7 +612,7 @@
         phone = getPhoneForSend();
       }
       if (!phone) {
-        showStatus(statusEl, 'warning', 'Clique na conversa no WhatsApp e tente de novo.');
+        showStatus(statusEl, 'warning', 'Clique na conversa no WhatsApp para identificar o número.');
         return;
       }
       var ids = normalizeFunnelMessageIds(funnel && funnel.messageIds);
@@ -705,11 +703,8 @@
       const phone = getCurrentChatPhone();
       if (phone) {
         phoneDisplay.textContent = formatPhone(phone);
-        phoneInput.placeholder = phone;
-        if (!phoneInput.value.trim()) phoneInput.value = phone;
       } else {
         phoneDisplay.textContent = '—';
-        phoneInput.placeholder = 'Ex: 5511999999999';
       }
     }
 
@@ -775,24 +770,24 @@
         lastPhone = phone;
         if (phone) {
           phoneDisplay.textContent = formatPhone(phone);
-          phoneInput.placeholder = phone;
-          if (!phoneInput.value.trim()) phoneInput.value = phone;
         } else {
           phoneDisplay.textContent = '—';
-          phoneInput.placeholder = 'Ex: 5511999999999';
         }
       }
     }
     setInterval(function () {
       if (wrap.classList.contains('hidden')) return;
       syncPhoneFromPage();
-    }, 350);
+    }, 200);
     document.addEventListener('click', function () {
       setTimeout(syncPhoneFromPage, 50);
       setTimeout(syncPhoneFromPage, 200);
       setTimeout(syncPhoneFromPage, 500);
     }, true);
-    window.addEventListener('focus', function () { setTimeout(syncPhoneFromPage, 100); });
+    window.addEventListener('focus', function () { setTimeout(syncPhoneFromPage, 50); setTimeout(syncPhoneFromPage, 150); });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') setTimeout(syncPhoneFromPage, 80);
+    });
     try {
       const main = document.querySelector('[role="main"]') || document.body;
       const obs = new MutationObserver(function () { syncPhoneFromPage(); });
