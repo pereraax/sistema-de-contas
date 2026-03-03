@@ -73,9 +73,9 @@ function parseZapiBody(body: unknown, logReject?: (reason: string) => void): Zap
     logReject?.('fromMe=true (mensagem enviada por nós)')
     return null
   }
-  const type = String((b.type as string) || (data.type as string) || '').trim()
-  if (type && !/ReceivedCallBack|ReceivedCallback/i.test(type)) {
-    logReject?.('evento não é mensagem recebida (type=' + type + '), ignorando')
+  const eventType = String((b.type as string) || (data.type as string) || '').trim()
+  if (eventType && /MessageStatus|DeliveryCallback|ReadCallback|Connect|Disconnect|SentCallBack/i.test(eventType)) {
+    logReject?.('evento ignorado (type=' + eventType + ')')
     return null
   }
 
