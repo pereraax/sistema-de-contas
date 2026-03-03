@@ -534,7 +534,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
   const bodyKeys = body && typeof body === 'object' ? Object.keys(body as object).join(', ') : 'null'
-  console.log('🔔 [Z-API Webhook] POST recebido em', new Date().toISOString(), '| body keys:', bodyKeys)
+  const b = body && typeof body === 'object' ? (body as Record<string, unknown>) : null
+  const phoneRaw = b ? (b.phone ?? b.from ?? (b.data && typeof b.data === 'object' ? (b.data as Record<string, unknown>).phone : null)) : null
+  const fromMe = b ? b.fromMe : null
+  const type = b ? (b.type ?? (b.data && typeof b.data === 'object' ? (b.data as Record<string, unknown>).type : null)) : null
+  console.log('🔔 [Z-API Webhook] POST recebido', new Date().toISOString(), '| keys:', bodyKeys, '| phone:', phoneRaw, '| fromMe:', fromMe, '| type:', type)
   if (!isZapiConfigured()) {
     console.error('❌ [Z-API Webhook] Z-API não configurada. Configure ZAPI_INSTANCE_ID e ZAPI_TOKEN.')
     return NextResponse.json(
@@ -547,6 +551,8 @@ export async function POST(request: NextRequest) {
       console.warn('📨 [Z-API Webhook] Payload ignorado:', reason, '| body keys:', body && typeof body === 'object' ? Object.keys(body as object).join(', ') : 'null')
     })
     if (!parsed) {
+      const preview = body != null ? JSON.stringify(body).slice(0, 500) : 'null'
+      console.warn('📨 [Z-API Webhook] Body (preview):', preview)
       return NextResponse.json({ success: true, message: 'Payload ignorado' })
     }
     if (parsed.messageId && wasAlreadyProcessed(parsed.messageId)) {
