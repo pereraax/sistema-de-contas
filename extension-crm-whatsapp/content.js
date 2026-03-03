@@ -6,6 +6,7 @@
     baseUrl: 'plenipay_crm_base_url',
     apiKey: 'plenipay_crm_api_key',
     messages: 'plenipay_crm_messages',
+    funnels: 'plenipay_crm_funnels',
     zapiInstanceId: 'plenipay_zapi_instance',
     zapiToken: 'plenipay_zapi_token',
     zapiClientToken: 'plenipay_zapi_client_token',
@@ -27,11 +28,31 @@
       });
     });
   }
+  // Pré-carrega API/Z-API ao abrir a página para envio instantâneo no primeiro clique
+  getStored().then(function (r) {
+    cachedApi.baseUrl = r.baseUrl;
+    cachedApi.apiKey = r.apiKey;
+    cachedApi.at = r.baseUrl && r.apiKey ? Date.now() : 0;
+    if (r.zapiInstanceId && r.zapiToken) {
+      cachedZapi.instanceId = r.zapiInstanceId;
+      cachedZapi.token = r.zapiToken;
+      cachedZapi.clientToken = r.zapiClientToken || '';
+      cachedZapi.at = Date.now();
+    }
+  });
 
   function getStoredMessages() {
     return new Promise((resolve) => {
       chrome.storage.sync.get([STORAGE_KEYS.messages], (r) => {
         const list = r[STORAGE_KEYS.messages];
+        resolve(Array.isArray(list) ? list : []);
+      });
+    });
+  }
+  function getStoredFunnels() {
+    return new Promise((resolve) => {
+      chrome.storage.sync.get([STORAGE_KEYS.funnels], (r) => {
+        const list = r[STORAGE_KEYS.funnels];
         resolve(Array.isArray(list) ? list : []);
       });
     });
@@ -57,14 +78,48 @@
       if (digits.length >= 10) return digits.startsWith('55') ? digits : '55' + digits;
     }
 
-    // Lista de chats = só a faixa à esquerda (~320–380px); painel da conversa começa depois.
-    const listRightEdge = Math.min(380, Math.floor(window.innerWidth * 0.32));
+    const listRightEdge = Math.min(280, Math.floor(window.innerWidth * 0.26));
+    function isPlenSelfChat() {
+      var headers = document.querySelectorAll('header');
+      for (var i = 0; i < headers.length; i++) {
+        var h = headers[i];
+        if (h.getBoundingClientRect().left < listRightEdge) continue;
+        var t = (h.textContent || '').toLowerCase();
+        // Header com número = conversa com contato, não considerar como self
+        if (/\d{10,}/.test(t)) continue;
+        // Só tratar como chat "eu mesmo" se for o título exato (evita falso positivo em "assistente financeira")
+        if (t.indexOf('mensagens para mim') !== -1) return true;
+        if (t.indexOf('assistente plen') !== -1 && t.indexOf('(você)') !== -1) return true;
+      }
+      return false;
+    }
+    if (isPlenSelfChat()) return null;
 
-    // 2) data-id / data-jid no painel da conversa (ex.: 554598463061 ou 554598463061@c.us)
+    // Lista de chats = só a faixa à esquerda (~320–380px); painel da conversa começa depois.
+    function isInConversationPanel(el) {
+      if (!el || !el.getBoundingClientRect) return false;
+      return el.getBoundingClientRect().left >= listRightEdge;
+    }
+
+    // 2) data-id / data-jid no painel da CONVERSA (direita), não na lista à esquerda
+    const dataIdCandidates = document.querySelectorAll('[data-id][data-id*="55"]');
+    for (let i = 0; i < dataIdCandidates.length; i++) {
+      const el = dataIdCandidates[i];
+      if (!isInConversationPanel(el)) continue;
+      const raw = (el.getAttribute('data-id') || '').replace(/@.*$/, '').replace(/\D/g, '');
+      if (raw.length >= 12 && raw.length <= 13 && raw.startsWith('55')) return raw;
+    }
     const byDataId = document.querySelector('[data-id][data-id*="55"]');
     if (byDataId) {
       const raw = (byDataId.getAttribute('data-id') || '').replace(/@.*$/, '').replace(/\D/g, '');
       if (raw.length >= 12 && raw.length <= 13 && raw.startsWith('55')) return raw;
+    }
+    const jidCandidates = document.querySelectorAll('[data-jid]');
+    for (let j = 0; j < jidCandidates.length; j++) {
+      const el = jidCandidates[j];
+      if (!isInConversationPanel(el)) continue;
+      const jid = (el.getAttribute('data-jid') || '').replace(/@.*$/, '').replace(/\D/g, '');
+      if (jid.length >= 12 && jid.length <= 13) return jid.startsWith('55') ? jid : '55' + jid;
     }
     const byJid = document.querySelector('[data-jid]');
     if (byJid) {
@@ -149,6 +204,11 @@
       const raw = (convHeader.getAttribute('title') || convHeader.textContent || '').replace(/\D/g, '');
       if (raw.length >= 10) return raw.startsWith('55') ? raw : '55' + raw;
     }
+    const convInfo = document.querySelector('[data-testid="conversation-info-header"]');
+    if (convInfo && convInfo.getBoundingClientRect().left >= listRightEdge) {
+      const raw = (convInfo.getAttribute('title') || convInfo.textContent || '').replace(/\D/g, '');
+      if (raw.length >= 10) return raw.startsWith('55') ? raw : '55' + raw;
+    }
 
     // 7) Título da página
     const pageTitle = document.title || '';
@@ -170,15 +230,20 @@
   }
 
   function showStatus(el, type, text, html) {
+    if (!el) return;
+    el.classList.remove('crm-status-loading');
+    var spinner = el.querySelector('.crm-status-spinner');
+    if (spinner) spinner.style.display = 'none';
+    var textNode = el.querySelector('.crm-status-text');
+    if (textNode) textNode.textContent = text; else el.textContent = text;
     el.className = 'crm-status ' + type;
     if (html) {
       el.innerHTML = html;
       el.style.display = 'block';
-      const btn = el.querySelector('[data-open-options]');
-      if (btn) btn.addEventListener('click', () => { chrome.runtime.sendMessage({ action: 'openOptions' }).catch(() => { try { chrome.runtime.openOptionsPage(); } catch (_) {} }); });
+      var btn = el.querySelector('[data-open-options]');
+      if (btn) btn.addEventListener('click', function () { chrome.runtime.sendMessage({ action: 'openOptions' }).catch(function () { try { chrome.runtime.openOptionsPage(); } catch (_) {} }); });
       return;
     }
-    el.textContent = text;
     el.style.display = 'block';
   }
 
@@ -188,26 +253,45 @@
     const wrap = document.createElement('div');
     wrap.id = SIDEBAR_ID;
     wrap.innerHTML = `
-      <div class="crm-header">
-        <h2>PleniPay CRM</h2>
-        <p>Envie as mensagens de boas-vindas (clique e envia na hora)</p>
+      <div class="crm-header-zap">
+        <button type="button" class="crm-header-menu" id="plenipay-crm-header-menu" aria-label="Menu">&#9776;</button>
+        <div class="crm-header-brand">
+          <span class="crm-brand-main">PleniPay</span>
+          <span class="crm-brand-sub">CRM</span>
+        </div>
+        <a href="#" class="crm-header-config" id="plenipay-crm-open-options">Config</a>
+      </div>
+      <div class="crm-search-row">
+        <input type="text" class="crm-search-input" id="plenipay-crm-search" placeholder="Buscar..." />
+        <label class="crm-toggle-wrap">
+          <input type="checkbox" class="crm-toggle-input" id="plenipay-crm-favoritos" />
+          <span class="crm-toggle-track"></span>
+          <span class="crm-toggle-label">Apenas favoritos</span>
+        </label>
+      </div>
+      <div class="crm-actions-row">
+        <button type="button" class="crm-btn-main" id="plenipay-crm-refresh">Atualizar número</button>
+        <div class="crm-actions-icons">
+          <button type="button" class="crm-icon-btn crm-icon-config" id="plenipay-crm-open-panel" title="Configuração">&#9881;</button>
+          <button type="button" class="crm-icon-btn crm-icon-test" id="plenipay-crm-btn-test" title="Testar conexão">&#9658;</button>
+        </div>
+      </div>
+      <div class="crm-phone-bar">
+        <span class="crm-phone-label">Conversa:</span>
+        <span class="crm-phone-value" id="plenipay-crm-phone-display">—</span>
+        <input type="tel" class="crm-phone-input-inline" id="plenipay-crm-phone-input" placeholder="55 11 99999-9999" />
       </div>
       <div class="crm-body">
-        <div class="crm-phone-label">Conversa atual</div>
-        <div class="crm-phone-value" id="plenipay-crm-phone-display">—</div>
-        <button type="button" class="crm-btn-refresh" id="plenipay-crm-refresh">Atualizar número</button>
-        <div class="crm-phone-hint">Se não detectou, cole o número abaixo (com DDD)</div>
-        <input type="tel" class="crm-phone-input" id="plenipay-crm-phone-input" placeholder="Ex: 5511999999999" />
-        <div class="crm-phone-label" style="margin-top:12px;">Mensagens (clique para enviar uma)</div>
-        <div class="crm-buttons-row" id="plenipay-crm-msg-list"></div>
-        <p class="crm-phone-hint" id="plenipay-crm-msg-empty" style="display:none;">Nenhuma mensagem. Abra o painel abaixo para criar.</p>
-        <button type="button" class="crm-btn-panel" id="plenipay-crm-open-panel">Abrir painel de configuração</button>
-        <p class="crm-phone-hint" style="margin-top:6px;">No painel você configura API (URL e token) e cria/edita mensagens (com botões).</p>
-        <button type="button" class="crm-btn-refresh" id="plenipay-crm-btn-test" style="margin-top:8px;width:100%;">Testar conexão com a URL</button>
-        <div id="plenipay-crm-status" class="crm-status"></div>
+        <div class="crm-section-title">Mensagens</div>
+        <div class="crm-msg-list" id="plenipay-crm-msg-list"></div>
+        <p class="crm-empty-hint" id="plenipay-crm-msg-empty" style="display:none;">Nenhuma mensagem. Configure no painel.</p>
+        <div class="crm-section-title crm-funnel-title">Funis</div>
+        <div class="crm-funnel-list" id="plenipay-crm-funnel-list"></div>
+        <p class="crm-empty-hint" id="plenipay-crm-funnel-empty">Nenhum funil. Crie na aba Funis.</p>
       </div>
-      <div class="crm-config-link">
-        <a href="#" id="plenipay-crm-open-options">Abrir painel de configuração (API e mensagens)</a>
+      <div id="plenipay-crm-status" class="crm-status">
+        <span class="crm-status-spinner"></span>
+        <span class="crm-status-text"></span>
       </div>
     `;
 
@@ -223,22 +307,50 @@
     const phoneInput = document.getElementById('plenipay-crm-phone-input');
     const msgListEl = document.getElementById('plenipay-crm-msg-list');
     const msgEmptyEl = document.getElementById('plenipay-crm-msg-empty');
+    const funnelListEl = document.getElementById('plenipay-crm-funnel-list');
+    const funnelEmptyEl = document.getElementById('plenipay-crm-funnel-empty');
     const statusEl = document.getElementById('plenipay-crm-status');
+    const statusTextEl = statusEl ? statusEl.querySelector('.crm-status-text') : null;
+    const FUNNEL_DELAY_MS = 600;
+    var lockedSendPhone = null;
 
     function getPhoneForSend() {
-      let phone = phoneInput.value.trim().replace(/\D/g, '') || getCurrentChatPhone();
+      if (lockedSendPhone) return lockedSendPhone;
+      var phone = phoneInput.value.trim().replace(/\D/g, '') || getCurrentChatPhone();
       if (!phone || phone.length < 10) return null;
       if (!phone.startsWith('55')) phone = '55' + phone;
       return phone;
     }
 
     function showQuickStatus(text, isError) {
-      statusEl.textContent = text;
+      if (!statusEl) return;
+      if (!funnelSending) lockedSendPhone = null;
+      statusEl.classList.remove('crm-status-loading');
+      var spinner = statusEl.querySelector('.crm-status-spinner');
+      if (spinner) spinner.style.display = 'none';
+      if (statusTextEl) statusTextEl.textContent = text;
       statusEl.className = 'crm-status ' + (isError ? 'error' : 'success');
       statusEl.style.display = 'block';
       setTimeout(function () {
         statusEl.style.display = 'none';
       }, 2800);
+    }
+
+    function showSendingStatus(phoneFormatted) {
+      if (!statusEl) return;
+      statusEl.classList.add('crm-status-loading');
+      var spinner = statusEl.querySelector('.crm-status-spinner');
+      if (spinner) spinner.style.display = 'inline-block';
+      if (statusTextEl) statusTextEl.textContent = 'Enviando para o n\u00famero ' + (phoneFormatted || '—') + '...';
+      statusEl.className = 'crm-status loading';
+      statusEl.style.display = 'block';
+    }
+
+    function hideSendingStatus() {
+      if (!statusEl) return;
+      statusEl.classList.remove('crm-status-loading');
+      var spinner = statusEl.querySelector('.crm-status-spinner');
+      if (spinner) spinner.style.display = 'none';
     }
 
     function getApi() {
@@ -277,32 +389,34 @@
       if (cachedZapi.clientToken) headers['Client-Token'] = cachedZapi.clientToken;
       var phoneClean = cleanPhone(phone);
       var messageText = (text && text.trim()) ? text.trim() : ' ';
-      function doReq(body, cb) {
+      function doReq(body, cb, showSuccess, successLabel) {
+        if (showSuccess === undefined) showSuccess = true;
+        if (!successLabel) successLabel = 'Enviada ✓';
         if (!body.message) body.message = messageText;
+        if (showSuccess && !funnelSending) showQuickStatus(successLabel, false);
         var urlReq = base + (body.buttonActions ? '/send-button-actions' : '/send-text');
         fetch(urlReq, { method: 'POST', headers: headers, body: JSON.stringify(body) })
           .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; }); })
           .then(function (out) {
-            var isError = out.data && (out.data.error === true || out.data.erro === true || (out.data.message && String(out.data.message).toLowerCase().indexOf('error') !== -1));
-            if (out.ok && !isError) {
-              showQuickStatus('Enviada ✓', false);
-            } else if (!out.ok || isError) {
+            var isError = out.data && (out.data.error === true || out.data.erro === true || out.data.success === false || (out.data.message && String(out.data.message).toLowerCase().indexOf('error') !== -1));
+            var hasMessageId = out.data && (out.data.messageId || out.data.zaapId || out.data.id);
+            var realSuccess = out.ok && !isError && hasMessageId;
+            if (!realSuccess) {
               var msg = (out.data && (out.data.message || out.data.error || out.data.errorMessage)) || ('Erro ' + out.status);
-              if ((msg + '').toLowerCase().indexOf('instance not found') !== -1) {
-                msg = 'Instance ID ou Token incorretos.';
-              }
+              if ((msg + '').toLowerCase().indexOf('instance not found') !== -1) msg = 'Instance ID ou Token incorretos.';
+              else if (out.ok && !hasMessageId) msg = 'Resposta sem confirmação. Tente de novo.';
               showQuickStatus(msg, true);
             }
-            if (cb) cb();
+            if (cb) cb(out);
           })
-          .catch(function (err) { showQuickStatus((err && err.message) || 'Erro de rede', true); if (cb) cb(); });
+          .catch(function (err) { showQuickStatus((err && err.message) || 'Erro de rede', true); if (cb) cb({}); });
       }
       if (!Array.isArray(buttons) || buttons.length === 0) {
         doReq({ phone: phoneClean, message: messageText });
         return;
       }
-      var urlButtons = [];
-      var replyButtons = [];
+      // Um único array na ordem configurada (todos os botões na mesma mensagem, um abaixo do outro)
+      var allButtons = [];
       buttons.slice(0, 3).forEach(function (b) {
         var label = (b.title || b.id || '').trim();
         if (!label) return;
@@ -311,55 +425,75 @@
           if (u.indexOf('http') !== 0) u = 'https://' + u;
           var btn = { type: 'URL', url: u, label: label };
           if ((b.id || b.title || '').trim()) btn.id = (b.id || b.title || '').trim();
-          urlButtons.push(btn);
+          allButtons.push(btn);
         } else {
           var rbtn = { type: 'REPLY', label: label };
           if ((b.id || b.title || '').trim()) rbtn.id = (b.id || b.title || '').trim();
-          replyButtons.push(rbtn);
+          allButtons.push(rbtn);
         }
       });
-      if (urlButtons.length > 0 && replyButtons.length > 0) {
-        doReq({ phone: phoneClean, message: messageText, buttonActions: urlButtons }, function () {
-          setTimeout(function () {
-            doReq({ phone: phoneClean, message: 'Ou escolha:', buttonActions: replyButtons });
-          }, 1200);
-        });
-      } else if (urlButtons.length > 0) {
-        doReq({ phone: phoneClean, message: messageText, buttonActions: urlButtons });
-      } else if (replyButtons.length > 0) {
-        doReq({ phone: phoneClean, message: messageText, buttonActions: replyButtons });
+      var messageOnly = messageText;
+      if (allButtons.length > 0) {
+        doReq({ phone: phoneClean, message: messageOnly, buttonActions: allButtons }, function (out) {
+          var failed = out && (!out.ok || (out.data && (out.data.error === true || out.data.erro === true || out.data.success === false)));
+          var noId = out && out.ok && out.data && !out.data.messageId && !out.data.zaapId && !out.data.id;
+          if (failed || noId) {
+            if (cachedApi.baseUrl && cachedApi.apiKey && (Date.now() - cachedApi.at) < 300000) {
+              showQuickStatus('Enviando pelo servidor...', false);
+              sendViaSiteApi(phone, text, buttons, cachedApi.baseUrl, cachedApi.apiKey);
+            } else {
+              showQuickStatus('Enviando só o texto...', false);
+              doReq({ phone: phoneClean, message: messageOnly }, null, true, 'Enviada ✓ (só texto)');
+            }
+          }
+        }, true);
       } else {
-        doReq({ phone: phoneClean, message: messageText });
+        doReq({ phone: phoneClean, message: messageOnly });
       }
+    }
+
+    function sendViaSiteApi(phone, text, buttons, baseUrl, apiKey) {
+      var url = (baseUrl || '').replace(/\/+$/, '') + '/api/whatsapp/send-custom-extension';
+      if (!funnelSending) showQuickStatus('Enviada ✓', false);
+      var payload = { phone: phone, text: text, buttons: buttons };
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey, 'X-API-Key': apiKey },
+        body: JSON.stringify(payload),
+      })
+        .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; }); })
+        .then(function (out) {
+          if (out.res.status === 401) cachedApi.at = 0;
+          if (!(out.data && out.data.success)) showQuickStatus((out.data && out.data.error) || 'Erro ao enviar', true);
+        })
+        .catch(function (err) { cachedApi.at = 0; showQuickStatus((err && err.message) || 'Erro de rede', true); });
     }
 
     function sendCustomMessage(msg) {
       var phone = getPhoneForSend();
       if (!phone) {
-        showStatus(statusEl, 'warning', 'Digite o número ou abra a conversa no WhatsApp.');
+        syncPhoneFromPage();
+        phone = getPhoneForSend();
+      }
+      if (!phone) {
+        showStatus(statusEl, 'warning', 'Clique na conversa no WhatsApp e tente de novo.');
+        return;
+      }
+      if (isBlockedMessage(msg.text)) {
+        showQuickStatus('Essa mensagem foi desativada para evitar repetição.', true);
         return;
       }
       var text = msg.text || '';
       var buttons = (msg.buttons && msg.buttons.length) ? msg.buttons : undefined;
-      if (cachedZapi.instanceId && cachedZapi.token && (Date.now() - cachedZapi.at) < CACHE_TTL) {
-        showQuickStatus('Enviando...', false);
+      var hasButtons = buttons && buttons.length > 0;
+      var zapiValid = cachedZapi.instanceId && cachedZapi.token && (Date.now() - cachedZapi.at) < CACHE_TTL;
+      var siteValid = cachedApi.apiKey && cachedApi.baseUrl && (Date.now() - cachedApi.at) < CACHE_TTL;
+      if (zapiValid) {
         sendViaZapi(phone, text, buttons);
         return;
       }
-      if (cachedApi.apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
-        var payload = { phone: phone, text: text, buttons: buttons };
-        fetch(cachedApi.baseUrl + '/api/whatsapp/send-custom-extension', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cachedApi.apiKey, 'X-API-Key': cachedApi.apiKey },
-          body: JSON.stringify(payload),
-        })
-          .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; }); })
-          .then(function (out) {
-            if (out.res.status === 401) cachedApi.at = 0;
-            if (out.data.success) showQuickStatus('Enviada ✓', false);
-            else showQuickStatus(out.data.error || 'Erro ao enviar', true);
-          })
-          .catch(function (err) { cachedApi.at = 0; showQuickStatus((err && err.message) || 'Erro de rede', true); });
+      if (siteValid) {
+        sendViaSiteApi(phone, text, buttons, cachedApi.baseUrl, cachedApi.apiKey);
         return;
       }
       getApi().then(function (r) {
@@ -368,24 +502,21 @@
           cachedZapi.token = r.zapiToken;
           cachedZapi.clientToken = r.zapiClientToken || '';
           cachedZapi.at = Date.now();
-          showQuickStatus('Enviando...', false);
+        }
+        if (r.baseUrl && r.apiKey) {
+          cachedApi.baseUrl = r.baseUrl;
+          cachedApi.apiKey = r.apiKey;
+          cachedApi.at = Date.now();
+        }
+        if (r.zapiInstanceId && r.zapiToken) {
           sendViaZapi(phone, text, buttons);
           return;
         }
-        if (!r.apiKey) { showQuickStatus('Configure o token nas opções.', true); return; }
-        var payload = { phone: phone, text: text, buttons: buttons };
-        fetch(r.baseUrl + '/api/whatsapp/send-custom-extension', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + r.apiKey, 'X-API-Key': r.apiKey },
-          body: JSON.stringify(payload),
-        })
-          .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; }); })
-          .then(function (out) {
-            if (out.res.status === 401) cachedApi.at = 0;
-            if (out.data.success) showQuickStatus('Enviada ✓', false);
-            else showQuickStatus(out.data.error || 'Erro ao enviar', true);
-          })
-          .catch(function (err) { cachedApi.at = 0; showQuickStatus((err && err.message) || 'Erro de rede', true); });
+        if (!r.apiKey || !r.baseUrl) {
+          showQuickStatus('Configure API (URL e token) ou Z-API nas opções.', true);
+          return;
+        }
+        sendViaSiteApi(phone, text, buttons, r.baseUrl, r.apiKey);
       });
     }
 
@@ -396,28 +527,186 @@
         return;
       }
       msgEmptyEl.style.display = 'none';
-      list.forEach((msg) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'crm-btn-msg';
-        btn.textContent = msg.label || '(sem nome)';
-        btn.addEventListener('click', function () {
-          sendCustomMessage(msg);
+      list.forEach((msg, index) => {
+        const item = document.createElement('div');
+        item.className = 'crm-msg-item crm-msg-row';
+        item.setAttribute('data-msg-label', (msg.label || (index + 1).toString()).toLowerCase());
+        const iconCell = document.createElement('div');
+        iconCell.className = 'crm-msg-row-icon';
+        iconCell.innerHTML = '&#128172;';
+        const labelCell = document.createElement('div');
+        labelCell.className = 'crm-msg-row-label';
+        labelCell.textContent = msg.label || (index + 1).toString();
+        const actionsCell = document.createElement('div');
+        actionsCell.className = 'crm-msg-row-actions';
+        const previewBtn = document.createElement('button');
+        previewBtn.type = 'button';
+        previewBtn.className = 'crm-row-btn crm-row-btn-preview';
+        previewBtn.setAttribute('aria-label', 'Ver');
+        previewBtn.innerHTML = '&#128269;';
+        const sendBtn = document.createElement('button');
+        sendBtn.type = 'button';
+        sendBtn.className = 'crm-row-btn crm-row-btn-send';
+        sendBtn.setAttribute('aria-label', 'Enviar');
+        sendBtn.innerHTML = '&#9992;';
+        const chevronBtn = document.createElement('button');
+        chevronBtn.type = 'button';
+        chevronBtn.className = 'crm-row-btn crm-row-btn-chevron';
+        chevronBtn.innerHTML = '&#8250;';
+        const previewBlock = document.createElement('div');
+        previewBlock.className = 'crm-msg-preview';
+        previewBlock.style.display = 'none';
+        const textPreview = document.createElement('div');
+        textPreview.className = 'crm-msg-preview-text';
+        textPreview.textContent = (msg.text || '').trim() || '(sem texto)';
+        if ((msg.buttons && msg.buttons.length) > 0) {
+          const btnsPreview = document.createElement('div');
+          btnsPreview.className = 'crm-msg-preview-btns';
+          btnsPreview.textContent = 'Botões: ' + msg.buttons.map(function (b) { return b.title || b.id; }).join(', ');
+          previewBlock.appendChild(textPreview);
+          previewBlock.appendChild(btnsPreview);
+        } else {
+          previewBlock.appendChild(textPreview);
+        }
+        sendBtn.addEventListener('click', function () { sendCustomMessage(msg); });
+        previewBtn.addEventListener('click', function () {
+          var open = previewBlock.style.display === 'block';
+          previewBlock.style.display = open ? 'none' : 'block';
         });
-        msgListEl.appendChild(btn);
+        chevronBtn.addEventListener('click', function () {
+          var open = previewBlock.style.display === 'block';
+          previewBlock.style.display = open ? 'none' : 'block';
+        });
+        actionsCell.appendChild(previewBtn);
+        actionsCell.appendChild(sendBtn);
+        actionsCell.appendChild(chevronBtn);
+        item.appendChild(iconCell);
+        item.appendChild(labelCell);
+        item.appendChild(actionsCell);
+        item.appendChild(previewBlock);
+        msgListEl.appendChild(item);
       });
     }
 
     function loadAndRenderMessages() {
       getStoredMessages().then(renderMessageButtons);
     }
-    const SIDEBAR_WIDTH = 280;
+
+    /** Mensagem bloqueada: não enviar nem no funil nem avulsa (evita repetição e spam). */
+    function isBlockedMessage(text) {
+      var t = (text || '').trim();
+      return t === 'Em que posso ajudar? 😊';
+    }
+    var funnelSending = false;
+    function normalizeFunnelMessageIds(raw) {
+      if (Array.isArray(raw) && raw.length > 0) return raw.slice();
+      if (raw != null && typeof raw === 'string' && raw.trim() !== '') return [raw.trim()];
+      return [];
+    }
+    function sendFunnel(funnel, messagesList) {
+      if (funnelSending) {
+        showQuickStatus('Aguarde: funil já está sendo enviado.', true);
+        return;
+      }
+      var phone = getPhoneForSend();
+      if (!phone) {
+        syncPhoneFromPage();
+        phone = getPhoneForSend();
+      }
+      if (!phone) {
+        showStatus(statusEl, 'warning', 'Clique na conversa no WhatsApp e tente de novo.');
+        return;
+      }
+      var ids = normalizeFunnelMessageIds(funnel && funnel.messageIds);
+      if (ids.length === 0) {
+        showQuickStatus('Funil sem mensagens.', true);
+        return;
+      }
+      var map = {};
+      (messagesList || []).forEach(function (m) {
+        if (m && m.id != null) {
+          map[String(m.id)] = m;
+          map[m.id] = m;
+        }
+      });
+      var list = [];
+      for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        var msg = map[String(id)] || map[id];
+        if (msg) list.push(msg);
+      }
+      if (list.length === 0) {
+        showQuickStatus('Nenhuma mensagem do funil encontrada.', true);
+        return;
+      }
+      // Remover mensagem bloqueada; sem limite de quantidade. Evitar repetir texto consecutivo.
+      var prevText = '';
+      list = list.filter(function (msg) { return !isBlockedMessage(msg.text); }).filter(function (msg) {
+        var t = (msg.text || '').trim();
+        var same = t === prevText && t !== '';
+        prevText = t;
+        return !same;
+      });
+      if (list.length === 0) {
+        showQuickStatus('Nenhuma mensagem válida no funil (a mensagem "Em que posso ajudar?" foi removida).', true);
+        return;
+      }
+      var phoneToUse = getPhoneForSend();
+      if (!phoneToUse) {
+        showQuickStatus('Número inválido. Abra a conversa ou digite o número.', true);
+        return;
+      }
+      lockedSendPhone = phoneToUse;
+      funnelSending = true;
+      showSendingStatus(formatPhone(phoneToUse));
+      list.forEach(function (msg, index) {
+        setTimeout(function () {
+          sendCustomMessage(msg);
+        }, index * FUNNEL_DELAY_MS);
+      });
+      setTimeout(function () {
+        funnelSending = false;
+        lockedSendPhone = null;
+        hideSendingStatus();
+        showQuickStatus('Funil enviado ✓', false);
+      }, list.length * FUNNEL_DELAY_MS + 400);
+    }
+
+    function renderFunnelButtons(funnelsList, messagesList) {
+      funnelListEl.innerHTML = '';
+      if (!funnelsList || funnelsList.length === 0) {
+        funnelEmptyEl.style.display = 'block';
+        return;
+      }
+      funnelEmptyEl.style.display = 'none';
+      funnelsList.forEach(function (funnel) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'crm-btn-funnel';
+        var count = normalizeFunnelMessageIds(funnel && funnel.messageIds).length;
+        btn.textContent = (funnel.name || 'Funil') + ' (' + count + ' msgs)';
+        btn.addEventListener('click', function () {
+          if (funnelSending) return;
+          sendFunnel(funnel, messagesList);
+        });
+        funnelListEl.appendChild(btn);
+      });
+    }
+
+    function loadAndRenderFunnels() {
+      Promise.all([getStoredFunnels(), getStoredMessages()]).then(function (arr) {
+        renderFunnelButtons(arr[0], arr[1]);
+      });
+    }
+
+    const SIDEBAR_WIDTH = 300;
 
     function updatePhoneDisplay() {
       const phone = getCurrentChatPhone();
       if (phone) {
         phoneDisplay.textContent = formatPhone(phone);
         phoneInput.placeholder = phone;
+        if (!phoneInput.value.trim()) phoneInput.value = phone;
       } else {
         phoneDisplay.textContent = '—';
         phoneInput.placeholder = 'Ex: 5511999999999';
@@ -438,6 +727,7 @@
 
     updatePhoneDisplay();
     loadAndRenderMessages();
+    loadAndRenderFunnels();
     if (!cachedApi.apiKey) {
       getStored().then(function (r) {
         cachedApi.baseUrl = r.baseUrl;
@@ -452,6 +742,9 @@
       if (areaName !== 'sync') return;
       if (changes[STORAGE_KEYS.messages]) {
         renderMessageButtons(Array.isArray(changes[STORAGE_KEYS.messages].newValue) ? changes[STORAGE_KEYS.messages].newValue : []);
+      }
+      if (changes[STORAGE_KEYS.funnels]) {
+        loadAndRenderFunnels();
       }
       if (changes[STORAGE_KEYS.baseUrl] || changes[STORAGE_KEYS.apiKey] || changes[STORAGE_KEYS.zapiInstanceId] || changes[STORAGE_KEYS.zapiToken] || changes[STORAGE_KEYS.zapiClientToken]) {
         getStored().then(function (r) {
@@ -476,12 +769,14 @@
     // Atualizar "Conversa atual" ao trocar de chat (polling 1s + clique + mudança no DOM)
     let lastPhone = getCurrentChatPhone();
     function syncPhoneFromPage() {
-      const phone = getCurrentChatPhone();
+      if (lockedSendPhone) return;
+      var phone = getCurrentChatPhone();
       if (phone !== lastPhone) {
         lastPhone = phone;
         if (phone) {
           phoneDisplay.textContent = formatPhone(phone);
           phoneInput.placeholder = phone;
+          if (!phoneInput.value.trim()) phoneInput.value = phone;
         } else {
           phoneDisplay.textContent = '—';
           phoneInput.placeholder = 'Ex: 5511999999999';
@@ -491,12 +786,13 @@
     setInterval(function () {
       if (wrap.classList.contains('hidden')) return;
       syncPhoneFromPage();
-    }, 800);
+    }, 350);
     document.addEventListener('click', function () {
+      setTimeout(syncPhoneFromPage, 50);
       setTimeout(syncPhoneFromPage, 200);
-      setTimeout(syncPhoneFromPage, 600);
+      setTimeout(syncPhoneFromPage, 500);
     }, true);
-    window.addEventListener('focus', function () { setTimeout(syncPhoneFromPage, 300); });
+    window.addEventListener('focus', function () { setTimeout(syncPhoneFromPage, 100); });
     try {
       const main = document.querySelector('[role="main"]') || document.body;
       const obs = new MutationObserver(function () { syncPhoneFromPage(); });
@@ -522,7 +818,20 @@
       e.preventDefault();
       openConfigPanel();
     });
+    var headerMenu = document.getElementById('plenipay-crm-header-menu');
+    if (headerMenu) headerMenu.addEventListener('click', openConfigPanel);
     document.getElementById('plenipay-crm-open-panel').addEventListener('click', openConfigPanel);
+
+    var searchInput = document.getElementById('plenipay-crm-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        var q = (this.value || '').trim().toLowerCase();
+        msgListEl.querySelectorAll('.crm-msg-row').forEach(function (row) {
+          var label = (row.getAttribute('data-msg-label') || '').toLowerCase();
+          row.style.display = !q || label.indexOf(q) !== -1 ? '' : 'none';
+        });
+      });
+    }
 
     document.getElementById('plenipay-crm-btn-test').addEventListener('click', async () => {
       const { baseUrl } = await getStored();
@@ -565,7 +874,7 @@
   });
 
   function init() {
-    setTimeout(createSidebar, 1000);
+    setTimeout(createSidebar, 0);
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

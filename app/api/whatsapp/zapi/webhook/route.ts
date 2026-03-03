@@ -464,17 +464,23 @@ async function processarEmBackground(parsed: ZapiParsed) {
       }
     } else if (result === null) {
       console.warn('📨 [Z-API Webhook] processWhatsAppMessage retornou null (sem resposta). phone:', phone, 'text:', text?.slice(0, 50))
-      const aindaNaoRecebeu = await hasReceivedWelcome(phoneDigits).catch(() => false)
-      if (!aindaNaoRecebeu && isBoasVindasConfigured()) {
+      const jaRecebeu = await hasReceivedWelcome(phoneDigits).catch(() => false)
+      if (!jaRecebeu && isBoasVindasConfigured()) {
         console.log('🔄 [Z-API Webhook] Contato sem resposta e sem boas-vindas — enviando mensagem mínima.')
         await enviarFallbackContatoNovo()
+      } else {
+        await sendTextReply(phone, 'Em que posso ajudar? 😊', { delayTyping: 1 }).catch(() => {})
+        markResponded(phone, text ?? '')
       }
     } else {
       console.warn('📨 [Z-API Webhook] Resultado inesperado do handler. phone:', phone, 'keys:', result ? Object.keys(result) : 'null')
-      const aindaNaoRecebeu = await hasReceivedWelcome(phoneDigits).catch(() => false)
-      if (!aindaNaoRecebeu && isBoasVindasConfigured()) {
+      const jaRecebeu = await hasReceivedWelcome(phoneDigits).catch(() => false)
+      if (!jaRecebeu && isBoasVindasConfigured()) {
         console.log('🔄 [Z-API Webhook] Resultado inesperado e contato sem boas-vindas — enviando mensagem mínima.')
         await enviarFallbackContatoNovo()
+      } else {
+        await sendTextReply(phone, 'Em que posso ajudar? 😊', { delayTyping: 1 }).catch(() => {})
+        markResponded(phone, text ?? '')
       }
     }
   } catch (err) {
