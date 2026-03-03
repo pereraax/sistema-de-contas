@@ -654,55 +654,72 @@ export async function processPlenWhatsAppMessage(
     const interpretado: InterpretadoT | null = interpretados.length === 1 ? interpretados[0]! : null
 
     if (interpretados.length > 1) {
-      let profileNome: string | null = null
       try {
-        const { data: profile } = await supabase.from('profiles').select('nome, email').eq('id', userId).single()
-        if (profile?.nome?.trim()) profileNome = profile.nome.trim()
-        else if (profile?.email) profileNome = profile.email.split('@')[0]?.trim() ?? null
-      } catch (_) {}
-      const { data: usuarios, error: errUsuarios } = await supabase
-        .from('users')
-        .select('id, nome')
-        .eq('account_owner_id', userId)
-        .order('nome', { ascending: true })
-      if (errUsuarios || !usuarios?.length) {
+        let profileNome: string | null = null
+        try {
+          const { data: profile } = await supabase.from('profiles').select('nome, email').eq('id', userId).single()
+          if (profile?.nome?.trim()) profileNome = profile.nome.trim()
+          else if (profile?.email) profileNome = profile.email.split('@')[0]?.trim() ?? null
+        } catch (_) {}
+        const { data: usuarios, error: errUsuarios } = await supabase
+          .from('users')
+          .select('id, nome')
+          .eq('account_owner_id', userId)
+          .order('nome', { ascending: true })
+        if (errUsuarios || !usuarios?.length) {
+          return {
+            response: 'Não encontrei uma pessoa para o registro. Crie em Configurações → Usuários (pelo menos uma) no site e tente de novo.',
+          }
+        }
+        const registroUserId = (nomeOutroUsuario
+          ? usuarios.find((u) => u.nome?.toLowerCase() === nomeOutroUsuario.toLowerCase())?.id
+          : null) ?? (profileNome
+          ? usuarios.find((u) => u.nome?.toLowerCase() === profileNome!.toLowerCase())?.id
+          : null) ?? usuarios[0].id
+        const partes: string[] = []
+        for (const interp of interpretados) {
+          const valorFinal = Math.round(interp.valor * 100) / 100
+          const categoria = interp.categoria ?? 'Outros'
+          console.log('[PLEN WhatsApp] Registro (multi):', { msg: interp.nome, valor: valorFinal, tipo: interp.tipo })
+          const { error: errInsert } = await supabase.from('registros').insert({
+            user_id: registroUserId,
+            valor: valorFinal,
+            tipo: interp.tipo,
+            nome: interp.nome,
+            data_registro: interp.data_registro,
+            categoria: categoria || null,
+            parcelas_totais: 1,
+            parcelas_pagas: 0,
+            etiquetas: [],
+          })
+          if (errInsert) {
+            console.error('[PLEN WhatsApp] Erro insert (multi):', errInsert)
+            partes.push(`❌ ${interp.nome}: R$ ${valorFinal.toFixed(2)} — erro ao salvar`)
+          } else {
+            partes.push(formatarRespostaRegistro({
+              nome: interp.nome,
+              tipo: interp.tipo,
+              valor: valorFinal,
+              dataRegistro: interp.data_registro,
+              categoria,
+            }))
+          }
+        }
+        const textoResposta = partes.join('\n\n')
         return {
-          response: 'Não encontrei uma pessoa para o registro. Crie em Configurações → Usuários (pelo menos uma) no site e tente de novo.',
+          response: textoResposta,
+          buttonUrl: PERFIL_URL,
+          buttonLabel: PERFIL_BUTTON_LABEL,
+          buttonBody: PERFIL_BUTTON_BODY,
         }
-      }
-      const registroUserId = (nomeOutroUsuario
-        ? usuarios.find((u) => u.nome?.toLowerCase() === nomeOutroUsuario.toLowerCase())?.id
-        : null) ?? (profileNome
-        ? usuarios.find((u) => u.nome?.toLowerCase() === profileNome!.toLowerCase())?.id
-        : null) ?? usuarios[0].id
-      const partes: string[] = []
-      for (const interp of interpretados) {
-        const valorFinal = Math.round(interp.valor * 100) / 100
-        console.log('[PLEN WhatsApp] Registro (multi):', { msg: interp.nome, valor: valorFinal, tipo: interp.tipo })
-        const { error: errInsert } = await supabase.from('registros').insert({
-          user_id: registroUserId,
-          valor: valorFinal,
-          tipo: interp.tipo,
-          nome: interp.nome,
-          data_registro: interp.data_registro,
-          categoria: interp.categoria ?? null,
-          parcelas_totais: 1,
-          parcelas_pagas: 0,
-          etiquetas: [],
-        })
-        if (errInsert) {
-          console.error('[PLEN WhatsApp] Erro insert (multi):', errInsert)
-          partes.push(`❌ ${interp.nome}: R$ ${valorFinal.toFixed(2)} — erro ao salvar`)
-        } else {
-          partes.push(formatarRespostaRegistro({ nome: interp.nome, tipo: interp.tipo, valor: valorFinal, dataRegistro: interp.data_registro, categoria: interp.categoria }))
+      } catch (multiErr) {
+        console.error('[PLEN WhatsApp] Erro no bloco multi-registro:', multiErr)
+        return {
+          response: 'Ocorreu um erro ao registrar um dos itens. Tente enviar de novo ou um por vez. 💙',
+          buttonUrl: PERFIL_URL,
+          buttonLabel: PERFIL_BUTTON_LABEL,
+          buttonBody: PERFIL_BUTTON_BODY,
         }
-      }
-      const textoResposta = partes.join('\n\n')
-      return {
-        response: textoResposta,
-        buttonUrl: PERFIL_URL,
-        buttonLabel: PERFIL_BUTTON_LABEL,
-        buttonBody: PERFIL_BUTTON_BODY,
       }
     }
 

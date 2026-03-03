@@ -522,10 +522,12 @@ export async function POST(request: NextRequest) {
     const isBotao = parsed.text === 'CADASTRAR' || parsed.text === 'JÁ CADASTREI' || /^j[aá]\s*criei$/i.test(parsed.text.trim()) || /^j[aá]\s*cadastrei$/i.test(parsed.text.trim())
     console.log('📨 [Z-API Webhook] Mensagem recebida:', { from: parsed.from, textPreview: parsed.text.slice(0, 80), messageId: parsed.messageId, isCliqueBotao: isBotao, media: parsed.media?.type })
     if (isBotao) console.log('🔘 [Z-API Webhook] Clique em botão reconhecido:', parsed.text)
-    processarEmBackground(parsed).catch((e) => console.error('❌ [Z-API Webhook]', e))
+    await processarEmBackground(parsed)
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('❌ [Z-API Webhook] Erro:', err)
-    return NextResponse.json({ success: false, error: String(err) }, { status: 500 })
+    const errMsg = err instanceof Error ? err.message : String(err)
+    const errStack = err instanceof Error ? err.stack : undefined
+    console.error('❌ [Z-API Webhook] Erro:', errMsg, errStack ?? '')
+    return NextResponse.json({ success: false, error: errMsg }, { status: 500 })
   }
 }
