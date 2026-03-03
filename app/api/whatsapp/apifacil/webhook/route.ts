@@ -277,7 +277,7 @@ function getMediaFetchHeaders(): HeadersInit {
   return {}
 }
 
-const MSG_COMPROVANTE_NAO_LEU = `Não consegui ler o comprovante 😅
+const MSG_COMPROVANTE_NAO_LEU = `Não consegui ler o comprovante 😊
 
 Envie a foto de novo com uma legenda, por exemplo:
 gastei 50 no mercado
@@ -341,7 +341,7 @@ async function processarEmBackground(parsed: {
             const phone = from.startsWith('55') ? from : `55${from}`
             await sendTextMessage(
               phone,
-              'Não consegui entender o áudio 😅 Pode digitar a mensagem? Ex.: gastei 50 no mercado'
+              'Não consegui entender o áudio 😊 Pode digitar a mensagem? Ex.: gastei 50 no mercado'
             )
             registerSentMessage(phone, 'Transcrição do áudio falhou (cota/API).')
           }

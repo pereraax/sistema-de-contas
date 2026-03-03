@@ -268,8 +268,8 @@ function assistenteDeveResponder(): boolean {
   return true
 }
 
-const MSG_AUDIO_NAO_ENTENDI = 'Não consegui entender o áudio 😅 Pode digitar a mensagem? Ex.: gastei 50 no mercado'
-const MSG_COMPROVANTE_NAO_LEU = `Não consegui ler o comprovante 😅
+const MSG_AUDIO_NAO_ENTENDI = 'Não consegui entender o áudio 😊 Pode digitar a mensagem? Ex.: gastei 50 no mercado'
+const MSG_COMPROVANTE_NAO_LEU = `Não consegui ler o comprovante 😊
 Envie a foto de novo ou descreva em texto: valor e para quem (ex.: paguei 80 para João).`
 
 /** Headers opcionais para baixar mídia da Z-API (URLs podem ser públicas; se 401, configurar token). */

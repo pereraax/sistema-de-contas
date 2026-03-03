@@ -56,7 +56,7 @@ REGRAS OBRIGATÓRIAS:
 3. Se o usuário pedir algo FORA do escopo (receitas, notícias, outro assunto) ou você não souber responder, responda EXATAMENTE com esta mensagem (copie e cole, sem alterar): "Ops, parece que você precisa de mais suporte 💙⚠️\n\nSe quiser falar com o suporte humano, basta enviar:\n\n\"Parar assistente Plen\"\n\nque já chamo meus especialistas para tirar suas dúvidas com mais clareza 😊"
 4. Se o usuário quiser REGISTRAR DÍVIDA mas não deu detalhes, pergunte de forma amigável: "Sobre o que é essa dívida? Qual o valor? Quando será paga? Quer adicionar alguma observação?" e sugira que depois pode mandar por exemplo: "tenho uma dívida de 200 reais no cartão".
 5. Se parecer que quer REGISTRAR gasto/entrada/empréstimo mas disse de um jeito que o sistema pode não reconhecer, INTERPRETE o que ele quis dizer e responda de forma amigável: (1) confirme o que ele quis fazer, (2) sugira a frase exata que ele pode usar para registrar. Exemplo: se disse "emprestei minha tia 34", responda algo como: "Você quer dizer que emprestou 34 reais para sua tia? Para registrar, me diga assim: *Emprestei 34 reais para minha tia* (ou *Gastei 34 com minha tia*)." Outros exemplos: "Gastei 50 no mercado", "Recebi 100", "Tenho uma dívida de 200 no cartão". Valores podem ser com vírgula ou ponto (ex.: 1.500,00).
-6. Mantenha respostas curtas e claras (ideal para WhatsApp). Use emojis com moderação (1-2 por resposta).
+6. Mantenha respostas curtas e claras (ideal para WhatsApp). Use emojis com moderação (1-2 por resposta). Use SOMENTE emojis felizes e fofos (😊 💙 ✨ 👋 🎯 💼 etc.); NUNCA use 🤔 😅 😕 😒 ou similares (evitar "cara pensando" ou "suando").
 7. Não invente dados nem valores. Para relatórios ou saldos, sugira "me mostre o relatório" ou "quanto gastei na semana?".
 8. Links: use apenas "plenipay.com" (nunca https:// ou URL completa).
 9. Se perguntarem sobre Open Finance, Open Banking ou conectar banco: diga que está em produção e em breve estará disponível.
@@ -68,7 +68,18 @@ const PRODUCT_SYSTEM_PROMPT = `Você é a Plen, assistente da PleniPay. O usuár
 FUNCIONALIDADES: Registrar gastos, receitas e dívidas pelo WhatsApp; ver relatórios, metas; múltiplas pessoas na conta; cadastro em plenipay.com e ativação enviando o e-mail aqui.
 PLANOS: Quando perguntarem preço/valor/quanto custa, responda de forma ESTRATÉGICA e DINÂMICA: diga que por apenas "poucos centavos por dia" ou "menos de um real por dia" eles conseguem ter um assistente a favor deles, que pode começar grátis e testar. NÃO mencione valores reais em reais (R$). Incentive a cadastrar em plenipay.com.
 Links: use apenas "plenipay.com" (nunca URL completa).
-Open Finance: está em produção, em breve disponível.`
+Open Finance: está em produção, em breve disponível.
+Emojis: use SOMENTE emojis felizes e fofos (😊 💙 ✨ 👋); NUNCA use 🤔 😅 😕 ou similares.`
+
+/** Em produção os emojis devem ser sempre felizes e fofos; substitui 🤔 😅 😕 😒 por 😊. */
+function emojisFelizes(text: string): string {
+  if (!text || typeof text !== 'string') return text
+  return text
+    .replace(/\u{1F914}/gu, '😊') /* 🤔 */
+    .replace(/\u{1F605}/gu, '😊') /* 😅 */
+    .replace(/\u{1F615}/gu, '😊') /* 😕 */
+    .replace(/\u{1F612}/gu, '😊') /* 😒 */
+}
 
 export type PlenLLMFallbackOptions = {
   userMessage: string
@@ -121,7 +132,7 @@ export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promi
       if (res.ok) {
         const data = await res.json()
         const text = data.choices?.[0]?.message?.content?.trim()
-        if (text) return text
+        if (text) return emojisFelizes(text)
       } else {
         console.warn('[PLEN LLM] Grok (xAI) respondeu com status:', res.status)
       }
@@ -149,7 +160,7 @@ export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promi
       if (res.ok) {
         const data = await res.json()
         const text = data.choices?.[0]?.message?.content?.trim()
-        if (text) return text
+        if (text) return emojisFelizes(text)
       } else {
         console.warn('[PLEN LLM] Groq respondeu com status:', res.status)
       }
@@ -179,7 +190,7 @@ export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promi
 
     const data = await res.json()
     const text = data.choices?.[0]?.message?.content?.trim()
-    if (text) return text
+    if (text) return emojisFelizes(text)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.warn('[PLEN LLM] Erro ao chamar OpenAI:', msg)
