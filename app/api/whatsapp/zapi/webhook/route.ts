@@ -528,12 +528,21 @@ export async function POST(request: NextRequest) {
     const isBotao = parsed.text === 'CADASTRAR' || parsed.text === 'JÁ CADASTREI' || /^j[aá]\s*criei$/i.test(parsed.text.trim()) || /^j[aá]\s*cadastrei$/i.test(parsed.text.trim())
     console.log('📨 [Z-API Webhook] Mensagem recebida:', { from: parsed.from, textPreview: parsed.text.slice(0, 80), messageId: parsed.messageId, isCliqueBotao: isBotao, media: parsed.media?.type })
     if (isBotao) console.log('🔘 [Z-API Webhook] Clique em botão reconhecido:', parsed.text)
-    await processarEmBackground(parsed)
+    try {
+      await processarEmBackground(parsed)
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      const errStack = err instanceof Error ? err.stack : undefined
+      console.error('❌ [Z-API Webhook] Erro ao processar (resposta 200 para não quebrar integração):', errMsg, errStack ?? '')
+      try {
+        const phone = parsed.from.startsWith('55') ? parsed.from : `55${parsed.from}`
+        await sendTextMessage(phone, 'Ocorreu um erro ao processar. Tente de novo em um instante. 💙').catch(() => {})
+      } catch (_) {}
+    }
     return NextResponse.json({ success: true })
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
-    const errStack = err instanceof Error ? err.stack : undefined
-    console.error('❌ [Z-API Webhook] Erro:', errMsg, errStack ?? '')
-    return NextResponse.json({ success: false, error: errMsg }, { status: 500 })
+    console.error('❌ [Z-API Webhook] Erro no POST (retornando 200 para manter webhook ativo):', errMsg)
+    return NextResponse.json({ success: true, message: 'Erro interno registrado' })
   }
 }
