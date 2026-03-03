@@ -61,23 +61,54 @@ type ZapiMedia =
 export type ZapiParsed = { from: string; text: string; messageId?: string; media?: ZapiMedia }
 
 /** Extrair phone, text, messageId e mídia (áudio/imagem) do payload Z-API. Aceita vários formatos (on-message-received, ReceivedCallBack, data.text, audio.audioUrl, image.imageUrl, etc.). */
-function parseZapiBody(body: unknown): ZapiParsed | null {
-  if (!body || typeof body !== 'object') return null
+function parseZapiBody(body: unknown, logReject?: (reason: string) => void): ZapiParsed | null {
+  if (!body || typeof body !== 'object') {
+    logReject?.('body vazio ou não é objeto')
+    return null
+  }
   const b = body as Record<string, unknown>
+  const data = (b.data && typeof b.data === 'object' ? b.data : b) as Record<string, unknown>
 
-  if (b.fromMe === true) return null
+  if (b.fromMe === true) {
+    logReject?.('fromMe=true (mensagem enviada por nós)')
+    return null
+  }
+  const type = String((b.type as string) || (data.type as string) || '').trim()
+  if (type && !/ReceivedCallBack|ReceivedCallback/i.test(type)) {
+    logReject?.('evento não é mensagem recebida (type=' + type + '), ignorando')
+    return null
+  }
 
   const rawPhone =
     (b.phone as string) ||
-    (b.data && typeof b.data === 'object' && (b.data as Record<string, unknown>).phone as string) ||
+    (b.from as string) ||
+    (b.senderPhone as string) ||
+    (b.chatId as string)?.replace(/@.*$/, '') ||
+    (data.phone as string) ||
+    (data.from as string) ||
+    (data.senderPhone as string) ||
     ''
-  if (!rawPhone) return null
-  const connectedPhone = String((b.connectedPhone as string) || '').replace(/\D/g, '')
-  const phoneDigits = String(rawPhone).replace(/\D/g, '')
-  if (connectedPhone && phoneDigits === connectedPhone) return null
+  const phoneStr = String(rawPhone || '').trim()
+  if (!phoneStr) {
+    logReject?.('sem phone (keys: ' + Object.keys(b).join(', ') + ')')
+    return null
+  }
+  const connectedPhone = String((b.connectedPhone as string) || (data.connectedPhone as string) || '').replace(/\D/g, '')
+  const phoneDigits = phoneStr.replace(/\D/g, '')
+  if (phoneDigits.length < 10) {
+    logReject?.('phone com menos de 10 dígitos: ' + phoneStr)
+    return null
+  }
+  if (connectedPhone && phoneDigits === connectedPhone) {
+    logReject?.('phone é o próprio conectado (ignorar)')
+    return null
+  }
   if (!connectedPhone && phoneDigits.length >= 10 && phoneDigits.length <= 13) {
     const envPhone = process.env.ZAPI_CONNECTED_PHONE?.replace(/\D/g, '')
-    if (envPhone && phoneDigits === envPhone) return null
+    if (envPhone && phoneDigits === envPhone) {
+      logReject?.('phone igual ZAPI_CONNECTED_PHONE')
+      return null
+    }
   }
 
   let text = ''
@@ -113,7 +144,7 @@ function parseZapiBody(body: unknown): ZapiParsed | null {
   // Reforço: se tem phone mas não extraiu texto, tratar como "Olá" para não descartar contato novo
   if (!text.trim()) text = 'Olá'
 
-  const from = String(rawPhone).replace(/\D/g, '')
+  const from = phoneDigits.startsWith('55') ? phoneDigits : '55' + phoneDigits
   let messageId: string | undefined = typeof b.messageId === 'string' ? b.messageId : undefined
   if (!messageId && b.data && typeof b.data === 'object') {
     const mid = (b.data as Record<string, unknown>).messageId
@@ -122,9 +153,9 @@ function parseZapiBody(body: unknown): ZapiParsed | null {
 
   // Mídia: Z-API envia audio.audioUrl / image.imageUrl (top-level ou em data)
   let media: ZapiMedia | undefined
-  const data = (b.data && typeof b.data === 'object' ? b.data : b) as Record<string, unknown>
-  const audio = (b.audio ?? data?.audio) as { audioUrl?: string; mimeType?: string } | undefined
-  const image = (b.image ?? data?.image) as { imageUrl?: string; mimeType?: string; caption?: string } | undefined
+  const dataObj = (b.data && typeof b.data === 'object' ? b.data : b) as Record<string, unknown>
+  const audio = (b.audio ?? dataObj?.audio) as { audioUrl?: string; mimeType?: string } | undefined
+  const image = (b.image ?? dataObj?.image) as { imageUrl?: string; mimeType?: string; caption?: string } | undefined
   if (audio?.audioUrl && typeof audio.audioUrl === 'string') {
     media = { type: 'audio', url: audio.audioUrl, mimetype: audio.mimeType || 'audio/ogg; codecs=opus' }
   } else if (image?.imageUrl && typeof image.imageUrl === 'string') {
@@ -512,9 +543,10 @@ export async function POST(request: NextRequest) {
     )
   }
   try {
-    const parsed = parseZapiBody(body)
+    const parsed = parseZapiBody(body, (reason) => {
+      console.warn('📨 [Z-API Webhook] Payload ignorado:', reason, '| body keys:', body && typeof body === 'object' ? Object.keys(body as object).join(', ') : 'null')
+    })
     if (!parsed) {
-      console.warn('📨 [Z-API Webhook] Payload ignorado (sem phone/text ou fromMe). Body keys:', body && typeof body === 'object' ? Object.keys(body as object).join(', ') : 'null')
       return NextResponse.json({ success: true, message: 'Payload ignorado' })
     }
     if (parsed.messageId && wasAlreadyProcessed(parsed.messageId)) {
