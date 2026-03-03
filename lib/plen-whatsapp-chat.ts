@@ -562,70 +562,147 @@ export async function processPlenWhatsAppMessage(
       }
     }
 
-    // Suporte a "gastei 30 usuario NOME" na mesma linha OU segunda linha = nome do usuário
     const linhas = rawMessage.split(/\n/).map((l) => l.trim()).filter(Boolean)
     const primeiraLinha = linhas[0] ?? rawMessage
     const { msgForRegistro, targetUserName: usuarioNaFrase } = extrairUsuarioNaMensagem(primeiraLinha)
-    const nomeOutroUsuario = usuarioNaFrase ?? (linhas.length > 1 ? linhas[1] : null)
+    const nomeOutroUsuario = usuarioNaFrase ?? (linhas.length > 1 && linhas.length <= 2 ? linhas[1] : null)
 
-    let interpretado: { tipo: 'saida' | 'entrada'; valor: number; nome: string; data_registro: string; categoria: string } | null = interpretarMensagem(msgForRegistro)
+    // Múltiplos pedidos na mesma mensagem: cada linha com verbo de registro vira um registro (na ordem)
+    const frasesRegistro = linhas.filter((l) => /(?:gastei|paguei|recebi|ganhei|gastou|pagou|recebeu|ganhou)/i.test(l))
+    const multiRegistro = frasesRegistro.length > 1
+    const frasesParaProcessar = multiRegistro ? frasesRegistro : [msgForRegistro]
 
-    const temVerboRegistro = /(?:gastei|paguei|recebi|ganhei|gastou|pagou|recebeu|ganhou)/i.test(msgForRegistro)
-    const fraseCurta = msgForRegistro.trim().length <= 120
+    type InterpretadoT = { tipo: 'saida' | 'entrada'; valor: number; nome: string; data_registro: string; categoria: string }
+    const interpretados: InterpretadoT[] = []
 
-    // Pedido de registro (texto curto): extração por regex primeiro, LLM quando necessário.
-    if (temVerboRegistro && fraseCurta) {
-      const msgNorm = normalizarNumerosPorExtenso(msgForRegistro)
-      // SOLUÇÃO DEFINITIVA: extrair valor e nome por REGEX da frase (não depender do LLM)
-      const valorRegex = msgNorm.match(/(?:gastei|paguei|ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
-      const nomeRegex = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)?.[1]?.trim()
-      const valorNum = valorRegex != null ? (extrairValor(valorRegex) ?? NaN) : NaN
-      const tipoFromVerbo: 'entrada' | 'saida' = /\b(ganhei|recebi|ganhou|recebeu)\b/i.test(msgForRegistro) ? 'entrada' : 'saida'
-      const valorValido = Number.isFinite(valorNum) && valorNum >= 1 && valorNum <= 500_000
-      const nomeValido = nomeRegex && nomeRegex.length >= 2
-      // Se regex já achou valor (e opcionalmente nome), usar e só chamar LLM se faltar algo
-      if (valorValido) {
-        let valorUsar = Math.round(valorNum * 100) / 100
-        let nomeUsar = nomeValido ? nomeRegex.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : (tipoFromVerbo === 'saida' ? 'Gasto' : 'Entrada')
-        // Sem regras fixas de valor/nome: usar sempre o que foi transcrito (ex.: 350+mercado, 290+roupas, 80+posto)
-        const dataReg = interpretado?.data_registro ?? new Date().toISOString()
-        interpretado = {
-          tipo: tipoFromVerbo,
-          valor: valorUsar,
-          nome: nomeUsar,
-          data_registro: dataReg,
-          categoria: categoriaInteligente(nomeUsar, tipoFromVerbo),
+    for (const frase of frasesParaProcessar) {
+      let interp: InterpretadoT | null = interpretarMensagem(frase)
+      const temVerboRegistro = /(?:gastei|paguei|recebi|ganhei|gastou|pagou|recebeu|ganhou)/i.test(frase)
+      const fraseCurta = frase.trim().length <= 120
+
+      if (temVerboRegistro && fraseCurta) {
+        const msgNorm = normalizarNumerosPorExtenso(frase)
+        const valorRegex = msgNorm.match(/(?:gastei|paguei|ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
+        const nomeRegexGasto = frase.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)?.[1]?.trim()
+        const nomeRegexEntrada = frase.match(/(?:recebi|ganhei|recebeu|ganhou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|da|do)\s+([a-záàâãéêíóôõúç\s]+?)(?:\s*$|\.|,)/i)?.[1]?.trim()
+        const valorNum = valorRegex != null ? (extrairValor(valorRegex) ?? NaN) : NaN
+        const tipoFromVerbo: 'entrada' | 'saida' = /\b(ganhei|recebi|ganhou|recebeu)\b/i.test(frase) ? 'entrada' : 'saida'
+        const valorValido = Number.isFinite(valorNum) && valorNum >= 1 && valorNum <= 500_000
+        const nomeValidoGasto = nomeRegexGasto && nomeRegexGasto.length >= 2
+        const nomeValidoEntrada = nomeRegexEntrada && nomeRegexEntrada.length >= 2
+        if (valorValido) {
+          const valorUsar = Math.round(valorNum * 100) / 100
+          let nomeUsar: string
+          if (tipoFromVerbo === 'entrada') {
+            if (interp?.nome && interp.nome !== 'Entrada' && interp.nome.length >= 2) {
+              nomeUsar = interp.nome
+            } else if (nomeValidoEntrada) {
+              nomeUsar = nomeRegexEntrada!.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+            } else {
+              nomeUsar = 'Entrada'
+            }
+          } else {
+            if (interp?.nome && interp.nome !== 'Gasto' && interp.nome.length >= 2) {
+              nomeUsar = interp.nome
+            } else if (nomeValidoGasto) {
+              nomeUsar = nomeRegexGasto!.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+            } else {
+              nomeUsar = 'Gasto'
+            }
+          }
+          const dataReg = interp?.data_registro ?? new Date().toISOString()
+          const categoria = categoriaInteligente(nomeUsar, tipoFromVerbo)
+          interp = { tipo: tipoFromVerbo, valor: valorUsar, nome: nomeUsar, data_registro: dataReg, categoria }
         }
-      }
-      // Sem IA: quando o regex não achou valor, usa só interpretarMensagem e extrai nome por regex "com X" / "no X"
-      if (!valorValido && interpretado && interpretado.tipo === 'saida') {
-        if (interpretado.nome === 'Gasto' || interpretado.nome === 'Outros') {
-          const m = msgForRegistro.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)
-          if (m?.[1]) {
-            const desc = m[1].trim().replace(/\s+/g, ' ').substring(0, 50)
-            if (desc.length >= 2) {
-              const nomeFormatado = desc.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
-              interpretado = { ...interpretado, nome: nomeFormatado }
+        if (!valorValido && interp) {
+          if (interp.tipo === 'saida' && (interp.nome === 'Gasto' || interp.nome === 'Outros')) {
+            const m = frase.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)
+            if (m?.[1]) {
+              const desc = m[1].trim().replace(/\s+/g, ' ').substring(0, 50)
+              if (desc.length >= 2) {
+                const nomeFormatado = desc.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+                interp = { ...interp, nome: nomeFormatado, categoria: categoriaInteligente(nomeFormatado, 'saida') }
+              }
+            }
+          }
+          if (interp.tipo === 'entrada' && interp.nome === 'Entrada') {
+            const mEnt = frase.match(/(?:recebi|ganhei|recebeu|ganhou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|da|do)\s+([a-záàâãéêíóôõúç\s]+?)(?:\s*$|\.|,)/i)
+            if (mEnt?.[1]) {
+              const nomePessoa = mEnt[1].trim().replace(/\s+/g, ' ').substring(0, 50)
+              if (nomePessoa.length >= 2) {
+                const nomeFormatado = nomePessoa.split(/\s/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+                interp = { ...interp, nome: nomeFormatado, categoria: 'Pessoas' }
+              }
             }
           }
         }
       }
+
+      if (interp?.tipo === 'saida' && /\b(ganhei|recebi)\b/i.test(frase)) {
+        const entVal = frase.match(/(?:ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
+        const entNum = entVal != null ? (extrairValor(entVal) ?? NaN) : NaN
+        const entNome = frase.match(/(?:ganhei|recebi)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|da)\s+([a-záàâãéêíóôõúç\s]+?)(?:\s*$|\.|,)/i)?.[1]?.trim() || frase.match(/(?:de|da)\s+([a-záàâãéêíóôõúç]+)/i)?.[1]?.trim() || 'Entrada'
+        if (Number.isFinite(entNum) && entNum >= 1 && entNum <= 500_000) {
+          const nomeFormatado = entNome.length >= 2 ? entNome.charAt(0).toUpperCase() + entNome.slice(1).toLowerCase() : entNome
+          interp = { ...interp, tipo: 'entrada', valor: entNum, nome: nomeFormatado || 'Entrada', categoria: categoriaInteligente(nomeFormatado || 'Entrada', 'entrada') }
+        }
+      }
+
+      if (interp) interpretados.push(interp)
     }
 
-    // Salvaguarda: frase tem "ganhei" ou "recebi" mas interpretado deu gasto → forçar ENTRADA
-    if (interpretado?.tipo === 'saida' && /\b(ganhei|recebi)\b/i.test(msgForRegistro)) {
-      const entVal = msgForRegistro.match(/(?:ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
-      const entNum = entVal != null ? (extrairValor(entVal) ?? NaN) : NaN
-      const entNome = msgForRegistro.match(/(?:ganhei|recebi)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|da)\s+([a-záàâãéêíóôõúç\s]+?)(?:\s*$|\.|,)/i)?.[1]?.trim() || msgForRegistro.match(/(?:de|da)\s+([a-záàâãéêíóôõúç]+)/i)?.[1]?.trim() || 'Entrada'
-      if (Number.isFinite(entNum) && entNum >= 1 && entNum <= 500_000) {
-        const nomeFormatado = entNome.length >= 2 ? entNome.charAt(0).toUpperCase() + entNome.slice(1).toLowerCase() : entNome
-        interpretado = {
-          ...interpretado,
-          tipo: 'entrada',
-          valor: entNum,
-          nome: nomeFormatado || 'Entrada',
-          categoria: categoriaInteligente(nomeFormatado || 'Entrada', 'entrada'),
+    const interpretado: InterpretadoT | null = interpretados.length === 1 ? interpretados[0]! : null
+
+    if (interpretados.length > 1) {
+      let profileNome: string | null = null
+      try {
+        const { data: profile } = await supabase.from('profiles').select('nome, email').eq('id', userId).single()
+        if (profile?.nome?.trim()) profileNome = profile.nome.trim()
+        else if (profile?.email) profileNome = profile.email.split('@')[0]?.trim() ?? null
+      } catch (_) {}
+      const { data: usuarios, error: errUsuarios } = await supabase
+        .from('users')
+        .select('id, nome')
+        .eq('account_owner_id', userId)
+        .order('nome', { ascending: true })
+      if (errUsuarios || !usuarios?.length) {
+        return {
+          response: 'Não encontrei uma pessoa para o registro. Crie em Configurações → Usuários (pelo menos uma) no site e tente de novo.',
         }
+      }
+      const registroUserId = (nomeOutroUsuario
+        ? usuarios.find((u) => u.nome?.toLowerCase() === nomeOutroUsuario.toLowerCase())?.id
+        : null) ?? (profileNome
+        ? usuarios.find((u) => u.nome?.toLowerCase() === profileNome!.toLowerCase())?.id
+        : null) ?? usuarios[0].id
+      const partes: string[] = []
+      for (const interp of interpretados) {
+        const valorFinal = Math.round(interp.valor * 100) / 100
+        console.log('[PLEN WhatsApp] Registro (multi):', { msg: interp.nome, valor: valorFinal, tipo: interp.tipo })
+        const { error: errInsert } = await supabase.from('registros').insert({
+          user_id: registroUserId,
+          valor: valorFinal,
+          tipo: interp.tipo,
+          nome: interp.nome,
+          data_registro: interp.data_registro,
+          categoria: interp.categoria ?? null,
+          parcelas_totais: 1,
+          parcelas_pagas: 0,
+          etiquetas: [],
+        })
+        if (errInsert) {
+          console.error('[PLEN WhatsApp] Erro insert (multi):', errInsert)
+          partes.push(`❌ ${interp.nome}: R$ ${valorFinal.toFixed(2)} — erro ao salvar`)
+        } else {
+          partes.push(formatarRespostaRegistro({ nome: interp.nome, tipo: interp.tipo, valor: valorFinal, dataRegistro: interp.data_registro, categoria: interp.categoria }))
+        }
+      }
+      const textoResposta = partes.join('\n\n')
+      return {
+        response: textoResposta,
+        buttonUrl: PERFIL_URL,
+        buttonLabel: PERFIL_BUTTON_LABEL,
+        buttonBody: PERFIL_BUTTON_BODY,
       }
     }
 
