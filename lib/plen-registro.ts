@@ -425,8 +425,10 @@ export function formatarRespostaRegistro(params: {
   nomeUsuario?: string
   /** Descrição/observação do registro (ex.: "guardei na caixinha nubank"). */
   observacao?: string
+  /** Nome do contato na conversa (ex.: nome no WhatsApp) — usado nos parênteses da mensagem de sucesso. */
+  nomeContatoWhatsApp?: string
 }): string {
-  const { nome, tipo, valor, dataRegistro, categoria, nomeUsuario, observacao } = params
+  const { nome, tipo, valor, dataRegistro, categoria, nomeUsuario, observacao, nomeContatoWhatsApp } = params
   const valorFormatado = valor.toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -435,13 +437,13 @@ export function formatarRespostaRegistro(params: {
   })
   const dataBR = formatarDataBR(dataRegistro)
   const emojiValor = tipo === 'entrada' ? '🟢' : '🔴' // entrada = ganho (verde), saida/divida = vermelho
-  const nomeContato = (nome || '').trim() || 'registro'
+  const nomeNaMensagem = (nomeContatoWhatsApp || '').trim() || (nome || '').trim() || 'registro'
   const mensagemSucesso =
     tipo === 'saida'
-      ? `✨ Seu gasto foi registrado com sucesso (${nomeContato})!`
+      ? `✨ Seu gasto foi registrado com sucesso (${nomeNaMensagem})!`
       : tipo === 'divida'
-        ? `✨ Sua dívida foi registrada com sucesso (${nomeContato})!`
-        : `✨ Sua entrada foi registrada com sucesso (${nomeContato})!`
+        ? `✨ Sua dívida foi registrada com sucesso (${nomeNaMensagem})!`
+        : `✨ Sua entrada foi registrada com sucesso (${nomeNaMensagem})!`
 
   const linhas = [
     `📌 ${nome}`,

@@ -507,7 +507,9 @@ export type RegisterGastoReceitaFallbackResult =
  */
 export async function registerGastoReceitaFallback(
   userId: string,
-  rawMessage: string
+  rawMessage: string,
+  /** Nome do contato na conversa (ex.: nome no WhatsApp) para a mensagem de sucesso. */
+  contactNameWhatsApp?: string
 ): Promise<RegisterGastoReceitaFallbackResult> {
   const supabase = createAdminClient()
   if (!supabase) return null
@@ -569,6 +571,7 @@ export async function registerGastoReceitaFallback(
     dataRegistro: data_registro,
     categoria: categoria || 'Outros',
     nomeUsuario: profileNome || undefined,
+    nomeContatoWhatsApp: contactNameWhatsApp,
   })
   if (tipo === 'saida') {
     const withIncentive = await maybeAppendIncentiveIndication(supabase, userId, message, PERFIL_URL, PERFIL_BUTTON_LABEL, PERFIL_BUTTON_BODY)
@@ -585,7 +588,9 @@ export async function registerGastoReceitaFallback(
  */
 export async function processPlenWhatsAppMessage(
   userId: string,
-  message: string
+  message: string,
+  /** Nome do contato na conversa (ex.: nome no WhatsApp) — exibido nos parênteses da mensagem de sucesso. */
+  contactNameWhatsApp?: string
 ): Promise<ProcessPlenWhatsAppResult> {
   try {
     const supabase = createAdminClient()
@@ -736,6 +741,7 @@ export async function processPlenWhatsAppMessage(
               categoria: comDesc.categoria || 'Outros',
               nomeUsuario: profileNome || undefined,
               observacao: comDesc.observacao || undefined,
+              nomeContatoWhatsApp: contactNameWhatsApp,
             })
             const dica =
               '💡 Para adicionar descrição no próximo registro, mande assim:\n*recebi X origem + data + descrição*\nEx.: recebi 100 mãe ontem guardei na caixinha nubank'
@@ -962,6 +968,7 @@ export async function processPlenWhatsAppMessage(
               valor: valorFinal,
               dataRegistro: interp.data_registro,
               categoria,
+              nomeContatoWhatsApp: contactNameWhatsApp,
             }))
           }
         }
@@ -1045,6 +1052,7 @@ export async function processPlenWhatsAppMessage(
               dataRegistro: data_registro,
               categoria,
               nomeUsuario: nomeParaResposta,
+              nomeContatoWhatsApp: contactNameWhatsApp,
             }),
             buttonUrl: PERFIL_URL,
             buttonLabel: PERFIL_BUTTON_LABEL,
@@ -1129,6 +1137,7 @@ export async function processPlenWhatsAppMessage(
           dataRegistro: data_registro,
           categoria,
           nomeUsuario: nomeParaResposta,
+          nomeContatoWhatsApp: contactNameWhatsApp,
         }),
         buttonUrl: PERFIL_URL,
         buttonLabel: PERFIL_BUTTON_LABEL,

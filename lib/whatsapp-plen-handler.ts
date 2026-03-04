@@ -393,7 +393,8 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
     const remoteJid = message?.key?.remoteJid ?? ''
     const phoneNumber = normalizePhoneNumber(extractPhoneNumber(remoteJid))
     let text = extractMessageText(message)
-    
+    const contactNameWhatsApp = (message?.pushName ?? '').trim().slice(0, 80) || undefined
+
     console.log('📱 [WhatsApp PLEN] Phone Number (normalizado):', phoneNumber)
     console.log('📱 [WhatsApp PLEN] Text extraído:', text ? text.substring(0, 100) : 'null')
     
@@ -734,7 +735,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
                   message: `👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural.\n\nExemplos: "gastei 50 reais no mercado", "quanto gastei no mês?"\n\nPronto para começar! 🎯`,
                 }
               }
-              const plenResult = await processWithPLEN(userContextLocalhost.userId!, text, undefined)
+              const plenResult = await processWithPLEN(userContextLocalhost.userId!, text, undefined, contactNameWhatsApp)
               if (plenResult?.success && (plenResult?.message || plenResult?.messages)) return plenResult
               // Fallback: tentar registrar gasto/receita direto (ex.: "gastei 600", "gastei 490")
               const t = text.trim()
@@ -742,7 +743,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
               if (looksLike) {
                 try {
                   const { registerGastoReceitaFallback } = await import('@/lib/plen-whatsapp-chat')
-                  const fallbackMsg = await registerGastoReceitaFallback(userContextLocalhost.userId!, text)
+                  const fallbackMsg = await registerGastoReceitaFallback(userContextLocalhost.userId!, text, contactNameWhatsApp)
                   if (fallbackMsg) return { success: true, message: fallbackMsg }
                 } catch (_) {}
               }
@@ -828,7 +829,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       }
     }
     
-    const plenResult = await processWithPLEN(userContext.userId!, text, imageBase64)
+    const plenResult = await processWithPLEN(userContext.userId!, text, imageBase64, contactNameWhatsApp)
     
     console.log('📤 [WhatsApp PLEN] ==========================================')
     console.log('📤 [WhatsApp PLEN] RESULTADO DO PLEN')
@@ -849,7 +850,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       if (looksLikeGastoReceita && userContext.userId) {
         try {
           const { registerGastoReceitaFallback } = await import('@/lib/plen-whatsapp-chat')
-          const fallbackResult = await registerGastoReceitaFallback(userContext.userId, text)
+          const fallbackResult = await registerGastoReceitaFallback(userContext.userId, text, contactNameWhatsApp)
           if (fallbackResult) {
             const msg = typeof fallbackResult === 'string' ? fallbackResult : 'message' in fallbackResult ? fallbackResult.message : ''
             console.log('✅ [WhatsApp PLEN] Registro feito via fallback:', msg ? msg.substring(0, 80) : 'mensagens múltiplas')
@@ -1479,10 +1480,10 @@ async function authenticateWhatsAppUser(
  * Processar mensagem com assistente PLEN
  * Chamada direta à lógica (sem fetch), para não depender de URL ou rede.
  */
-async function processWithPLEN(userId: string, text: string, imageBase64?: string) {
+async function processWithPLEN(userId: string, text: string, imageBase64?: string, contactNameWhatsApp?: string) {
   try {
     const { addLog } = await import('@/lib/server-logs')
-    
+
     // Verificar desativação antes de processar
     if (text && typeof text === 'string') {
       const msgLower = text.toLowerCase().trim()
@@ -1508,7 +1509,7 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
     
     // Chamada direta (sem HTTP): não depende de NEXT_PUBLIC_SITE_URL nem da rota estar acessível
     const { processPlenWhatsAppMessage, delayRespostaPlen } = await import('@/lib/plen-whatsapp-chat')
-    const result = await processPlenWhatsAppMessage(userId, text)
+    const result = await processPlenWhatsAppMessage(userId, text, contactNameWhatsApp)
     await delayRespostaPlen()
 
     const resp = (result.response || '').trim()
