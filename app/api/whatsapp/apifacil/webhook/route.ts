@@ -303,11 +303,21 @@ function isQueroUtilizarPlenipayMessage(t: string): boolean {
 
 /** Conteúdo das 3 mensagens de boas-vindas — definido em whatsapp-enviar-boas-vindas-lib; envio via sendBoasVindasToNumber (Z-API quando configurada). */
 
-/** Assistente responde em qualquer ambiente (localhost e produção). Para desligar em produção use o painel admin "Pausar assistente para todos" ou DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true. */
+/** Síncrono: só verifica env. Para decisão completa (incl. pausa no admin) use assistenteDeveResponderAsync. */
 function assistenteDeveResponder(): boolean {
   if (process.env.NODE_ENV === 'production' && process.env.DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO === 'true') {
     return false
   }
+  return true
+}
+
+/** Assistente deve responder? Respeita env e pausa global do painel admin. Quando pausada, não responde a ninguém. */
+async function assistenteDeveResponderAsync(): Promise<boolean> {
+  if (!assistenteDeveResponder()) return false
+  try {
+    const { getAssistenteGlobalPausada } = await import('@/lib/assistente-global-pausada')
+    if (await getAssistenteGlobalPausada()) return false
+  } catch (_) {}
   return true
 }
 
@@ -322,8 +332,8 @@ async function processarEmBackground(parsed: {
   let text = textInicial
   let origemMensagem: 'texto' | 'áudio' | 'imagem' = 'texto'
   try {
-    if (!assistenteDeveResponder()) {
-      console.log('🛑 [Apifacil Webhook] Assistente desativada (DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true ou pausada no admin).')
+    if (!(await assistenteDeveResponderAsync())) {
+      console.log('🛑 [Apifacil Webhook] Assistente desativada (env ou pausada no admin) — não enviar resposta.')
       return
     }
     if (media?.type === 'audio') {
@@ -824,8 +834,8 @@ export async function POST(request: NextRequest) {
       console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" — processando para qualquer número:', from)
     }
 
-    if (!assistenteDeveResponder()) {
-      console.log('🛑 [Apifacil Webhook] Assistente desativada — retornando 200 sem processar.')
+    if (!(await assistenteDeveResponderAsync())) {
+      console.log('🛑 [Apifacil Webhook] Assistente desativada (env ou pausada no admin) — retornando 200 sem processar.')
       return NextResponse.json({ success: true, message: 'Assistente pausada' })
     }
 
@@ -837,7 +847,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error('❌ [Apifacil Webhook] Erro (retornando 200 para API Fácil não marcar Pendente):', err)
-    if (parsed && assistenteDeveResponder()) {
+    if (parsed && (await assistenteDeveResponderAsync())) {
       await processarEmBackground(parsed).catch((e) =>
         console.error('❌ [Apifacil Webhook] Erro em processamento após catch:', e)
       )

@@ -380,11 +380,21 @@ function isAllowedTestNumber(phoneDigits: string, testNumbers: string[]): boolea
   return testNumbers.some((t) => t.replace(/\D/g, '') === with55.replace(/\D/g, '') || t.replace(/\D/g, '') === phoneDigits.replace(/\D/g, ''))
 }
 
-/** Assistente responde em qualquer ambiente (localhost e produção). Para desligar em produção use o painel admin "Pausar assistente para todos" ou DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true. */
+/** Síncrono: só verifica env. Para decisão completa (incl. pausa no admin) use assistenteDeveResponderAsync. */
 function assistenteDeveResponder(): boolean {
   if (process.env.NODE_ENV === 'production' && process.env.DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO === 'true') {
     return false
   }
+  return true
+}
+
+/** Assistente deve responder? Respeita env e pausa global do painel admin (platform_config). Quando pausada, não responde a ninguém. */
+async function assistenteDeveResponderAsync(): Promise<boolean> {
+  if (!assistenteDeveResponder()) return false
+  try {
+    const { getAssistenteGlobalPausada } = await import('@/lib/assistente-global-pausada')
+    if (await getAssistenteGlobalPausada()) return false
+  } catch (_) {}
   return true
 }
 
@@ -403,9 +413,9 @@ async function processarEmBackground(parsed: ZapiParsed) {
   const { from } = parsed
   let text = parsed.text
   try {
-    // Assistente deve estar sempre ativa para receber mensagens (novos contatos e existentes).
-    if (!assistenteDeveResponder()) {
-      console.log('🛑 [Z-API Webhook] Assistente desativada (DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true ou pausada no admin).')
+    // Respeitar pausa global do admin: quando pausada, não responder a ninguém.
+    if (!(await assistenteDeveResponderAsync())) {
+      console.log('🛑 [Z-API Webhook] Assistente desativada (env ou pausada no admin) — não enviar resposta.')
       return
     }
     if (!isZapiConfigured()) {
@@ -738,6 +748,11 @@ async function processarEmBackground(parsed: ZapiParsed) {
       }
     } else if (result === null) {
       console.warn('📨 [Z-API Webhook] processWhatsAppMessage retornou null (sem resposta). phone:', phone, 'text:', text?.slice(0, 50))
+      // Se a assistente está pausada no admin, não enviar nenhum fallback (silêncio).
+      if (!(await assistenteDeveResponderAsync())) {
+        console.log('🛑 [Z-API Webhook] Assistente pausada — não enviar fallback.')
+        return
+      }
       const jaRecebeu = await hasReceivedWelcome(phoneDigits).catch(() => false)
       if (!jaRecebeu && isBoasVindasConfigured()) {
         console.log('🔄 [Z-API Webhook] Contato sem resposta e sem boas-vindas — enviando mensagem mínima.')
@@ -749,6 +764,10 @@ async function processarEmBackground(parsed: ZapiParsed) {
       }
     } else {
       console.warn('📨 [Z-API Webhook] Resultado inesperado do handler. phone:', phone, 'keys:', result ? Object.keys(result) : 'null')
+      if (!(await assistenteDeveResponderAsync())) {
+        console.log('🛑 [Z-API Webhook] Assistente pausada — não enviar fallback.')
+        return
+      }
       const jaRecebeu = await hasReceivedWelcome(phoneDigits).catch(() => false)
       if (!jaRecebeu && isBoasVindasConfigured()) {
         console.log('🔄 [Z-API Webhook] Resultado inesperado e contato sem boas-vindas — enviando mensagem mínima.')
@@ -817,8 +836,8 @@ export async function POST(request: NextRequest) {
       console.log('📨 [Z-API Webhook] Mensagem duplicada (messageId já processado), ignorando:', parsed.messageId)
       return NextResponse.json({ success: true, message: 'Duplicado ignorado' })
     }
-    if (!assistenteDeveResponder()) {
-      console.log('🛑 [Z-API Webhook] Assistente desativada — retornando 200 sem processar.')
+    if (!(await assistenteDeveResponderAsync())) {
+      console.log('🛑 [Z-API Webhook] Assistente desativada (env ou pausada no admin) — retornando 200 sem processar.')
       return NextResponse.json({ success: true, message: 'Assistente pausada' })
     }
     // Em localhost: só processar mensagens do(s) número(s) em WHATSAPP_TEST_NUMBERS (ex.: 31994467805).
