@@ -204,13 +204,14 @@ Assim o produção continua recebendo as mensagens sem redeploy.
 
 O webhook da Z-API é: **`/api/whatsapp/zapi/webhook`**.
 
-1. **Subir o app:** `npm run dev` (porta 3000).
-2. **Subir o túnel:** `ngrok http 3000` e copiar a URL (ex.: `https://xxxx.ngrok-free.app` ou `.ngrok-free.dev`).
-3. **Z-API:** no painel da Z-API, em **Configurações → Webhook → Ao receber**, colar:  
+1. **Instância conectada:** no painel da Z-API, a instância deve estar **Conectada** (verde). Sem isso a assistente não responde.
+2. **Subir o app:** `npm run dev` (porta 3000).
+3. **Subir o túnel:** `ngrok http 3000` (ou `npm run tunnel:ngrok`) e copiar a URL (ex.: `https://xxxx.ngrok-free.app` ou `.ngrok-free.dev`).
+4. **Z-API:** em **Configurações → Webhook → Ao receber**, colar:  
    `https://SUA-URL-DO-TUNEL/api/whatsapp/zapi/webhook`  
-   Usar **exatamente** o domínio que o ngrok mostrar (`.app` ou `.dev`).
-4. **`.env.local`:** ter `ZAPI_INSTANCE_ID`, `ZAPI_TOKEN` e `ZAPI_CLIENT_TOKEN` (segurança da conta).
-5. **Testar:** enviar uma mensagem de outro número para o WhatsApp conectado na Z-API e ver o terminal do `npm run dev`.
+   Usar **exatamente** o domínio que o ngrok mostrar (`.app` ou `.dev`). Salvar.
+5. **`.env.local`:** ter `ZAPI_INSTANCE_ID`, `ZAPI_TOKEN`, `ZAPI_CLIENT_TOKEN` e `ZAPI_CONNECTED_PHONE` (número da Plen, não o seu número de teste).
+6. **Testar:** enviar uma mensagem do seu número de teste para o WhatsApp conectado na Z-API e ver o terminal do `npm run dev`.
 
 ### Se a assistente não responder com ngrok ativo
 
@@ -239,6 +240,44 @@ curl -X POST http://localhost:3000/api/whatsapp/zapi/webhook \
 ```
 
 Troque `5511999999999` pelo seu número e `5511888888888` pelo número conectado na Z-API. No terminal do `npm run dev` deve aparecer o POST e o fluxo (contato novo ou resposta). Se tiver Z-API configurada no `.env.local`, a resposta pode ser enviada de verdade para o número em `phone`.
+
+---
+
+### Localhost com Z-API: usar Cloudflare Tunnel (quando ngrok não funcionar)
+
+No plano gratuito do ngrok, a Z-API **não** consegue alcançar seu app (ngrok devolve uma página HTML em vez de repassar o POST). Use o **Cloudflare Tunnel** no lugar do ngrok:
+
+1. **Instalar cloudflared (Mac com Homebrew):**
+   ```bash
+   brew install cloudflared
+   ```
+   Se não tiver Homebrew: [instale o cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/) manualmente.
+
+2. **Terminal 1 – app:**
+   ```bash
+   cd "SISTEMA DE CONTAS"
+   npm run dev
+   ```
+   Deixe rodando (porta 3000).
+
+3. **Terminal 2 – túnel:**
+   ```bash
+   cloudflared tunnel --url http://localhost:3000
+   ```
+   Vai aparecer uma linha tipo: `https://xxxx-xx-xx-xx.trycloudflare.com` (a URL muda a cada vez que você inicia).
+
+4. **Z-API:** em **Configurações → Webhook**, em **Ao receber** e **Ao enviar** coloque:
+   ```
+   https://SUA-URL-DO-CLOUDFLARED/api/whatsapp/zapi/webhook
+   ```
+   Ex.: `https://abc-def-123.trycloudflare.com/api/whatsapp/zapi/webhook`  
+   Salve.
+
+5. **Testar:** envie "oi" de outro número para o WhatsApp conectado na Z-API. No terminal do `npm run dev` deve aparecer **`🔔 [Z-API Webhook] POST recebido`** e em seguida a resposta no WhatsApp.
+
+6. **Quando terminar:** no painel da Z-API volte a URL do webhook para produção (ex.: `https://plenipay.com/api/whatsapp/zapi/webhook` ou a URL do Railway).
+
+**Confirme antes:** com `npm run dev` rodando, rode o `curl` da seção acima. Se o terminal mostrar o POST e o fluxo, o app está ok; o problema era só o túnel (ngrok). Aí use o cloudflared e atualize a URL na Z-API.
 
 ---
 

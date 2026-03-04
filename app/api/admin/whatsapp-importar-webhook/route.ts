@@ -4,7 +4,7 @@ import {
   listarNotificacoesRecebidas,
   listarNotificacoesEnviadas,
 } from '@/lib/whatsapp-apifacil-notificacoes'
-import { backfillFromNotificacoes, isQueroUtilizarPlenipay, isMensagemSaudacaoBoasVindas } from '@/lib/whatsapp-contatos-pendentes'
+import { backfillFromNotificacoes, isQueroUtilizarPlenipay } from '@/lib/whatsapp-contatos-pendentes'
 
 function normalizarPhone(phone: string): string {
   const limpo = String(phone).replace(/\D/g, '')
@@ -27,9 +27,10 @@ export async function POST() {
   const dataFinalStr = dataFinal.toISOString().slice(0, 10)
 
   // Chamar SEM instancia_id primeiro: a API Fácil costuma retornar dados assim; com instancia_id às vezes vem vazio
+  const perPage = 100
   const optsSemInstancia = { omitirInstanciaId: true }
-  let resRecebidas = await listarNotificacoesRecebidas(dataInicialStr, dataFinalStr, 50, optsSemInstancia)
-  let resEnviadas = await listarNotificacoesEnviadas(dataInicialStr, dataFinalStr, 50, optsSemInstancia)
+  let resRecebidas = await listarNotificacoesRecebidas(dataInicialStr, dataFinalStr, perPage, optsSemInstancia)
+  let resEnviadas = await listarNotificacoesEnviadas(dataInicialStr, dataFinalStr, perPage, optsSemInstancia)
   if (resRecebidas.error) {
     return NextResponse.json(
       { success: false, error: resRecebidas.error, importados: 0 },
@@ -45,8 +46,8 @@ export async function POST() {
 
   // Se ainda 0 recebidas, tentar COM instancia_id (caso a API exija para algumas contas)
   if (resRecebidas.notificacoes.length === 0) {
-    const retryR = await listarNotificacoesRecebidas(dataInicialStr, dataFinalStr, 50)
-    const retryE = await listarNotificacoesEnviadas(dataInicialStr, dataFinalStr, 50)
+    const retryR = await listarNotificacoesRecebidas(dataInicialStr, dataFinalStr, perPage)
+    const retryE = await listarNotificacoesEnviadas(dataInicialStr, dataFinalStr, perPage)
     if (retryR.notificacoes.length > 0 && !retryR.error) resRecebidas = retryR
     if (retryE.notificacoes.length > 0 && !retryE.error) resEnviadas = retryE
   }
@@ -84,21 +85,14 @@ export async function POST() {
     arr.sort((a, b) => a.ts - b.ts)
   }
 
-  // Contar só mensagens do fluxo (excluindo a saudação "Olá, Bem vindo (a) a Plenipay"). Se a API não mandar texto, a 1ª msg depois da do usuário não conta (possível saudação).
+  // Contar TODAS as mensagens nossas depois da mensagem deles. Quem recebeu 3 ou mais (qualquer uma, inclusive saudação) = já respondido e não entra na lista.
   const paraImportar: { origem: string; mensagem: string; created_at: string }[] = []
   for (const [, info] of porPhone) {
     const p = normalizarPhone(info.origem)
     const tsMensagem = new Date(info.created_at).getTime()
     const nossosEnvios = respostasPorDestino.get(p) ?? []
-    const depois = nossosEnvios.filter((x) => x.ts > tsMensagem).sort((a, b) => a.ts - b.ts)
-    let qtdFluxoDepois = 0
-    for (let i = 0; i < depois.length; i++) {
-      const { mensagem } = depois[i]
-      if (mensagem && isMensagemSaudacaoBoasVindas(mensagem)) continue
-      if (!mensagem && i === 0) continue
-      qtdFluxoDepois++
-    }
-    if (qtdFluxoDepois < MIN_RESPOSTAS_PARA_CONSIDERAR_RESPONDIDO) {
+    const qtdDepois = nossosEnvios.filter((x) => x.ts > tsMensagem).length
+    if (qtdDepois < MIN_RESPOSTAS_PARA_CONSIDERAR_RESPONDIDO) {
       paraImportar.push({ origem: info.origem, mensagem: info.mensagem, created_at: info.created_at })
     }
   }

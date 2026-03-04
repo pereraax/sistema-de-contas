@@ -1,5 +1,20 @@
 # Áudio no webhook da API Fácil — por que o Gemini não transcreve
 
+## 🆓 IA gratuita para transcrição de áudio (evitar limite do Gemini)
+
+Se a mensagem "Não consegui entender o áudio" aparece porque o **Gemini estourou a cota (429)** ou deu 404, use **Groq** em vez do Gemini:
+
+1. **Criar conta e chave:** https://console.groq.com/ → API Keys → Create API Key  
+2. **Configurar no projeto:** no `.env.local` e nas variáveis de ambiente do deploy (Railway/Render), adicione:
+   ```bash
+   GROQ_API_KEY=gsk_sua_chave_aqui
+   ```
+3. **Reiniciar / redeploy.** O código já usa **Groq Whisper primeiro** para transcrever áudio; com a chave configurada, a transcrição volta a funcionar sem depender do Gemini.
+
+Detalhes: **CONFIGURAR-GROQ-GRATUITO.md**
+
+---
+
 ## O que está acontecendo
 
 Quando o usuário **envia um áudio** no WhatsApp (ex.: "gastei 290 com roupas"), o nosso webhook está recebendo **só texto** `"paguei 2.00"` (ou similar). Ou seja:

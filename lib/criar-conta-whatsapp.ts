@@ -12,7 +12,9 @@ function normalizarPhone(phone: string): string {
   return limpo.length >= 10 ? (limpo.startsWith('55') ? limpo : `55${limpo}`) : limpo
 }
 
-export type CriarContaWhatsAppResult = { success: true } | { success: false; error: string }
+export type CriarContaWhatsAppResult =
+  | { success: true; emailEnviado?: boolean }
+  | { success: false; error: string }
 
 export async function criarContaFromWhatsApp(
   nome: string,
@@ -88,5 +90,5 @@ export async function criarContaFromWhatsApp(
     )
   }
 
-  return { success: true }
+  return { success: true, emailEnviado: result.emailEnviado ?? true }
 }

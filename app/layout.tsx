@@ -141,9 +141,10 @@ export default async function RootLayout({
   let isApp = false
   try {
     const cookieStore = await cookies()
-    isApp = cookieStore.get('platform')?.value === 'app'
-  } catch {
-    // cookies() pode falhar em alguns contextos (prefetch, RSC); evita 500 e página branca
+    const platform = cookieStore.get('platform')?.value
+    isApp = platform === 'app'
+  } catch (_e) {
+    // cookies() pode falhar em alguns contextos (prefetch, RSC, dev); evita 500 e página branca
   }
 
   return (
@@ -153,6 +154,24 @@ export default async function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){var t=localStorage.getItem('theme');var d=!(t&&t!=='dark')&&window.matchMedia('(prefers-color-scheme: dark)').matches;if(t==='dark'||(!t&&d))document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');var s=localStorage.getItem('sidebar-collapsed');document.documentElement.setAttribute('data-sidebar',s==='true'?'collapsed':'expanded');})();`,
+          }}
+        />
+        {/* OAuth: se a URL tiver ?code= ou #access_token em qualquer path (exceto /auth/callback), ir para /auth/callback antes de pintar */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){
+              var p=window.location.pathname;
+              if(p.indexOf('/auth/callback')===0)return;
+              var q=window.location.search,h=window.location.hash||'';
+              var hasCode=/[?&]code=/.test(q);
+              var hasHash=h.indexOf('access_token')>=0||h.indexOf('refresh_token')>=0;
+              if(hasCode||hasHash){
+                var params=new URLSearchParams(window.location.search);
+                if(!params.has('next'))params.set('next','/home');
+                var qs=params.toString();
+                window.location.replace('/auth/callback'+(qs?'?'+qs:'?next=/home')+h);
+              }
+            })();`,
           }}
         />
         {/* Preconnect para APIs externas - CRÍTICO para performance */}
@@ -166,9 +185,7 @@ export default async function RootLayout({
         {process.env.NEXT_PUBLIC_SUPABASE_URL && (
           <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} crossOrigin="anonymous" />
         )}
-        {/* Preload de recursos críticos - apenas o essencial */}
-        <link rel="preload" href="/app_icon.png" as="image" type="image/png" />
-        {/* Favicon adicional para melhor compatibilidade */}
+        {/* Favicon e ícones (sem preload para evitar 404/warning se app_icon.png não existir) */}
         <link rel="icon" type="image/png" sizes="32x32" href="/app_icon.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/app_icon.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/app_icon.png" />
@@ -183,8 +200,8 @@ export default async function RootLayout({
         data-platform={isApp ? 'app' : 'web'}
         style={{
           margin: 0,
-          backgroundColor: '#ffffff',
-          color: '#0D1B2A',
+          backgroundColor: isApp ? '#0D1B2A' : '#ffffff',
+          color: isApp ? '#ffffff' : '#0D1B2A',
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
           minHeight: '100vh',
         }}
@@ -202,7 +219,7 @@ export default async function RootLayout({
             {/* Componentes de UI - carregar após conteúdo */}
             <MobileMenu />
             <BottomNavigation />
-            <ChatWidget />
+            {!isApp && <ChatWidget />}
             <PlenAssistant />
             {!isApp && <NotificationPopup />}
             <FacebookPixelWrapper />

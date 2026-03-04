@@ -85,8 +85,45 @@ export function createClient() {
       })
     }
     
-    // Em desenvolvimento, lançar erro para alertar o desenvolvedor
-    throw new Error(errorMsg)
+    // Em desenvolvimento: não lançar erro (evita 500/página branca no SSR); usar defaults
+    const finalUrl = supabaseUrl || defaultUrl
+    const finalKey = supabaseAnonKey || defaultKey
+    if (typeof window !== 'undefined') {
+      console.warn('@supabase: variáveis ausentes. Usando defaults. Configure .env.local')
+    }
+    const cookieOpt = {
+      getAll() {
+        if (typeof document === 'undefined') return []
+        const cookies = document.cookie.split(';').map(cookie => cookie.trim())
+        return cookies
+          .filter(cookie => cookie.length > 0)
+          .map(cookie => {
+            const equalIndex = cookie.indexOf('=')
+            if (equalIndex === -1) return { name: cookie, value: '' }
+            const name = cookie.substring(0, equalIndex).trim()
+            const value = cookie.substring(equalIndex + 1).trim()
+            try {
+              return { name, value: decodeURIComponent(value) }
+            } catch {
+              return { name, value }
+            }
+          })
+      },
+      setAll(cookiesToSet: Array<{ name: string; value: string; options?: { maxAge?: number; domain?: string; path?: string; secure?: boolean; sameSite?: string } }>) {
+        if (typeof document === 'undefined') return
+        cookiesToSet.forEach(({ name, value, options }) => {
+          let cookieString = `${name}=${encodeURIComponent(value)}`
+          if (options?.maxAge) cookieString += `; max-age=${options.maxAge}`
+          if (options?.domain) cookieString += `; domain=${options.domain}`
+          if (options?.path) cookieString += `; path=${options.path}`
+          else cookieString += `; path=/`
+          if (options?.secure) cookieString += `; secure`
+          if (options?.sameSite) cookieString += `; samesite=${options.sameSite}`
+          document.cookie = cookieString
+        })
+      },
+    }
+    return createBrowserClient(finalUrl, finalKey, { cookies: cookieOpt })
   }
 
   // Configurar cookies explicitamente para garantir que sejam salvos

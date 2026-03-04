@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "PleniPay CRM WhatsApp",
+  "version": "1.0.0",
+  "description": "Barra lateral no WhatsApp Web para enviar as 3 mensagens de boas-vindas PleniPay na conversa aberta.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://web.whatsapp.com/*",
+    "https://*.plenipay.com/*",
+    "https://plenipay.com/*",
+    "https://*.railway.app/*",
+    "https://*.vercel.app/*",
+    "https://*.render.com/*",
+    "https://*/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "action": {
+    "default_title": "Configurar PleniPay CRM"
+  }
+}

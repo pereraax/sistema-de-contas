@@ -90,6 +90,12 @@ Isso já é mais organização financeira do que a maioria das pessoas faz.`
     default:
       if (eventType.startsWith(EVENT_CATEGORIA_PREFIX)) {
         const cat = payload?.categoriaLabel ?? payload?.categoria ?? 'isso'
+        const catKey = payload?.categoria ?? ''
+        if (catKey === 'uber' || cat.toLowerCase() === 'uber') {
+          return `💡 Notei que você usa bastante Uber.
+
+Depois de alguns dias consigo te mostrar quanto está gastando com transporte.`
+        }
         return `💡 Notei que você usa bastante ${cat}.
 
 Depois de alguns dias consigo te mostrar quanto está gastando com isso.`
@@ -108,9 +114,6 @@ const CATEGORIA_LABELS: Record<string, string> = {
   alimentacao: 'alimentação',
   outros: 'diversos',
 }
-
-/** Prioridade dos eventos (primeiro que se aplicar ganha). */
-const EVENT_PRIORITY = [EVENT_10MIN, EVENT_1H, EVENT_24H, EVENT_10_REGISTROS, EVENT_20_REGISTROS] as const
 
 export type EligibleSmartMessage = {
   userId: string

@@ -63,7 +63,7 @@ export default function BottomNavigation() {
   return (
     <>
       {/* Bottom Navigation Bar - Mobile sempre; no desktop só na página Gastos por banco */}
-      <nav className={`fixed bottom-0 left-0 right-0 bg-white dark:bg-brand-royal border-t border-gray-200 dark:border-brand-midnight z-50 shadow-lg pb-[env(safe-area-inset-bottom)] ${showBarOnDesktop ? '' : 'lg:hidden'}`}>
+      <nav className={`bottom-nav fixed bottom-0 left-0 right-0 bg-white dark:bg-brand-royal border-t border-gray-200 dark:border-brand-midnight z-50 shadow-lg pb-[env(safe-area-inset-bottom)] ${showBarOnDesktop ? '' : 'lg:hidden'}`}>
         <div className="grid grid-cols-5 items-end justify-items-center w-full max-w-[100vw] px-0 py-2 gap-0">
           {/* Principal */}
           <button

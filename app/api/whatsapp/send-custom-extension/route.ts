@@ -83,9 +83,12 @@ export async function POST(request: NextRequest) {
         }))
     : undefined
 
-  // Resposta imediata: extensão recebe 200 na hora; envio ao WhatsApp roda em background
-  sendCustomMessage(phone, text, buttons && buttons.length > 0 ? buttons : undefined).catch((err) => {
-    console.error('[send-custom-extension] envio em background falhou:', err?.message || err)
+  const result = await sendCustomMessage(phone, text, buttons && buttons.length > 0 ? buttons : undefined).catch((err) => {
+    console.error('[send-custom-extension] envio falhou:', err?.message || err)
+    return { success: false, error: err?.message || String(err) }
   })
+  if (!result.success) {
+    return NextResponse.json({ success: false, error: result.error || 'Falha ao enviar' }, { status: 200, headers: corsHeaders })
+  }
   return NextResponse.json({ success: true, phone }, { headers: corsHeaders })
 }

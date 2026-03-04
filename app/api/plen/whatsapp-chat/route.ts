@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { processPlenWhatsAppMessage } from '@/lib/plen-whatsapp-chat'
+import { processPlenWhatsAppMessage, delayRespostaPlen } from '@/lib/plen-whatsapp-chat'
 
 export async function GET() {
   return NextResponse.json({ ok: true, route: 'plen/whatsapp-chat' })
@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     const message = typeof body.message === 'string' ? body.message.trim() : ''
 
     const result = await processPlenWhatsAppMessage(userId, message)
+    await delayRespostaPlen()
     return NextResponse.json(result, { status: 200 })
   } catch (err: any) {
     const msg = err?.message ?? String(err)

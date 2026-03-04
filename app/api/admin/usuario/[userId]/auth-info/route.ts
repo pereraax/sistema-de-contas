@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 /** Retorna last_sign_in_at do auth para exibir no modal de detalhes (último acesso / online). */
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ userId: string }> }
+  { params }: { params: { userId: string } }
 ) {
   try {
     const admin = await verifyAdminToken()
@@ -13,7 +13,7 @@ export async function GET(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    const { userId } = await params
+    const { userId } = params
     if (!userId) {
       return NextResponse.json({ error: 'userId é obrigatório' }, { status: 400 })
     }

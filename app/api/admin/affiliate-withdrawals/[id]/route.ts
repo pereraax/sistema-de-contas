@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
     const admin = await verifyAdminToken()
@@ -12,7 +12,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    const { id } = await params
+    const { id } = params
     if (!id) {
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
     }

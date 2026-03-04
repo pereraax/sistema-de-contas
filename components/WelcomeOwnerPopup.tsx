@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { criarUsuario } from '@/lib/actions'
-import { Sparkles, User, Loader2, X } from 'lucide-react'
+import { User, Loader2, X } from 'lucide-react'
 
 /**
  * Popup exibido automaticamente quando o usuário cria conta e ainda não tem
@@ -75,47 +76,49 @@ export default function WelcomeOwnerPopup() {
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in overflow-y-auto"
+      className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9999] flex items-center justify-center p-4 animate-fade-in overflow-y-auto"
       onClick={() => {}}
       role="dialog"
       aria-modal="true"
       aria-labelledby="welcome-title"
     >
       <div
-        className="bg-gradient-to-br from-white via-white to-gray-50 dark:from-brand-royal dark:via-brand-midnight dark:to-brand-royal rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border-2 border-brand-aqua/30 dark:border-brand-aqua/40 animate-slide-up my-auto"
+        className="relative bg-white dark:bg-[#0f1419] rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-white/10 dark:border-white/10 animate-slide-up my-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-white/10">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-brand-aqua/15 dark:bg-brand-aqua/20 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-6 h-6 text-brand-aqua" strokeWidth={2} />
-              </div>
-              <div>
-                <h2 id="welcome-title" className="text-xl font-display font-bold text-brand-midnight dark:text-brand-clean">
-                  Bem-vindo ao PleniPay
-                </h2>
-                <p className="text-sm text-brand-midnight/70 dark:text-brand-clean/70 mt-0.5">
-                  Como quer ser chamado na sua conta?
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-brand-midnight dark:text-brand-clean/70"
-              aria-label="Fechar"
-            >
-              <X size={20} strokeWidth={2} />
-            </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="absolute top-4 right-4 z-10 p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-brand-midnight/70 dark:text-brand-clean/70"
+          aria-label="Fechar"
+        >
+          <X size={22} strokeWidth={2} />
+        </button>
+
+        {/* Logo + título centralizados */}
+        <div className="pt-10 pb-6 px-6 text-center">
+          <div className="flex justify-center mb-5">
+            <Image
+              src="/logo-header.png"
+              alt="PleniPay"
+              width={120}
+              height={44}
+              className="h-11 w-auto object-contain opacity-95 dark:opacity-90"
+              priority
+            />
           </div>
+          <h2 id="welcome-title" className="text-xl font-semibold tracking-tight text-brand-midnight dark:text-white">
+            Bem-vindo ao PleniPay
+          </h2>
+          <p className="text-sm text-brand-midnight/70 dark:text-white/60 mt-2">
+            Como quer ser chamado na sua conta?
+          </p>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          <div>
-            <label htmlFor="welcome-owner-nome" className="block text-sm font-medium text-brand-midnight dark:text-brand-clean/90 mb-2">
+        <form onSubmit={handleSubmit} className="px-6 pb-8 space-y-5">
+          <div className="text-center">
+            <label htmlFor="welcome-owner-nome" className="block text-sm font-medium text-brand-midnight dark:text-brand-clean/90 mb-3">
               Seu nome ou usuário
             </label>
             <div className="relative">
@@ -129,12 +132,12 @@ export default function WelcomeOwnerPopup() {
                 autoFocus
                 autoComplete="name"
                 maxLength={80}
-                className="w-full pl-12 pr-4 py-3.5 rounded-xl border-2 border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 text-brand-midnight dark:text-brand-clean placeholder:text-gray-400 dark:placeholder:text-brand-clean/40 focus:border-brand-aqua focus:ring-2 focus:ring-brand-aqua/20 outline-none transition-all"
+                className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 dark:border-white/15 bg-gray-50/50 dark:bg-white/5 text-brand-midnight dark:text-brand-clean placeholder:text-gray-400 dark:placeholder:text-brand-clean/40 focus:border-brand-aqua focus:ring-2 focus:ring-brand-aqua/25 outline-none transition-all"
                 disabled={loading}
               />
             </div>
             {error && (
-              <p className="mt-2 text-sm text-red-500 dark:text-red-400" role="alert">
+              <p className="mt-2 text-sm text-red-500 dark:text-red-400 text-center" role="alert">
                 {error}
               </p>
             )}
@@ -143,7 +146,7 @@ export default function WelcomeOwnerPopup() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 px-4 rounded-xl bg-brand-aqua hover:bg-[#00a8e6] dark:bg-brand-aqua dark:hover:bg-brand-aqua/90 text-white font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            className="w-full py-3.5 px-4 rounded-2xl bg-brand-aqua hover:bg-brand-aqua/90 dark:bg-brand-aqua dark:hover:bg-brand-aqua/90 text-white font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2 shadow-lg shadow-brand-aqua/20"
           >
             {loading ? (
               <>

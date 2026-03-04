@@ -4,6 +4,37 @@ Siga estes passos para usar a Z-API e ter **botões de verdade** nas mensagens d
 
 ---
 
+## Ter API Fácil e Z-API ao mesmo tempo duplica mensagem?
+
+**Não.** Cada mensagem do WhatsApp chega por **um único** provedor:
+
+- O **número** está conectado **só em um lugar**: ou na API Fácil **ou** na Z-API (não nos dois).
+- Quem recebe a mensagem é esse provedor e ele chama **só o webhook dele** (API Fácil ou Z-API).
+- O sistema responde **uma vez** por esse webhook (prioriza Z-API para envio se estiver configurada, senão API Fácil).
+
+Você **não precisa remover** as variáveis da API Fácil. Pode deixar as duas configuradas no Railway. Se o número estiver conectado na Z-API e o webhook "Ao receber" for o da Z-API, só a Z-API recebe as mensagens e só ela envia a resposta. A API Fácil fica como fallback (por exemplo se a Z-API falhar no envio) ou para outro uso.
+
+---
+
+## Como adicionar as variáveis da Z-API no Railway
+
+1. Acesse **https://railway.app** e entre no seu projeto.
+2. Clique no **serviço** (app) que faz o deploy (ex.: "sistema-de-contas").
+3. Abra a aba **Variables** (ou **Config** / **Variáveis de ambiente**).
+4. Clique em **+ New Variable** (ou **Add Variable**) e crie:
+   - **Nome:** `ZAPI_INSTANCE_ID`  
+     **Valor:** o ID da instância (copie no painel Z-API → Dados da instância).
+   - **Nome:** `ZAPI_TOKEN`  
+     **Valor:** o Token da instância (painel Z-API).
+   - (Opcional) Se a Z-API pedir Client-Token:  
+     **Nome:** `ZAPI_CLIENT_TOKEN`  
+     **Valor:** token de Segurança da conta (painel Z-API → Segurança).
+5. Salve. O Railway normalmente faz **redeploy automático**; se não, clique em **Redeploy** / **Deploy** para subir de novo com as variáveis.
+
+Depois do deploy, teste em: `https://seu-dominio.com/api/whatsapp/zapi/status` — deve retornar `"configured": true`.
+
+---
+
 ## 1. Variáveis de ambiente
 
 No **Railway** (produção) e no **`.env.local`** (desenvolvimento), adicione:

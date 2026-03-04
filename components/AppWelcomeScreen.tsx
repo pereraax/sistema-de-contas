@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useAppPlatform } from '@/components/AppPlatformProvider'
 import { X, Loader2, Eye, EyeOff, Mail, BarChart2, ChevronLeft, Check, Circle } from 'lucide-react'
 
 /** Logo oficial Apple (maçã mordida) em preto */
@@ -41,6 +42,7 @@ const ONBOARDING_SLIDES_COUNT = 4
 
 export default function AppWelcomeScreen() {
   const router = useRouter()
+  const isApp = useAppPlatform()
   const [phase, setPhase] = useState<'splash' | 'onboarding' | 'welcome' | 'auth' | 'login' | 'cadastro'>('splash')
   const [slideIndex, setSlideIndex] = useState(0)
   const [showPlanos, setShowPlanos] = useState(false)
@@ -53,7 +55,12 @@ export default function AppWelcomeScreen() {
   const [cadastroForm, setCadastroForm] = useState({ nome: '', email: '', senha: '' })
   const [showCadastroPassword, setShowCadastroPassword] = useState(false)
   const [oauthLoading, setOauthLoading] = useState<'apple' | 'google' | null>(null)
+  const [devLoading, setDevLoading] = useState(false)
   const [oauthError, setOauthError] = useState<string | null>(null)
+
+  const isDevOrigin =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || /^192\.168\.\d+\.\d+$/.test(window.location.hostname))
   const [authReveal, setAuthReveal] = useState(false)
   const [loginReveal, setLoginReveal] = useState(false)
   const [authExiting, setAuthExiting] = useState(false)
@@ -61,6 +68,20 @@ export default function AppWelcomeScreen() {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const ANIM_DURATION_MS = 450
+
+  // Persistir modo app no navegador/webview para SSR e para retorno do OAuth.
+  useEffect(() => {
+    if (!isApp) return
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem('platform', 'app')
+    } catch {
+      // ignore
+    }
+    const isHttps = window.location.protocol === 'https:'
+    const secure = isHttps ? '; Secure' : ''
+    document.cookie = `platform=app; Path=/; Max-Age=31536000; SameSite=Lax${secure}`
+  }, [isApp])
 
   const handleAuthBack = () => {
     setAuthExiting(true)
@@ -85,9 +106,17 @@ export default function AppWelcomeScreen() {
 
   const getOAuthRedirectUrl = () => {
     if (typeof window === 'undefined') return ''
+    // CRÍTICO: usar SEMPRE a origem atual (localhost em dev, plenipay.com em prod).
     const origin = window.location.origin
-    const next = '/home'
-    return `${origin}/auth/callback?next=${encodeURIComponent(next)}`
+    // No app: ir direto para /onboarding (bem-vindo + notificações + quiz → planos). No site: /home.
+    const next = isApp ? '/onboarding' : '/home'
+    const q = new URLSearchParams({ next })
+    if (isApp) q.set('platform', 'app')
+    const url = `${origin}/auth/callback?${q.toString()}`
+    if (typeof window !== 'undefined' && origin.includes('localhost')) {
+      console.log('[OAuth] redirectTo (local):', url, '- Confira em Supabase → Redirect URLs se http://localhost:3000/auth/callback está na lista.')
+    }
+    return url
   }
 
   const getOAuthErrorMessage = (provider: string, error: { message?: string } | null) => {
@@ -126,11 +155,21 @@ export default function AppWelcomeScreen() {
   const handleSignInWithGoogle = async () => {
     setOauthError(null)
     setOauthLoading('google')
+    const redirectTo = getOAuthRedirectUrl()
+    if (!redirectTo) {
+      setOauthError('URL de redirect não disponível.')
+      return
+    }
+    if (typeof window !== 'undefined' && window.location.origin.includes('localhost') && !redirectTo.includes('localhost')) {
+      console.error('[OAuth] ERRO: você está em localhost mas o redirectTo não é localhost:', redirectTo)
+      setOauthError('Redirect está apontando para produção. Recarregue a página em http://localhost:3000?platform=app')
+      return
+    }
     try {
       const supabase = createClient()
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: getOAuthRedirectUrl() },
+        options: { redirectTo },
       })
       if (error) {
         setOauthError(getOAuthErrorMessage('Google', error))
@@ -146,6 +185,29 @@ export default function AppWelcomeScreen() {
     } finally {
       setOauthLoading(null)
     }
+  }
+
+  const handleDevLogin = async () => {
+    if (!isDevOrigin) return
+    setOauthError(null)
+    setDevLoading(true)
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signInAnonymously()
+      if (error) {
+        setOauthError('Ative "Anonymous" em Supabase → Authentication → Providers.')
+        setDevLoading(false)
+        return
+      }
+      if (data?.session) {
+        router.push('/onboarding?platform=app')
+        return
+      }
+      setOauthError('Não foi possível entrar como dev.')
+    } catch {
+      setOauthError('Erro ao entrar como dev.')
+    }
+    setDevLoading(false)
   }
 
   // Splash: logo 2s depois vai para onboarding
@@ -214,6 +276,10 @@ export default function AppWelcomeScreen() {
 
   const handleSelecionarPlano = (planoId: 'teste' | 'basico' | 'premium') => {
     setShowPlanos(false)
+    if (isApp) {
+      router.push(planoId === 'teste' ? '/onboarding' : `/onboarding?plano=${planoId}`)
+      return
+    }
     router.push(`/cadastro?plano=${planoId}`)
   }
 
@@ -386,6 +452,17 @@ export default function AppWelcomeScreen() {
               <Mail className="w-5 h-5 flex-shrink-0 text-white" strokeWidth={2} />
               <span>Continuar com E-mail</span>
             </button>
+            {isDevOrigin && (
+              <>
+                <button type="button" disabled={devLoading} onClick={handleDevLogin} className="w-full py-3 rounded-full flex items-center justify-center gap-2 text-white/80 text-sm border border-dashed border-white/40 hover:border-white/60 transition-colors disabled:opacity-60">
+                  {devLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  <span>{devLoading ? 'Entrando...' : '🔧 Entrar como dev (pula Google, só local)'}</span>
+                </button>
+                <Link href="/?platform=site" className="block text-center text-white/60 text-xs mt-2 hover:text-white/80">
+                  Ver versão site (desenvolvimento)
+                </Link>
+              </>
+            )}
           </div>
 
           <button
@@ -624,6 +701,17 @@ export default function AppWelcomeScreen() {
                 <Mail className="w-5 h-5 flex-shrink-0 text-white" strokeWidth={2} />
                 <span>Continuar com E-mail</span>
               </button>
+              {isDevOrigin && (
+                <>
+                  <button type="button" disabled={devLoading} onClick={handleDevLogin} className="w-full py-3 rounded-full flex items-center justify-center gap-2 text-white/80 text-sm border border-dashed border-white/40 hover:border-white/60 transition-colors disabled:opacity-60">
+                    {devLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    <span>{devLoading ? 'Entrando...' : '🔧 Entrar como dev (pula Google, só local)'}</span>
+                  </button>
+                  <Link href="/?platform=site" className="block text-center text-white/60 text-xs mt-2 hover:text-white/80">
+                    Ver versão site (desenvolvimento)
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         ) : (

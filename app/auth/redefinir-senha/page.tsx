@@ -115,11 +115,14 @@ function RedefinirSenhaContent() {
     setSalvando(true)
     try {
       const supabase = createClient()
-      const { error } = await supabase.auth.updateUser({ password: senha })
+      const { data: { user }, error } = await supabase.auth.updateUser({ password: senha })
       if (error) {
         setErro(error.message || 'Erro ao atualizar senha.')
         setSalvando(false)
         return
+      }
+      if (user?.id) {
+        await supabase.from('profiles').update({ precisa_definir_senha: false, updated_at: new Date().toISOString() }).eq('id', user.id)
       }
       router.push('/login?mensagem=' + encodeURIComponent('Senha alterada! Faça login com sua nova senha.'))
     } catch (err) {

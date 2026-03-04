@@ -11,14 +11,37 @@ const PRODUCTION_URL = 'https://plenipay.com'
 const PLATFORM_APP_COOKIE = 'platform'
 const PLATFORM_APP_VALUE = 'app'
 
+// ?platform=site = forçar versão SITE (limpar modo app) — útil no localhost quando está vendo o app em vez do site
+const PLATFORM_SITE_VALUE = 'site'
+
 // Middleware para forçar renderização dinâmica em rotas específicas
 // Isso evita que o Next.js tente fazer prerendering estático
 export function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl
   const url = request.nextUrl.clone()
 
-  // App Store / Capacitor: ao abrir com ?platform=app, gravar cookie e redirecionar sem o param
-  // Assim o site normal NUNCA vê platform=app; só quem abre pelo app recebe o cookie e vê a UI "app"
+  // Forçar versão SITE: remove cookie do app e redireciona sem o param (para desenvolver o site no localhost)
+  if (searchParams.get('platform') === PLATFORM_SITE_VALUE) {
+    const redirectUrl = new URL(pathname, url.origin)
+    searchParams.forEach((value, key) => {
+      if (key !== 'platform') redirectUrl.searchParams.set(key, value)
+    })
+    const res = NextResponse.redirect(redirectUrl, { status: 302 })
+    res.cookies.set(PLATFORM_APP_COOKIE, '', { path: '/', maxAge: 0 })
+    return res
+  }
+
+  // Host e localhost usados em vários pontos (localhost = sempre site por padrão; produção = app com ?platform=app)
+  const hostHeader = request.headers.get('host') || ''
+  const isLocalhost = hostHeader.startsWith('localhost') || hostHeader.startsWith('127.0.0.1')
+
+  // LOCALHOST: não mexer em cookies no middleware (evita 500). O AppPlatformProvider no cliente
+  // força modo site quando não tem ?platform=app e limpa cookie/localStorage.
+  if (isLocalhost) {
+    return NextResponse.next()
+  }
+
+  // Produção: App Store / Capacitor — ao abrir com ?platform=app, gravar cookie e redirecionar sem o param
   if (searchParams.get('platform') === PLATFORM_APP_VALUE) {
     const redirectUrl = new URL(pathname, url.origin)
     searchParams.forEach((value, key) => {
@@ -34,37 +57,57 @@ export function middleware(request: NextRequest) {
     return res
   }
 
-  // OAuth (Google/Apple): se o retorno caiu em / ou /login com ?code=, enviar para /auth/callback
-  // para trocar o code por sessão e redirecionar para /home (evita usuário ficar na landing)
+  // OAuth (Google/Apple): se a URL tiver ?code= em QUALQUER path (exceto /auth/callback), enviar para /auth/callback
+  // Assim, mesmo que o redirect_uri no Google aponte para / ou outro path, o usuário cai no callback e vai para /home
   const oauthCode = searchParams.get('code')
-  if (oauthCode && (pathname === '/' || pathname === '/login')) {
+  if (oauthCode && pathname !== '/auth/callback') {
     const callbackUrl = new URL('/auth/callback', url.origin)
     searchParams.forEach((value, key) => callbackUrl.searchParams.set(key, value))
     if (!callbackUrl.searchParams.has('next')) callbackUrl.searchParams.set('next', '/home')
-    return NextResponse.redirect(callbackUrl, { status: 303 })
+    const res = NextResponse.redirect(callbackUrl, { status: 303 })
+    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+    return res
   }
   
-  // CRÍTICO: Verificar o host REAL da requisição (do header Host, não da URL)
-  // Com Cloudflare, o Host pode ser plenipay.com, www.plenipay.com ou o host do Railway
-  const hostHeader = request.headers.get('host') || ''
+  // CRÍTICO: Verificar o host REAL da requisição (hostHeader já definido acima para localhost)
+  const isAppSubdomain = hostHeader === 'app.plenipay.com' || hostHeader.endsWith('.app.plenipay.com')
+
+  // app.plenipay.com = sempre modo app (tela de bem-vindo/onboarding), nunca landing do site
+  if (isAppSubdomain) {
+    const response = NextResponse.next()
+    response.cookies.set(PLATFORM_APP_COOKIE, PLATFORM_APP_VALUE, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: 'lax',
+      secure: true,
+    })
+    if (pathname === '/' && url.search) {
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+    }
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+    return response
+  }
+
   const isPlenipay = hostHeader === 'plenipay.com' || hostHeader === 'www.plenipay.com' || hostHeader.includes('plenipay.com')
   const isRailwayHost = hostHeader.includes('.railway.app') || hostHeader.includes('up.railway.app')
-  const isCorrectDomain = isPlenipay || isRailwayHost
+  const isCorrectDomain = isPlenipay || isRailwayHost || isLocalhost
 
   // CRÍTICO: Se estamos no domínio correto ou no backend Railway, NUNCA redirecionar
   // Isso evita ERR_TOO_MANY_REDIRECTS com Cloudflare (Flexible SSL ou regras conflitantes)
   // Isso evita loops quando o Next.js usa 0.0.0.0:3000 como URL base (normal em produção)
   if (isCorrectDomain) {
-    // Apenas continuar processamento normal (SEO e cache)
     const response = NextResponse.next()
-    
-    // Verificar se é uma rota pública
+    // Raiz com query string (ex.: ?code=): não cachear para o redirect no servidor funcionar
+    if (pathname === '/' && url.search) {
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+    }
+
     const isPublicRoute = ['/', '/login', '/cadastro', '/planos', '/termos', '/privacidade', '/suporte'].includes(pathname) || pathname === '/'
     
-    // Apenas rotas administrativas e privadas não devem ser indexadas
     if (pathname.startsWith('/administracaosecr') || 
         pathname.startsWith('/admin') || 
         pathname.startsWith('/home') ||
+        pathname.startsWith('/onboarding') ||
         pathname.startsWith('/api')) {
       response.headers.set('X-Robots-Tag', 'noindex, nofollow')
       response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
@@ -159,21 +202,13 @@ export function middleware(request: NextRequest) {
   return response
 }
 
-// Aplicar a todas as rotas
+// Aplicar a todas as rotas (exceto assets e API para evitar 404 em chunks do Next)
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - next/static (rewrite em next.config -> _next/static)
-     * - favicon.ico (favicon file)
-     * - robots.txt
-     * - sitemap.xml
-     * 
-     * IMPORTANTE: Incluir /auth/confirm para interceptar links de email
+     * Excluir: api, todo _next (chunks, static, image, HMR), next/static, favicon, robots, sitemap.
+     * Assim o middleware não toca em nada que o Next.js usa para carregar a página.
      */
-    '/((?!api|_next/static|_next/image|next/static|favicon.ico|robots.txt|sitemap.xml).*)',
+    '/((?!api|_next|next/static|favicon.ico|robots.txt|sitemap.xml).*)',
   ],
 }

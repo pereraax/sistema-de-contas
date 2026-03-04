@@ -97,7 +97,7 @@ function ModalEmailConfirmadoSucessoContent({ onClose }: ModalEmailConfirmadoSuc
                 Parabéns! 🎉
               </h3>
               <p className="text-sm text-brand-clean/80 leading-relaxed">
-                Seu email foi confirmado com sucesso. Agora você pode usar todas as funcionalidades da plataforma.
+                Seu email foi confirmado com sucesso. Agora você pode usar as funcionalidades e voltar no WhatsApp para registrar com a assistente!
               </p>
             </div>
           </div>

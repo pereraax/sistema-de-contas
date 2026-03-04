@@ -109,9 +109,9 @@ export async function signUp(
       // Continuar mesmo sem admin client - podemos tentar criar usuário normalmente
     }
 
-    // URL para links do email: nunca localhost em produção (assim o usuário abre no site real e o assistente notifica no WhatsApp)
-    const siteUrl = await getSiteUrlForEmailRedirect()
-    const redirectTo = `${siteUrl}/auth/callback?next=/home`
+    // URL base para links de confirmação; após confirmar, redireciona para a página de login
+    const siteUrl = await getSiteUrl()
+    const redirectTo = `${siteUrl}/auth/callback?next=/login`
     logInfo('🔄 Criando conta via signUp...', 'SIGNUP')
     logInfo(`🔗 redirectTo (link do email): ${redirectTo}`, 'SIGNUP')
     logInfo(`📧 Email: ${email}`, 'SIGNUP')
@@ -351,28 +351,27 @@ export async function signUp(
       
       if (isSmtpConfigured()) {
         try {
+          // Por enquanto: link do email usa getSiteUrl() (localhost em dev, produção em prod)
+          const siteUrlForEmail = siteUrl
+          const redirectToEmail = redirectTo
+          logInfo(`🔗 URL do link no email: ${redirectToEmail}`, 'SIGNUP')
+
           // Para confirmação de email (novo ou existente não confirmado), usar sempre type 'signup'
-          // assim o link confirma o email corretamente
           const linkType: 'signup' | 'recovery' | 'magiclink' = 'signup'
           logInfo(`📧 Gerando link de confirmação (type: ${linkType})...`, 'SIGNUP')
           
-          // Gerar link via Admin API
           const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
             type: linkType,
             email: email,
-            options: { redirectTo: redirectTo }
+            options: { redirectTo: redirectToEmail }
           } as any)
           
           if (!linkError && linkData?.properties?.action_link) {
             let linkGerado = linkData.properties.action_link
             logInfo(`🔍 Link gerado pelo Supabase: ${linkGerado.substring(0, 200)}...`, 'SIGNUP')
             
-            // Converter link do Supabase para link direto do nosso site (siteUrl = localhost em dev, plenipay.com em prod)
-            // O Supabase gera: https://xxx.supabase.co/auth/v1/verify?token=...&redirect_to=...
-            // Precisamos: {siteUrl}/auth/callback?token_hash=...&type=...&next=...
-            
             const isLinkSupabase = linkGerado.includes('supabase.co/auth/v1/verify')
-            const callbackPath = `${siteUrl}/auth/callback`
+            const callbackPath = `${siteUrlForEmail}/auth/callback`
             const precisaCorrigir = linkGerado.includes('0.0.0.0') || 
                                     linkGerado.includes(':10000') || 
                                     isLinkSupabase ||
@@ -383,7 +382,7 @@ export async function signUp(
               
               let tokenHash: string | null = null
               let linkType = 'signup'
-              let nextPath = '/home'
+              let nextPath = '/login'
               
               // Se é link do Supabase (/auth/v1/verify), extrair token e redirect_to
               if (isLinkSupabase) {
@@ -406,7 +405,7 @@ export async function signUp(
                   try {
                     const redirectUrl = new URL(redirectToDecoded)
                     linkType = redirectUrl.searchParams.get('type') || 'signup'
-                    nextPath = redirectUrl.searchParams.get('next') || '/home'
+                    nextPath = redirectUrl.searchParams.get('next') || '/login'
                     logInfo(`✅ Type: ${linkType}, Next: ${nextPath}`, 'SIGNUP')
                   } catch (urlErr: any) {
                     logWarn(`⚠️ Erro ao parsear redirect_to: ${urlErr.message}`, 'SIGNUP')
@@ -439,7 +438,7 @@ export async function signUp(
                 const typeMatch = linkGerado.match(/[?&#]type=([^&#]+)/i)
                 const nextMatch = linkGerado.match(/[?&#]next=([^&#]+)/i)
                 linkType = typeMatch ? decodeURIComponent(typeMatch[1]) : 'signup'
-                nextPath = nextMatch ? decodeURIComponent(nextMatch[1]) : '/home'
+                nextPath = nextMatch ? decodeURIComponent(nextMatch[1]) : '/login'
               }
               
               if (tokenHash) {
@@ -452,7 +451,6 @@ export async function signUp(
               }
             }
             
-            // Garantir que o link sempre use o callback do site (verificação final)
             if (!linkGerado.includes('/auth/callback')) {
               logError('❌ Link ainda não contém /auth/callback - forçando...', 'SIGNUP')
               linkGerado = redirectTo
@@ -460,10 +458,14 @@ export async function signUp(
             }
             
             // Enviar via SMTP próprio
-            const { readFileSync } = await import('fs')
+            const { readFileSync, existsSync } = await import('fs')
             const { join } = await import('path')
             
             const templatePath = join(process.cwd(), 'TEMPLATE-EMAIL-CONFIRMACAO-CORRETO.html')
+            if (!existsSync(templatePath)) {
+              logError(`❌ Template de email não encontrado: ${templatePath}`, 'SIGNUP')
+              throw new Error('Template de confirmação de email não encontrado. Verifique TEMPLATE-EMAIL-CONFIRMACAO-CORRETO.html no projeto.')
+            }
             let templateHtml = readFileSync(templatePath, 'utf-8')
             templateHtml = templateHtml.replace(/\{\{ \.ConfirmationURL \}\}/g, linkGerado)
             

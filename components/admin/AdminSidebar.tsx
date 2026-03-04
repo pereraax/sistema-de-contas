@@ -50,47 +50,47 @@ export default function AdminSidebar({ onClose }: { onClose?: () => void }) {
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-[#1A1A1A] border-r border-white/10 shadow-lg z-50">
-      <div className="p-6">
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-white/15 rounded-xl">
-              <Shield size={24} className="text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg font-display font-bold text-white">
-                Admin Panel
-              </h2>
-              <p className="text-xs font-semibold text-white/80">
-                PLENIPAY
-              </p>
-            </div>
+    <aside className="fixed left-0 top-0 h-screen w-64 bg-[#1A1A1A] border-r border-white/10 shadow-lg z-50 flex flex-col overflow-hidden">
+      <div className="shrink-0 p-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-white/15 rounded-xl">
+            <Shield size={24} className="text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-display font-bold text-white">
+              Admin Panel
+            </h2>
+            <p className="text-xs font-semibold text-white/80">
+              PLENIPAY
+            </p>
           </div>
         </div>
-        
-        <nav className="space-y-2 mb-8">
-          {menuItems.map((item) => {
-            const Icon = item.icon
-            const isActive = pathname === item.href || 
-              (item.href !== '/administracaosecr/dashboard' && pathname?.startsWith(item.href))
-            
-            return (
-              <button
-                key={item.href}
-                onClick={() => handleNavigation(item.href)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth text-left ${
-                  isActive
-                    ? 'bg-white/15 text-white shadow-lg'
-                    : 'text-white hover:bg-white/10'
-                }`}
-              >
-                <Icon size={20} strokeWidth={2} />
-                <span className="font-bold">{item.label}</span>
-              </button>
-            )
-          })}
-        </nav>
+      </div>
 
+      <nav className="flex-1 overflow-y-auto min-h-0 px-4 pb-4 space-y-2">
+        {menuItems.map((item) => {
+          const Icon = item.icon
+          const isActive = pathname === item.href ||
+            (item.href !== '/administracaosecr/dashboard' && pathname?.startsWith(item.href))
+
+          return (
+            <button
+              key={item.href}
+              onClick={() => handleNavigation(item.href)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth text-left ${
+                isActive
+                  ? 'bg-white/15 text-white shadow-lg'
+                  : 'text-white hover:bg-white/10'
+              }`}
+            >
+              <Icon size={20} strokeWidth={2} />
+              <span className="font-bold">{item.label}</span>
+            </button>
+          )
+        })}
+      </nav>
+
+      <div className="shrink-0 p-6 pt-0">
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth text-left text-white hover:bg-red-900/20 hover:text-red-400"

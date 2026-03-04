@@ -34,17 +34,20 @@ import { createAdminClient } from '@/lib/supabase/server'
 /** Uma vez por deploy: ao detectar texto "paguei 2.00" em vez de áudio, tenta corrigir tipos_envio na API Fácil. */
 let audioConfigFixTried = false
 
-/** Formato esperado pelo processWhatsAppMessage (Baileys/Evolution style) */
-function buildPlenMessage(from: string, text: string): {
+/** Formato esperado pelo processWhatsAppMessage (Baileys/Evolution style). pushName = nome do contato no WhatsApp. */
+function buildPlenMessage(from: string, text: string, contactName?: string | null): {
   key: { remoteJid: string; id: string }
   message: { conversation: string }
   messageTimestamp: number
+  pushName?: string
 } {
   const remoteJid = from.includes('@') ? from : `${from.replace(/\D/g, '')}@s.whatsapp.net`
+  const name = (contactName ?? '').trim().slice(0, 80) || undefined
   return {
     key: { remoteJid, id: `apifacil-${Date.now()}` },
     message: { conversation: text },
     messageTimestamp: Math.floor(Date.now() / 1000),
+    ...(name ? { pushName: name } : {}),
   }
 }
 
@@ -228,6 +231,15 @@ function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string
 
   const fromClean = String(from).replace(/\D/g, '')
   if (fromClean.length < 10) return null
+
+  // Nome do contato (remetente) — API Fácil / Meta podem enviar em vários campos
+  const contactNameRaw = (
+    data.nome_contato ?? data.nome_origem ?? data.contact_name ?? data.sender_name ?? data.pushName ??
+    data.profile_name ?? data.nome ?? data.remetente_nome ?? data.contact?.profile?.name ??
+    b.nome_contato ?? b.nome_origem ?? b.contact_name ?? b.sender_name ?? b.pushName ?? b.profile_name ?? b.nome
+  ) as string | undefined
+  const contactName = contactNameRaw != null && typeof contactNameRaw === 'string' ? contactNameRaw.trim().slice(0, 80) : undefined
+
   // Extrair texto de todos os formatos conhecidos (API Fácil, Meta, genérico)
   const textRaw = (
     data.mensagem ?? data.text ?? data.message ?? data.body ?? data.content ??
@@ -243,21 +255,21 @@ function parseWebhookBodyWithMedia(body: unknown): { from: string; text?: string
     const audioUrl = getAudioUrlFromPayload(b)
     if (audioUrl) {
       console.log('🎤 [Apifacil Webhook] Áudio detectado (tipo_envio=AUDIO_RECEBIDO):', audioUrl.slice(0, 80))
-      return { from: fromClean, media: { type: 'audio', url: audioUrl, mimetype: 'audio/ogg' } }
+      return { from: fromClean, media: { type: 'audio', url: audioUrl, mimetype: 'audio/ogg' }, contactName }
     }
   }
 
   // 2) Mídia genérica (detectMedia)
   const media = detectMedia(body as any)
   if (media?.type === 'audio' && media.url) {
-    return { from: fromClean, media: { type: 'audio', url: media.url, mimetype: media.mimetype || 'audio/ogg' } }
+    return { from: fromClean, media: { type: 'audio', url: media.url, mimetype: media.mimetype || 'audio/ogg' }, contactName }
   }
   if (media?.type === 'image' && media.url) {
-    return { from: fromClean, media: { type: 'image', url: media.url, mimetype: media.mimetype || 'image/jpeg', caption: media.caption } }
+    return { from: fromClean, media: { type: 'image', url: media.url, mimetype: media.mimetype || 'image/jpeg', caption: media.caption }, contactName }
   }
 
   // 3) Só texto (mensagem não é URL)
-  if (text && !/^https?:\/\//i.test(text)) return { from: fromClean, text }
+  if (text && !/^https?:\/\//i.test(text)) return { from: fromClean, text, contactName }
   return null
 }
 
@@ -524,7 +536,8 @@ async function processarEmBackground(parsed: {
     }
 
     // Texto (digitado, transcrito do áudio ou extraído da imagem) → PLEN interpreta e gera resposta
-    const plenMessage = buildPlenMessage(from, text)
+    const contactName = (parsed as { contactName?: string }).contactName
+    const plenMessage = buildPlenMessage(from, text, contactName)
     let result: Awaited<ReturnType<typeof processWhatsAppMessage>> = null
     try {
       result = await processWhatsAppMessage(plenMessage as any)

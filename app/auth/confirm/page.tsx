@@ -43,12 +43,11 @@ export default function ConfirmEmailPage() {
       return
     }
     
-    // Se chegou aqui, estamos em 0.0.0.0:10000 - CORRIGIR IMEDIATAMENTE
+    // Se chegou aqui, estamos em 0.0.0.0:10000 - CORRIGIR para a origem correta (localhost em dev, plenipay em prod)
     console.error('❌ [ConfirmPage] URL INVÁLIDA DETECTADA:', currentHost)
-    console.error('❌ [ConfirmPage] Redirecionando para plenipay.com...')
-    
-    // Construir URL correta preservando TODOS os parâmetros
-    const productionUrl = 'https://plenipay.com'
+    const isLocalhost = currentHost.includes('localhost') || currentHost.startsWith('127.0.0.1')
+    const productionUrl = isLocalhost ? `${window.location.protocol}//${currentHost}` : 'https://plenipay.com'
+    console.error('❌ [ConfirmPage] Redirecionando para:', productionUrl)
     const pathname = window.location.pathname
     const search = window.location.search
     const hash = window.location.hash

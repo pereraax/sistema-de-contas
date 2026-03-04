@@ -520,3 +520,65 @@
 .animate-slide-card-left {
   animation: slide-card-left 0.5s ease-in-out;
 }
+
+/* ========== Onboarding: entrada/saída e botões ========== */
+@keyframes onboarding-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(72px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes onboarding-slide-out-right {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(72px);
+  }
+}
+
+@keyframes onboarding-slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-72px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes onboarding-btn-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.onboarding-enter-right {
+  animation: onboarding-slide-in-right 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.onboarding-exit-right {
+  animation: onboarding-slide-out-right 0.3s cubic-bezier(0.55, 0.09, 0.68, 0.53) forwards;
+}
+
+.onboarding-enter-left {
+  animation: onboarding-slide-in-left 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.onboarding-btn-in-0 { animation: onboarding-btn-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.05s both; }
+.onboarding-btn-in-1 { animation: onboarding-btn-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.12s both; }
+.onboarding-btn-in-2 { animation: onboarding-btn-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.19s both; }
+.onboarding-btn-in-3 { animation: onboarding-btn-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.26s both; }

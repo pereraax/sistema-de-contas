@@ -27,6 +27,39 @@ export function AppPlatformProvider({
 }) {
   const [isApp, setIsApp] = useState<boolean>(!!initialIsApp)
 
+  // ?platform=site: forçar modo SITE (limpar app) — para desenvolver o site no localhost quando está preso no app
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('platform') === 'site') {
+      try {
+        window.localStorage.removeItem('platform')
+      } catch {
+        // ignore
+      }
+      document.cookie = 'platform=; Path=/; Max-Age=0'
+      setIsApp(false)
+      return
+    }
+  }, [])
+
+  // No localhost: só considerar "app" se a URL tiver ?platform=app (separar site do app no dev)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    if (!isLocalhost) return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('platform') === 'app') return
+    // localhost sem ?platform=app = forçar site (limpar persistências do app)
+    try {
+      window.localStorage.removeItem('platform')
+    } catch {
+      // ignore
+    }
+    document.cookie = 'platform=; Path=/; Max-Age=0'
+    setIsApp(false)
+  }, [])
+
   // Importante: em Capacitor/iOS, o retorno do OAuth pode perder o cookie no SSR.
   // Então fazemos um “upgrade” no cliente se detectarmos app por query, cookie, localStorage ou Capacitor global.
   useEffect(() => {
@@ -34,6 +67,9 @@ export function AppPlatformProvider({
     if (typeof window === 'undefined') return
 
     const params = new URLSearchParams(window.location.search)
+    if (params.get('platform') === 'site') return
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    if (isLocalhost && params.get('platform') !== 'app') return
     const isAppByQuery = params.get('platform') === 'app'
     const isAppByCookie = hasPlatformAppCookie()
     let isAppByStorage = false

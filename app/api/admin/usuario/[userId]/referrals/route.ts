@@ -5,7 +5,7 @@ import { getMyReferrals } from '@/lib/affiliates'
 /** Lista indicações do usuário (pessoas que ele indicou) para o painel admin. */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
+  { params }: { params: { userId: string } }
 ) {
   try {
     const admin = await verifyAdminToken()
@@ -13,7 +13,7 @@ export async function GET(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    const { userId } = await params
+    const { userId } = params
     if (!userId) {
       return NextResponse.json({ error: 'userId é obrigatório' }, { status: 400 })
     }

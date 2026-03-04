@@ -14,7 +14,9 @@ export async function GET(request: NextRequest) {
   console.log('🔍 [Verify] URL original:', request.url)
   
   const requestUrl = new URL(request.url)
-  const productionUrl = 'https://plenipay.com'
+  const hostHeader = request.headers.get('host') || ''
+  const isLocalhost = hostHeader.includes('localhost') || hostHeader.startsWith('127.0.0.1')
+  const productionUrl = isLocalhost ? `http://${hostHeader}`.replace(/\/$/, '') : 'https://plenipay.com'
   
   // Extrair TODOS os parâmetros da query string
   const token_hash = requestUrl.searchParams.get('token_hash')
@@ -32,14 +34,13 @@ export async function GET(request: NextRequest) {
   if (redirect_to && (redirect_to.includes('0.0.0.0') || redirect_to.includes('10000'))) {
     console.error('❌ [Verify] redirect_to contém 0.0.0.0:10000!')
     console.error('❌ [Verify] URL incorreta:', redirect_to)
-    console.error('❌ [Verify] Corrigindo para plenipay.com...')
+    console.error('❌ [Verify] Corrigindo para origem correta:', productionUrl)
     
-    // Substituir TODAS as ocorrências de 0.0.0.0:10000 por plenipay.com
     redirectToCorrigido = redirect_to
-      .replace(/https?:\/\/0\.0\.0\.0:10000/g, 'https://plenipay.com')
-      .replace(/https?:\/\/0\.0\.0\.0\/auth/g, 'https://plenipay.com/auth')
-      .replace(/http:\/\/0\.0\.0\.0:10000/g, 'https://plenipay.com')
-      .replace(/http:\/\/0\.0\.0\.0/g, 'https://plenipay.com')
+      .replace(/https?:\/\/0\.0\.0\.0:10000/g, productionUrl)
+      .replace(/https?:\/\/0\.0\.0\.0\/auth/g, `${productionUrl}/auth`)
+      .replace(/http:\/\/0\.0\.0\.0:10000/g, productionUrl)
+      .replace(/http:\/\/0\.0\.0\.0/g, productionUrl)
     
     console.log('✅ [Verify] redirect_to corrigido:', redirectToCorrigido)
   }

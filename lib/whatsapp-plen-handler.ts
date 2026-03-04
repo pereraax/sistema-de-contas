@@ -6,6 +6,10 @@
 // Formato: phoneNumber -> email
 const pendingEmails = new Map<string, string>()
 
+// Criar conta pelo handler: após email "não cadastrado", usuário pode enviar o nome para criarmos a conta e enviar o link
+// Formato: phoneNumber -> { email: string }
+const pendingSignupCreate = new Map<string, { email: string }>()
+
 // Armazenar assistentes PLEN ativados por número de telefone
 // Formato: phoneNumber -> true (se ativado)
 const plenActivated = new Map<string, boolean>()
@@ -32,6 +36,13 @@ interface UserContext {
   email?: string
   registered: boolean
   whatsappAuthenticated: boolean
+}
+
+/** Remove parênteses e o que está dentro (ex: "Charlles (você)" → "Charlles") para exibir só o nome. */
+function cleanContactDisplayName(name: string | undefined | null): string | undefined {
+  if (name == null || typeof name !== 'string') return undefined
+  const cleaned = name.trim().replace(/\s*\([^)]*\)/g, '').trim()
+  return cleaned.slice(0, 80) || undefined
 }
 
 /** Mensagem com todos os comandos que o assistente aceita (enviada após confirmação de e-mail ou quando usuário já está liberado). */
@@ -393,7 +404,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
     const remoteJid = message?.key?.remoteJid ?? ''
     const phoneNumber = normalizePhoneNumber(extractPhoneNumber(remoteJid))
     let text = extractMessageText(message)
-    const contactNameWhatsApp = (message?.pushName ?? '').trim().slice(0, 80) || undefined
+    const contactNameWhatsApp = cleanContactDisplayName(message?.pushName)
 
     console.log('📱 [WhatsApp PLEN] Phone Number (normalizado):', phoneNumber)
     console.log('📱 [WhatsApp PLEN] Text extraído:', text ? text.substring(0, 100) : 'null')
@@ -614,26 +625,13 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       hasQueroUsar
 
     if (isQueroUtilizarPlenipay) {
-      console.log('👋 [WhatsApp PLEN] ==========================================')
-      console.log('👋 [WhatsApp PLEN] MENSAGEM "QUERO UTILIZAR A PLENIPAY" DETECTADA!')
-      console.log('👋 [WhatsApp PLEN] Text:', text)
-      console.log('👋 [WhatsApp PLEN] ==========================================')
+      console.log('👋 [WhatsApp PLEN] "Quero utilizar Plenipay" — enviando intro modo teste (novo modelo)')
       addLog('info', `👋 [PLEN WhatsApp] QUERO UTILIZAR PLENIPAY: ${text}`)
-
-      // 2 mensagens: intro + uma mensagem com botões CADASTRAR (URL) e JÁ CRIEI (REPLY) na mesma bolha.
+      const { getMensagemInicialModoTeste } = await import('@/lib/whatsapp-modo-teste')
+      const msgIntro = getMensagemInicialModoTeste(contactNameWhatsApp)
       return {
         success: true,
-        messages: [
-          `Oi! 👋 Sou a Plen, sua assistente financeira. Vou te ajudar a organizar gastos e receitas direto pelo WhatsApp 💙`,
-          {
-            type: 'button_actions' as const,
-            body: 'Antes de começar a registrar seus gastos:\n\n1️⃣ Salve meu contato\n2️⃣ Crie sua conta — é rápido, prometo! 😊\n\nToque em *CADASTRAR* para abrir o site ou em *JÁ CRIEI* se já tem conta que eu peço seu e-mail e te libero aqui. 💙',
-            buttonActions: [
-              { type: 'URL', url: 'https://plenipay.com', label: 'CADASTRAR' },
-              { type: 'REPLY', label: 'JÁ CRIEI', id: 'ja_cadastrei' },
-            ],
-          },
-        ],
+        message: msgIntro,
       }
     }
 
@@ -829,7 +827,8 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       }
     }
     
-    const plenResult = await processWithPLEN(userContext.userId!, text, imageBase64, contactNameWhatsApp)
+    const nomeParaMensagem = (contactNameWhatsApp || userContext.nome || '').trim().slice(0, 80) || undefined
+    const plenResult = await processWithPLEN(userContext.userId!, text, imageBase64, nomeParaMensagem)
     
     console.log('📤 [WhatsApp PLEN] ==========================================')
     console.log('📤 [WhatsApp PLEN] RESULTADO DO PLEN')
@@ -850,7 +849,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       if (looksLikeGastoReceita && userContext.userId) {
         try {
           const { registerGastoReceitaFallback } = await import('@/lib/plen-whatsapp-chat')
-          const fallbackResult = await registerGastoReceitaFallback(userContext.userId, text, contactNameWhatsApp)
+          const fallbackResult = await registerGastoReceitaFallback(userContext.userId, text, nomeParaMensagem)
           if (fallbackResult) {
             const msg = typeof fallbackResult === 'string' ? fallbackResult : 'message' in fallbackResult ? fallbackResult.message : ''
             console.log('✅ [WhatsApp PLEN] Registro feito via fallback:', msg ? msg.substring(0, 80) : 'mensagens múltiplas')
@@ -1127,13 +1126,14 @@ async function verificarEmailCadastrado(email: string): Promise<boolean> {
 }
 
 /**
- * Verifica se o e-mail já está ativo (vinculado a este número no WhatsApp).
- * Retorna { ativo: true } se já existe sessão para este phone com o user_id do email; senão { ativo: false, userId?: string }.
+/**
+ * Verifica se o e-mail já está ativo (vinculado a este número no WhatsApp) e se o email foi confirmado.
+ * Só retorna ativo: true quando a sessão existe e o usuário já confirmou o email (clicou no link).
  */
 async function verificarEmailJaAtivoNoWhatsApp(
   email: string,
   phoneNumber: string
-): Promise<{ ativo: boolean; userId?: string }> {
+): Promise<{ ativo: boolean; userId?: string; emailConfirmado?: boolean }> {
   try {
     const { createAdminClient } = await import('./supabase/server')
     const supabaseAdmin = createAdminClient()
@@ -1152,7 +1152,13 @@ async function verificarEmailJaAtivoNoWhatsApp(
     if (!session || session.user_id !== profile.id) return { ativo: false, userId: profile.id }
     const exp = session.expires_at ? new Date(session.expires_at) : null
     if (exp && exp <= new Date()) return { ativo: false, userId: profile.id }
-    return { ativo: true, userId: profile.id }
+    // Só considerar "ativo" se o usuário já confirmou o email (clicou no link)
+    const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(profile.id)
+    const emailConfirmado = !!authUser?.user?.email_confirmed_at
+    if (!emailConfirmado) {
+      return { ativo: false, userId: profile.id, emailConfirmado: false }
+    }
+    return { ativo: true, userId: profile.id, emailConfirmado: true }
   } catch {
     return { ativo: false }
   }
@@ -1179,9 +1185,46 @@ async function handleWhatsAppAuthentication(
     norm === 'já criei' ||
     (norm.includes('cadastrei') && (norm.includes('ja') || norm.includes('já')))
   ) {
+    pendingSignupCreate.delete(phoneNumber)
     return {
       success: true,
       message: `📩 Beleza! Agora me envia seu *e-mail* de cadastro aqui que eu verifico e já te libero pra usar tudo pelo WhatsApp. 💙`,
+    }
+  }
+
+  // Criar conta aqui: usuário enviou email "não cadastrado" e depois enviou o nome
+  const signupPending = pendingSignupCreate.get(phoneNumber)
+  if (signupPending?.email) {
+    const nome = trimmedText.trim()
+    const { isValidNome } = await import('@/lib/whatsapp-signup-flow')
+    if (nome.length >= 2 && isValidNome(nome)) {
+      const { criarContaFromWhatsApp } = await import('@/lib/criar-conta-whatsapp')
+      const phoneDigits = phoneNumber.replace(/\D/g, '')
+      const phoneNorm = phoneDigits.length >= 10 ? (phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`) : phoneDigits
+      const result = await criarContaFromWhatsApp(nome, signupPending.email, phoneNorm)
+      pendingSignupCreate.delete(phoneNumber)
+      if (result.success) {
+        const nomeExibir = nome.trim().slice(0, 50)
+        const emailFoiEnviado = result.emailEnviado !== false
+        const msgSucesso = emailFoiEnviado
+          ? `Perfeito ${nomeExibir} 💙\n\nEnviei um link para confirmar seu email.\n\nDepois disso sua conta já estará ativa e você pode me dizer seus gastos e receitas para eu registrar. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
+          : `Conta criada, ${nomeExibir} 💙\n\nO email de confirmação pode demorar ou ir para a pasta de *spam*. Se não chegar em alguns minutos, acesse *plenipay.com* e peça um novo link.\n\nDepois de confirmar, você pode me dizer seus gastos e receitas. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
+        return {
+          success: true,
+          message: msgSucesso,
+        }
+      }
+      return {
+        success: true,
+        message: result.error || 'Não consegui criar a conta. Tente no site plenipay.com.',
+      }
+    }
+    // Nome inválido — pedir de novo
+    if (nome.length > 0) {
+      return {
+        success: true,
+        message: 'Me diga seu nome (ex.: Maria) para eu criar sua conta e enviar o link de confirmação no seu email. 💙',
+      }
     }
   }
 
@@ -1292,30 +1335,47 @@ async function handleWhatsAppAuthentication(
     }
 
     if (email && emailRegex.test(email)) {
+      // Validar formato e typos (ex: .come em vez de .com) antes de qualquer verificação
+      const { validateEmailWithHint } = await import('@/lib/whatsapp-signup-flow')
+      const emailCheck = validateEmailWithHint(email)
+      if (!emailCheck.valid) {
+        return {
+          success: true,
+          message: emailCheck.hint,
+        }
+      }
       // Verificar se o e-mail está cadastrado
       const emailExiste = await verificarEmailCadastrado(email)
       if (!emailExiste) {
-        console.log('📧 [WhatsApp PLEN] Email não cadastrado:', email)
+        console.log('📧 [WhatsApp PLEN] Email não cadastrado — oferecendo criar conta aqui:', email)
+        pendingSignupCreate.set(phoneNumber, { email })
         return {
           success: true,
-          messages: [
-            {
-              type: 'button_actions' as const,
-              body: `❌ Este e-mail *não está cadastrado*.\n\nCrie sua conta no site (botão abaixo) e depois digite *JÁ CADASTREI* aqui que eu peço seu e-mail de novo. 💙`,
-              buttonActions: [{ type: 'URL' as const, url: 'https://plenipay.com', label: 'Criar conta / Plenipay' }],
-            },
-          ],
+          message: `Esse e-mail *não está cadastrado* ainda.\n\nQuer que eu *crie sua conta agora*? Me diga seu *nome* (ex.: Maria) que eu crio e já envio o link de confirmação no seu email. 💙`,
         }
       }
-      // Verificar se o e-mail já está ativo (já vinculado a este número)
-      const { ativo: jaAtivo } = await verificarEmailJaAtivoNoWhatsApp(email, phoneNumber)
+      // Verificar se o e-mail já está ativo (sessão vinculada E email já confirmado)
+      const { ativo: jaAtivo, emailConfirmado } = await verificarEmailJaAtivoNoWhatsApp(email, phoneNumber)
       if (jaAtivo) {
-        console.log('📧 [WhatsApp PLEN] Email já ativo neste número — enviando confirmação + comandos:', email)
+        console.log('📧 [WhatsApp PLEN] Email já ativo e confirmado neste número — enviando comandos:', email)
         return {
           success: true,
           messages: [
             '✅ Seu e-mail já está ativo! Você já pode usar a Plen pelo WhatsApp. 💙',
             MSG_COMANDOS_PLEN,
+          ],
+        }
+      }
+      // Conta existe mas email ainda não foi confirmado (usuário não clicou no link)
+      if (emailConfirmado === false) {
+        return {
+          success: true,
+          messages: [
+            {
+              type: 'button_actions' as const,
+              body: `📩 Enviamos um *link para confirmar seu email* na hora do cadastro.\n\nConfira sua *caixa de entrada* e a pasta *spam*. Depois de clicar no link, digite *JÁ CADASTREI* aqui de novo que eu te libero. 💙`,
+              buttonActions: [{ type: 'URL' as const, url: 'https://plenipay.com', label: 'Plenipay' }],
+            },
           ],
         }
       }
