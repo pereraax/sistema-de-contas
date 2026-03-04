@@ -1,0 +1,84 @@
+/**
+ * Modo de teste inicial no WhatsApp da Plen: usuário registra um gasto antes de criar conta.
+ * Fluxo: (1) Mensagem inicial pedindo um gasto; (2) Usuário envia "50 mercado"; (3) Resposta com categoria e valor; (4) "Viu como é rápido? Vamos criar sua conta?"
+ */
+
+import { extrairValor, categoriaInteligente } from '@/lib/plen-registro'
+
+/** Mensagem inicial do modo teste (formato igual ao da tela). */
+export function getMensagemInicialModoTeste(contactName?: string | null): string {
+  const raw = (contactName ?? '').trim().slice(0, 50)
+  const nome = raw && raw.toLowerCase() !== 'nome' && raw.toLowerCase() !== 'pessoa' ? raw : ''
+  const saudacao = nome ? `Oiii ${nome} 👋!!✨` : 'Oiii 👋!!✨'
+  return `${saudacao}
+
+💙 Eu sou a Plen, sua assistente financeira 😊
+
+✨ Antes de criar sua conta, vamos testar rapidinho.
+
+👉 Me diga algo que você gastou hoje.
+
+Exemplo:
+• 50 mercado
+• 20 uber`
+}
+
+/** Resultado do parse de um gasto simples (ex.: "50 mercado", "20 uber"). */
+export type GastoSimples = { valor: number; categoria: string; descricao: string }
+
+/**
+ * Tenta extrair um gasto simples do texto: valor + descrição (ex.: "50 mercado", "20 uber", "30 carros", "gastei 20 pão", "30,50 lanche").
+ * Retorna null se não parecer um gasto.
+ */
+export function parseGastoSimples(texto: string): GastoSimples | null {
+  const t = (texto || '').trim().replace(/\s+/g, ' ')
+  if (!t || t.length > 500) return null
+  let valor = extrairValor(t)
+  let semValor = t
+    .replace(/^[\d.,]+\s*(reais?|r\$|r\b)?\s*/i, '')
+    .trim()
+  if (semValor === t && /^(gastei|paguei)\s+/i.test(t)) {
+    semValor = t.replace(new RegExp(`^(gastei|paguei)\\s+[\\d.,]+\\s*(reais?|r\\$|r\\b)?\\s*`, 'i'), '').trim()
+  }
+  // Fallback: "N coisa" ou "N coisas" (ex.: 30 carros, 50 mercado) quando extrairValor falha ou descrição ficou vazia
+  if (valor == null || valor <= 0 || valor > 999_999 || !semValor || semValor.length < 2) {
+    const simpleMatch = t.match(/^\s*(\d+(?:[.,]\d+)?)\s+([\wà-úÀ-Ú\s]+)\s*$/i)
+    if (simpleMatch) {
+      const v = parseFloat(simpleMatch[1].replace(',', '.'))
+      const desc = (simpleMatch[2] || '').trim().slice(0, 100) || 'Gasto'
+      if (!isNaN(v) && v > 0 && v <= 999_999 && desc) {
+        valor = v
+        semValor = desc
+      }
+    }
+  }
+  if (valor == null || valor <= 0 || valor > 999_999) return null
+  const descricao = semValor.slice(0, 100) || 'Gasto'
+  const categoria = categoriaInteligente(descricao, 'saida')
+  return { valor, categoria, descricao }
+}
+
+/** Mensagem de confirmação do gasto registrado no modo teste (com emojis, data e frase motivacional). */
+export function getMsgGastoRegistradoModoTeste(categoria: string, valor: number, data?: Date): string {
+  const valorStr = typeof valor === 'number' && valor >= 0
+    ? valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : String(valor)
+  const d = data ?? new Date()
+  const hoje = new Date()
+  const isHoje = d.toDateString() === hoje.toDateString()
+  const dataStr = isHoje ? 'Hoje' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  return `💙 Gasto registrado!
+
+📂 Categoria: ${categoria}
+💰 Valor: R$ ${valorStr}
+📅 ${dataStr}
+
+Continue assim! ✨`
+}
+
+/** Mensagem de follow-up após registrar o gasto no modo teste. */
+export const MSG_FOLLOW_UP_CRIAR_CONTA = `Viu como é rápido? 😄
+
+Posso organizar todos os seus gastos automaticamente.
+
+Vamos criar sua conta?`
