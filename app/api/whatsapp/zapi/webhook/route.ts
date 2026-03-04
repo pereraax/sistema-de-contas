@@ -605,7 +605,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => null)
+  // Log imediato: confirma que a requisição chegou ao app (útil com ngrok/localhost)
+  console.log('🔔 [Z-API Webhook] POST recebido', new Date().toISOString())
+  const body = await request.json().catch((e) => {
+    console.warn('📨 [Z-API Webhook] Body não é JSON válido:', e instanceof Error ? e.message : String(e))
+    return null
+  })
   const bodyKeys = body && typeof body === 'object' ? Object.keys(body as object).join(', ') : 'null'
   const b = body && typeof body === 'object' ? (body as Record<string, unknown>) : null
   const phoneRaw = b ? (b.phone ?? b.from ?? (b.data && typeof b.data === 'object' ? (b.data as Record<string, unknown>).phone : null)) : null
