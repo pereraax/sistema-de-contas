@@ -755,6 +755,26 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
     }
 
     // A partir daqui: usuário já está autenticado via WhatsApp
+    // Só registrar gastos/consultar quando o email estiver confirmado (evitar "teste" após "enviei o link")
+    if (userContext.userId) {
+      try {
+        const { createAdminClient } = await import('./supabase/server')
+        const supabaseAdmin = createAdminClient()
+        if (supabaseAdmin) {
+          const { data: authData } = await supabaseAdmin.auth.admin.getUserById(userContext.userId)
+          if (authData?.user && !authData.user.email_confirmed_at) {
+            console.log('📧 [WhatsApp PLEN] Email ainda não confirmado — bloqueando registro/uso até confirmação')
+            return {
+              success: true,
+              message: 'Seu email ainda não foi confirmado. Verifique sua caixa de entrada (e a pasta de spam) e clique no link para ativar sua conta. 💙',
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ [WhatsApp PLEN] Erro ao verificar email_confirmed_at:', (e as Error)?.message)
+      }
+    }
+
     const isActivated = await isPlenActivated(phoneNumber)
     const isActivation = isActivationMessage(text)
     
