@@ -19,6 +19,15 @@ import {
   getMsgGastoRegistradoModoTeste,
   MSG_FOLLOW_UP_CRIAR_CONTA,
 } from '@/lib/whatsapp-modo-teste'
+import {
+  getSignupPending,
+  setSignupStepNome,
+  setSignupStepEmail,
+  clearSignupPending,
+  isValidEmail,
+  isValidNome,
+} from '@/lib/whatsapp-signup-flow'
+import { criarContaFromWhatsApp } from '@/lib/criar-conta-whatsapp'
 import { downloadMedia, transcribeAudio, processComprovanteImage } from '@/lib/whatsapp-media-processor'
 
 function buildPlenMessage(from: string, text: string) {
@@ -35,6 +44,7 @@ function buttonIdToText(buttonId: string, label?: string): string {
   const id = (buttonId || '').toLowerCase().trim().replace(/\s+/g, '_')
   const lbl = (label || '').trim()
   if (id === 'cadastrar') return 'CADASTRAR'
+  if (lbl && /^cadastrar$/i.test(lbl.replace(/\s+/g, ''))) return 'CADASTRAR'
   if (id === 'ja_cadastrei' || id === 'já_criei' || id === 'ja_criei') return 'JÁ CADASTREI'
   if (id === 'falar_com_humano') return 'Falar com humano'
   if (id === 'voltar_plen') return 'Voltar a falar com a PLEN'
@@ -486,6 +496,69 @@ async function processarEmBackground(parsed: ZapiParsed) {
     const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits).catch(() => false)
     const jaRecebeuTestIntro = await hasReceivedTestIntro(phoneDigits).catch(() => false)
     const temCadastro = await hasCadastro(phoneDigits).catch(() => false)
+    const signupPending = await getSignupPending(phoneDigits).catch(() => null)
+
+    // Fluxo de criação de conta pelo WhatsApp: aguardando nome ou e-mail.
+    if (signupPending) {
+      if (signupPending.step === 'nome') {
+        const nome = (text ?? '').trim()
+        if (isValidNome(nome)) {
+          await setSignupStepEmail(phone, nome)
+          await sendTextMessage(phone, 'Qual seu e-mail?', { delayTyping: 1 }).catch(() => {})
+          markResponded(phone, text ?? '')
+          console.log('📧 [Z-API Webhook] Cadastro WhatsApp — nome recebido, aguardando e-mail para', phone)
+        } else {
+          await sendTextMessage(phone, 'Me diga seu nome (ex.: Maria Silva).', { delayTyping: 1 }).catch(() => {})
+          markResponded(phone, text ?? '')
+        }
+        return
+      }
+      if (signupPending.step === 'email') {
+        const email = (text ?? '').trim().toLowerCase()
+        if (isValidEmail(email)) {
+          const nomeParaConta = (signupPending.nome || '').trim()
+          const result = await criarContaFromWhatsApp(nomeParaConta, email, phoneDigits)
+          if (result.success) {
+            const nomeExibir = nomeParaConta || 'pessoa'
+            await sendTextMessage(
+              phone,
+              `Perfeito ${nomeExibir} 💙\n\nEnviei um link para confirmar seu email.\n\nDepois disso sua conta já estará ativa e você pode me dizer seus gastos e receitas para eu registrar. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`,
+              { delayTyping: 1 }
+            ).catch(() => {})
+            await clearSignupPending(phone)
+            markResponded(phone, text ?? '')
+            console.log('✅ [Z-API Webhook] Conta criada pelo WhatsApp para', phone)
+          } else {
+            await sendTextMessage(
+              phone,
+              result.error || 'Não consegui criar a conta. Tente outro e-mail ou cadastre-se no site plenipay.com.',
+              { delayTyping: 1 }
+            ).catch(() => {})
+            markResponded(phone, text ?? '')
+          }
+        } else {
+          await sendTextMessage(phone, 'Me diga um e-mail válido (ex.: seu@email.com).', { delayTyping: 1 }).catch(() => {})
+          markResponded(phone, text ?? '')
+        }
+        return
+      }
+    }
+
+    // "CADASTRAR" (ou "quero criar conta" / "sim") + sem cadastro → iniciar fluxo de cadastro pelo WhatsApp (nome -> e-mail).
+    const textNorm = (text ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+    const isCadastrarMessage =
+      (text ?? '').trim() === 'CADASTRAR' ||
+      /^cadastrar$/i.test((text ?? '').trim()) ||
+      /^(quero|vamos)\s*criar\s*(minha\s*)?conta$/i.test((text ?? '').trim()) ||
+      /^(sim|quero|criar\s*conta|conta)$/i.test(textNorm) ||
+      textNorm === 'quero criar'
+    if (!temCadastro && !signupPending && isCadastrarMessage && isBoasVindasConfigured()) {
+      await setSignupStepNome(phone)
+      await sendTextMessage(phone, 'Qual seu nome?', { delayTyping: 1 }).catch(() => {})
+      markResponded(phone, text ?? '')
+      console.log('📧 [Z-API Webhook] Cadastro pelo WhatsApp iniciado para', phone)
+      return
+    }
 
     // "Olá! Quero utilizar a Plenipay" + contato SEM cadastro → sempre enviar modo teste (nunca as 3 mensagens antigas).
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured() && !temCadastro) {
@@ -512,18 +585,40 @@ async function processarEmBackground(parsed: ZapiParsed) {
         await sendTextMessage(phone, msgRegistro, { delayTyping: 1 }).catch(() => {})
         await delay(800)
         await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
-        await delay(1000)
-        const segundoBloco = MENSAGENS_BOAS_VINDAS[1]
-        if (typeof segundoBloco === 'object' && segundoBloco?.type === 'button_actions') {
-          const sendBt = await sendButtonActionsReply(phone, segundoBloco.body, segundoBloco.buttonActions)
-          if (sendBt.success) registerSentMessage(phone, segundoBloco.body + ' [botões]')
-        } else {
-          await sendTextMessage(phone, 'Toque em *CADASTRAR* para criar sua conta ou digite *JÁ CRIEI* se já tem conta. 💙', { delayTyping: 1 }).catch(() => {})
-        }
+        await delay(800)
+        await setSignupStepNome(phone)
+        await sendTextMessage(phone, 'Qual seu nome?', { delayTyping: 1 }).catch(() => {})
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
         markWelcomeJustSent(phone)
-        console.log('✅ [Z-API Webhook] Modo teste concluído (sem cadastro):', phone)
+        console.log('✅ [Z-API Webhook] Modo teste concluído (sem cadastro) — solicitando nome:', phone)
+        return
+      }
+      await sendTextMessage(
+        phone,
+        'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber',
+        { delayTyping: 1 }
+      ).catch(() => {})
+      markResponded(phone, text ?? '')
+      return
+    }
+
+    // Contato sem cadastro que já recebeu o intro do modo teste: tratar qualquer mensagem como possível gasto (não "CADASTRAR"/"sim"/"quero criar").
+    if (!temCadastro && jaRecebeuTestIntro && !isQueroUtilizarPlenipayMessage(text) && !isCadastrarMessage && isBoasVindasConfigured()) {
+      const gasto = parseGastoSimples(text ?? '')
+      if (gasto) {
+        console.log('🧪 [Z-API Webhook] Modo teste (sem cadastro, 2ª msg) — gasto registrado:', gasto.valor, gasto.categoria, 'para', phone)
+        const msgRegistro = getMsgGastoRegistradoModoTeste(gasto.categoria, gasto.valor)
+        await sendTextMessage(phone, msgRegistro, { delayTyping: 1 }).catch(() => {})
+        await delay(800)
+        await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
+        await delay(800)
+        await setSignupStepNome(phone)
+        await sendTextMessage(phone, 'Qual seu nome?', { delayTyping: 1 }).catch(() => {})
+        await markWelcomeSent(phone).catch(() => {})
+        markResponded(phone, text ?? '')
+        markWelcomeJustSent(phone)
+        console.log('✅ [Z-API Webhook] Modo teste concluído (sem cadastro, 2ª msg) — solicitando nome:', phone)
         return
       }
       await sendTextMessage(
@@ -562,19 +657,13 @@ async function processarEmBackground(parsed: ZapiParsed) {
         await sendTextMessage(phone, msgRegistro, { delayTyping: 1 }).catch(() => {})
         await delay(800)
         await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
-        await delay(1000)
-        // Enviar botões CADASTRAR / JÁ CRIEI (mesma mensagem das boas-vindas normais)
-        const segundoBloco = MENSAGENS_BOAS_VINDAS[1]
-        if (typeof segundoBloco === 'object' && segundoBloco?.type === 'button_actions') {
-          const sendBt = await sendButtonActionsReply(phone, segundoBloco.body, segundoBloco.buttonActions)
-          if (sendBt.success) registerSentMessage(phone, segundoBloco.body + ' [botões]')
-        } else {
-          await sendTextMessage(phone, 'Toque em *CADASTRAR* para criar sua conta ou digite *JÁ CRIEI* se já tem conta. 💙', { delayTyping: 1 }).catch(() => {})
-        }
+        await delay(800)
+        await setSignupStepNome(phone)
+        await sendTextMessage(phone, 'Qual seu nome?', { delayTyping: 1 }).catch(() => {})
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
         markWelcomeJustSent(phone)
-        console.log('✅ [Z-API Webhook] Modo teste concluído para', phone, '— gasto registrado e convite para criar conta enviado.')
+        console.log('✅ [Z-API Webhook] Modo teste concluído para', phone, '— solicitando nome.')
         return
       }
 
