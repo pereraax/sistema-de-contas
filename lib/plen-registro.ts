@@ -123,6 +123,69 @@ export type InterpretadoPlen = {
   categoria: string
 }
 
+/** Interpretado com descrição/observação extraída do contexto (ex.: "guardei na caixinha nubank"). */
+export type InterpretadoComDescricao = InterpretadoPlen & { observacao?: string }
+
+/**
+ * Interpreta mensagens com contexto e descrição, ex.:
+ * "Recebi R$100,00 ontem da mãe, guardei o dinheiro na caixinha casamento da nubank"
+ * "Gastei 50 no mercado, compras da semana"
+ * Retorna valor, data, origem/nome e observação (trecho após vírgula ou "guardei"/"na caixinha").
+ */
+export function interpretarComContextoEDescricao(texto: string): InterpretadoComDescricao | null {
+  const t = normalizarNumerosPorExtenso(texto.trim().toLowerCase())
+  const raw = texto.trim()
+
+  // ENTRADA: recebi R$100 ontem da mãe, guardei na caixinha... (descrição = trecho após vírgula ou "guardei"/"caixinha")
+  const recebiMatch = t.match(
+    /recebi\s+(?:r\$)?\s*([\d.,]+)\s*(?:reais?|r\b)?\s*(?:(ontem|hoje)\s+)?(?:de|da)\s+([^,]+?)(?:\s*,\s*(.+))?$/i
+  )
+  if (recebiMatch) {
+    const valorNum = extrairValor(recebiMatch[1] || '')
+    if (valorNum == null || valorNum <= 0 || valorNum > 500_000) return null
+    const nome = (recebiMatch[3] || '').trim().replace(/\s*(hoje|ontem)\s*$/gi, '').trim().substring(0, 200) || 'Entrada'
+    let observacao = (recebiMatch[4] || '').trim().substring(0, 500)
+    if (!observacao && raw.length > 50) {
+      const depoisDaVirgula = raw.split(/,/).slice(1).join(',').trim()
+      if (depoisDaVirgula.length >= 5) observacao = depoisDaVirgula.substring(0, 500)
+    }
+    if (!observacao && raw.length > 30) {
+      const rawLow = raw.toLowerCase()
+      const indices = ['guardei', 'caixinha', 'nubank', 'poupança', 'poupanca']
+        .map((w) => rawLow.indexOf(w))
+        .filter((i) => i >= 0)
+      const idx = indices.length ? Math.min(...indices) : raw.length
+      if (idx < raw.length) {
+        const resto = raw.slice(idx).trim()
+        if (resto.length >= 5) observacao = resto.substring(0, 500)
+      }
+    }
+    const data_registro = parseDataDoTexto(t)
+    const categoria = categoriaInteligente(nome, 'entrada')
+    return { tipo: 'entrada', valor: valorNum, nome, data_registro, categoria, observacao: observacao || undefined }
+  }
+
+  // GASTO: gastei 50 no mercado, compras da semana (descrição = trecho após vírgula)
+  const gasteiMatch = t.match(
+    /(?:gastei|paguei)\s+(?:r\$)?\s*([\d.,]+)\s*(?:reais?|r\b)?\s*(?:(?:com|no|na|em|para)\s+)?([^,]+?)(?:\s*,\s*(.+))?$/i
+  )
+  if (gasteiMatch) {
+    const valorNum = extrairValor(gasteiMatch[1] || '')
+    if (valorNum == null || valorNum <= 0 || valorNum > 500_000) return null
+    const nome = (gasteiMatch[2] || '').trim().replace(/\s*(hoje|ontem)\s*$/gi, '').trim().substring(0, 200) || 'Gasto'
+    let observacao = (gasteiMatch[3] || '').trim().substring(0, 500)
+    if (!observacao && raw.length > 50) {
+      const depoisDaVirgula = raw.split(/,/).slice(1).join(',').trim()
+      if (depoisDaVirgula.length >= 5) observacao = depoisDaVirgula.substring(0, 500)
+    }
+    const data_registro = parseDataDoTexto(t)
+    const categoria = categoriaInteligente(nome, 'saida')
+    return { tipo: 'saida', valor: valorNum, nome, data_registro, categoria, observacao: observacao || undefined }
+  }
+
+  return null
+}
+
 /**
  * Interpreta mensagem em linguagem natural e retorna tipo, valor, nome, data e categoria.
  */
@@ -360,8 +423,10 @@ export function formatarRespostaRegistro(params: {
   categoria: string
   /** Nome do usuário/pessoa em que o registro foi lançado (ex.: dono da conta ou outro). */
   nomeUsuario?: string
+  /** Descrição/observação do registro (ex.: "guardei na caixinha nubank"). */
+  observacao?: string
 }): string {
-  const { nome, tipo, valor, dataRegistro, categoria, nomeUsuario } = params
+  const { nome, tipo, valor, dataRegistro, categoria, nomeUsuario, observacao } = params
   const valorFormatado = valor.toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -383,6 +448,9 @@ export function formatarRespostaRegistro(params: {
     `📅 ${dataBR}`,
     `🗂️ Categoria: ${categoria}`,
   ]
+  if (observacao != null && observacao.trim() !== '') {
+    linhas.push(`📝 Descrição: ${observacao.trim()}`)
+  }
   if (nomeUsuario != null && nomeUsuario.trim() !== '') {
     linhas.push(`usuario: ${nomeUsuario.trim()}`)
   }

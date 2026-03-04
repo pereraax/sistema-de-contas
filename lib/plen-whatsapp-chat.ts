@@ -622,11 +622,12 @@ export async function processPlenWhatsAppMessage(
               dataRegistro: comDesc.data_registro,
               categoria: comDesc.categoria || 'Outros',
               nomeUsuario: profileNome || undefined,
+              observacao: comDesc.observacao || undefined,
             })
             const dica =
               '💡 Para adicionar descrição no próximo registro, mande assim:\n*recebi X origem + data + descrição*\nEx.: recebi 100 mãe ontem guardei na caixinha nubank'
             return {
-              response: comDesc.observacao ? `${msgBase}\n\n${dica}` : `${msgBase}\n\nQuer adicionar uma descrição? Mande no mesmo formato: *recebi X origem + data + descrição*\n\n${dica}`,
+              response: comDesc.observacao ? `${msgBase}\n\n${dica}` : `${msgBase}\n\nQuer adicionar uma descrição? Mande: *recebi X origem + data + descrição*\n\n${dica}`,
               buttonUrl: PERFIL_URL,
               buttonLabel: PERFIL_BUTTON_LABEL,
               buttonBody: PERFIL_BUTTON_BODY,
