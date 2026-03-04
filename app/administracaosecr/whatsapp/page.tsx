@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MessageCircle, CheckCircle, XCircle, Loader2, QrCode, RefreshCw, PauseCircle, PlayCircle, Download, Users } from 'lucide-react'
+import { MessageCircle, CheckCircle, XCircle, Loader2, QrCode, RefreshCw, PauseCircle, PlayCircle, Download, Users, AlertTriangle, Calendar } from 'lucide-react'
 import { createNotification } from '@/components/NotificationBell'
 
 interface WhatsAppStatus {
@@ -27,6 +27,8 @@ export default function AdminWhatsAppPage() {
   const [assistentePausada, setAssistentePausada] = useState<boolean | null>(null)
   const [loadingPausada, setLoadingPausada] = useState(false)
   const [exportDays, setExportDays] = useState(3)
+  const [ultimaRestricao, setUltimaRestricao] = useState<string | null>(null)
+  const [loadingRestricao, setLoadingRestricao] = useState(false)
 
   // Carregar estado da pausa global
   const carregarPausaGlobal = async () => {
@@ -61,9 +63,37 @@ export default function AdminWhatsAppPage() {
     }
   }
 
+  const carregarUltimaRestricao = async () => {
+    try {
+      const res = await fetch('/api/admin/whatsapp-restricao-registro')
+      const data = await res.json()
+      if (data.success && data.data) setUltimaRestricao(data.data)
+      else setUltimaRestricao(null)
+    } catch {
+      setUltimaRestricao(null)
+    }
+  }
+
+  const registrarRestricaoAgora = async () => {
+    setLoadingRestricao(true)
+    try {
+      const res = await fetch('/api/admin/whatsapp-restricao-registro', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        setUltimaRestricao(data.data || new Date().toISOString())
+        createNotification('Restrição registrada com a data/hora atual.', 'success')
+      } else throw new Error(data.error)
+    } catch (e: any) {
+      createNotification(e?.message || 'Erro ao registrar.', 'warning')
+    } finally {
+      setLoadingRestricao(false)
+    }
+  }
+
   // Verificar status ao carregar e periodicamente
   useEffect(() => {
     carregarPausaGlobal()
+    carregarUltimaRestricao()
     verificarStatus()
     verificarCredenciais()
     
@@ -552,6 +582,38 @@ export default function AdminWhatsAppPage() {
             ⏸ A assistente está pausada. Ninguém receberá respostas automáticas até você retomar.
           </p>
         )}
+      </div>
+
+      {/* Quando tomar restrição (spam) */}
+      <div className="p-6 rounded-xl border-2 bg-amber-900/20 border-amber-500/30">
+        <h2 className="text-xl font-bold text-brand-clean mb-2 flex items-center gap-2">
+          <AlertTriangle className="text-amber-400" size={24} />
+          Quando tomar restrição (spam)
+        </h2>
+        <p className="text-brand-clean/80 text-sm mb-3">
+          Se o WhatsApp restringir a conta (ex.: spam por algumas horas), faça o seguinte:
+        </p>
+        <ol className="list-decimal list-inside text-brand-clean/90 text-sm space-y-1 mb-4">
+          <li><strong>Pause a assistente</strong> no botão acima (para parar de enviar mensagens).</li>
+          <li><strong>Registre a restrição</strong> clicando abaixo — assim fica anotado quando ocorreu.</li>
+          <li><strong>Espere a liberação</strong> (geralmente 5h a 24h; o WhatsApp avisa quando liberar).</li>
+          <li><strong>Retome a assistente</strong> quando a conta estiver normal de novo.</li>
+        </ol>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={registrarRestricaoAgora}
+            disabled={loadingRestricao}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-smooth"
+          >
+            {loadingRestricao ? <Loader2 className="animate-spin" size={18} /> : <Calendar size={18} />}
+            Registrar restrição agora
+          </button>
+          {ultimaRestricao && (
+            <span className="text-amber-200/90 text-sm">
+              Última restrição registrada: {new Date(ultimaRestricao).toLocaleString('pt-BR')}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Exportar contatos que falaram com o assistente (CSV) */}
