@@ -19,8 +19,8 @@ export function getMensagemInicialModoTeste(contactName?: string | null): string
 👉 Me diga algo que você gastou hoje.
 
 Exemplo:
-• 50 mercado
-• 20 uber`
+* 50 mercado
+* 20 uber`
 }
 
 /** Resultado do parse de um gasto simples (ex.: "50 mercado", "20 uber"). */

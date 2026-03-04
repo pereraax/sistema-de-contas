@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendButtonList, sendButtonActions, isZapiConfigured } from '@/lib/whatsapp-zapi'
 import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage, hasReceivedTestIntro, markTestIntroSent, hasCadastro } from '@/lib/whatsapp-contatos-pendentes'
-import { sendBoasVindasToNumber, isBoasVindasConfigured, MENSAGENS_BOAS_VINDAS, getIntroBoasVindas } from '@/lib/whatsapp-enviar-boas-vindas-lib'
+import { sendBoasVindasToNumber, isBoasVindasConfigured } from '@/lib/whatsapp-enviar-boas-vindas-lib'
 import {
   getMensagemInicialModoTeste,
   parseGastoSimples,
@@ -492,6 +492,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
 
     const contactName = parsed.contactName
 
+    /** Envia apenas a mensagem única do modo teste (sem botões). Retry em caso de falha. */
     const envioBoasVindasComRetry = async (): Promise<boolean> => {
       let r = await sendBoasVindasToNumber(phone, { contactName })
       if (r.success) return true
@@ -501,9 +502,14 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return r.success
     }
 
+    /** Fallback: mesma mensagem do modo teste (só texto). Marca como enviado para não reenviar. */
     const enviarFallbackContatoNovo = async (): Promise<void> => {
-      const fallback = getIntroBoasVindas(contactName) || 'Olá! 👋 Sou a Plen, assistente da Plenipay. Cria sua conta em plenipay.com e me manda *JÁ CADASTREI* aqui que eu te ajudo. 💙'
-      await sendTextMessage(phone, fallback, { delayTyping: 1 }).catch(() => {})
+      const msg = getMensagemInicialModoTeste(contactName)
+      const sent = await sendTextMessage(phone, msg, { delayTyping: 1 }).catch(() => ({ success: false }))
+      if (sent?.success) {
+        await markTestIntroSent(phone).catch(() => {})
+        await markWelcomeSent(phone).catch(() => {})
+      }
     }
 
     // Modo teste inicial: contato novo primeiro recebe "Me diga algo que você gastou hoje"; na segunda mensagem, registramos o gasto e oferecemos criar conta.
