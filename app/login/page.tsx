@@ -39,6 +39,10 @@ function LoginContent() {
   const sectionRef = useRef<HTMLDivElement>(null)
   const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | null>(null)
   const [oauthError, setOauthError] = useState<string | null>(null)
+  type LoginStep = 'email' | 'password' | 'first_access'
+  const [loginStep, setLoginStep] = useState<LoginStep>('email')
+  const [enviandoLinkSenha, setEnviandoLinkSenha] = useState(false)
+  const [linkSenhaEnviado, setLinkSenhaEnviado] = useState(false)
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const el = sectionRef.current
@@ -181,6 +185,59 @@ function LoginContent() {
       router.replace('/login')
     }
   }, [searchParams, router])
+
+  const handleContinuar = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setErrorMessage(null)
+    const email = formData.email.trim()
+    if (!email || !email.includes('@')) {
+      setErrorMessage('Informe um email válido')
+      createNotification('Informe um email válido', 'warning')
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (data.precisaDefinirSenha) {
+        setLoginStep('first_access')
+      } else {
+        setLoginStep('password')
+      }
+    } catch {
+      setLoginStep('password')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCriarSenha = async () => {
+    const email = formData.email.trim()
+    if (!email || !email.includes('@')) return
+    setEnviandoLinkSenha(true)
+    setErrorMessage(null)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/redefinir-senha`,
+      })
+      if (error) {
+        setErrorMessage(error.message || 'Erro ao enviar link.')
+        createNotification('Não foi possível enviar o link. Tente novamente.', 'warning')
+      } else {
+        setLinkSenhaEnviado(true)
+        createNotification('Link enviado! Verifique seu email.', 'success')
+      }
+    } catch {
+      setErrorMessage('Erro ao enviar link. Tente novamente.')
+    } finally {
+      setEnviandoLinkSenha(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -526,7 +583,70 @@ function LoginContent() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-3">
+          {loginStep === 'first_access' ? (
+            <div className="space-y-3">
+              {errorMessage && (
+                <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-3">
+                  <p className="text-xs text-red-600 dark:text-red-300 font-medium">{errorMessage}</p>
+                </div>
+              )}
+              {linkSenhaEnviado ? (
+                <>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    Enviamos um link para <strong>{formData.email}</strong>. Clique no link para criar sua senha e depois faça login normalmente.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginStep('email')
+                      setLinkSenhaEnviado(false)
+                      setFormData(prev => ({ ...prev, senha: '' }))
+                      setErrorMessage(null)
+                    }}
+                    className="text-sm text-[#1e4976] dark:text-brand-aqua hover:text-[#163a5f] dark:hover:text-brand-aqua/80 font-medium"
+                  >
+                    Usar outro e-mail
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    Percebemos que este é seu primeiro acesso. Vamos criar uma senha para sua conta.
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    E-mail: <strong>{formData.email}</strong>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleCriarSenha}
+                    disabled={enviandoLinkSenha}
+                    className="w-full px-4 py-3 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-xl text-sm font-semibold transition-all duration-300 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {enviandoLinkSenha ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="animate-spin" size={18} />
+                        Enviando...
+                      </span>
+                    ) : (
+                      'Criar senha'
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginStep('email')
+                      setFormData(prev => ({ ...prev, senha: '' }))
+                      setErrorMessage(null)
+                    }}
+                    className="text-sm text-[#1e4976] dark:text-brand-aqua hover:text-[#163a5f] dark:hover:text-brand-aqua/80 font-medium"
+                  >
+                    Usar outro e-mail
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+          <form onSubmit={loginStep === 'email' ? handleContinuar : handleSubmit} className="space-y-3">
             {errorMessage && (
               <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-3">
                 <p className="text-xs text-red-600 dark:text-red-300 font-medium">{errorMessage}</p>
@@ -540,78 +660,83 @@ function LoginContent() {
               <input
                 type="email"
                 required
+                readOnly={loginStep === 'password'}
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#1e4976] dark:focus:border-brand-aqua focus:ring-2 focus:ring-[#1e4976]/10 dark:focus:ring-brand-aqua/20 transition-all"
+                className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#1e4976] dark:focus:border-brand-aqua focus:ring-2 focus:ring-[#1e4976]/10 dark:focus:ring-brand-aqua/20 transition-all disabled:opacity-70"
                 placeholder="seu@email.com"
                 style={{ fontSize: '16px' }}
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Senha *
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={formData.senha}
-                  onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#1e4976] dark:focus:border-brand-aqua focus:ring-2 focus:ring-[#1e4976]/10 dark:focus:ring-brand-aqua/20 transition-all pr-10"
-                  placeholder="Sua senha"
-                  style={{ fontSize: '16px' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-[#1e4976] dark:hover:text-brand-aqua transition-colors"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer group">
-                <div className="relative">
-                  <input 
-                    type="checkbox" 
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="sr-only"
-                    id="remember-me"
-                  />
-                  <div className={`w-4 h-4 border-2 rounded transition-all duration-200 flex items-center justify-center ${
-                    rememberMe 
-                      ? 'bg-[#1e4976] dark:bg-brand-aqua border-[#1e4976] dark:border-brand-aqua shadow-sm' 
-                      : 'border-gray-300 dark:border-gray-500 group-hover:border-[#1e4976] dark:group-hover:border-brand-aqua'
-                  }`}>
-                    {rememberMe && (
-                      <svg 
-                        className="w-3 h-3 text-white" 
-                        fill="none" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth="3" 
-                        viewBox="0 0 24 24" 
-                        stroke="currentColor"
-                      >
-                        <path d="M5 13l4 4L19 7"></path>
-                      </svg>
-                    )}
+            {loginStep === 'password' && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Senha *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={formData.senha}
+                      onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#1e4976] dark:focus:border-brand-aqua focus:ring-2 focus:ring-[#1e4976]/10 dark:focus:ring-brand-aqua/20 transition-all pr-10"
+                      placeholder="Sua senha"
+                      style={{ fontSize: '16px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-[#1e4976] dark:hover:text-brand-aqua transition-colors"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
                   </div>
                 </div>
-                <span className="select-none group-hover:text-[#1e4976] dark:group-hover:text-brand-aqua transition-colors">Lembrar-me</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowModalEsqueceuSenha(true)}
-                className="text-xs text-[#1e4976] dark:text-brand-aqua hover:text-[#163a5f] dark:hover:text-brand-aqua/80 font-medium"
-              >
-                Esqueceu a senha?
-              </button>
-            </div>
+
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer group">
+                    <div className="relative">
+                      <input 
+                        type="checkbox" 
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="sr-only"
+                        id="remember-me"
+                      />
+                      <div className={`w-4 h-4 border-2 rounded transition-all duration-200 flex items-center justify-center ${
+                        rememberMe 
+                          ? 'bg-[#1e4976] dark:bg-brand-aqua border-[#1e4976] dark:border-brand-aqua shadow-sm' 
+                          : 'border-gray-300 dark:border-gray-500 group-hover:border-[#1e4976] dark:group-hover:border-brand-aqua'
+                      }`}>
+                        {rememberMe && (
+                          <svg 
+                            className="w-3 h-3 text-white" 
+                            fill="none" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth="3" 
+                            viewBox="0 0 24 24" 
+                            stroke="currentColor"
+                          >
+                            <path d="M5 13l4 4L19 7"></path>
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                    <span className="select-none group-hover:text-[#1e4976] dark:group-hover:text-brand-aqua transition-colors">Lembrar-me</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowModalEsqueceuSenha(true)}
+                    className="text-xs text-[#1e4976] dark:text-brand-aqua hover:text-[#163a5f] dark:hover:text-brand-aqua/80 font-medium"
+                  >
+                    Esqueceu a senha?
+                  </button>
+                </div>
+              </>
+            )}
 
             <button
               type="submit"
@@ -621,12 +746,26 @@ function LoginContent() {
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <Loader2 className="animate-spin" size={18} />
-                  Entrando...
+                  {loginStep === 'email' ? 'Verificando...' : 'Entrando...'}
                 </span>
               ) : (
-                'Entrar'
+                loginStep === 'email' ? 'Continuar' : 'Entrar'
               )}
             </button>
+
+            {loginStep === 'password' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginStep('email')
+                  setFormData(prev => ({ ...prev, senha: '' }))
+                  setErrorMessage(null)
+                }}
+                className="text-sm text-[#1e4976] dark:text-brand-aqua hover:text-[#163a5f] dark:hover:text-brand-aqua/80 font-medium"
+              >
+                Usar outro e-mail
+              </button>
+            )}
 
             <p className="text-center text-xs text-gray-500 dark:text-gray-400 leading-tight">
               Não tem uma conta?{' '}
@@ -642,6 +781,7 @@ function LoginContent() {
               </Link>
             </p>
           </form>
+          )}
         </div>
       </div>
 
