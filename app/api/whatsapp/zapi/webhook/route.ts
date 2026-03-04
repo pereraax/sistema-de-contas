@@ -713,6 +713,12 @@ async function processarEmBackground(parsed: ZapiParsed) {
     const plenMessage = buildPlenMessage(from, text, contactName)
     const result = await processWhatsAppMessage(plenMessage as any)
 
+    if (result?.skipReply === true) {
+      console.log('🛑 [Z-API Webhook] skipReply: aguardando humano — não enviar resposta')
+      markResponded(phone, text ?? '')
+      return
+    }
+
     if (result?.messages && Array.isArray(result.messages) && result.messages.length > 0) {
       let firstMessageInSequence = true
       for (let i = 0; i < result.messages.length; i++) {

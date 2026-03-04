@@ -255,3 +255,96 @@ export async function addPendenteManualmente(phone: string): Promise<{ ok: boole
   }
   return { ok: true }
 }
+
+// --- Aguardando humano (várias "não entendi" seguidas → parar respostas automáticas) ---
+
+/** Retorna o timestamp até quando este número está em "aguardando humano", ou null se não está ou já expirou. */
+export async function getAguardandoHumanoAte(phone: string): Promise<string | null> {
+  const supabase = createAdminClient()
+  if (!supabase) return null
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return null
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('aguardando_humano_ate')
+    .eq('phone', p)
+    .maybeSingle()
+  if (error || !data) return null
+  const ate = (data as { aguardando_humano_ate?: string | null }).aguardando_humano_ate
+  if (!ate) return null
+  if (new Date(ate) <= new Date()) {
+    await clearAguardandoHumano(p)
+    return null
+  }
+  return ate
+}
+
+/** Marca que este número está aguardando humano até now + 24h. Para de enviar respostas automáticas. */
+export async function setAguardandoHumano(phone: string, horas: number = 24): Promise<void> {
+  const supabase = createAdminClient()
+  if (!supabase) return
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return
+  const until = new Date(Date.now() + horas * 60 * 60 * 1000).toISOString()
+  const now = new Date().toISOString()
+  await supabase.from(TABLE).upsert(
+    { phone: p, aguardando_humano_ate: until, consecutive_nao_entendi: 0, updated_at: now },
+    { onConflict: 'phone', ignoreDuplicates: false }
+  )
+}
+
+/** Limpa o estado "aguardando humano" e zera o contador de "não entendi". */
+export async function clearAguardandoHumano(phone: string): Promise<void> {
+  const supabase = createAdminClient()
+  if (!supabase) return
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return
+  const now = new Date().toISOString()
+  await supabase.from(TABLE).upsert(
+    { phone: p, aguardando_humano_ate: null, consecutive_nao_entendi: 0, updated_at: now },
+    { onConflict: 'phone', ignoreDuplicates: false }
+  )
+}
+
+/** Incrementa o contador de "não entendi" e retorna o novo valor. */
+export async function incrementConsecutiveNaoEntendi(phone: string): Promise<number> {
+  const supabase = createAdminClient()
+  if (!supabase) return 0
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return 0
+  const now = new Date().toISOString()
+  const { data: row } = await supabase.from(TABLE).select('consecutive_nao_entendi').eq('phone', p).maybeSingle()
+  const current = Math.max(0, Number((row as { consecutive_nao_entendi?: number } | null)?.consecutive_nao_entendi ?? 0))
+  const next = current + 1
+  await supabase.from(TABLE).upsert(
+    { phone: p, consecutive_nao_entendi: next, updated_at: now },
+    { onConflict: 'phone', ignoreDuplicates: false }
+  )
+  return next
+}
+
+/** Zera o contador de "não entendi" quando o assistente entendeu a mensagem. */
+export async function resetConsecutiveNaoEntendi(phone: string): Promise<void> {
+  const supabase = createAdminClient()
+  if (!supabase) return
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return
+  const now = new Date().toISOString()
+  await supabase.from(TABLE).upsert(
+    { phone: p, consecutive_nao_entendi: 0, updated_at: now },
+    { onConflict: 'phone', ignoreDuplicates: false }
+  )
+}
+
+/** Verifica se a mensagem do usuário pede para voltar a falar com o assistente (sair do modo "aguardando humano"). */
+export function isPedidoVoltarAssistente(text: string): boolean {
+  if (!text || typeof text !== 'string') return false
+  const t = text.toLowerCase().trim().replace(/\s+/g, ' ')
+  return (
+    /voltar\s*(a\s*falar\s*com\s*)?(a\s*)?(plen|assistente)/i.test(t) ||
+    /assistente\s*plen|plen\s*assistente/i.test(t) ||
+    /^(plen|assistente)$/.test(t) ||
+    /quero\s*falar\s*com\s*(o\s*)?(assistente|plen)/i.test(t) ||
+    /chamar\s*(o\s*)?(assistente|plen)/i.test(t)
+  )
+}

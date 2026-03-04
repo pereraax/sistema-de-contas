@@ -260,45 +260,41 @@ async function isDeactivationMessage(text: string): Promise<boolean> {
 }
 
 /**
- * Verificar se o assistente PLEN está ativado para este número
- * Verifica primeiro na memória, depois no banco de dados
+ * Verificar se o assistente PLEN está ativado para este número.
+ * Quando o cache diz true, revalida no banco para respeitar desativação feita no painel admin.
  */
 async function isPlenActivated(phoneNumber: string): Promise<boolean> {
-  // Verificar primeiro na memória (mais rápido)
-  const memoryStatus = plenActivated.get(phoneNumber)
-  if (memoryStatus !== undefined) {
-    return memoryStatus === true
-  }
+  const normalized = (phoneNumber || '').replace(/\D/g, '')
+  const phoneForDb = normalized.length >= 10 ? (normalized.startsWith('55') ? normalized : '55' + normalized) : phoneNumber
 
-  // Se não está na memória, verificar no banco de dados
   try {
     const { createAdminClient } = await import('./supabase/server')
     const supabaseAdmin = createAdminClient()
 
     if (!supabaseAdmin) {
-      return false
+      const memoryStatus = plenActivated.get(phoneNumber)
+      return memoryStatus === true
     }
 
     const { data: session, error } = await supabaseAdmin
       .from('whatsapp_sessions')
       .select('plen_activated')
-      .eq('phone_number', phoneNumber)
+      .eq('phone_number', phoneForDb)
       .maybeSingle()
 
     if (error && error.code !== 'PGRST116') {
       console.warn('⚠️ [WhatsApp PLEN] Erro ao buscar status do assistente no banco:', error.message)
-      return false
+      const memoryStatus = plenActivated.get(phoneNumber)
+      return memoryStatus === true
     }
 
     const dbStatus = session?.plen_activated === true
-    
-    // Atualizar memória com o status do banco
     plenActivated.set(phoneNumber, dbStatus)
-    
     return dbStatus
   } catch (error) {
     console.error('❌ [WhatsApp PLEN] Erro ao verificar status do assistente no banco:', error)
-    return false
+    const memoryStatus = plenActivated.get(phoneNumber)
+    return memoryStatus === true
   }
 }
 
@@ -816,6 +812,26 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
     console.log('✅ [WhatsApp PLEN] Text:', text.substring(0, 100))
     console.log('✅ [WhatsApp PLEN] ==========================================')
     
+    // Se está "aguardando humano", não responder automaticamente — exceto se pedir para voltar ao assistente
+    const {
+      getAguardandoHumanoAte,
+      clearAguardandoHumano,
+      isPedidoVoltarAssistente,
+      incrementConsecutiveNaoEntendi,
+      setAguardandoHumano,
+      resetConsecutiveNaoEntendi,
+    } = await import('@/lib/whatsapp-contatos-pendentes')
+    const aguardandoAte = await getAguardandoHumanoAte(phoneNumber)
+    if (aguardandoAte) {
+      if (isPedidoVoltarAssistente(text)) {
+        await clearAguardandoHumano(phoneNumber)
+        console.log('✅ [WhatsApp PLEN] Usuário pediu voltar ao assistente — limpando aguardando humano')
+      } else {
+        console.log('🛑 [WhatsApp PLEN] Contato em aguardando humano — não enviar resposta automática')
+        return { success: true, skipReply: true }
+      }
+    }
+    
     // Verificar se há imagem no texto (marcador especial)
     let imageBase64: string | undefined = undefined
     if (text.includes('[IMAGEM_BASE64:')) {
@@ -882,6 +898,31 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
         })
       } catch (_) {}
       return null
+    }
+    
+    // Detectar resposta "não entendi" (botão "Falar com humano") para contagem e eventual "vou chamar um humano"
+    const isNaoEntendiResponse = (r: typeof plenResult): boolean => {
+      if (!r?.messages?.length) return false
+      for (const m of r.messages) {
+        if (typeof m === 'object' && m !== null && (m as { type?: string; buttons?: { title?: string }[] }).type === 'buttons') {
+          const buttons = (m as { buttons?: { title?: string }[] }).buttons || []
+          if (buttons.some((b) => (b.title || '').toLowerCase().includes('falar com humano'))) return true
+        }
+      }
+      return false
+    }
+    if (isNaoEntendiResponse(plenResult)) {
+      const count = await incrementConsecutiveNaoEntendi(phoneNumber)
+      if (count >= 3) {
+        await setAguardandoHumano(phoneNumber, 24)
+        console.log('🛑 [WhatsApp PLEN] 3+ "não entendi" seguidas — aguardando humano ativado para', phoneNumber)
+        return {
+          success: true,
+          message: 'Parece que você está com problemas, vou chamar um humano. Um momento! 💙',
+        }
+      }
+    } else {
+      await resetConsecutiveNaoEntendi(phoneNumber)
     }
     
     console.log('✅ [WhatsApp PLEN] Resultado válido, retornando resposta')
