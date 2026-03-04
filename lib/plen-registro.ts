@@ -435,12 +435,13 @@ export function formatarRespostaRegistro(params: {
   })
   const dataBR = formatarDataBR(dataRegistro)
   const emojiValor = tipo === 'entrada' ? '🟢' : '🔴' // entrada = ganho (verde), saida/divida = vermelho
+  const nomeContato = (nome || '').trim() || 'registro'
   const mensagemSucesso =
     tipo === 'saida'
-      ? '✨ Seu gasto foi registrado com sucesso!'
+      ? `✨ Seu gasto foi registrado com sucesso (${nomeContato})!`
       : tipo === 'divida'
-        ? '✨ Sua dívida foi registrada com sucesso!'
-        : '✨ Sua entrada foi registrada com sucesso!'
+        ? `✨ Sua dívida foi registrada com sucesso (${nomeContato})!`
+        : `✨ Sua entrada foi registrada com sucesso (${nomeContato})!`
 
   const linhas = [
     `📌 ${nome}`,
