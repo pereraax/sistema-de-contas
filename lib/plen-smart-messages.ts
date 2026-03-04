@@ -1,0 +1,255 @@
+/**
+ * Mensagens inteligentes da assistente Plen (AHA moments).
+ * Eventos por tempo sem interação (10min, 1h, 24h) e por marcos (10 e 20 registros, categorias).
+ * Anti-spam: no máximo uma mensagem automática por hora; cancelar se o usuário voltar a interagir.
+ */
+
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/server'
+import { sendTextMessage } from '@/lib/whatsapp-apifacil'
+
+export const EVENT_10MIN = '10min'
+export const EVENT_1H = '1h'
+export const EVENT_24H = '24h'
+export const EVENT_10_REGISTROS = '10_registros'
+export const EVENT_20_REGISTROS = '20_registros'
+export const EVENT_CATEGORIA_PREFIX = 'categoria_'
+
+/** Mínimo 1 hora entre duas mensagens inteligentes para o mesmo usuário. */
+export const MIN_INTERVAL_SMART_MS_MS = 60 * 60 * 1000
+
+/** Atualiza last_message_at quando o usuário envia qualquer mensagem (cancelar envios automáticos). */
+export async function updateLastActivity(supabase: SupabaseClient, accountOwnerId: string): Promise<void> {
+  const now = new Date().toISOString()
+  await supabase
+    .from('plen_user_activity')
+    .upsert(
+      { account_owner_id: accountOwnerId, last_message_at: now, updated_at: now },
+      { onConflict: 'account_owner_id' }
+    )
+}
+
+/** Retorna o telefone do usuário (profiles.whatsapp ou whatsapp_sessions.phone_number). */
+export async function getPhoneForUser(supabase: SupabaseClient, accountOwnerId: string): Promise<string | null> {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('whatsapp')
+    .eq('id', accountOwnerId)
+    .single()
+  let phone = (profile?.whatsapp ?? '').trim().replace(/\D/g, '')
+  if (phone.length >= 10) {
+    return phone.startsWith('55') ? phone : `55${phone}`
+  }
+  const { data: session } = await supabase
+    .from('whatsapp_sessions')
+    .select('phone_number')
+    .eq('user_id', accountOwnerId)
+    .not('phone_number', 'is', null)
+    .limit(1)
+    .maybeSingle()
+  phone = (session?.phone_number ?? '').trim().replace(/\D/g, '')
+  if (phone.length >= 10) {
+    return phone.startsWith('55') ? phone : `55${phone}`
+  }
+  return null
+}
+
+/** Mensagens por tipo de evento. */
+function buildMessage(eventType: string, payload?: { total?: number; categoria?: string; categoriaLabel?: string }): string {
+  switch (eventType) {
+    case EVENT_10MIN:
+      return `💡 Estava analisando seu primeiro registro.
+
+Se continuar registrando seus gastos comigo, posso mostrar exatamente para onde seu dinheiro está indo.`
+    case EVENT_1H:
+      return `Uma curiosidade 👀
+
+A maioria das pessoas não lembra onde gastou parte do dinheiro no final do mês.
+
+Registrando seus gastos aqui comigo você sempre vai saber.`
+    case EVENT_24H:
+      return `💙 Ontem você começou a organizar seus gastos comigo.
+
+Que tal registrar mais alguns hoje?
+
+Mesmo pequenos valores ajudam a entender seus hábitos.`
+    case EVENT_10_REGISTROS: {
+      const total = payload?.total ?? 0
+      const cat = payload?.categoriaLabel ?? payload?.categoria ?? 'diversos'
+      const totalStr = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })
+      return `📊 Já registrei alguns gastos seus.
+
+Até agora você gastou ${totalStr} em ${cat}.
+
+Continuando assim posso gerar relatórios completos para você.`
+    }
+    case EVENT_20_REGISTROS:
+      return `💙 Você já registrou vários gastos comigo.
+
+Isso já é mais organização financeira do que a maioria das pessoas faz.`
+    default:
+      if (eventType.startsWith(EVENT_CATEGORIA_PREFIX)) {
+        const cat = payload?.categoriaLabel ?? payload?.categoria ?? 'isso'
+        return `💡 Notei que você usa bastante ${cat}.
+
+Depois de alguns dias consigo te mostrar quanto está gastando com isso.`
+      }
+      return ''
+  }
+}
+
+/** Categorias que geram mensagem dinâmica (chave normalizada -> label para a mensagem). */
+const CATEGORIA_LABELS: Record<string, string> = {
+  uber: 'Uber',
+  transporte: 'transporte',
+  mercado: 'mercado',
+  supermercado: 'supermercado',
+  alimentação: 'alimentação',
+  alimentacao: 'alimentação',
+  outros: 'diversos',
+}
+
+/** Prioridade dos eventos (primeiro que se aplicar ganha). */
+const EVENT_PRIORITY = [EVENT_10MIN, EVENT_1H, EVENT_24H, EVENT_10_REGISTROS, EVENT_20_REGISTROS] as const
+
+export type EligibleSmartMessage = {
+  userId: string
+  eventType: string
+  payload?: { total?: number; categoria?: string; categoriaLabel?: string }
+}
+
+/**
+ * Retorna usuários elegíveis para exatamente uma mensagem inteligente cada (prioridade: 10min > 1h > 24h > 10_reg > 20_reg > categoria).
+ * Respeita intervalo mínimo entre mensagens.
+ */
+export async function getEligibleUsers(supabase: SupabaseClient): Promise<EligibleSmartMessage[]> {
+  const now = new Date()
+  const nowMs = now.getTime()
+
+  const { data: activities } = await supabase
+    .from('plen_user_activity')
+    .select('account_owner_id, last_message_at')
+  if (!activities?.length) return []
+
+  const { data: sentRows } = await supabase
+    .from('plen_smart_messages_sent')
+    .select('user_id, event_type, sent_at')
+  const lastSentByUser = new Map<string, number>()
+  const sentTypesByUser = new Map<string, Set<string>>()
+  for (const r of sentRows ?? []) {
+    const t = new Date(r.sent_at).getTime()
+    if (!lastSentByUser.has(r.user_id) || t > lastSentByUser.get(r.user_id)!) {
+      lastSentByUser.set(r.user_id, t)
+    }
+    if (!sentTypesByUser.has(r.user_id)) sentTypesByUser.set(r.user_id, new Set())
+    sentTypesByUser.get(r.user_id)!.add(r.event_type)
+  }
+
+  const ownerIds = [...new Set(activities.map((a) => a.account_owner_id))]
+  const { data: users } = await supabase.from('users').select('id, account_owner_id').in('account_owner_id', ownerIds)
+  const userToOwner = new Map<string, string>()
+  for (const u of users ?? []) {
+    userToOwner.set(u.id, u.account_owner_id)
+  }
+
+  const { data: registros } = await supabase
+    .from('registros')
+    .select('user_id, valor, categoria, tipo')
+    .eq('tipo', 'saida')
+  const countByOwner = new Map<string, number>()
+  const totalByOwner = new Map<string, number>()
+  const categoriasByOwner = new Map<string, Map<string, number>>()
+  for (const r of registros ?? []) {
+    const owner = userToOwner.get(r.user_id)
+    if (!owner) continue
+    countByOwner.set(owner, (countByOwner.get(owner) ?? 0) + 1)
+    totalByOwner.set(owner, (totalByOwner.get(owner) ?? 0) + Number(r.valor))
+    const cat = (r.categoria ?? 'outros').trim().toLowerCase().replace(/\s+/g, '_')
+    if (!categoriasByOwner.has(owner)) categoriasByOwner.set(owner, new Map())
+    const m = categoriasByOwner.get(owner)!
+    m.set(cat, (m.get(cat) ?? 0) + 1)
+  }
+
+  const result: EligibleSmartMessage[] = []
+  for (const act of activities) {
+    const userId = act.account_owner_id
+    const lastMsg = new Date(act.last_message_at).getTime()
+    const lastSent = lastSentByUser.get(userId) ?? 0
+    if (nowMs - lastSent < MIN_INTERVAL_SMART_MS_MS) continue
+    const sent = sentTypesByUser.get(userId) ?? new Set()
+    const count = countByOwner.get(userId) ?? 0
+    const total = totalByOwner.get(userId) ?? 0
+    const topCat = categoriasByOwner.get(userId)
+      ? [...categoriasByOwner.get(userId)!.entries()].sort((a, b) => b[1] - a[1])[0]
+      : null
+
+    const min10 = 10 * 60 * 1000
+    const min60 = 60 * 60 * 1000
+    const min24h = 24 * 60 * 60 * 1000
+    const elapsed = nowMs - lastMsg
+
+    let chosen: { eventType: string; payload?: EligibleSmartMessage['payload'] } | null = null
+    if (!sent.has(EVENT_10MIN) && count >= 1 && elapsed >= min10 && elapsed <= min10 + 15 * 60 * 1000) {
+      chosen = { eventType: EVENT_10MIN }
+    } else if (!sent.has(EVENT_1H) && elapsed >= min60 && elapsed <= min60 + 20 * 60 * 1000) {
+      chosen = { eventType: EVENT_1H }
+    } else if (!sent.has(EVENT_24H) && elapsed >= min24h && elapsed <= min24h + 45 * 60 * 1000) {
+      chosen = { eventType: EVENT_24H }
+    } else if (!sent.has(EVENT_10_REGISTROS) && count >= 10) {
+      const catName = topCat?.[0] ? (CATEGORIA_LABELS[topCat[0]] ?? topCat[0]) : 'diversos'
+      chosen = { eventType: EVENT_10_REGISTROS, payload: { total, categoria: topCat?.[0], categoriaLabel: catName } }
+    } else if (!sent.has(EVENT_20_REGISTROS) && count >= 20) {
+      chosen = { eventType: EVENT_20_REGISTROS }
+    } else if (topCat && topCat[1] >= 3) {
+      const catKey = EVENT_CATEGORIA_PREFIX + topCat[0]
+      if (!sent.has(catKey)) {
+        const label = CATEGORIA_LABELS[topCat[0]] ?? topCat[0]
+        chosen = { eventType: catKey, payload: { categoria: topCat[0], categoriaLabel: label } }
+      }
+    }
+    if (chosen) {
+      result.push({ userId, eventType: chosen.eventType, payload: chosen.payload })
+    }
+  }
+  return result
+}
+
+/** Marca mensagem inteligente como enviada. */
+export async function recordSmartMessageSent(
+  supabase: SupabaseClient,
+  userId: string,
+  eventType: string,
+  payload?: Record<string, unknown>
+): Promise<void> {
+  await supabase.from('plen_smart_messages_sent').upsert(
+    { user_id: userId, event_type: eventType, sent_at: new Date().toISOString(), payload: payload ?? null },
+    { onConflict: 'user_id,event_type' }
+  )
+}
+
+/** Monta o texto da mensagem e envia por WhatsApp; registra envio. Delay aleatório 1–4s antes (opcional). */
+export async function sendSmartMessage(
+  supabase: SupabaseClient,
+  userId: string,
+  eventType: string,
+  payload?: { total?: number; categoria?: string; categoriaLabel?: string }
+): Promise<{ success: boolean; error?: string }> {
+  const phone = await getPhoneForUser(supabase, userId)
+  if (!phone) {
+    return { success: false, error: 'Telefone não encontrado' }
+  }
+  const text = buildMessage(eventType, payload)
+  if (!text) {
+    return { success: false, error: 'Mensagem vazia' }
+  }
+  const delayMs = 1000 + Math.random() * 3000
+  await new Promise((r) => setTimeout(r, delayMs))
+  const result = await sendTextMessage(phone, text)
+  if (result.success) {
+    await recordSmartMessageSent(supabase, userId, eventType, payload as Record<string, unknown>)
+  }
+  return { success: result.success ?? false, error: result.error }
+}
+
+/** Exportar buildMessage para testes. */
+export { buildMessage as _buildMessage }

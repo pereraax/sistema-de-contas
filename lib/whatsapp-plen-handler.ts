@@ -1482,6 +1482,13 @@ async function authenticateWhatsAppUser(
  */
 async function processWithPLEN(userId: string, text: string, imageBase64?: string, contactNameWhatsApp?: string) {
   try {
+    try {
+      const { createAdminClient } = await import('@/lib/supabase/server')
+      const { updateLastActivity } = await import('@/lib/plen-smart-messages')
+      const supabase = createAdminClient()
+      if (supabase) await updateLastActivity(supabase, userId).catch(() => {})
+    } catch (_) {}
+
     const { addLog } = await import('@/lib/server-logs')
 
     // Verificar desativação antes de processar
