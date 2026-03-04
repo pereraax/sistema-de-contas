@@ -1,22 +1,92 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase/server'
+import { sendTextMessage } from '@/lib/whatsapp-zapi'
 
 export const dynamic = 'force-dynamic'
+
+/** HTML que faz exchangeCodeForSession no cliente (fallback quando cookies() falha no servidor). */
+function buildClientSideExchangeHtml(
+  code: string,
+  productionUrl: string,
+  nextPath: string,
+  platformApp: boolean,
+  supabaseUrl: string,
+  supabaseAnonKey: string
+): NextResponse {
+  const fallbackSuffix = platformApp ? '?platform=app' : ''
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Entrando - PleniPay</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#00C2FF,#0099CC);font-family:sans-serif;">
+<div style="background:#fff;padding:2rem;border-radius:16px;text-align:center;max-width:380px;">
+<p style="margin:0 0 1rem;">Entrando na plataforma...</p>
+<script>
+(function(){
+  var supabaseUrl = ${JSON.stringify(supabaseUrl)};
+  var supabaseKey = ${JSON.stringify(supabaseAnonKey)};
+  var code = ${JSON.stringify(code)};
+  var nextPath = ${JSON.stringify(nextPath)};
+  var fallbackSuffix = ${JSON.stringify(fallbackSuffix)};
+  var base = ${JSON.stringify(productionUrl)};
+  if (!supabaseUrl || !supabaseKey || !code) { window.location.replace(base + '/login?error=Configuração inválida'); return; }
+  var supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+  supabase.auth.exchangeCodeForSession(code).then(function(r) {
+    if (r.error) { window.location.replace(base + '/login?error=' + encodeURIComponent(r.error.message)); return; }
+    window.location.replace(base + nextPath + fallbackSuffix);
+  }).catch(function(e) { window.location.replace(base + '/login?error=' + encodeURIComponent(e.message)); });
+})();
+</script>
+</div>
+</body>
+</html>`
+  return new NextResponse(html, {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+  })
+}
 
 /**
  * PARTE 2: Callback Route Simples
  * Processa link de confirmação de email e faz login automático
  */
 export async function GET(request: NextRequest) {
-  // URL base: mesma origem da requisição (localhost em dev, plenipay.com em prod)
+  try {
+    return await handleCallback(request)
+  } catch (err) {
+    console.error('❌ [Callback] Erro não tratado:', err)
+    return NextResponse.json(
+      { code: 500, error_code: 'auth_callback_error', msg: 'Erro ao processar login. Tente novamente.' },
+      { status: 500 }
+    )
+  }
+}
+
+async function handleCallback(request: NextRequest): Promise<NextResponse> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('❌ [Callback] NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY não configuradas')
+    return NextResponse.json(
+      { code: 503, error_code: 'config_missing', msg: 'Autenticação não configurada. Configure as variáveis do Supabase.' },
+      { status: 503 }
+    )
+  }
+
+  // URL base: SEMPRE a origem da requisição (localhost em dev, plenipay.com em prod). Em localhost NUNCA usar plenipay.com.
   const hostHeader = request.headers.get('host') || ''
-  const isHttps = request.headers.get('x-forwarded-proto') === 'https' || hostHeader.includes('plenipay.com')
+  const isLocalhost = hostHeader.includes('localhost') || hostHeader.startsWith('127.0.0.1')
+  const isHttps = request.headers.get('x-forwarded-proto') === 'https' || (hostHeader.includes('plenipay.com') && !isLocalhost)
   const siteUrl = isHttps ? `https://${hostHeader}` : `http://${hostHeader}`
   const productionUrl = siteUrl.replace(/\/$/, '') // sem barra no final
-  
+  if (isLocalhost) console.log('🔧 [Callback] Localhost detectado - redirect será para', productionUrl)
+
   const isCorrectDomain = hostHeader === 'plenipay.com' || hostHeader === 'www.plenipay.com' || hostHeader.includes('plenipay.com')
-  
+  // Em localhost (http) cookies com secure: true não são gravados — sessão se perde e usuário cai na welcome
+  const isSecureOrigin = isCorrectDomain || request.headers.get('x-forwarded-proto') === 'https'
+
   console.log('🔍 [Callback] ========== CALLBACK INICIADO ==========')
   console.log('🔍 [Callback] Host Header (real):', hostHeader)
   console.log('🔍 [Callback] É domínio correto?', isCorrectDomain)
@@ -283,8 +353,22 @@ export async function GET(request: NextRequest) {
   }
   
   // Cookie store (usado para persistir sessão Supabase e evitar loops)
-  const cookieStore = await cookies()
-  
+  // Em alguns hosts (preview, Edge) cookies() pode lançar — nesse caso fazemos exchange no cliente
+  let cookieStore: Awaited<ReturnType<typeof cookies>>
+  try {
+    cookieStore = await cookies()
+  } catch (cookieErr) {
+    console.warn('⚠️ [Callback] cookies() falhou, usando fallback no cliente:', cookieErr)
+    return buildClientSideExchangeHtml(
+      code!,
+      productionUrl,
+      request.nextUrl.searchParams.get('next') || '/home',
+      request.nextUrl.searchParams.get('platform') === 'app',
+      supabaseUrl,
+      supabaseAnonKey
+    )
+  }
+
   // CRÍTICO: Se estamos no domínio correto, IGNORAR completamente 0.0.0.0 na URL base
   // Isso é normal - o servidor roda em 0.0.0.0:3000 mas o usuário acessa plenipay.com
   if (isCorrectDomain) {
@@ -292,177 +376,17 @@ export async function GET(request: NextRequest) {
   }
 
   /**
-   * SUPABASE (fluxo novo): links de confirmação podem vir como:
-   *   /auth/callback?code=...&next=/home
-   *
-   * Nesse caso, precisamos trocar `code` por uma sessão via exchangeCodeForSession.
-   * Se não fizermos isso, o usuário não autentica e pode cair em loops (home/login/callback).
+   * OAuth com Google/Apple: ?code=... (PKCE).
+   * O code_verifier fica no navegador que iniciou o login; por isso o exchange SEMPRE fazemos no cliente.
+   * Assim evitamos "invalid request: both auth code and code_verifier" e redirect para /login.
    */
   if (code) {
-    console.log('🔑 [Callback] code detectado - trocando por sessão...')
-
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
-            } catch {
-              // ignore (server component limitation)
-            }
-          },
-        },
-      }
-    )
-
+    console.log('🔑 [Callback] code detectado - trocando por sessão no cliente (PKCE)')
     const nextPath = request.nextUrl.searchParams.get('next') || '/home'
     const platformApp = request.nextUrl.searchParams.get('platform') === 'app'
-    const redirectPath = nextPath.startsWith('/') ? nextPath : `/${nextPath}`
-    const redirectUrl = new URL(redirectPath, productionUrl)
-    if (platformApp) redirectUrl.searchParams.set('platform', 'app')
-
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-
-    if (error) {
-      console.error('❌ [Callback] exchangeCodeForSession no servidor falhou:', error.message, '- tentando no cliente')
-      // Fallback: retornar HTML que troca o code no cliente e redireciona para /home (evita cair em /login por cookie/SSR)
-      const nextPath = request.nextUrl.searchParams.get('next') || '/home'
-      const platformApp = request.nextUrl.searchParams.get('platform') === 'app'
-      const fallbackHtml = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head><meta charset="utf-8"><title>Entrando - PleniPay</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
-<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#00C2FF,#0099CC);font-family:sans-serif;">
-<div style="background:#fff;padding:2rem;border-radius:16px;text-align:center;max-width:380px;">
-<p style="margin:0 0 1rem;">Entrando na plataforma...</p>
-<script>
-(function(){
-  var supabaseUrl = ${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL || '')};
-  var supabaseKey = ${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '')};
-  var code = ${JSON.stringify(code)};
-  var nextPath = ${JSON.stringify(nextPath)};
-  var fallbackSuffix = ${JSON.stringify(platformApp ? '?platform=app' : '')};
-  var base = ${JSON.stringify(productionUrl)};
-  if (!supabaseUrl || !supabaseKey || !code) { window.location.replace(base + '/login?error=Configuração inválida'); return; }
-  var supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
-  supabase.auth.exchangeCodeForSession(code).then(function(r) {
-    if (r.error) { window.location.replace(base + '/login?error=' + encodeURIComponent(r.error.message)); return; }
-    window.location.replace(base + nextPath + fallbackSuffix);
-  }).catch(function(e) { window.location.replace(base + '/login?error=' + encodeURIComponent(e.message)); });
-})();
-</script>
-</div>
-</body>
-</html>`
-      return new NextResponse(fallbackHtml, {
-        status: 200,
-        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
-      })
-    }
-
-    // Redirecionar para /home (dashboard) — delay curto para cookies persistirem, depois vai direto à plataforma
-    console.log('✅ [Callback] Sessão criada via code - redirecionando para', redirectPath)
-    const finalRedirectUrl = redirectUrl.toString()
-    const html = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#00C2FF">
-  <title>Entrando na plataforma - PleniPay</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      min-height: 100vh;
-      min-height: 100dvh;
-      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-      background: linear-gradient(135deg, #00C2FF 0%, #0099CC 50%, #007A99 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1.5rem;
-      color: #0D1B2A;
-    }
-    .card {
-      background: #fff;
-      border-radius: 20px;
-      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.2);
-      padding: 2.5rem 2rem;
-      max-width: 420px;
-      width: 100%;
-      text-align: center;
-    }
-    .spinner {
-      width: 56px;
-      height: 56px;
-      margin: 0 auto 1.5rem;
-      border: 4px solid #E5E7EB;
-      border-top-color: #00C2FF;
-      border-radius: 50%;
-      animation: spin 0.9s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    h1 { font-size: 1.35rem; font-weight: 700; color: #0D1B2A; margin-bottom: 0.5rem; }
-    .sub { font-size: 0.9375rem; color: #6B7280; margin-bottom: 1.75rem; line-height: 1.5; }
-    .link { display: inline-block; font-size: 0.875rem; font-weight: 500; color: #00C2FF; text-decoration: none; padding: 0.5rem 0; }
-    .link:hover { text-decoration: underline; }
-  </style>
-  <script>
-    (function() {
-      var url = ${JSON.stringify(finalRedirectUrl)};
-      var delay = 600;
-      setTimeout(function() { window.location.replace(url); }, delay);
-    })();
-  </script>
-</head>
-<body>
-  <div class="card">
-    <div class="spinner" aria-hidden="true"></div>
-    <h1>Entrando na plataforma...</h1>
-    <p class="sub">Redirecionando para sua área logada.</p>
-    <a class="link" href="${finalRedirectUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">Clique aqui se não redirecionar</a>
-  </div>
-</body>
-</html>`
-    const response = new NextResponse(html, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        'Content-Disposition': 'inline',
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-        'Pragma': 'no-cache',
-      },
-    })
-    // Repassar os cookies que o Supabase setou no cookieStore para a resposta 200
-    // (No Safari/iPhone, cookies em redirect 303 podem não ser gravados; 200 + delay evita isso.)
-    const allCookies = cookieStore.getAll()
-    allCookies.forEach((c) => {
-      response.cookies.set(c.name, c.value, {
-        path: '/',
-        secure: true,
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7, // 7 dias para auth
-      })
-    })
-    response.cookies.set('callback_recently_processed', 'true', {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      maxAge: 10,
-      path: '/',
-    })
-    return response
+    return buildClientSideExchangeHtml(code, productionUrl, nextPath, platformApp, supabaseUrl, supabaseAnonKey)
   }
-  
+
   // CRÍTICO: Verificar se já estamos redirecionando para evitar loops
   // Se o referer já é /home ou /login, não processar novamente
   const referer = request.headers.get('referer')
@@ -591,16 +515,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(redirectUrl.toString(), { status: 307 })
   }
 
-  // Criar cliente Supabase (cookieStore já foi obtido acima)
-  // IMPORTANTE: Garantir que o Supabase client não use URLs erradas
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  if (!supabaseUrl || supabaseUrl.includes('0.0.0.0') || supabaseUrl.includes(':10000')) {
-    console.error('❌ [Callback] NEXT_PUBLIC_SUPABASE_URL contém URL inválida:', supabaseUrl)
+  // Criar cliente Supabase (cookieStore já foi obtido acima; supabaseUrl/supabaseAnonKey validados no início)
+  if (supabaseUrl.includes('0.0.0.0') || supabaseUrl.includes(':10000')) {
+    console.warn('⚠️ [Callback] NEXT_PUBLIC_SUPABASE_URL contém URL inválida:', supabaseUrl)
   }
-  
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -673,6 +595,22 @@ export async function GET(request: NextRequest) {
       console.log('👤 [Callback] Usuário:', data.user.id)
       console.log('📧 [Callback] Email:', data.user.email)
       console.log('🔑 [Callback] Sessão criada:', !!data.session)
+
+      // Notificar no WhatsApp quando o usuário confirmar o email (conta criada pelo assistente)
+      const admin = createAdminClient()
+      if (admin) {
+        admin
+          .from('whatsapp_sessions')
+          .select('phone_number')
+          .eq('user_id', data.user.id)
+          .maybeSingle()
+          .then(({ data: ws }) => {
+            if (ws?.phone_number) {
+              return sendTextMessage(ws.phone_number, 'Email confirmado, agora podemos continuar... 💙', { delayTyping: 1 })
+            }
+          })
+          .catch((err) => console.warn('⚠️ [Callback] WhatsApp pós-confirmação:', err?.message))
+      }
       
       // Se há sessão, fazer login automático e redirecionar
       if (data.session) {
@@ -715,26 +653,25 @@ export async function GET(request: NextRequest) {
           // Marcar que este token foi processado (expira em 5 minutos)
           response.cookies.set('callback_processed', token_hash, {
             httpOnly: true,
-            secure: true,
+            secure: isSecureOrigin,
             sameSite: 'lax',
             maxAge: 300, // 5 minutos
             path: '/'
           })
           // Marcar que o callback foi processado recentemente (expira em 10 segundos)
-          // Isso evita loops imediatos
           response.cookies.set('callback_recently_processed', 'true', {
             httpOnly: true,
-            secure: true,
+            secure: isSecureOrigin,
             sameSite: 'lax',
-            maxAge: 10, // 10 segundos apenas
+            maxAge: 10,
             path: '/'
           })
           // Marcar que o email foi confirmado (para mostrar mensagem na home)
           response.cookies.set('email_confirmed', 'true', {
-            httpOnly: false, // Precisa ser acessível no cliente
-            secure: true,
+            httpOnly: false,
+            secure: isSecureOrigin,
             sameSite: 'lax',
-            maxAge: 60, // 1 minuto (só para mostrar mensagem)
+            maxAge: 60,
             path: '/'
           })
         }

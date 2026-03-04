@@ -41,8 +41,10 @@ function LoginContent() {
   const [oauthError, setOauthError] = useState<string | null>(null)
   type LoginStep = 'email' | 'password' | 'first_access'
   const [loginStep, setLoginStep] = useState<LoginStep>('email')
-  const [enviandoLinkSenha, setEnviandoLinkSenha] = useState(false)
-  const [linkSenhaEnviado, setLinkSenhaEnviado] = useState(false)
+  const [mostrarFormCriarSenha, setMostrarFormCriarSenha] = useState(false)
+  const [senhaNova, setSenhaNova] = useState('')
+  const [senhaConfirmar, setSenhaConfirmar] = useState('')
+  const [salvandoSenha, setSalvandoSenha] = useState(false)
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const el = sectionRef.current
@@ -215,27 +217,58 @@ function LoginContent() {
     }
   }
 
-  const handleCriarSenha = async () => {
+  const handleCriarSenha = () => {
+    setErrorMessage(null)
+    setMostrarFormCriarSenha(true)
+    setSenhaNova('')
+    setSenhaConfirmar('')
+  }
+
+  const handleSubmitCriarSenha = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setErrorMessage(null)
+    if (senhaNova.length < 6) {
+      setErrorMessage('A senha deve ter no mínimo 6 caracteres.')
+      createNotification('A senha deve ter no mínimo 6 caracteres.', 'warning')
+      return
+    }
+    if (senhaNova !== senhaConfirmar) {
+      setErrorMessage('As senhas não coincidem.')
+      createNotification('As senhas não coincidem.', 'warning')
+      return
+    }
     const email = formData.email.trim()
     if (!email || !email.includes('@')) return
-    setEnviandoLinkSenha(true)
-    setErrorMessage(null)
+    setSalvandoSenha(true)
     try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/redefinir-senha`,
+      const res = await fetch('/api/auth/definir-senha-primeiro-acesso', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, senha: senhaNova }),
       })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error || 'Não foi possível definir a senha.')
+        createNotification(data.error || 'Tente novamente.', 'warning')
+        setSalvandoSenha(false)
+        return
+      }
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithPassword({ email, password: senhaNova })
       if (error) {
-        setErrorMessage(error.message || 'Erro ao enviar link.')
-        createNotification('Não foi possível enviar o link. Tente novamente.', 'warning')
+        setErrorMessage('Senha criada! Faça login com sua nova senha.')
+        setMostrarFormCriarSenha(false)
+        setLoginStep('password')
+        setFormData(prev => ({ ...prev, senha: senhaNova }))
+        createNotification('Senha criada! Insira-a abaixo e clique em Entrar.', 'success')
       } else {
-        setLinkSenhaEnviado(true)
-        createNotification('Link enviado! Verifique seu email.', 'success')
+        setShowModalLoginConcluido(true)
       }
     } catch {
-      setErrorMessage('Erro ao enviar link. Tente novamente.')
+      setErrorMessage('Erro ao definir senha. Tente novamente.')
+      createNotification('Erro ao definir senha. Tente novamente.', 'warning')
     } finally {
-      setEnviandoLinkSenha(false)
+      setSalvandoSenha(false)
     }
   }
 
@@ -590,24 +623,67 @@ function LoginContent() {
                   <p className="text-xs text-red-600 dark:text-red-300 font-medium">{errorMessage}</p>
                 </div>
               )}
-              {linkSenhaEnviado ? (
-                <>
+              {mostrarFormCriarSenha ? (
+                <form onSubmit={handleSubmitCriarSenha} className="space-y-3">
                   <p className="text-sm text-gray-700 dark:text-gray-300">
-                    Enviamos um link para <strong>{formData.email}</strong>. Clique no link para criar sua senha e depois faça login normalmente.
+                    Defina uma senha para acessar sua conta.
                   </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    E-mail: <strong>{formData.email}</strong>
+                  </p>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Nova senha *</label>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={senhaNova}
+                      onChange={(e) => setSenhaNova(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-base text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-[#1e4976] dark:focus:border-brand-aqua pr-10"
+                      placeholder="Mínimo 6 caracteres"
+                      style={{ fontSize: '16px' }}
+                      minLength={6}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar senha *</label>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={senhaConfirmar}
+                      onChange={(e) => setSenhaConfirmar(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-base text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-[#1e4976] dark:focus:border-brand-aqua"
+                      placeholder="Repita a senha"
+                      style={{ fontSize: '16px' }}
+                      minLength={6}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={salvandoSenha}
+                    className="w-full px-4 py-3 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-xl text-sm font-semibold transition-all duration-300 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {salvandoSenha ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="animate-spin" size={18} />
+                        Salvando...
+                      </span>
+                    ) : (
+                      'Definir senha e entrar'
+                    )}
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
-                      setLoginStep('email')
-                      setLinkSenhaEnviado(false)
-                      setFormData(prev => ({ ...prev, senha: '' }))
+                      setMostrarFormCriarSenha(false)
+                      setSenhaNova('')
+                      setSenhaConfirmar('')
                       setErrorMessage(null)
                     }}
-                    className="text-sm text-[#1e4976] dark:text-brand-aqua hover:text-[#163a5f] dark:hover:text-brand-aqua/80 font-medium"
+                    className="text-sm text-gray-500 dark:text-gray-400 hover:text-[#1e4976] dark:hover:text-brand-aqua"
                   >
-                    Usar outro e-mail
+                    Voltar
                   </button>
-                </>
+                </form>
               ) : (
                 <>
                   <p className="text-sm text-gray-700 dark:text-gray-300">
@@ -619,17 +695,9 @@ function LoginContent() {
                   <button
                     type="button"
                     onClick={handleCriarSenha}
-                    disabled={enviandoLinkSenha}
                     className="w-full px-4 py-3 bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] hover:from-[#1e4976] hover:via-[#163a5f] hover:to-[#0f2847] text-white rounded-xl text-sm font-semibold transition-all duration-300 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {enviandoLinkSenha ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <Loader2 className="animate-spin" size={18} />
-                        Enviando...
-                      </span>
-                    ) : (
-                      'Criar senha'
-                    )}
+                    Criar senha
                   </button>
                   <button
                     type="button"
