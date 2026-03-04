@@ -769,12 +769,23 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       }
     }
     
-    // Autenticado mas assistente não ativado: pedir "Assistente PLEN"
+    // Autenticado mas assistente não ativado: se a mensagem parece comando de gasto/receita, ativar PLEN e processar
     if (!isActivated) {
-      console.log('⚠️ [WhatsApp PLEN] Assistente não está ativado (usuário autenticado) - enviando instrução')
-      return {
-        success: true,
-        message: '👋 Você já está autenticado! Para usar o assistente financeiro, envie:\n\n**Assistente PLEN**\n\nAssim você poderá registrar gastos, consultar saldo e muito mais!',
+      const t = text.trim()
+      const looksLikeGastoReceita =
+        /^(gastei|recebi|paguei|extra|entrada|salário|salario)\s+/i.test(t) ||
+        /^(gastei|recebi|paguei)\s+\d+/i.test(t) ||
+        /\d+\s*(reais?|r\$|rs)?\s*(com|em|de|para)?/i.test(t)
+      if (looksLikeGastoReceita) {
+        console.log('✅ [WhatsApp PLEN] Mensagem parece gasto/receita; ativando PLEN e processando para usuário já autenticado')
+        await activatePlen(phoneNumber)
+        // continua para processar com PLEN abaixo
+      } else {
+        console.log('⚠️ [WhatsApp PLEN] Assistente não está ativado (usuário autenticado) - enviando instrução')
+        return {
+          success: true,
+          message: '👋 Você já está autenticado! Para usar o assistente financeiro, envie:\n\n**Assistente PLEN**\n\nAssim você poderá registrar gastos, consultar saldo e muito mais!',
+        }
       }
     }
 

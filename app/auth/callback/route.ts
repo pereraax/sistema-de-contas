@@ -184,7 +184,16 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
         const { data, error } = await supabaseClient.auth.verifyOtp({ type: t, token_hash: tokenHash });
         if (!error && data?.session) {
           console.log('✅ Sessão criada via verifyOtp');
-          window.location.replace(productionUrl + nextPath);
+          try {
+            await fetch(window.location.origin + '/api/auth/on-email-confirmed', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ access_token: data.session.access_token, refresh_token: data.session.refresh_token || '' })
+            });
+          } catch (e) { console.warn('Notify WhatsApp:', e); }
+          var loginPath = nextPath === '/login' ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : nextPath;
+          window.location.replace(productionUrl + loginPath);
           return;
         }
       }
@@ -294,8 +303,17 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
           
           if (data.session) {
             console.log('✅ [Callback Client] Sessão criada via code!');
+            try {
+              await fetch(window.location.origin + '/api/auth/on-email-confirmed', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ access_token: data.session.access_token, refresh_token: data.session.refresh_token || '' })
+              });
+            } catch (e) { console.warn('Notify WhatsApp:', e); }
             const next = urlParams.get('next') || '/home';
-            window.location.replace(productionUrl + next);
+            const loginPath = (next === '/login' || next === 'login') ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : next;
+            window.location.replace(productionUrl + loginPath);
             return;
           }
         } catch (error) {
@@ -606,7 +624,11 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
             .eq('user_id', data.user.id)
             .maybeSingle()
           if (ws?.phone_number) {
-            await sendTextMessage(ws.phone_number, 'Email confirmado, agora podemos continuar... 💙', { delayTyping: 1 })
+            await sendTextMessage(
+              ws.phone_number,
+              'Email confirmado! ✅ Agora você já pode me pedir para registrar seus gastos e receitas. Por exemplo: "gastei 200 com roupas", "recebi 1500 salário", "extra de 300".',
+              { delayTyping: 1 }
+            )
             console.log('✅ [Callback] WhatsApp pós-confirmação enviado para', ws.phone_number)
           }
         } catch (err: any) {
@@ -614,21 +636,20 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
         }
       }
       
-      // Se há sessão, fazer login automático e redirecionar
+      // Se há sessão, redirecionar (para /login ou /home conforme link do email)
       if (data.session) {
-        console.log('✅ [Callback] Sessão criada - redirecionando para home')
+        const isLoginPage = next === 'login' || next === '/login'
+        console.log('✅ [Callback] Sessão criada - redirecionando para', isLoginPage ? 'login' : next)
         console.log(`🔍 [Callback] productionUrl: ${productionUrl}`)
         console.log(`🔍 [Callback] next: ${next}`)
         
-        // GARANTIR que sempre usa productionUrl (não requestUrl.origin que pode ser 0.0.0.0:10000)
-        // IMPORTANTE: Usar URL absoluta completa para evitar que Next.js use URL base errada
-        // EVITAR parâmetros de query para prevenir loops de redirecionamento
         let redirectPath = next.startsWith('/') ? next : `/${next}`
-        
-        // Construir URL absoluta SEM parâmetros de query para evitar loops
         const redirectUrl = new URL(redirectPath, productionUrl)
+        if (isLoginPage) {
+          redirectUrl.searchParams.set('emailConfirmed', 'true')
+          redirectUrl.searchParams.set('mensagem', 'Email confirmado! Faça login para continuar.')
+        }
         
-        // FORÇAR URL absoluta completa (não relativa)
         let finalUrl = redirectUrl.toString()
         console.log(`🔍 [Callback] URL final de redirecionamento: ${finalUrl}`)
         
