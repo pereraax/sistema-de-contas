@@ -560,46 +560,21 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return
     }
 
-    // "Olá! Quero utilizar a Plenipay" + contato SEM cadastro → sempre enviar modo teste (nunca as 3 mensagens antigas).
+    // "Olá! Quero utilizar a Plenipay" + contato SEM cadastro → sempre responder com "Oiii" + intro (permite testar desde o início sempre).
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured() && !temCadastro) {
-      if (!jaRecebeuTestIntro) {
-        const delayAntesMs = Math.floor(Math.random() * 5001)
-        console.log('🧪 [Z-API Webhook] "Quero utilizar Plenipay" sem cadastro — enviando modo teste (intro) para', phone)
-        await delay(delayAntesMs)
-        const msgIntro = getMensagemInicialModoTeste(contactName)
-        const sent = await sendTextMessage(phone, msgIntro, { delayTyping: 1 })
-        if (sent.success) {
-          await markTestIntroSent(phone).catch(() => {})
-          markResponded(phone, text ?? '')
-          registerSentMessage(phone, '[modo teste] intro (sem cadastro)')
-          console.log('✅ [Z-API Webhook] Modo teste enviado para contato sem cadastro:', phone)
-        } else {
-          await enviarFallbackContatoNovo()
-        }
-        return
-      }
-      const gasto = parseGastoSimples(text ?? '')
-      if (gasto) {
-        console.log('🧪 [Z-API Webhook] Modo teste (sem cadastro) — gasto registrado:', gasto.valor, gasto.categoria, 'para', phone)
-        const msgRegistro = getMsgGastoRegistradoModoTeste(gasto.categoria, gasto.valor)
-        await sendTextMessage(phone, msgRegistro, { delayTyping: 1 }).catch(() => {})
-        await delay(800)
-        await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
-        await delay(800)
-        await setSignupStepNome(phone)
-        await sendTextMessage(phone, 'Qual seu nome?', { delayTyping: 1 }).catch(() => {})
-        await markWelcomeSent(phone).catch(() => {})
+      const delayAntesMs = Math.floor(Math.random() * 5001)
+      console.log('🧪 [Z-API Webhook] "Quero utilizar Plenipay" sem cadastro — enviando oi + modo teste (intro) para', phone)
+      await delay(delayAntesMs)
+      const msgIntro = getMensagemInicialModoTeste(contactName)
+      const sent = await sendTextMessage(phone, msgIntro, { delayTyping: 1 })
+      if (sent.success) {
+        await markTestIntroSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
-        markWelcomeJustSent(phone)
-        console.log('✅ [Z-API Webhook] Modo teste concluído (sem cadastro) — solicitando nome:', phone)
-        return
+        registerSentMessage(phone, '[modo teste] intro (sem cadastro)')
+        console.log('✅ [Z-API Webhook] Modo teste enviado para contato sem cadastro:', phone)
+      } else {
+        await enviarFallbackContatoNovo()
       }
-      await sendTextMessage(
-        phone,
-        'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber',
-        { delayTyping: 1 }
-      ).catch(() => {})
-      markResponded(phone, text ?? '')
       return
     }
 
