@@ -24,9 +24,9 @@ export async function POST(request: NextRequest) {
 
     console.log('📧 [Reenvio] Iniciando reenvio de link para:', email)
 
-    // Descobrir a URL base correta (localhost ou produção)
-    const { getSiteUrl } = await import('@/lib/auth')
-    const siteUrl = await getSiteUrl()
+    // Link de confirmação sempre com domínio oficial (plenipay.com)
+    const { getSiteUrlForEmailRedirect } = await import('@/lib/auth')
+    const siteUrl = await getSiteUrlForEmailRedirect()
     const redirectTo = `${siteUrl}/auth/callback?next=/home`
 
     const { createClient } = await import('@/lib/supabase/server')

@@ -1238,13 +1238,17 @@ export async function processPlenWhatsAppMessage(
     // CONSULTAR / RELATÓRIOS: reconhece as frases da mensagem de boas-vindas do PLEN
     const isRelatorio =
       /\b(relat[oó]rio|resumo|finan[cç]as|como estão)\b/.test(t) ||
-      /me\s+mostr(e|ar)|mostre\s+meu|quero\s+ver\s+meu/.test(t)
+      /me\s+mostr(e|ar)|mostre\s+meu|quero\s+ver\s+meu|ver\s+meu|mostra\s+meu|me\s+mostra/.test(t)
     const isGastosSemana =
-      /\b(gastos?\s+(dessa|esta|na)\s+semana|gastei\s+na\s+semana|quanto\s+gastei\s+na\s+semana|qual\s+foi\s+meus?\s+gastos?\s+essa\s+semana)\b/.test(t)
+      /\b(gastos?\s+(dessa|esta|na)\s+semana|gastei\s+na\s+semana|quanto\s+gastei\s+na\s+semana|qual\s+foi\s+meus?\s+gastos?\s+essa\s+semana)\b/.test(t) ||
+      /(gastos?|gastei|quanto)\s+.*\s+semana|semana\s+.*\s+gastos?/i.test(t)
     const isGastosMes =
-      /\b(gastos?\s+(do\s+)?m[eê]s|gastei\s+no\s+m[eê]s|quanto\s+gastei\s+no\s+m[eê]s)\b/.test(t)
-    const isDividas = /\b(d[ií]vidas?|quais\s+s[aã]o\s+minhas?\s+d[ií]vidas?)\b/.test(t)
-    const isSaldo = /\b(saldo|quanto\s+tenho\s+de\s+saldo)\b/.test(t)
+      /\b(gastos?\s+(do\s+)?m[eê]s|gastei\s+no\s+m[eê]s|quanto\s+gastei\s+no\s+m[eê]s)\b/.test(t) ||
+      /(gastos?|gastei|quanto)\s+.*\s+m[eê]s|m[eê]s\s+.*\s+gastos?/i.test(t)
+    const isDividas = /\b(d[ií]vidas?|quais\s+s[aã]o\s+minhas?\s+d[ií]vidas?)\b/.test(t) ||
+      /pend[eê]ncias?|devo|quanto\s+devo/i.test(t)
+    const isSaldo = /\b(saldo|quanto\s+tenho\s+de\s+saldo)\b/.test(t) ||
+      /(em\s+)?saldo|meu\s+saldo|ver\s+saldo|quero\s+ver\s+(meu\s+)?saldo|saldo\s+atual|quanto\s+tenho|meu\s+balan[cç]o|\d+\s*\$?\s*em\s+saldo/i.test(t)
     const isRecebiMes = /\b(recebi\s+(este|no)\s+m[eê]s|quanto\s+recebi\s+este\s+m[eê]s)\b/.test(t)
 
     if (isRelatorio || isGastosSemana || isGastosMes || isDividas || isSaldo || isRecebiMes) {

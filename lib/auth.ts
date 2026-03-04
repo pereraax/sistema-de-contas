@@ -59,17 +59,13 @@ export async function getSiteUrl(): Promise<string> {
   return productionUrl
 }
 
-/** URL para links de confirmação de email: nunca localhost em produção, para o usuário abrir no site real e o assistente notificar no WhatsApp. */
+/** URL para links de confirmação de email: sempre domínio oficial Plenipay (plenipay.com), nunca localhost. */
 export async function getSiteUrlForEmailRedirect(): Promise<string> {
-  const url = await getSiteUrl()
-  if (url.includes('localhost') || url.includes('127.0.0.1')) {
-    const productionUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim()
-    if (productionUrl && !productionUrl.includes('localhost')) return productionUrl.replace(/\/$/, '')
-    if (process.env.RENDER_EXTERNAL_URL?.trim()) return process.env.RENDER_EXTERNAL_URL.trim().replace(/\/$/, '')
-    if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-    return 'https://plenipay.com'
+  const env = process.env.NEXT_PUBLIC_SITE_URL?.trim()
+  if (env && env.includes('plenipay') && !env.includes('localhost') && !env.includes('127.0.0.1')) {
+    return env.replace(/\/$/, '')
   }
-  return url
+  return 'https://plenipay.com'
 }
 
 export async function signUp(
@@ -109,9 +105,9 @@ export async function signUp(
       // Continuar mesmo sem admin client - podemos tentar criar usuário normalmente
     }
 
-    // URL base para links de confirmação; após confirmar, redireciona para a página de login
-    const siteUrl = await getSiteUrl()
-    const redirectTo = `${siteUrl}/auth/callback?next=/login`
+    // URL base para links de confirmação: sempre domínio oficial (plenipay.com)
+    const siteUrlForEmail = await getSiteUrlForEmailRedirect()
+    const redirectTo = `${siteUrlForEmail}/auth/callback?next=/login`
     logInfo('🔄 Criando conta via signUp...', 'SIGNUP')
     logInfo(`🔗 redirectTo (link do email): ${redirectTo}`, 'SIGNUP')
     logInfo(`📧 Email: ${email}`, 'SIGNUP')
@@ -351,8 +347,7 @@ export async function signUp(
       
       if (isSmtpConfigured()) {
         try {
-          // Por enquanto: link do email usa getSiteUrl() (localhost em dev, produção em prod)
-          const siteUrlForEmail = siteUrl
+          // Link do email sempre com domínio oficial (getSiteUrlForEmailRedirect = plenipay.com)
           const redirectToEmail = redirectTo
           logInfo(`🔗 URL do link no email: ${redirectToEmail}`, 'SIGNUP')
 
@@ -371,7 +366,8 @@ export async function signUp(
             logInfo(`🔍 Link gerado pelo Supabase: ${linkGerado.substring(0, 200)}...`, 'SIGNUP')
             
             const isLinkSupabase = linkGerado.includes('supabase.co/auth/v1/verify')
-            const callbackPath = `${siteUrlForEmail}/auth/callback`
+            const emailBaseUrl = await getSiteUrlForEmailRedirect()
+            const callbackPath = `${emailBaseUrl}/auth/callback`
             const precisaCorrigir = linkGerado.includes('0.0.0.0') || 
                                     linkGerado.includes(':10000') || 
                                     isLinkSupabase ||

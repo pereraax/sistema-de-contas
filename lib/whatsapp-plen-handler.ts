@@ -1144,17 +1144,20 @@ async function verificarEmailJaAtivoNoWhatsApp(
       .eq('email', email.toLowerCase().trim())
       .maybeSingle()
     if (profileError || !profile?.id) return { ativo: false }
+    const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(profile.id)
+    const emailConfirmado = !!authUser?.user?.email_confirmed_at
+    const phoneNorm = phoneNumber.replace(/\D/g, '')
+    const phoneForSession = phoneNorm.length >= 10 ? (phoneNorm.startsWith('55') ? phoneNorm : '55' + phoneNorm) : phoneNumber
     const { data: session } = await supabaseAdmin
       .from('whatsapp_sessions')
       .select('user_id, expires_at')
-      .eq('phone_number', phoneNumber)
+      .eq('phone_number', phoneForSession)
       .maybeSingle()
-    if (!session || session.user_id !== profile.id) return { ativo: false, userId: profile.id }
+    if (!session || session.user_id !== profile.id) {
+      return { ativo: false, userId: profile.id, emailConfirmado }
+    }
     const exp = session.expires_at ? new Date(session.expires_at) : null
-    if (exp && exp <= new Date()) return { ativo: false, userId: profile.id }
-    // Só considerar "ativo" se o usuário já confirmou o email (clicou no link)
-    const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(profile.id)
-    const emailConfirmado = !!authUser?.user?.email_confirmed_at
+    if (exp && exp <= new Date()) return { ativo: false, userId: profile.id, emailConfirmado }
     if (!emailConfirmado) {
       return { ativo: false, userId: profile.id, emailConfirmado: false }
     }
@@ -1355,13 +1358,39 @@ async function handleWhatsAppAuthentication(
         }
       }
       // Verificar se o e-mail já está ativo (sessão vinculada E email já confirmado)
-      const { ativo: jaAtivo, emailConfirmado } = await verificarEmailJaAtivoNoWhatsApp(email, phoneNumber)
+      const { ativo: jaAtivo, emailConfirmado, userId: userIdFromCheck } = await verificarEmailJaAtivoNoWhatsApp(email, phoneNumber)
       if (jaAtivo) {
         console.log('📧 [WhatsApp PLEN] Email já ativo e confirmado neste número — enviando comandos:', email)
         return {
           success: true,
           messages: [
             '✅ Seu e-mail já está ativo! Você já pode usar a Plen pelo WhatsApp. 💙',
+            MSG_COMANDOS_PLEN,
+          ],
+        }
+      }
+      // E-mail já cadastrado e confirmado, mas número ainda não vinculado → vincular e liberar
+      if (emailConfirmado === true && userIdFromCheck) {
+        try {
+          const { createAdminClient } = await import('@/lib/supabase/server')
+          const supabaseAdmin = createAdminClient()
+          if (supabaseAdmin) {
+            const phoneNorm = phoneNumber.replace(/\D/g, '')
+            const p = phoneNorm.length >= 10 ? (phoneNorm.startsWith('55') ? phoneNorm : '55' + phoneNorm) : phoneNumber
+            await supabaseAdmin.from('whatsapp_sessions').upsert(
+              { phone_number: p, user_id: userIdFromCheck, updated_at: new Date().toISOString() },
+              { onConflict: 'phone_number' }
+            )
+            console.log('📧 [WhatsApp PLEN] Número vinculado ao e-mail já cadastrado/confirmado:', email)
+          }
+        } catch (e) {
+          console.error('📧 [WhatsApp PLEN] Erro ao vincular número ao usuário:', e)
+        }
+        return {
+          success: true,
+          messages: [
+            '✅ Seu e-mail já está cadastrado e confirmado! Vinculamos este número à sua conta. 💙',
+            'Agora você já pode me enviar gastos, receitas e consultar saldo. Por exemplo:\n• "gastei 50 no mercado"\n• "recebi 1500 salário"\n• "quanto tenho de saldo?"',
             MSG_COMANDOS_PLEN,
           ],
         }
