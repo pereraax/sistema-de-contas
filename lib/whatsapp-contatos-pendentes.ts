@@ -63,6 +63,49 @@ export async function hasReceivedWelcome(phone: string): Promise<boolean> {
   return data?.welcome_sent_at != null
 }
 
+/** Retorna true se já enviamos a mensagem inicial do modo teste ("Me diga algo que você gastou hoje"). */
+export async function hasReceivedTestIntro(phone: string): Promise<boolean> {
+  const supabase = createAdminClient()
+  if (!supabase) return false
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return false
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('test_intro_sent_at')
+    .eq('phone', p)
+    .maybeSingle()
+  if (error) return false
+  return (data as { test_intro_sent_at?: string } | null)?.test_intro_sent_at != null
+}
+
+/** Marca que a mensagem inicial do modo teste foi enviada para este número. */
+export async function markTestIntroSent(phone: string): Promise<void> {
+  const supabase = createAdminClient()
+  if (!supabase) return
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return
+  const now = new Date().toISOString()
+  await supabase.from(TABLE).upsert(
+    { phone: p, test_intro_sent_at: now, updated_at: now },
+    { onConflict: 'phone', ignoreDuplicates: false }
+  )
+}
+
+/** Retorna true se este número já tem cadastro (conta no sistema: sessão WhatsApp vinculada a um user_id). */
+export async function hasCadastro(phone: string): Promise<boolean> {
+  const supabase = createAdminClient()
+  if (!supabase) return false
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return false
+  const { data, error } = await supabase
+    .from('whatsapp_sessions')
+    .select('user_id')
+    .eq('phone_number', p)
+    .maybeSingle()
+  if (error) return false
+  return (data as { user_id?: string } | null)?.user_id != null
+}
+
 /** Verifica se a mensagem indica intenção de usar a Plenipay (fluxo de boas-vindas). Identifica "Olá! Quero utilizar a plenipay" e variações. */
 export function isQueroUtilizarPlenipay(text: string): boolean {
   if (!text || typeof text !== 'string') return false

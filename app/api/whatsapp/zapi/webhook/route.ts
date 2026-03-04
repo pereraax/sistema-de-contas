@@ -11,8 +11,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendButtonList, sendButtonActions, isZapiConfigured } from '@/lib/whatsapp-zapi'
-import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage } from '@/lib/whatsapp-contatos-pendentes'
+import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage, hasReceivedTestIntro, markTestIntroSent, hasCadastro } from '@/lib/whatsapp-contatos-pendentes'
 import { sendBoasVindasToNumber, isBoasVindasConfigured, MENSAGENS_BOAS_VINDAS, getIntroBoasVindas } from '@/lib/whatsapp-enviar-boas-vindas-lib'
+import {
+  getMensagemInicialModoTeste,
+  parseGastoSimples,
+  getMsgGastoRegistradoModoTeste,
+  MSG_FOLLOW_UP_CRIAR_CONTA,
+} from '@/lib/whatsapp-modo-teste'
 import { downloadMedia, transcribeAudio, processComprovanteImage } from '@/lib/whatsapp-media-processor'
 
 function buildPlenMessage(from: string, text: string) {
@@ -70,7 +76,7 @@ function parseZapiBody(body: unknown, logReject?: (reason: string) => void): Zap
   const data = (b.data && typeof b.data === 'object' ? b.data : b) as Record<string, unknown>
 
   if (b.fromMe === true) {
-    logReject?.('fromMe=true (mensagem enviada por nós)')
+    logReject?.('fromMe=true (mensagem enviada pelo número conectado na Z-API — ignorada; a assistente só responde quando ALGUÉM envia para a Plen)')
     return null
   }
   const eventType = String((b.type as string) || (data.type as string) || '').trim()
@@ -347,6 +353,23 @@ async function sendButtonListReply(
   return r.success ? r : { success: false, error: r.error }
 }
 
+/** Números permitidos em localhost. Variável: WHATSAPP_TEST_NUMBERS=5531994467805 ou 31994467805 (com ou sem 55). */
+function getTestNumbers(): string[] {
+  const raw = process.env.WHATSAPP_TEST_NUMBERS || ''
+  if (!raw.trim()) return []
+  return raw
+    .split(',')
+    .map((n) => n.replace(/\D/g, '').trim())
+    .filter(Boolean)
+    .map((n) => (n.length <= 11 ? `55${n}` : n))
+}
+
+function isAllowedTestNumber(phoneDigits: string, testNumbers: string[]): boolean {
+  if (testNumbers.length === 0) return true
+  const with55 = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`
+  return testNumbers.some((t) => t.replace(/\D/g, '') === with55.replace(/\D/g, '') || t.replace(/\D/g, '') === phoneDigits.replace(/\D/g, ''))
+}
+
 /** Assistente responde em qualquer ambiente (localhost e produção). Para desligar em produção use o painel admin "Pausar assistente para todos" ou DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO=true. */
 function assistenteDeveResponder(): boolean {
   if (process.env.NODE_ENV === 'production' && process.env.DISABLE_WHATSAPP_ASSISTENTE_PRODUCAO === 'true') {
@@ -459,24 +482,109 @@ async function processarEmBackground(parsed: ZapiParsed) {
       await sendTextMessage(phone, fallback, { delayTyping: 1 }).catch(() => {})
     }
 
-    // Contato novo: PRIORIDADE — qualquer primeira mensagem recebe boas-vindas (garante que novos contatos sempre sejam atendidos).
+    // Modo teste inicial: contato novo primeiro recebe "Me diga algo que você gastou hoje"; na segunda mensagem, registramos o gasto e oferecemos criar conta.
     const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits).catch(() => false)
-    if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
-      const delayAntesMs = Math.floor(Math.random() * 5001)
-      console.log('👋 [Z-API Webhook] Contato novo — aguardando', delayAntesMs, 'ms (anti-spam) antes de boas-vindas para', phone)
-      await delay(delayAntesMs)
-      console.log('👋 [Z-API Webhook] Enviando mensagens de boas-vindas para', phone, '| texto:', text?.slice(0, 50))
-      const ok = await envioBoasVindasComRetry()
-      if (ok) {
+    const jaRecebeuTestIntro = await hasReceivedTestIntro(phoneDigits).catch(() => false)
+    const temCadastro = await hasCadastro(phoneDigits).catch(() => false)
+
+    // "Olá! Quero utilizar a Plenipay" + contato SEM cadastro → sempre enviar modo teste (nunca as 3 mensagens antigas).
+    if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured() && !temCadastro) {
+      if (!jaRecebeuTestIntro) {
+        const delayAntesMs = Math.floor(Math.random() * 5001)
+        console.log('🧪 [Z-API Webhook] "Quero utilizar Plenipay" sem cadastro — enviando modo teste (intro) para', phone)
+        await delay(delayAntesMs)
+        const msgIntro = getMensagemInicialModoTeste(contactName)
+        const sent = await sendTextMessage(phone, msgIntro, { delayTyping: 1 })
+        if (sent.success) {
+          await markTestIntroSent(phone).catch(() => {})
+          markResponded(phone, text ?? '')
+          registerSentMessage(phone, '[modo teste] intro (sem cadastro)')
+          console.log('✅ [Z-API Webhook] Modo teste enviado para contato sem cadastro:', phone)
+        } else {
+          await enviarFallbackContatoNovo()
+        }
+        return
+      }
+      const gasto = parseGastoSimples(text ?? '')
+      if (gasto) {
+        console.log('🧪 [Z-API Webhook] Modo teste (sem cadastro) — gasto registrado:', gasto.valor, gasto.categoria, 'para', phone)
+        const msgRegistro = getMsgGastoRegistradoModoTeste(gasto.categoria, gasto.valor)
+        await sendTextMessage(phone, msgRegistro, { delayTyping: 1 }).catch(() => {})
+        await delay(800)
+        await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
+        await delay(1000)
+        const segundoBloco = MENSAGENS_BOAS_VINDAS[1]
+        if (typeof segundoBloco === 'object' && segundoBloco?.type === 'button_actions') {
+          const sendBt = await sendButtonActionsReply(phone, segundoBloco.body, segundoBloco.buttonActions)
+          if (sendBt.success) registerSentMessage(phone, segundoBloco.body + ' [botões]')
+        } else {
+          await sendTextMessage(phone, 'Toque em *CADASTRAR* para criar sua conta ou digite *JÁ CRIEI* se já tem conta. 💙', { delayTyping: 1 }).catch(() => {})
+        }
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
         markWelcomeJustSent(phone)
-        console.log('✅ [Z-API Webhook] Boas-vindas enviadas para contato novo:', phone)
+        console.log('✅ [Z-API Webhook] Modo teste concluído (sem cadastro):', phone)
         return
       }
-      console.error('❌ [Z-API Webhook] sendBoasVindasToNumber falhou para contato novo após retry. Enviando fallback.')
-      await enviarFallbackContatoNovo()
-      markWelcomeJustSent(phone)
+      await sendTextMessage(
+        phone,
+        'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber',
+        { delayTyping: 1 }
+      ).catch(() => {})
+      markResponded(phone, text ?? '')
+      return
+    }
+
+    if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
+      // 1) Ainda não enviamos a mensagem inicial do modo teste → enviar intro "Me diga um gasto"
+      if (!jaRecebeuTestIntro) {
+        const delayAntesMs = Math.floor(Math.random() * 5001)
+        console.log('🧪 [Z-API Webhook] Modo teste — enviando mensagem inicial para', phone)
+        await delay(delayAntesMs)
+        const msgIntro = getMensagemInicialModoTeste(contactName)
+        const sent = await sendTextMessage(phone, msgIntro, { delayTyping: 1 })
+        if (sent.success) {
+          await markTestIntroSent(phone).catch(() => {})
+          markResponded(phone, text ?? '')
+          registerSentMessage(phone, '[modo teste] intro')
+          console.log('✅ [Z-API Webhook] Mensagem inicial modo teste enviada para', phone)
+        } else {
+          await enviarFallbackContatoNovo()
+        }
+        return
+      }
+
+      // 2) Já enviamos o intro do modo teste → tentar interpretar como gasto simples ("50 mercado", "20 uber")
+      const gasto = parseGastoSimples(text ?? '')
+      if (gasto) {
+        console.log('🧪 [Z-API Webhook] Modo teste — gasto registrado:', gasto.valor, gasto.categoria, 'para', phone)
+        const msgRegistro = getMsgGastoRegistradoModoTeste(gasto.categoria, gasto.valor)
+        await sendTextMessage(phone, msgRegistro, { delayTyping: 1 }).catch(() => {})
+        await delay(800)
+        await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
+        await delay(1000)
+        // Enviar botões CADASTRAR / JÁ CRIEI (mesma mensagem das boas-vindas normais)
+        const segundoBloco = MENSAGENS_BOAS_VINDAS[1]
+        if (typeof segundoBloco === 'object' && segundoBloco?.type === 'button_actions') {
+          const sendBt = await sendButtonActionsReply(phone, segundoBloco.body, segundoBloco.buttonActions)
+          if (sendBt.success) registerSentMessage(phone, segundoBloco.body + ' [botões]')
+        } else {
+          await sendTextMessage(phone, 'Toque em *CADASTRAR* para criar sua conta ou digite *JÁ CRIEI* se já tem conta. 💙', { delayTyping: 1 }).catch(() => {})
+        }
+        await markWelcomeSent(phone).catch(() => {})
+        markResponded(phone, text ?? '')
+        markWelcomeJustSent(phone)
+        console.log('✅ [Z-API Webhook] Modo teste concluído para', phone, '— gasto registrado e convite para criar conta enviado.')
+        return
+      }
+
+      // Não pareceu um gasto → pedir no formato correto
+      await sendTextMessage(
+        phone,
+        'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber',
+        { delayTyping: 1 }
+      ).catch(() => {})
+      markResponded(phone, text ?? '')
       return
     }
 
@@ -630,13 +738,16 @@ export async function POST(request: NextRequest) {
     })
     if (!parsed) {
       const preview = body != null ? JSON.stringify(body).slice(0, 500) : 'null'
-      console.warn('📨 [Z-API Webhook] Body (preview):', preview)
+      console.warn('📨 [Z-API Webhook] Payload ignorado. Body (preview):', preview)
       if (process.env.NODE_ENV === 'development' && body != null) {
         try {
-          console.warn('📨 [Z-API Webhook] Body completo (dev) para debug:', JSON.stringify(body, null, 2).slice(0, 3000))
+          console.warn('📨 [Z-API Webhook] Body completo (dev):', JSON.stringify(body, null, 2).slice(0, 3000))
         } catch (_) {}
       }
       return NextResponse.json({ success: true, message: 'Payload ignorado' })
+    }
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📨 [Z-API Webhook] Payload aceito. from:', parsed.from, 'text:', parsed.text?.slice(0, 50))
     }
     if (parsed.messageId && wasAlreadyProcessed(parsed.messageId)) {
       console.log('📨 [Z-API Webhook] Mensagem duplicada (messageId já processado), ignorando:', parsed.messageId)
@@ -645,6 +756,13 @@ export async function POST(request: NextRequest) {
     if (!assistenteDeveResponder()) {
       console.log('🛑 [Z-API Webhook] Assistente desativada — retornando 200 sem processar.')
       return NextResponse.json({ success: true, message: 'Assistente pausada' })
+    }
+    // Em localhost: só processar mensagens do(s) número(s) em WHATSAPP_TEST_NUMBERS (ex.: 31994467805).
+    const testNumbers = getTestNumbers()
+    const phoneDigits = parsed.from.replace(/\D/g, '')
+    if (process.env.NODE_ENV === 'development' && testNumbers.length > 0 && !isAllowedTestNumber(phoneDigits, testNumbers)) {
+      console.log('🔒 [Z-API Webhook] Localhost: ignorando número', parsed.from, '— apenas', testNumbers.join(', '), 'podem receber resposta.')
+      return NextResponse.json({ success: true, message: 'Modo localhost: apenas WHATSAPP_TEST_NUMBERS' })
     }
     const isBotao = parsed.text === 'CADASTRAR' || parsed.text === 'JÁ CADASTREI' || /^j[aá]\s*criei$/i.test(parsed.text.trim()) || /^j[aá]\s*cadastrei$/i.test(parsed.text.trim())
     console.log('📨 [Z-API Webhook] Mensagem recebida:', { from: parsed.from, textPreview: parsed.text.slice(0, 80), messageId: parsed.messageId, isCliqueBotao: isBotao, media: parsed.media?.type })
