@@ -451,7 +451,10 @@ async function processarEmBackground(parsed: ZapiParsed) {
     // Contato novo: PRIORIDADE — qualquer primeira mensagem recebe boas-vindas (garante que novos contatos sempre sejam atendidos).
     const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits).catch(() => false)
     if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
-      console.log('👋 [Z-API Webhook] Contato novo — enviando mensagens de boas-vindas para', phone, '| texto:', text?.slice(0, 50))
+      const delayAntesMs = Math.floor(Math.random() * 5001)
+      console.log('👋 [Z-API Webhook] Contato novo — aguardando', delayAntesMs, 'ms (anti-spam) antes de boas-vindas para', phone)
+      await delay(delayAntesMs)
+      console.log('👋 [Z-API Webhook] Enviando mensagens de boas-vindas para', phone, '| texto:', text?.slice(0, 50))
       const ok = await envioBoasVindasComRetry()
       if (ok) {
         await markWelcomeSent(phone).catch(() => {})
@@ -468,7 +471,10 @@ async function processarEmBackground(parsed: ZapiParsed) {
 
     // "Quero utilizar PleniPay" (quem já recebeu boas-vindas antes) — reenviar intro + botões.
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
-      console.log('👋 [Z-API Webhook] "Quero utilizar PleniPay" — enviando mensagens de boas-vindas para', phone)
+      const delayAntesMs = Math.floor(Math.random() * 5001)
+      console.log('👋 [Z-API Webhook] "Quero utilizar PleniPay" — aguardando', delayAntesMs, 'ms (anti-spam) antes de boas-vindas para', phone)
+      await delay(delayAntesMs)
+      console.log('👋 [Z-API Webhook] Enviando mensagens de boas-vindas para', phone)
       const ok = await envioBoasVindasComRetry()
       if (ok) {
         await markWelcomeSent(phone).catch(() => {})

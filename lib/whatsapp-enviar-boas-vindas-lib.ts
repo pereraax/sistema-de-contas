@@ -57,7 +57,7 @@ export function getIntroBoasVindas(contactName?: string | null): string {
   return INTRO_SEM_NOME
 }
 
-/** Envia 2 mensagens via Z-API: (1) intro, (2) passos + botões CADASTRAR (URL) e JÁ CRIEI (REPLY) na mesma mensagem. */
+/** Envia 2 mensagens via Z-API: (1) intro com nome, (2) passos + botões. Delays aleatórios (até 5s) entre mensagens para evitar padrão de spam. */
 async function sendBoasVindasViaZapi(phone: string, contactName?: string | null): Promise<{ success: boolean; error?: string }> {
   for (let i = 0; i < MENSAGENS_BOAS_VINDAS.length; i++) {
     const msg = MENSAGENS_BOAS_VINDAS[i]
@@ -86,7 +86,10 @@ async function sendBoasVindasViaZapi(phone: string, contactName?: string | null)
         registerSentMessage(phone, `${msg.body} [${msg.buttons.map((b) => b.title).join(' / ')}]`)
       }
     }
-    if (i < MENSAGENS_BOAS_VINDAS.length - 1) await delay(300)
+    if (i < MENSAGENS_BOAS_VINDAS.length - 1) {
+      const entreMensagensMs = 1000 + Math.floor(Math.random() * 4000)
+      await delay(entreMensagensMs)
+    }
   }
   return { success: true }
 }
