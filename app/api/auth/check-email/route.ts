@@ -1,6 +1,7 @@
 /**
  * Verifica se o email existe e se o usuário precisa definir senha (primeiro acesso, ex.: conta criada pelo WhatsApp).
- * Busca o usuário pelo email no Auth e depois o perfil por user.id (não depende de profiles.email).
+ * Busca o usuário pelo email no Auth (com paginação) e depois o perfil por user.id.
+ * Fallback: se o usuário tem sessão WhatsApp e o perfil não tem senha definida, trata como primeiro acesso.
  * POST body: { email: string }
  * Retorna: { precisaDefinirSenha: boolean }
  */
@@ -22,25 +23,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ precisaDefinirSenha: false })
     }
 
-    // Buscar usuário pelo email no Auth (contas WhatsApp podem não ter email em profiles)
-    const { data: usersData } = await supabase.auth.admin.listUsers({ perPage: 1000 })
+    // Buscar usuário pelo email no Auth
+    const { data: usersData, error: listError } = await supabase.auth.admin.listUsers({
+      perPage: 1000,
+    })
+    if (listError) {
+      return NextResponse.json({ precisaDefinirSenha: false })
+    }
     const user = usersData?.users?.find((u) => (u.email ?? '').toLowerCase() === email)
     if (!user?.id) {
       return NextResponse.json({ precisaDefinirSenha: false })
     }
 
-    const { data, error } = await supabase
+    const { data: profile, error } = await supabase
       .from('profiles')
       .select('precisa_definir_senha')
       .eq('id', user.id)
       .maybeSingle()
 
-    if (error || !data) {
-      return NextResponse.json({ precisaDefinirSenha: false })
+    const flagSenha = (profile as { precisa_definir_senha?: boolean } | null)?.precisa_definir_senha === true
+    if (flagSenha) {
+      return NextResponse.json({ precisaDefinirSenha: true })
     }
 
-    const precisaDefinirSenha = (data as { precisa_definir_senha?: boolean }).precisa_definir_senha === true
-    return NextResponse.json({ precisaDefinirSenha })
+    // Fallback: conta criada pelo WhatsApp pode não ter a flag no profile (perfil não existia na hora do update ou conta antiga). Se tem whatsapp_sessions, tratar como primeiro acesso.
+    const { data: ws } = await supabase
+      .from('whatsapp_sessions')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle()
+    if (ws) {
+      return NextResponse.json({ precisaDefinirSenha: true })
+    }
+
+    return NextResponse.json({ precisaDefinirSenha: false })
   } catch {
     return NextResponse.json({ precisaDefinirSenha: false })
   }
