@@ -828,9 +828,26 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
     console.log('📤 [WhatsApp PLEN] Result completo:', plenResult ? JSON.stringify(plenResult, null, 2).substring(0, 500) : 'null')
     console.log('📤 [WhatsApp PLEN] ==========================================')
     
-    // Se não retornou resultado válido: não enviar mensagem de erro ao usuário; só logar e retornar null
+    // Se não retornou resultado válido: tentar fallback de registro (gastei X / recebi X) para não devolver "Em que posso ajudar?"
     if (!plenResult || !plenResult.success || (!plenResult.message && !plenResult.messages)) {
       console.error('❌ [WhatsApp PLEN] RESULTADO INVÁLIDO DO PLEN:', plenResult === null ? 'null' : JSON.stringify(plenResult).slice(0, 300))
+      const t = text.trim()
+      const looksLikeGastoReceita =
+        /^(gastei|recebi|paguei|extra|entrada|salário|salario)\s+/i.test(t) ||
+        /^(gastei|recebi|paguei)\s+\d+/i.test(t) ||
+        /\d+\s*(reais?|r\$|rs)?\s*(com|em|de|para)?/i.test(t)
+      if (looksLikeGastoReceita && userContext.userId) {
+        try {
+          const { registerGastoReceitaFallback } = await import('@/lib/plen-whatsapp-chat')
+          const fallbackMsg = await registerGastoReceitaFallback(userContext.userId, text)
+          if (fallbackMsg) {
+            console.log('✅ [WhatsApp PLEN] Registro feito via fallback:', fallbackMsg.substring(0, 80))
+            return { success: true, message: fallbackMsg }
+          }
+        } catch (fallbackErr) {
+          console.warn('⚠️ [WhatsApp PLEN] Fallback de registro falhou:', (fallbackErr as Error)?.message)
+        }
+      }
       try {
         const { plenWhatsAppLog } = await import('@/lib/plen-whatsapp-logs')
         plenWhatsAppLog({

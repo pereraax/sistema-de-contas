@@ -396,6 +396,77 @@ function interpretarLembrete(texto: string): { descricao: string; data_lembrete:
 }
 
 /**
+ * Fallback: tenta apenas registrar gasto/receita a partir do texto (quando o fluxo normal retorna vazio).
+ * Retorna mensagem de confirmação ou null se não conseguir interpretar.
+ */
+export async function registerGastoReceitaFallback(
+  userId: string,
+  rawMessage: string
+): Promise<string | null> {
+  const supabase = createAdminClient()
+  if (!supabase) return null
+  const msg = (rawMessage || '').trim()
+  if (!msg) return null
+  const msgNorm = normalizarNumerosPorExtenso(msg)
+  let interp = interpretarMensagem(msgNorm)
+  if (!interp) interp = interpretarMensagem(msg)
+  if (!interp || (interp.tipo !== 'saida' && interp.tipo !== 'entrada')) return null
+  const { tipo, valor, nome, data_registro, categoria } = interp
+  const valorFinal = Math.round(valor * 100) / 100
+  if (valorFinal < 1 || valorFinal > 500_000) return null
+
+  let profileNome: string | null = null
+  try {
+    const { data: profile } = await supabase.from('profiles').select('nome, email').eq('id', userId).single()
+    if (profile?.nome?.trim()) profileNome = profile.nome.trim()
+    else if (profile?.email) profileNome = profile.email.split('@')[0]?.trim() ?? null
+  } catch (_) {}
+
+  let registroUserId: string | null = null
+  const { data: usuarios, error: errU } = await supabase
+    .from('users')
+    .select('id, nome')
+    .eq('account_owner_id', userId)
+    .order('nome', { ascending: true })
+  if (!errU && usuarios?.length) {
+    registroUserId = usuarios[0].id
+  } else {
+    const { data: novo, error: errCriar } = await supabase
+      .from('users')
+      .insert({ nome: profileNome || 'Meus registros', account_owner_id: userId })
+      .select('id')
+      .single()
+    if (errCriar || !novo?.id) return null
+    registroUserId = novo.id
+  }
+  if (!registroUserId) return null
+
+  const { error } = await supabase.from('registros').insert({
+    user_id: registroUserId,
+    nome,
+    tipo,
+    valor: valorFinal,
+    data_registro,
+    categoria: categoria || null,
+    parcelas_totais: 1,
+    parcelas_pagas: 0,
+    etiquetas: [],
+  })
+  if (error) {
+    console.error('[PLEN WhatsApp] registerGastoReceitaFallback insert:', error.message)
+    return null
+  }
+  return formatarRespostaRegistro({
+    nome,
+    tipo,
+    valor: valorFinal,
+    dataRegistro: data_registro,
+    categoria: categoria || 'Outros',
+    nomeUsuario: profileNome || undefined,
+  })
+}
+
+/**
  * Processa uma mensagem do usuário no contexto WhatsApp (userId = id do profile/account_owner).
  * Não usa cookies; usa Admin Client. Retorna sempre { response } (nunca lança).
  */
