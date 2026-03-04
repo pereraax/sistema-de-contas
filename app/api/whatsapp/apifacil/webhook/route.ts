@@ -18,8 +18,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendReplyButtons, sendCtaUrlButton, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
-import { recordIncomingMessage, markWelcomeSent, hasReceivedWelcome } from '@/lib/whatsapp-contatos-pendentes'
-import { sendBoasVindasToNumber, isBoasVindasConfigured } from '@/lib/whatsapp-enviar-boas-vindas-lib'
+import { recordIncomingMessage, markWelcomeSent, hasReceivedWelcome, hasReceivedTestIntro, markTestIntroSent } from '@/lib/whatsapp-contatos-pendentes'
+import { sendBoasVindasToNumber, isBoasVindasConfigured, MENSAGENS_BOAS_VINDAS, sendBoasVindasSingleMessage } from '@/lib/whatsapp-enviar-boas-vindas-lib'
+import { getMensagemInicialModoTeste, parseGastoSimples, getMsgGastoRegistradoModoTeste, MSG_FOLLOW_UP_CRIAR_CONTA } from '@/lib/whatsapp-modo-teste'
 
 /** Normalizar número (evita dependência do bundle que falhava com normalizarPhone importado). */
 function normalizarPhone(phone: string): string {
@@ -397,40 +398,64 @@ async function processarEmBackground(parsed: {
 
     const phone = from.startsWith('55') ? from : `55${from}`
 
-    // PRIORIDADE MÁXIMA: "Olá! Quero utilizar a Plenipay" — enviar as 3 mensagens via Z-API (ou API Fácil) imediatamente
+    // Registrar contato (para lista de pendentes e hasReceivedWelcome)
+    await recordIncomingMessage(from, text).catch((e) => console.error('📨 [Apifacil Webhook] recordIncomingMessage:', e))
+
+    const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits).catch(() => false)
+    const jaRecebeuTestIntro = await hasReceivedTestIntro(phoneDigits).catch(() => false)
+
+    // Modo teste inicial: contato novo primeiro recebe "Me diga algo que você gastou hoje"; depois registramos gasto e oferecemos criar conta.
+    if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
+      if (!jaRecebeuTestIntro) {
+        console.log('🧪 [Apifacil Webhook] Modo teste — enviando mensagem inicial para', phone)
+        const contactName = (parsed as { contactName?: string }).contactName
+        const msgIntro = getMensagemInicialModoTeste(contactName)
+        if (isApifacilConfigured()) {
+          await sendTextMessage(phone, msgIntro).catch(() => {})
+          await markTestIntroSent(phone).catch(() => {})
+          console.log('✅ [Apifacil Webhook] Mensagem inicial modo teste enviada para', phone)
+        }
+        return
+      }
+      const gasto = parseGastoSimples(text ?? '')
+      if (gasto) {
+        console.log('🧪 [Apifacil Webhook] Modo teste — gasto registrado:', gasto.valor, gasto.categoria, 'para', phone)
+        const msgRegistro = getMsgGastoRegistradoModoTeste(gasto.categoria, gasto.valor)
+        if (isApifacilConfigured()) {
+          await sendTextMessage(phone, msgRegistro).catch(() => {})
+          await delay(800)
+          await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA).catch(() => {})
+          await delay(1000)
+          const segundoBloco = MENSAGENS_BOAS_VINDAS[1]
+          if (typeof segundoBloco === 'object' && segundoBloco?.type === 'button_actions') {
+            await sendBoasVindasSingleMessage(phone, 2).catch(() => {})
+          } else {
+            await sendTextMessage(phone, 'Toque em *CADASTRAR* para criar sua conta ou digite *JÁ CRIEI* se já tem conta. 💙').catch(() => {})
+          }
+          await markWelcomeSent(phone).catch(() => {})
+          console.log('✅ [Apifacil Webhook] Modo teste concluído para', phone)
+        }
+        return
+      }
+      if (isApifacilConfigured()) {
+        await sendTextMessage(phone, 'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber').catch(() => {})
+      }
+      return
+    }
+
+    // "Quero utilizar PleniPay" (quem já recebeu boas-vindas antes) — reenviar intro + botões
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
-      console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" detectado — enviando 3 mensagens (Z-API/API Fácil) para', phone)
+      console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" — reenviando 3 mensagens para', phone)
       try {
         const result = await sendBoasVindasToNumber(phone)
-        await recordIncomingMessage(from, text).catch((e) => console.error('📨 [Apifacil Webhook] recordIncomingMessage:', e))
         await markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
         if (result.success) {
-          console.log('✅ [Apifacil Webhook] 3 mensagens de boas-vindas enviadas:', phone)
+          console.log('✅ [Apifacil Webhook] 3 mensagens de boas-vindas reenviadas:', phone)
           return
         }
         console.error('❌ [Apifacil Webhook] sendBoasVindasToNumber falhou:', result.error)
       } catch (err) {
         console.error('❌ [Apifacil Webhook] Erro ao enviar boas-vindas:', err)
-      }
-    }
-
-    // Registrar contato (para lista de pendentes e hasReceivedWelcome)
-    await recordIncomingMessage(from, text).catch((e) => console.error('📨 [Apifacil Webhook] recordIncomingMessage:', e))
-
-    // CONTATO NOVO (primeira mensagem): quem ainda não recebeu as 3 mensagens recebe agora (via Z-API ou API Fácil)
-    const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits)
-    if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
-      console.log('👋 [Apifacil Webhook] Contato novo (primeira mensagem) — enviando as 3 mensagens de boas-vindas para', phone)
-      try {
-        const result = await sendBoasVindasToNumber(phone)
-        await markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
-        if (result.success) {
-          console.log('✅ [Apifacil Webhook] 3 mensagens enviadas para contato novo:', phone)
-          return
-        }
-        console.error('❌ [Apifacil Webhook] sendBoasVindasToNumber falhou para contato novo:', result.error)
-      } catch (err) {
-        console.error('❌ [Apifacil Webhook] Erro ao enviar boas-vindas para contato novo:', err)
       }
     }
 
