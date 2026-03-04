@@ -5,7 +5,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/server'
-import { interpretarMensagem, formatarRespostaRegistro, categoriaInteligente, normalizarNumerosPorExtenso, extrairValor } from '@/lib/plen-registro'
+import { interpretarMensagem, formatarRespostaRegistro, categoriaInteligente, normalizarNumerosPorExtenso, extrairValor, interpretarComContextoEDescricao } from '@/lib/plen-registro'
 import { getRespostaPlanos, getPlenLLMResponse, RESPOSTA_OPEN_FINANCE } from '@/lib/plen-llm-fallback'
 
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
@@ -568,6 +568,72 @@ export async function processPlenWhatsAppMessage(
       /conta\s+de\s+(luz|água|agua|internet)\s+dia\s+\d/i.test(t)
     if (isLembreteIntent) {
       return { response: MSG_ENTENDER_MELHOR }
+    }
+
+    // Mensagem com contexto/descrição: "Recebi R$100 ontem da mãe, guardei na caixinha nubank" → registrar e orientar formato
+    const temContextoRico =
+      (/\brecebi\b/i.test(rawMessage) || /\bgastei\b|\bpaguei\b/i.test(rawMessage)) &&
+      (rawMessage.includes(',') || /\bontem\b|\bhoje\b|guardei|caixinha|nubank|descrição|descricao/i.test(rawMessage))
+    if (temContextoRico && rawMessage.length >= 20) {
+      const comDesc = interpretarComContextoEDescricao(rawMessage)
+      if (comDesc) {
+        const valorFinal = Math.round(comDesc.valor * 100) / 100
+        let profileNome: string | null = null
+        try {
+          const { data: profile } = await supabase.from('profiles').select('nome, email').eq('id', userId).single()
+          if (profile?.nome?.trim()) profileNome = profile.nome.trim()
+          else if (profile?.email) profileNome = profile.email.split('@')[0]?.trim() ?? null
+        } catch (_) {}
+        const { data: usuarios, error: errU } = await supabase
+          .from('users')
+          .select('id, nome')
+          .eq('account_owner_id', userId)
+          .order('nome', { ascending: true })
+        let registroUserId: string | null = null
+        if (!errU && usuarios?.length) {
+          registroUserId = usuarios[0].id
+        } else {
+          const { data: novo, error: errC } = await supabase
+            .from('users')
+            .insert({ nome: profileNome || 'Meus registros', account_owner_id: userId })
+            .select('id')
+            .single()
+          if (!errC && novo?.id) registroUserId = novo.id
+        }
+        if (registroUserId) {
+          const payload: Record<string, unknown> = {
+            user_id: registroUserId,
+            nome: comDesc.nome,
+            tipo: comDesc.tipo,
+            valor: valorFinal,
+            data_registro: comDesc.data_registro,
+            categoria: comDesc.categoria || null,
+            parcelas_totais: 1,
+            parcelas_pagas: 0,
+            etiquetas: [],
+          }
+          if (comDesc.observacao && comDesc.observacao.trim()) payload.observacao = comDesc.observacao.trim().substring(0, 500)
+          const { error: errInsert } = await supabase.from('registros').insert(payload)
+          if (!errInsert) {
+            const msgBase = formatarRespostaRegistro({
+              nome: comDesc.nome,
+              tipo: comDesc.tipo,
+              valor: valorFinal,
+              dataRegistro: comDesc.data_registro,
+              categoria: comDesc.categoria || 'Outros',
+              nomeUsuario: profileNome || undefined,
+            })
+            const dica =
+              '💡 Para adicionar descrição no próximo registro, mande assim:\n*recebi X origem + data + descrição*\nEx.: recebi 100 mãe ontem guardei na caixinha nubank'
+            return {
+              response: comDesc.observacao ? `${msgBase}\n\n${dica}` : `${msgBase}\n\nQuer adicionar uma descrição? Mande no mesmo formato: *recebi X origem + data + descrição*\n\n${dica}`,
+              buttonUrl: PERFIL_URL,
+              buttonLabel: PERFIL_BUTTON_LABEL,
+              buttonBody: PERFIL_BUTTON_BODY,
+            }
+          }
+        }
+      }
     }
 
     // Empréstimo: "emprestei 500 para João", "emprestei 200 reais para Maria"
