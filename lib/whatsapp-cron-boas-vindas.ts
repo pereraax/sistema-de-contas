@@ -51,7 +51,13 @@ export async function runBoasVindasPendentes(
   const errors: string[] = []
   let processed = 0
 
-  for (const { phone } of pendentes) {
+  for (let i = 0; i < pendentes.length; i++) {
+    const { phone } = pendentes[i]
+    // Delay aleatório entre cada contato (3–12 s) para evitar pico de envio e aparência de spam
+    if (i > 0) {
+      const delayMs = 3000 + Math.floor(Math.random() * 9000)
+      await new Promise((r) => setTimeout(r, delayMs))
+    }
     try {
       const result = await sendBoasVindasToNumber(phone)
       if (result.success) {
