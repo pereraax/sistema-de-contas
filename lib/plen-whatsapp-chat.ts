@@ -37,17 +37,21 @@ export function delayRespostaPlen(): Promise<void> {
 const PERFIL_URL = `${PLENIPAY_BASE}/registros`
 const GANHE_INDICANDO_URL = `${PLENIPAY_BASE}/ganhe-indicando`
 
-/** Mensagem de incentivo à indicação (exibida após o usuário registrar 2 gastos). */
-const MSG_INCENTIVE_INDICATION = `💙 Você já registrou alguns gastos comigo!
+/** Mensagem de incentivo à indicação (enviada em mensagem separada após 2 gastos). Sem a pergunta final — o botão já indica a ação. */
+const MSG_INCENTIVE_INDICATION = `✨💙 *Você já registrou alguns gastos comigo!*
 
 Que tal ganhar dinheiro convidando amigos?
 
-Cada pessoa que criar conta usando seu link
-te rende R$3.
+💰 Cada pessoa que criar conta usando seu link te rende *R$ 3*
+📦 Ao juntar *R$ 30* você pode sacar
 
-Ao juntar R$30 você pode sacar.
+Toque no botão abaixo para gerar seu link de convite 👇`
 
-Quer gerar seu link de convite?`
+export type PlenMessageButton = {
+  type: 'button_actions'
+  body: string
+  buttonActions: Array<{ type: 'URL'; url: string; label: string }>
+}
 
 export type ProcessPlenWhatsAppResult = {
   response: string
@@ -58,6 +62,8 @@ export type ProcessPlenWhatsAppResult = {
   buttonBody?: string
   /** Botões de resposta (ex.: "Falar com humano" na mensagem Oops). */
   replyButtons?: { body: string; buttons: { id: string; title: string }[] }
+  /** Quando definido, envia estas mensagens em sequência (ex.: confirmação + incentivo em mensagens separadas). */
+  messages?: PlenMessageButton[]
 }
 
 /** Conta quantos gastos (saída) o usuário já tem na conta (via users da conta). */
@@ -87,7 +93,7 @@ async function incentiveIndicationAlreadySent(supabase: SupabaseClient, userId: 
   return !!data
 }
 
-/** Se o usuário tem >= 2 gastos e ainda não recebeu o incentivo, marca como enviado e retorna resposta com incentivo + botão "Gerar meu link". */
+/** Se o usuário tem >= 2 gastos e ainda não recebeu o incentivo, marca como enviado e retorna duas mensagens: confirmação + incentivo (separadas). */
 async function maybeAppendIncentiveIndication(
   supabase: SupabaseClient,
   userId: string,
@@ -114,11 +120,23 @@ async function maybeAppendIncentiveIndication(
     }
   }
   await supabase.from('plen_incentive_indication_sent').upsert({ user_id: userId }, { onConflict: 'user_id' })
+  const urlPerfil = currentButtonUrl || PERFIL_URL
+  const labelPerfil = currentButtonLabel || PERFIL_BUTTON_LABEL
+  const bodyPrimeira = currentButtonBody ? `${currentResponse}\n\n${currentButtonBody}` : currentResponse
   return {
-    response: `${currentResponse}\n\n${MSG_INCENTIVE_INDICATION}`,
-    buttonUrl: GANHE_INDICANDO_URL,
-    buttonLabel: 'Gerar meu link',
-    buttonBody: 'Quer gerar seu link de convite?',
+    response: currentResponse,
+    messages: [
+      {
+        type: 'button_actions' as const,
+        body: bodyPrimeira,
+        buttonActions: [{ type: 'URL' as const, url: urlPerfil, label: labelPerfil }],
+      },
+      {
+        type: 'button_actions' as const,
+        body: MSG_INCENTIVE_INDICATION,
+        buttonActions: [{ type: 'URL' as const, url: GANHE_INDICANDO_URL, label: 'Gerar meu link' }],
+      },
+    ],
   }
 }
 
@@ -476,10 +494,11 @@ function interpretarLembrete(texto: string): { descricao: string; data_lembrete:
   return null
 }
 
-/** Retorno do fallback de registro: mensagem simples ou com botão (incentivo indicação). */
+/** Retorno do fallback de registro: mensagem simples, com botão ou múltiplas mensagens (ex.: confirmação + incentivo). */
 export type RegisterGastoReceitaFallbackResult =
   | string
   | { message: string; buttonUrl?: string; buttonLabel?: string; buttonBody?: string }
+  | { messages: PlenMessageButton[] }
   | null
 
 /**
@@ -553,13 +572,8 @@ export async function registerGastoReceitaFallback(
   })
   if (tipo === 'saida') {
     const withIncentive = await maybeAppendIncentiveIndication(supabase, userId, message, PERFIL_URL, PERFIL_BUTTON_LABEL, PERFIL_BUTTON_BODY)
-    if (withIncentive.buttonUrl === GANHE_INDICANDO_URL) {
-      return {
-        message: withIncentive.response,
-        buttonUrl: withIncentive.buttonUrl,
-        buttonLabel: withIncentive.buttonLabel,
-        buttonBody: withIncentive.buttonBody,
-      }
+    if (withIncentive.messages && withIncentive.messages.length > 0) {
+      return { messages: withIncentive.messages }
     }
   }
   return message

@@ -851,9 +851,12 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
           const { registerGastoReceitaFallback } = await import('@/lib/plen-whatsapp-chat')
           const fallbackResult = await registerGastoReceitaFallback(userContext.userId, text)
           if (fallbackResult) {
-            const msg = typeof fallbackResult === 'string' ? fallbackResult : fallbackResult.message
-            console.log('✅ [WhatsApp PLEN] Registro feito via fallback:', msg.substring(0, 80))
-            if (typeof fallbackResult === 'object' && fallbackResult.buttonUrl) {
+            const msg = typeof fallbackResult === 'string' ? fallbackResult : 'message' in fallbackResult ? fallbackResult.message : ''
+            console.log('✅ [WhatsApp PLEN] Registro feito via fallback:', msg ? msg.substring(0, 80) : 'mensagens múltiplas')
+            if (typeof fallbackResult === 'object' && 'messages' in fallbackResult && Array.isArray(fallbackResult.messages) && fallbackResult.messages.length > 0) {
+              return { success: true, messages: fallbackResult.messages }
+            }
+            if (typeof fallbackResult === 'object' && 'buttonUrl' in fallbackResult && fallbackResult.buttonUrl) {
               return {
                 success: true,
                 message: msg,
@@ -862,7 +865,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
                 buttonBody: fallbackResult.buttonBody,
               }
             }
-            return { success: true, message: msg }
+            return { success: true, message: typeof fallbackResult === 'string' ? fallbackResult : msg }
           }
         } catch (fallbackErr) {
           console.warn('⚠️ [WhatsApp PLEN] Fallback de registro falhou:', (fallbackErr as Error)?.message)
@@ -1509,13 +1512,16 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
     await delayRespostaPlen()
 
     const resp = (result.response || '').trim()
-    if (!resp) {
+    if (!resp && !(result.messages?.length)) {
       console.log('📨 [WhatsApp PLEN] Resposta vazia (oi/olá ou eco) — não enviar mensagem')
       return null
     }
-    console.log('✅ [WhatsApp PLEN] Resposta direta:', resp.substring(0, 80))
-    addLog('info', `✅ [PLEN WhatsApp] Resposta: ${resp.substring(0, 100)}`)
+    console.log('✅ [WhatsApp PLEN] Resposta direta:', resp ? resp.substring(0, 80) : `${result.messages?.length ?? 0} msg(s)`)
+    addLog('info', `✅ [PLEN WhatsApp] Resposta: ${resp ? resp.substring(0, 100) : `${result.messages?.length ?? 0} mensagens`}`)
 
+    if (result.messages && result.messages.length > 0) {
+      return { success: true, messages: result.messages }
+    }
     if (result.replyButtons && result.replyButtons.buttons?.length > 0) {
       return {
         success: true,
