@@ -165,11 +165,21 @@ function parseZapiBody(body: unknown, logReject?: (reason: string) => void): Zap
   const contactNameRaw =
     (b.senderName as string) ||
     (b.chatName as string) ||
+    (b.pushName as string) ||
+    (b.contactName as string) ||
     (data.senderName as string) ||
     (data.chatName as string) ||
-    (b.contact && typeof b.contact === 'object' && (b.contact as Record<string, unknown>).displayName as string) ||
+    (data.pushName as string) ||
+    (data.contactName as string) ||
+    (b.contact && typeof b.contact === 'object' && ((b.contact as Record<string, unknown>).displayName as string)) ||
+    (dataObj.contact && typeof dataObj.contact === 'object' && ((dataObj.contact as Record<string, unknown>).displayName as string)) ||
     ''
-  const contactName = typeof contactNameRaw === 'string' && contactNameRaw.trim().length > 0 ? contactNameRaw.trim().slice(0, 80) : undefined
+  const contactNameTrimmed = typeof contactNameRaw === 'string' ? contactNameRaw.trim().slice(0, 80) : ''
+  const contactNameDigits = contactNameTrimmed.replace(/\D/g, '')
+  const contactName =
+    contactNameTrimmed && contactNameDigits.length < 10
+      ? contactNameTrimmed
+      : undefined
 
   return { from: from.startsWith('55') ? from : `55${from}`, text: text.trim(), messageId, media, contactName }
 }

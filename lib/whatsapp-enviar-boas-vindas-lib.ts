@@ -52,7 +52,7 @@ export function isBoasVindasConfigured(): boolean {
 export function getIntroBoasVindas(contactName?: string | null): string {
   if (contactName && contactName.trim()) {
     const name = contactName.trim().slice(0, 50)
-    return `Oiii! ${name} 💙✨ Sou a Plen, sua assistente financeira. Vou te ajudar a organizar gastos e receitas direto pelo WhatsApp 💙`
+    return `Oi! 👋 ${name}! 💙✨ Sou a Plen, sua assistente financeira. Vou te ajudar a organizar gastos e receitas direto pelo WhatsApp 💙`
   }
   return INTRO_SEM_NOME
 }
