@@ -943,13 +943,28 @@ async function getUserContext(phoneNumber: string): Promise<UserContext> {
       }
     }
 
-    // Primeiro, verificar se há sessão WhatsApp ativa
+    // Primeiro, verificar se há sessão WhatsApp ativa (tentar formato com e sem 55 para evitar falha por normalização)
     try {
-      const { data: session, error: sessionError } = await supabaseAdmin
-        .from('whatsapp_sessions')
-        .select('user_id, expires_at')
-        .eq('phone_number', phoneNumber)
-        .maybeSingle() // Usar maybeSingle para não dar erro se não existir
+      const digits = (phoneNumber || '').replace(/\D/g, '')
+      const phoneWith55 = digits.length >= 10 && digits.length <= 11 ? `55${digits}` : digits.startsWith('55') ? digits : `55${digits}`
+      const phoneWithout55 = phoneWith55.startsWith('55') ? phoneWith55.slice(2) : phoneWith55
+      const variants = [phoneNumber, phoneWith55, phoneWithout55].filter((p) => p && p.length >= 10)
+      const uniquePhones = [...new Set(variants)]
+
+      let session: { user_id: string; expires_at?: string | null } | null = null
+      let sessionError: { message: string } | null = null
+      for (const phoneVariant of uniquePhones) {
+        const { data, error } = await supabaseAdmin
+          .from('whatsapp_sessions')
+          .select('user_id, expires_at')
+          .eq('phone_number', phoneVariant)
+          .maybeSingle()
+        if (error) sessionError = error
+        if (data) {
+          session = data
+          break
+        }
+      }
 
       // Se a tabela não existe, continuar sem erro (usuário precisa executar SQL)
       if (sessionError && !sessionError.message.includes('does not exist')) {

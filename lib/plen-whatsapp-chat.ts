@@ -583,7 +583,12 @@ export async function processPlenWhatsAppMessage(
       if (temVerboRegistro && fraseCurta) {
         const msgNorm = normalizarNumerosPorExtenso(frase)
         const valorRegex = msgNorm.match(/(?:gastei|paguei|ganhei|recebi)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
-        const nomeRegexGasto = frase.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)?.[1]?.trim()
+        let nomeRegexGasto = frase.match(/(?:com|no|na|em|para)\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,3})(?:\s|$|,|\.)/i)?.[1]?.trim()
+        // "gastei 500 shopping" / "gastei 500 casa" — nome após o valor (sem com/no/na/em/para)
+        if (!nomeRegexGasto && tipoFromVerbo === 'saida') {
+          const gastoAposValor = frase.match(/(?:gastei|paguei|gastou|pagou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s+([a-záàâãéêíóôõúç]+(?:\s+[a-záàâãéêíóôõúç]+){0,2})\s*$/i)?.[1]?.trim()
+          if (gastoAposValor && gastoAposValor.length >= 2) nomeRegexGasto = gastoAposValor
+        }
         const nomeRegexEntrada = frase.match(/(?:recebi|ganhei|recebeu|ganhou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:de|da|do)\s+([a-záàâãéêíóôõúç\s]+?)(?:\s*$|\.|,)/i)?.[1]?.trim()
         const valorNum = valorRegex != null ? (extrairValor(valorRegex) ?? NaN) : NaN
         const tipoFromVerbo: 'entrada' | 'saida' = /\b(ganhei|recebi|ganhou|recebeu)\b/i.test(frase) ? 'entrada' : 'saida'
