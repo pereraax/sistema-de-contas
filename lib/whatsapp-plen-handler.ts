@@ -736,6 +736,16 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
               }
               const plenResult = await processWithPLEN(userContextLocalhost.userId!, text, undefined)
               if (plenResult?.success && (plenResult?.message || plenResult?.messages)) return plenResult
+              // Fallback: tentar registrar gasto/receita direto (ex.: "gastei 600", "gastei 490")
+              const t = text.trim()
+              const looksLike = /^(gastei|recebi|paguei)\s+\d+/i.test(t) || /^(gastei|recebi|paguei)\s+/i.test(t)
+              if (looksLike) {
+                try {
+                  const { registerGastoReceitaFallback } = await import('@/lib/plen-whatsapp-chat')
+                  const fallbackMsg = await registerGastoReceitaFallback(userContextLocalhost.userId!, text)
+                  if (fallbackMsg) return { success: true, message: fallbackMsg }
+                } catch (_) {}
+              }
               return null
             }
           }
