@@ -849,10 +849,20 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       if (looksLikeGastoReceita && userContext.userId) {
         try {
           const { registerGastoReceitaFallback } = await import('@/lib/plen-whatsapp-chat')
-          const fallbackMsg = await registerGastoReceitaFallback(userContext.userId, text)
-          if (fallbackMsg) {
-            console.log('✅ [WhatsApp PLEN] Registro feito via fallback:', fallbackMsg.substring(0, 80))
-            return { success: true, message: fallbackMsg }
+          const fallbackResult = await registerGastoReceitaFallback(userContext.userId, text)
+          if (fallbackResult) {
+            const msg = typeof fallbackResult === 'string' ? fallbackResult : fallbackResult.message
+            console.log('✅ [WhatsApp PLEN] Registro feito via fallback:', msg.substring(0, 80))
+            if (typeof fallbackResult === 'object' && fallbackResult.buttonUrl) {
+              return {
+                success: true,
+                message: msg,
+                buttonUrl: fallbackResult.buttonUrl,
+                buttonLabel: fallbackResult.buttonLabel,
+                buttonBody: fallbackResult.buttonBody,
+              }
+            }
+            return { success: true, message: msg }
           }
         } catch (fallbackErr) {
           console.warn('⚠️ [WhatsApp PLEN] Fallback de registro falhou:', (fallbackErr as Error)?.message)
@@ -1494,9 +1504,10 @@ async function processWithPLEN(userId: string, text: string, imageBase64?: strin
     }
     
     // Chamada direta (sem HTTP): não depende de NEXT_PUBLIC_SITE_URL nem da rota estar acessível
-    const { processPlenWhatsAppMessage } = await import('@/lib/plen-whatsapp-chat')
+    const { processPlenWhatsAppMessage, delayRespostaPlen } = await import('@/lib/plen-whatsapp-chat')
     const result = await processPlenWhatsAppMessage(userId, text)
-    
+    await delayRespostaPlen()
+
     const resp = (result.response || '').trim()
     if (!resp) {
       console.log('📨 [WhatsApp PLEN] Resposta vazia (oi/olá ou eco) — não enviar mensagem')

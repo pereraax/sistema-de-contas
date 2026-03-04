@@ -28,7 +28,26 @@ const PLENIPAY_BASE = 'https://plenipay.com'
 /** Texto e rótulo do botão "ver no perfil" em qualquer resposta de registro ou relatório. */
 const PERFIL_BUTTON_BODY = 'Veja com mais detalhes no seu perfil:'
 const PERFIL_BUTTON_LABEL = 'Ver no perfil'
+
+/** Delay aleatório 1–4 segundos para simular comportamento humano e reduzir detecção de automação. */
+export function delayRespostaPlen(): Promise<void> {
+  const ms = 1000 + Math.random() * 3000
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 const PERFIL_URL = `${PLENIPAY_BASE}/registros`
+const GANHE_INDICANDO_URL = `${PLENIPAY_BASE}/ganhe-indicando`
+
+/** Mensagem de incentivo à indicação (exibida após o usuário registrar 2 gastos). */
+const MSG_INCENTIVE_INDICATION = `💙 Você já registrou alguns gastos comigo!
+
+Que tal ganhar dinheiro convidando amigos?
+
+Cada pessoa que criar conta usando seu link
+te rende R$3.
+
+Ao juntar R$30 você pode sacar.
+
+Quer gerar seu link de convite?`
 
 export type ProcessPlenWhatsAppResult = {
   response: string
@@ -39,6 +58,68 @@ export type ProcessPlenWhatsAppResult = {
   buttonBody?: string
   /** Botões de resposta (ex.: "Falar com humano" na mensagem Oops). */
   replyButtons?: { body: string; buttons: { id: string; title: string }[] }
+}
+
+/** Conta quantos gastos (saída) o usuário já tem na conta (via users da conta). */
+async function countGastosPlen(supabase: SupabaseClient, accountOwnerId: string): Promise<number> {
+  const { data: users } = await supabase
+    .from('users')
+    .select('id')
+    .eq('account_owner_id', accountOwnerId)
+  const userIds = (users ?? []).map((u) => u.id)
+  if (userIds.length === 0) return 0
+  const { count, error } = await supabase
+    .from('registros')
+    .select('id', { count: 'exact', head: true })
+    .in('user_id', userIds)
+    .eq('tipo', 'saida')
+  if (error) return 0
+  return count ?? 0
+}
+
+/** Verifica se já enviamos o incentivo de indicação para este usuário. */
+async function incentiveIndicationAlreadySent(supabase: SupabaseClient, userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('plen_incentive_indication_sent')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle()
+  return !!data
+}
+
+/** Se o usuário tem >= 2 gastos e ainda não recebeu o incentivo, marca como enviado e retorna resposta com incentivo + botão "Gerar meu link". */
+async function maybeAppendIncentiveIndication(
+  supabase: SupabaseClient,
+  userId: string,
+  currentResponse: string,
+  currentButtonUrl: string | undefined,
+  currentButtonLabel: string | undefined,
+  currentButtonBody: string | undefined
+): Promise<ProcessPlenWhatsAppResult> {
+  const count = await countGastosPlen(supabase, userId)
+  if (count < 2) {
+    return {
+      response: currentResponse,
+      buttonUrl: currentButtonUrl,
+      buttonLabel: currentButtonLabel,
+      buttonBody: currentButtonBody,
+    }
+  }
+  if (await incentiveIndicationAlreadySent(supabase, userId)) {
+    return {
+      response: currentResponse,
+      buttonUrl: currentButtonUrl,
+      buttonLabel: currentButtonLabel,
+      buttonBody: currentButtonBody,
+    }
+  }
+  await supabase.from('plen_incentive_indication_sent').upsert({ user_id: userId }, { onConflict: 'user_id' })
+  return {
+    response: `${currentResponse}\n\n${MSG_INCENTIVE_INDICATION}`,
+    buttonUrl: GANHE_INDICANDO_URL,
+    buttonLabel: 'Gerar meu link',
+    buttonBody: 'Quer gerar seu link de convite?',
+  }
 }
 
 /** Estatísticas por conta (para consultas/relatórios no WhatsApp). */
@@ -395,6 +476,12 @@ function interpretarLembrete(texto: string): { descricao: string; data_lembrete:
   return null
 }
 
+/** Retorno do fallback de registro: mensagem simples ou com botão (incentivo indicação). */
+export type RegisterGastoReceitaFallbackResult =
+  | string
+  | { message: string; buttonUrl?: string; buttonLabel?: string; buttonBody?: string }
+  | null
+
 /**
  * Fallback: tenta apenas registrar gasto/receita a partir do texto (quando o fluxo normal retorna vazio).
  * Retorna mensagem de confirmação ou null se não conseguir interpretar.
@@ -402,7 +489,7 @@ function interpretarLembrete(texto: string): { descricao: string; data_lembrete:
 export async function registerGastoReceitaFallback(
   userId: string,
   rawMessage: string
-): Promise<string | null> {
+): Promise<RegisterGastoReceitaFallbackResult> {
   const supabase = createAdminClient()
   if (!supabase) return null
   const msg = (rawMessage || '').trim()
@@ -456,7 +543,7 @@ export async function registerGastoReceitaFallback(
     console.error('[PLEN WhatsApp] registerGastoReceitaFallback insert:', error.message)
     return null
   }
-  return formatarRespostaRegistro({
+  const message = formatarRespostaRegistro({
     nome,
     tipo,
     valor: valorFinal,
@@ -464,6 +551,18 @@ export async function registerGastoReceitaFallback(
     categoria: categoria || 'Outros',
     nomeUsuario: profileNome || undefined,
   })
+  if (tipo === 'saida') {
+    const withIncentive = await maybeAppendIncentiveIndication(supabase, userId, message, PERFIL_URL, PERFIL_BUTTON_LABEL, PERFIL_BUTTON_BODY)
+    if (withIncentive.buttonUrl === GANHE_INDICANDO_URL) {
+      return {
+        message: withIncentive.response,
+        buttonUrl: withIncentive.buttonUrl,
+        buttonLabel: withIncentive.buttonLabel,
+        buttonBody: withIncentive.buttonBody,
+      }
+    }
+  }
+  return message
 }
 
 /**
@@ -626,8 +725,12 @@ export async function processPlenWhatsAppMessage(
             })
             const dica =
               '💡 Para adicionar descrição no próximo registro, mande assim:\n*recebi X origem + data + descrição*\nEx.: recebi 100 mãe ontem guardei na caixinha nubank'
+            const respBase = comDesc.observacao ? `${msgBase}\n\n${dica}` : `${msgBase}\n\nQuer adicionar uma descrição? Mande: *recebi X origem + data + descrição*\n\n${dica}`
+            if (comDesc.tipo === 'saida') {
+              return maybeAppendIncentiveIndication(supabase, userId, respBase, PERFIL_URL, PERFIL_BUTTON_LABEL, PERFIL_BUTTON_BODY)
+            }
             return {
-              response: comDesc.observacao ? `${msgBase}\n\n${dica}` : `${msgBase}\n\nQuer adicionar uma descrição? Mande: *recebi X origem + data + descrição*\n\n${dica}`,
+              response: respBase,
               buttonUrl: PERFIL_URL,
               buttonLabel: PERFIL_BUTTON_LABEL,
               buttonBody: PERFIL_BUTTON_BODY,
@@ -849,6 +952,10 @@ export async function processPlenWhatsAppMessage(
           }
         }
         const textoResposta = partes.join('\n\n')
+        const temSaida = interpretados.some((i) => i.tipo === 'saida')
+        if (temSaida) {
+          return maybeAppendIncentiveIndication(supabase, userId, textoResposta, PERFIL_URL, PERFIL_BUTTON_LABEL, PERFIL_BUTTON_BODY)
+        }
         return {
           response: textoResposta,
           buttonUrl: PERFIL_URL,
@@ -916,7 +1023,7 @@ export async function processPlenWhatsAppMessage(
             console.error('[PLEN whatsapp-chat] Erro ao inserir:', error)
             return { response: `Erro ao salvar: ${error.message}. Crie uma pessoa em Configurações → Usuários no site.` }
           }
-          return {
+          const baseResp = {
             response: formatarRespostaRegistro({
               nome,
               tipo,
@@ -929,6 +1036,10 @@ export async function processPlenWhatsAppMessage(
             buttonLabel: PERFIL_BUTTON_LABEL,
             buttonBody: PERFIL_BUTTON_BODY,
           }
+          if (tipo === 'saida') {
+            return maybeAppendIncentiveIndication(supabase, userId, baseResp.response, baseResp.buttonUrl, baseResp.buttonLabel, baseResp.buttonBody)
+          }
+          return baseResp
         }
         return {
           response: 'Não encontrei uma pessoa para o registro. Crie em Configurações → Usuários (pelo menos uma) no site e tente de novo.',
@@ -996,7 +1107,7 @@ export async function processPlenWhatsAppMessage(
         }
       }
 
-      return {
+      const baseResp = {
         response: formatarRespostaRegistro({
           nome,
           tipo,
@@ -1009,6 +1120,10 @@ export async function processPlenWhatsAppMessage(
         buttonLabel: PERFIL_BUTTON_LABEL,
         buttonBody: PERFIL_BUTTON_BODY,
       }
+      if (tipo === 'saida') {
+        return maybeAppendIncentiveIndication(supabase, userId, baseResp.response, baseResp.buttonUrl, baseResp.buttonLabel, baseResp.buttonBody)
+      }
+      return baseResp
     }
 
     // LISTAS DETALHADAS: "me mostre as dívidas" / "me mostre os empréstimos" / "me mostre os registros da semana"
