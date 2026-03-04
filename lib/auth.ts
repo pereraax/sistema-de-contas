@@ -16,8 +16,7 @@ export interface UserProfile {
 }
 
 // Função helper para obter a URL correta do site (usada em links de confirmação de email)
-// Em desenvolvimento: usa localhost para testar o fluxo localmente.
-// Em produção: usa plenipay.com ou a URL do ambiente (Railway, etc).
+// Em desenvolvimento: usa localhost se configurado. Em produção: nunca localhost.
 export async function getSiteUrl(): Promise<string> {
   const isDev = process.env.NODE_ENV === 'development'
   console.log('🔍 [getSiteUrl] NODE_ENV:', process.env.NODE_ENV)
@@ -60,6 +59,19 @@ export async function getSiteUrl(): Promise<string> {
   return productionUrl
 }
 
+/** URL para links de confirmação de email: nunca localhost em produção, para o usuário abrir no site real e o assistente notificar no WhatsApp. */
+export async function getSiteUrlForEmailRedirect(): Promise<string> {
+  const url = await getSiteUrl()
+  if (url.includes('localhost') || url.includes('127.0.0.1')) {
+    const productionUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim()
+    if (productionUrl && !productionUrl.includes('localhost')) return productionUrl.replace(/\/$/, '')
+    if (process.env.RENDER_EXTERNAL_URL?.trim()) return process.env.RENDER_EXTERNAL_URL.trim().replace(/\/$/, '')
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+    return 'https://plenipay.com'
+  }
+  return url
+}
+
 export async function signUp(
   email: string,
   password: string,
@@ -97,8 +109,8 @@ export async function signUp(
       // Continuar mesmo sem admin client - podemos tentar criar usuário normalmente
     }
 
-    // URL base para links de confirmação (localhost em dev, plenipay.com em produção)
-    const siteUrl = await getSiteUrl()
+    // URL para links do email: nunca localhost em produção (assim o usuário abre no site real e o assistente notifica no WhatsApp)
+    const siteUrl = await getSiteUrlForEmailRedirect()
     const redirectTo = `${siteUrl}/auth/callback?next=/home`
     logInfo('🔄 Criando conta via signUp...', 'SIGNUP')
     logInfo(`🔗 redirectTo (link do email): ${redirectTo}`, 'SIGNUP')

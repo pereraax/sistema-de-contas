@@ -596,20 +596,22 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
       console.log('📧 [Callback] Email:', data.user.email)
       console.log('🔑 [Callback] Sessão criada:', !!data.session)
 
-      // Notificar no WhatsApp quando o usuário confirmar o email (conta criada pelo assistente)
+      // Notificar no WhatsApp quando o usuário confirmar o email (conta criada pelo assistente) — aguardar envio antes de redirecionar
       const admin = createAdminClient()
       if (admin) {
-        admin
-          .from('whatsapp_sessions')
-          .select('phone_number')
-          .eq('user_id', data.user.id)
-          .maybeSingle()
-          .then(({ data: ws }) => {
-            if (ws?.phone_number) {
-              return sendTextMessage(ws.phone_number, 'Email confirmado, agora podemos continuar... 💙', { delayTyping: 1 })
-            }
-          })
-          .catch((err) => console.warn('⚠️ [Callback] WhatsApp pós-confirmação:', err?.message))
+        try {
+          const { data: ws } = await admin
+            .from('whatsapp_sessions')
+            .select('phone_number')
+            .eq('user_id', data.user.id)
+            .maybeSingle()
+          if (ws?.phone_number) {
+            await sendTextMessage(ws.phone_number, 'Email confirmado, agora podemos continuar... 💙', { delayTyping: 1 })
+            console.log('✅ [Callback] WhatsApp pós-confirmação enviado para', ws.phone_number)
+          }
+        } catch (err: any) {
+          console.warn('⚠️ [Callback] WhatsApp pós-confirmação:', err?.message)
+        }
       }
       
       // Se há sessão, fazer login automático e redirecionar
