@@ -79,7 +79,10 @@ function parseZapiBody(body: unknown, logReject?: (reason: string) => void): Zap
     return null
   }
 
+  // Em grupos, o remetente real pode vir em participantPhone
   const rawPhone =
+    (b.participantPhone as string) ||
+    (data.participantPhone as string) ||
     (b.phone as string) ||
     (b.from as string) ||
     (b.senderPhone as string) ||
@@ -138,9 +141,17 @@ function parseZapiBody(body: unknown, logReject?: (reason: string) => void): Zap
     text = b.body
   } else if (b.data && typeof b.data === 'object') {
     const d = b.data as Record<string, unknown>
-    text = (d.text as string) || (d.message as string) || (d.body as string) || ''
+    const dText = d.text
+    if (dText && typeof dText === 'object' && typeof (dText as { message?: string }).message === 'string') {
+      text = (dText as { message: string }).message
+    } else {
+      text = (d.text as string) || (d.message as string) || (d.body as string) || ''
+    }
   }
   if (typeof b.messageText === 'string') text = text || b.messageText
+  if (!text && data && typeof data.text === 'object' && (data.text as { message?: string })?.message) {
+    text = (data.text as { message: string }).message
+  }
   // Reforço: se tem phone mas não extraiu texto, tratar como "Olá" para não descartar contato novo
   if (!text.trim()) text = 'Olá'
 
@@ -615,6 +626,11 @@ export async function POST(request: NextRequest) {
     if (!parsed) {
       const preview = body != null ? JSON.stringify(body).slice(0, 500) : 'null'
       console.warn('📨 [Z-API Webhook] Body (preview):', preview)
+      if (process.env.NODE_ENV === 'development' && body != null) {
+        try {
+          console.warn('📨 [Z-API Webhook] Body completo (dev) para debug:', JSON.stringify(body, null, 2).slice(0, 3000))
+        } catch (_) {}
+      }
       return NextResponse.json({ success: true, message: 'Payload ignorado' })
     }
     if (parsed.messageId && wasAlreadyProcessed(parsed.messageId)) {
