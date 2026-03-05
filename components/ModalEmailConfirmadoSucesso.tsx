@@ -16,11 +16,15 @@ function ModalEmailConfirmadoSucessoContent({ onClose }: ModalEmailConfirmadoSuc
   useEffect(() => {
     const emailConfirmed = searchParams?.get('emailConfirmed')
     const cookieConfirmed = typeof document !== 'undefined' && document.cookie.includes('email_confirmed=true')
+    const sessionFlag = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('email_just_confirmed') === '1'
     
-    if (emailConfirmed === 'true' || cookieConfirmed) {
+    if (emailConfirmed === 'true' || cookieConfirmed || sessionFlag) {
       setIsOpen(true)
       if (cookieConfirmed) {
         document.cookie = 'email_confirmed=; path=/; max-age=0'
+      }
+      if (sessionFlag) {
+        try { sessionStorage.removeItem('email_just_confirmed') } catch { /* ignore */ }
       }
       if (emailConfirmed === 'true') {
         setTimeout(() => {

@@ -272,6 +272,7 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
             var destPath = (next === '/login' || next === 'login') ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : next;
             if (destPath === '/home' || destPath === 'home' || (destPath.startsWith('/home') && destPath.indexOf('emailConfirmed') === -1)) destPath = '/home?emailConfirmed=true';
             else if (destPath && destPath.indexOf('emailConfirmed') === -1 && destPath !== '/login') destPath = destPath + (destPath.indexOf('?') >= 0 ? '&' : '?') + 'emailConfirmed=true';
+            try { document.cookie = 'email_confirmed=true; path=/; max-age=120; SameSite=Lax'; sessionStorage.setItem('email_just_confirmed', '1'); } catch (e) {}
             window.location.replace(productionUrl + (destPath.startsWith('/') ? destPath : '/' + destPath));
             return;
           }
@@ -312,6 +313,7 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
                   body: JSON.stringify({ access_token: data.session.access_token, refresh_token: data.session.refresh_token || '' })
                 });
               } catch (e) { console.warn('Notify WhatsApp:', e); }
+              try { document.cookie = 'email_confirmed=true; path=/; max-age=120; SameSite=Lax'; sessionStorage.setItem('email_just_confirmed', '1'); } catch (e) {}
               const next = new URLSearchParams(window.location.search).get('next') || '/home';
               var destPath = (next === '/login' || next === 'login') ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : next;
               if (destPath === '/home' || destPath === 'home' || (destPath.startsWith('/home') && destPath.indexOf('emailConfirmed') === -1)) destPath = '/home?emailConfirmed=true';
@@ -352,6 +354,7 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
                 body: JSON.stringify({ access_token: data.session.access_token, refresh_token: data.session.refresh_token || '' })
               });
             } catch (e) { console.warn('Notify WhatsApp:', e); }
+            try { document.cookie = 'email_confirmed=true; path=/; max-age=120; SameSite=Lax'; sessionStorage.setItem('email_just_confirmed', '1'); } catch (e) {}
             const next = urlParams.get('next') || '/home';
             var destPath = (next === '/login' || next === 'login') ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : next;
             if (destPath === '/home' || destPath === 'home' || (destPath.startsWith('/home') && !destPath.includes('emailConfirmed'))) destPath = '/home?emailConfirmed=true';

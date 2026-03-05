@@ -24,19 +24,25 @@ export default function ConfirmEmailPage() {
     console.log('🔍 [ConfirmPage] Verificando URL:', currentUrl)
     console.log('🔍 [ConfirmPage] Host atual:', currentHost)
     
-    // Se já estamos no domínio correto, redirecionar para callback
+    // Se já estamos no domínio correto
     if (!currentHost.includes('0.0.0.0') && !currentHost.includes('10000')) {
       const tokenHash = searchParams.get('token_hash')
       const type = searchParams.get('type')
       const next = searchParams.get('next') || '/home'
+      const hash = window.location.hash
       
+      if (hash && (hash.includes('access_token') || hash.includes('token_hash'))) {
+        // Supabase colocou o token no fragmento — redirecionar para callback preservando o hash (callback processa no cliente)
+        const callbackUrl = `/auth/callback?next=${encodeURIComponent(next)}${hash}`
+        console.log('✅ [ConfirmPage] Redirecionando para callback com hash')
+        window.location.replace(callbackUrl)
+        return
+      }
       if (tokenHash && type) {
-        // Construir URL do callback com todos os parâmetros
         const callbackUrl = `/auth/callback?token_hash=${tokenHash}&type=${type}&next=${next}`
-        console.log('✅ [ConfirmPage] Redirecionando para callback:', callbackUrl)
+        console.log('✅ [ConfirmPage] Redirecionando para callback com token_hash na query')
         router.replace(callbackUrl)
       } else {
-        // Sem parâmetros necessários, ir para home
         console.log('⚠️ [ConfirmPage] Sem parâmetros de confirmação, redirecionando para home')
         router.replace('/home')
       }
