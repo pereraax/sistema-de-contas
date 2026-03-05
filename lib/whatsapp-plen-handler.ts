@@ -499,6 +499,14 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       return null
     }
 
+    // CRÍTICO: Intro (oi, olá, quero usar, etc.) — SEMPRE resposta fixa + botão CADASTRAR, sem LLM e sem await
+    const lowerTextEarly = String(text).toLowerCase().trim()
+    if (isIntroIntent(lowerTextEarly)) {
+      console.log('👋 [WhatsApp PLEN] Intro detectada (oi/olá) — enviando mensagem fixa + botão CADASTRAR')
+      addLog('info', '👋 [PLEN WhatsApp] Intro (oi/olá) — resposta fixa com botão CADASTRAR')
+      return introMessageWithButton(contactNameWhatsApp)
+    }
+
     // Pausa global: assistente pausada para todos pelo admin — não responder
     try {
       const { getAssistenteGlobalPausada } = await import('@/lib/assistente-global-pausada')
