@@ -709,20 +709,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return
     }
 
-    // Modo teste: já recebeu intro e usuário respondeu "nada" / "não gastei" → convidar a testar com valor fictício (sem pular para cadastro).
-    if (
-      !temCadastro &&
-      !signupPending &&
-      jaRecebeuTestIntro &&
-      isRespostaNadaOuNaoGastei(text) &&
-      !isCadastrarMessage
-    ) {
-      await sendTextMessage(phone, MSG_NADA_VAMOS_TESTAR, { delayTyping: 1 }).catch(() => {})
-      markResponded(phone, text ?? '')
-      return
-    }
-
-    // Modo teste: já recebeu intro mas mensagem não é gasto válido → LLM explica Plenipay e convida a testar/cadastrar.
+    // Modo teste: já recebeu intro mas mensagem não é gasto válido → ChatGPT responde de forma dinâmica e amigável.
     if (
       !temCadastro &&
       !signupPending &&
@@ -730,7 +717,10 @@ async function processarEmBackground(parsed: ZapiParsed) {
       !isQueroUtilizarPlenipayMessage(text) &&
       !isCadastrarMessage
     ) {
-      const leadTestContext = `Lead no fluxo de teste da Plenipay (ainda não tem conta). Pedimos para ele dizer um gasto do dia (ex: 50 mercado). Ele respondeu com a mensagem abaixo. Responda de forma amigável: se ele disser que não gastou nada ou que não tem gasto, diga que pode testar com um VALOR FICTÍCIO por enquanto (ex.: 50 mercado, 20 uber) para ver como funciona. Se for outra dúvida, explique brevemente a Plenipay e convide a testar com um gasto ou a criar a conta (digite CADASTRAR — não mencione link). Máximo 4-5 frases. Use *negrito* para ênfase.`
+      const ehNadaOuNaoGastei = isRespostaNadaOuNaoGastei(text)
+      const leadTestContext = ehNadaOuNaoGastei
+        ? `O lead está no modo teste da Plenipay (ainda não tem conta). Pedimos um gasto do dia (ex: 50 mercado). Ele respondeu que NÃO GASTOU NADA ou que ainda não gastou. Responda de forma DINÂMICA e AMIGÁVEL (como um humano caloroso): reconheça o que ele disse e convide a testar com um VALOR FICTÍCIO por enquanto (ex.: 50 mercado, 20 uber) só pra ele ver como funciona. Não peça cadastro ainda. Tom natural e acolhedor. 3-4 frases. Use *negrito* só para exemplos.`
+        : `Lead no fluxo de teste da Plenipay (ainda não tem conta). Pedimos para ele dizer um gasto do dia (ex: 50 mercado). Ele respondeu com a mensagem abaixo. Responda de forma dinâmica e amigável: explique brevemente se precisar, convide a testar com um gasto (ex: 50 mercado, 20 uber) ou a criar a conta (digite CADASTRAR — não mencione link). Máximo 4-5 frases. Use *negrito* para ênfase.`
       let msgResposta: string
       try {
         const { getPlenLLMResponse } = await import('@/lib/plen-llm-fallback')
@@ -791,15 +781,41 @@ async function processarEmBackground(parsed: ZapiParsed) {
         return
       }
 
-      // Resposta "nada" / "não gastei" → convidar a testar com valor fictício
+      // Resposta "nada" / "não gastei" ou outra → ChatGPT responde de forma dinâmica e amigável (contexto já trata "nada" no bloco LLM abaixo; aqui só evitamos enviar MSG_TESTAR_ANTES fixo)
       if (isRespostaNadaOuNaoGastei(text)) {
-        await sendTextMessage(phone, MSG_NADA_VAMOS_TESTAR, { delayTyping: 1 }).catch(() => {})
+        const ctxNada = `O lead está no modo teste. Pedimos um gasto do dia. Ele disse que NÃO GASTOU NADA ou que ainda não gastou. Responda de forma DINÂMICA e AMIGÁVEL: reconheça e convide a testar com um valor FICTÍCIO (ex: 50 mercado, 20 uber) só pra ver como funciona. Não peça cadastro ainda. 3-4 frases, tom natural.`
+        let msgResposta: string
+        try {
+          const { getPlenLLMResponse } = await import('@/lib/plen-llm-fallback')
+          const llmResposta = await getPlenLLMResponse({
+            userMessage: (text ?? '').trim(),
+            context: ctxNada,
+            productMode: true,
+          })
+          msgResposta = (llmResposta && llmResposta.trim()) ? llmResposta.trim() : MSG_NADA_VAMOS_TESTAR
+        } catch (_) {
+          msgResposta = MSG_NADA_VAMOS_TESTAR
+        }
+        await sendTextMessage(phone, msgResposta, { delayTyping: 1 }).catch(() => {})
         markResponded(phone, text ?? '')
         return
       }
 
-      // Não pareceu um gasto → pedir para testar antes (gasto ou entrada)
-      await sendTextMessage(phone, MSG_TESTAR_ANTES, { delayTyping: 1 }).catch(() => {})
+      // Não pareceu um gasto → ChatGPT responde de forma dinâmica e amigável (ou fallback)
+      let msgOutra: string
+      try {
+        const { getPlenLLMResponse } = await import('@/lib/plen-llm-fallback')
+        const ctxOutra = `Lead no modo teste. Pedimos um gasto do dia (ex: 50 mercado). Ele respondeu com a mensagem abaixo. Responda de forma dinâmica e amigável: convide a testar com um gasto (ex: 50 mercado, 20 uber) ou a criar a conta (digite CADASTRAR). Não mencione link. 3-4 frases. Use *negrito* para exemplos.`
+        const llmOutra = await getPlenLLMResponse({
+          userMessage: (text ?? '').trim(),
+          context: ctxOutra,
+          productMode: true,
+        })
+        msgOutra = (llmOutra && llmOutra.trim()) ? llmOutra.trim() : MSG_TESTAR_ANTES
+      } catch (_) {
+        msgOutra = MSG_TESTAR_ANTES
+      }
+      await sendTextMessage(phone, msgOutra, { delayTyping: 1 }).catch(() => {})
       markResponded(phone, text ?? '')
       return
     }
