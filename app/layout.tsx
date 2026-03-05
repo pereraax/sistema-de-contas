@@ -161,7 +161,7 @@ export default async function RootLayout({
             __html: `(function(){var t=localStorage.getItem('theme');var d=!(t&&t!=='dark')&&window.matchMedia('(prefers-color-scheme: dark)').matches;if(t==='dark'||(!t&&d))document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');var s=localStorage.getItem('sidebar-collapsed');document.documentElement.setAttribute('data-sidebar',s==='true'?'collapsed':'expanded');})();`,
           }}
         />
-        {/* OAuth: se a URL tiver ?code= ou #access_token em qualquer path (exceto /auth/callback), ir para /auth/callback antes de pintar */}
+        {/* Confirmação de email / OAuth: se a URL tiver ?code= ou #access_token (hash não vai ao servidor), ir para /auth/callback. Na raiz (/) usar next=/login para modal "Email confirmado". */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){
@@ -169,12 +169,12 @@ export default async function RootLayout({
               if(p.indexOf('/auth/callback')===0)return;
               var q=window.location.search,h=window.location.hash||'';
               var hasCode=/[?&]code=/.test(q);
-              var hasHash=h.indexOf('access_token')>=0||h.indexOf('refresh_token')>=0;
+              var hasHash=h.indexOf('access_token')>=0||h.indexOf('refresh_token')>=0||h.indexOf('token_hash')>=0;
               if(hasCode||hasHash){
                 var params=new URLSearchParams(window.location.search);
-                if(!params.has('next'))params.set('next','/home');
+                if(!params.has('next'))params.set('next',p==='/'||p===''?'/login':'/home');
                 var qs=params.toString();
-                window.location.replace('/auth/callback'+(qs?'?'+qs:'?next=/home')+h);
+                window.location.replace('/auth/callback'+(qs?'?'+qs:'?next='+(p==='/'||p===''?'/login':'/home'))+h);
               }
             })();`,
           }}

@@ -244,9 +244,10 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
     })
   }
 
-  // Sem parâmetros na query (pode haver hash #access_token)
+  // Sem parâmetros na query (pode haver hash #access_token ou #token_hash — hash NUNCA vem no request ao servidor)
+  // O layout redireciona / com hash para /auth/callback?next=/login#... para chegar aqui e processar no cliente
   if (!code && !tokenHash) {
-    console.log('⚠️ [Callback] Sem parâmetros na query string - processando hash no cliente...')
+    console.log('⚠️ [Callback] Sem code/token_hash na query - retornando HTML para processar hash no cliente (confirmação de email)')
     
     // Retornar página HTML que processa o hash no cliente usando Supabase JS
     // O hash (#access_token) não é enviado ao servidor, então precisa ser processado no cliente
