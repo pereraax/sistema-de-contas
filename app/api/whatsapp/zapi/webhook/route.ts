@@ -15,6 +15,7 @@ import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage, hasReceived
 import { sendBoasVindasToNumber, isBoasVindasConfigured } from '@/lib/whatsapp-enviar-boas-vindas-lib'
 import {
   getMensagemInicialModoTeste,
+  getMensagemIntroPlenipay,
   parseGastoSimples,
   getMsgGastoRegistradoModoTeste,
   MSG_FOLLOW_UP_CRIAR_CONTA,
@@ -242,17 +243,21 @@ function parseZapiBody(body: unknown, logReject?: (reason: string) => void): Zap
     media = { type: 'image', url: image.imageUrl, mimetype: image.mimeType || 'image/jpeg', caption: image.caption }
   }
 
+  const contactObj = (b.contact ?? dataObj.contact) as { displayName?: string; name?: string; shortName?: string } | undefined
   const contactNameRaw =
     (b.senderName as string) ||
     (b.chatName as string) ||
     (b.pushName as string) ||
     (b.contactName as string) ||
+    (b.name as string) ||
+    (b.participantName as string) ||
     (data.senderName as string) ||
     (data.chatName as string) ||
     (data.pushName as string) ||
     (data.contactName as string) ||
-    (b.contact && typeof b.contact === 'object' && ((b.contact as Record<string, unknown>).displayName as string)) ||
-    (dataObj.contact && typeof dataObj.contact === 'object' && ((dataObj.contact as Record<string, unknown>).displayName as string)) ||
+    (data.name as string) ||
+    (data.participantName as string) ||
+    (contactObj && typeof contactObj === 'object' && (contactObj.displayName || contactObj.name || contactObj.shortName)) ||
     ''
   const contactNameTrimmed = typeof contactNameRaw === 'string' ? contactNameRaw.trim().slice(0, 80) : ''
   const contactNameDigits = contactNameTrimmed.replace(/\D/g, '')
@@ -865,12 +870,18 @@ async function processarEmBackground(parsed: ZapiParsed) {
       for (let i = 0; i < result.messages.length; i++) {
         const msg = result.messages[i]
         if (typeof msg === 'object' && msg !== null && (msg as any).type === 'buttons') {
-          const { body, buttons } = msg as { type: 'buttons'; body: string; buttons: { id: string; title: string }[] }
+          const { body: bodyFromHandler, buttons } = msg as { type: 'buttons'; body: string; buttons: { id: string; title: string }[] }
           const isSingleCadastrar =
             buttons.length === 1 &&
             (buttons[0].id === 'cadastrar' || /^cadastrar$/i.test(buttons[0].title?.trim() ?? ''))
+          // Sempre usar nome do contato na intro (webhook tem contactName do payload Z-API)
+          const body = isSingleCadastrar ? getMensagemIntroPlenipay(contactName) : bodyFromHandler
           let send = { success: false as boolean, error: '' as string }
           if (isSingleCadastrar) {
+            send = await sendButtonListReply(phone, body, buttons)
+            if (send.success) console.log('✅ [Z-API Webhook] Botão CADASTRAR (lista) enviado para:', phone)
+          }
+          if (!send.success && isSingleCadastrar) {
             send = await sendButtonActionsReply(phone, body, [{ type: 'REPLY', label: 'CADASTRAR', id: 'cadastrar' }])
             if (send.success) console.log('✅ [Z-API Webhook] Botão CADASTRAR (REPLY) enviado para:', phone)
           }

@@ -34,7 +34,9 @@ A Plenipay é uma ferramenta que ajuda você a controlar suas finanças de forma
 
 Você pode registrar gastos, receitas e dívidas!
 
-Quer começar a usar a Plenipay? Clique no botão abaixo ou digite *CADASTRAR* para começar.`
+Quer começar a usar a Plenipay?
+
+Clique em cadastrar.`
 }
 
 /** Quando o lead envia algo que não é gasto/entrada: convite para testar antes. */
