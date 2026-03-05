@@ -799,6 +799,31 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       }
       // Se não conseguimos verificar ou email NÃO está confirmado: sempre responder (nunca deixar em branco)
       if (emailConfirmado !== true) {
+        // Código de 6 dígitos (cadastro WhatsApp): usuário digitou o código que recebeu por email
+        const codigoDigitado = (text ?? '').trim().replace(/\s/g, '')
+        if (/^\d{6}$/.test(codigoDigitado)) {
+          try {
+            const { verifyEmailCode } = await import('@/lib/whatsapp-email-code')
+            const result = await verifyEmailCode(phoneNumber, codigoDigitado)
+            if (result.success) {
+              return {
+                success: true,
+                message:
+                  '✅ Email confirmado! 💙 Sua conta está ativa. Pode me dizer seus gastos e receitas que eu registro. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"',
+              }
+            }
+            return {
+              success: true,
+              message: result.error || 'Código inválido ou expirado. Verifique o email (e a pasta de spam) e digite o código de 6 dígitos de novo.',
+            }
+          } catch (err: any) {
+            return {
+              success: true,
+              message: 'Não consegui verificar o código. Tente de novo ou digite o código de 6 dígitos que enviamos no seu email. 💙',
+            }
+          }
+        }
+
         const { isConfirmacaoEmailMessage } = await import('@/lib/whatsapp-contatos-pendentes')
         const ehMensagemDeConfirmacao = isConfirmacaoEmailMessage(text)
         // Pergunta se o email já foi confirmado (ex.: "meu email foi confirmado?") — reverificar e responder sempre
@@ -819,14 +844,14 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
               } else {
                 return {
                   success: true,
-                  message: 'Ainda não apareceu como confirmado aqui. 💙 Confira a pasta de *spam* do seu e-mail, clique no link que enviamos e aguarde uns minutos. Se já clicou, me diga de novo "meu email foi confirmado?" que eu verifico outra vez.',
+                  message: 'Ainda não apareceu como confirmado aqui. 💙 Confira o email (e a pasta de *spam*) e digite o *código de 6 dígitos* que enviamos. Se já digitou, me diga "meu email foi confirmado?" que eu verifico de novo.',
                 }
               }
             }
           } catch (_) {
             return {
               success: true,
-              message: 'Estou verificando... Por favor, confira seu e-mail (e a pasta de *spam*) e clique no link. Depois me avise aqui. 💙',
+              message: 'Estou verificando... Por favor, confira seu e-mail (e a pasta de *spam*) e digite o código de 6 dígitos que enviamos. 💙',
             }
           }
         }
@@ -837,13 +862,13 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
           if (ehPerguntaProximoPasso) {
             return {
               success: true,
-              message: 'Agora é só abrir seu *email* (e a pasta de *spam*), clicar no *link* que enviamos e sua conta fica ativa. 💙\n\nDepois volte aqui e me diga um gasto ou receita que eu registro! Ex.: "gastei 200 com roupas" ou "recebi 1500 salário".',
+              message: 'Agora é só abrir seu *email* (e a pasta de *spam*), pegar o *código de 6 dígitos* que enviamos e digitar aqui na conversa. Aí sua conta fica ativa. 💙\n\nDepois pode me dizer um gasto ou receita! Ex.: "gastei 200 com roupas" ou "recebi 1500 salário".',
             }
           }
-          // Qualquer outra mensagem (ex.: "extra de 300", "gastei 50") com email pendente: instruir a confirmar
+          // Qualquer outra mensagem com email pendente: instruir a digitar o código
           return {
             success: true,
-            message: '📧 Seu email ainda não foi confirmado.\n\n1) Abra sua caixa de entrada (e a pasta de *spam*)\n2) Clique no link que enviamos\n3) Depois volte aqui e me diga de novo (ex.: "gastei 340" ou "extra de 300")\n\nAssim sua conta fica ativa e eu registro tudo para você. 💙',
+            message: '📧 Para ativar sua conta, digite aqui o *código de 6 dígitos* que enviamos no seu e-mail (confira também a pasta de *spam*). 💙',
           }
         }
       }
@@ -1373,8 +1398,8 @@ async function handleWhatsAppAuthentication(
         const nomeExibir = nome.trim().slice(0, 50)
         const emailFoiEnviado = result.emailEnviado !== false
         const msgSucesso = emailFoiEnviado
-          ? `Perfeito ${nomeExibir} 💙\n\nEnviei um *link para confirmar seu e-mail* na sua caixa de entrada.\n\nDepois de clicar no link sua conta fica ativa e você pode me dizer seus gastos e receitas aqui. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
-          : `Conta criada, ${nomeExibir} 💙\n\nO e-mail de confirmação pode demorar ou ir para a pasta de *spam*. Se não chegar em alguns minutos, me avise aqui que eu te oriento a reenviar o link.\n\nDepois de confirmar, você pode me dizer seus gastos e receitas. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
+          ? `Perfeito ${nomeExibir} 💙\n\nEnviei um *código de 6 dígitos* no seu e-mail. Digite o código aqui na conversa que eu confirmo sua conta.\n\nDepois disso você pode me dizer seus gastos e receitas. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
+          : `Conta criada, ${nomeExibir} 💙\n\nO e-mail com o código pode demorar ou ir para a pasta de *spam*. Se não chegar em alguns minutos, me avise aqui que eu te oriento.\n\nQuando receber, digite o código de 6 dígitos aqui na conversa. 💙`
         if (emailFoiEnviado) {
           const { markEmailConfirmLinkSent } = await import('@/lib/whatsapp-contatos-pendentes')
           await markEmailConfirmLinkSent(phoneNumber).catch(() => {})

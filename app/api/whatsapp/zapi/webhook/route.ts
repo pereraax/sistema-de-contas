@@ -582,8 +582,8 @@ async function processarEmBackground(parsed: ZapiParsed) {
           const nomeExibir = nomeParaConta || 'pessoa'
           const emailFoiEnviado = result.emailEnviado !== false
           const msgSucesso = emailFoiEnviado
-            ? `Perfeito ${nomeExibir} 💙\n\nEnviei um *link para confirmar seu e-mail* na sua caixa de entrada.\n\nDepois de clicar no link sua conta fica ativa e você pode me dizer seus gastos e receitas aqui. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
-            : `Conta criada, ${nomeExibir} 💙\n\nO e-mail de confirmação pode demorar ou ir para a pasta de *spam*. Se não chegar em alguns minutos, me avise aqui que eu te oriento a reenviar o link.\n\nDepois de confirmar, você pode me dizer seus gastos e receitas. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
+            ? `Perfeito ${nomeExibir} 💙\n\nEnviei um *código de 6 dígitos* no seu e-mail. Digite o código aqui na conversa que eu confirmo sua conta.\n\nDepois disso você pode me dizer seus gastos e receitas. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
+            : `Conta criada, ${nomeExibir} 💙\n\nO e-mail com o código pode demorar ou ir para a pasta de *spam*. Se não chegar em alguns minutos, me avise aqui que eu te oriento.\n\nQuando receber, digite o código de 6 dígitos aqui na conversa. 💙`
           await sendTextMessage(phone, msgSucesso, { delayTyping: 1 }).catch(() => {})
           if (emailFoiEnviado) await markEmailConfirmLinkSent(phone).catch(() => {})
           await markWelcomeSent(phone).catch(() => {})

@@ -1,11 +1,14 @@
 /**
  * Lógica compartilhada para criar conta a partir do fluxo WhatsApp (nome + email).
  * Usado pela API /api/auth/criar-conta-whatsapp e pelo webhook Z-API.
+ *
+ * Cadastro pelo WhatsApp: envio de CÓDIGO de 6 dígitos por email; usuário digita o código na conversa para confirmar.
+ * Cadastro pelo site: continua com link de confirmação normal (signUp em auth.ts).
  */
 
-import { signUp } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/server'
 import { randomBytes } from 'crypto'
+import { generateAndSendEmailCode } from '@/lib/whatsapp-email-code'
 
 function normalizarPhone(phone: string): string {
   const limpo = String(phone || '').replace(/\D/g, '')
@@ -35,95 +38,96 @@ export async function criarContaFromWhatsApp(
     return { success: false, error: 'Número de WhatsApp inválido.' }
   }
 
+  const supabaseAdmin = createAdminClient()
+  if (!supabaseAdmin) {
+    return { success: false, error: 'Serviço indisponível. Tente mais tarde.' }
+  }
+
   const password = randomBytes(32).toString('hex')
 
-  const result = await signUp(
-    emailTrim,
-    password,
-    nomeTrim,
-    phoneNorm,
-    phoneNorm,
-    'teste'
-  )
+  // Verificar se já existe usuário com este email
+  const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+  const existingUser = usersData?.users?.find((u: { email?: string }) => (u.email ?? '').toLowerCase() === emailTrim)
 
-  if (result.error) {
-    const details = (result as { details?: string }).details
-    console.error('[criar-conta-whatsapp] signUp falhou:', result.error, details ? `| detalhe: ${details}` : '')
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('[criar-conta-whatsapp] Local: confira .env.local (SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_*) e no Supabase Dashboard > Authentication > Users se o usuário foi criado.')
-    }
-    const msg = result.error.toLowerCase()
-    const emailJaCadastrado =
-      msg.includes('já está cadastrado') ||
-      msg.includes('already registered') ||
-      msg.includes('already exists') ||
-      msg.includes('email already')
+  let userId: string | undefined
 
-    if (emailJaCadastrado) {
-      // Vincular o WhatsApp à conta existente para o assistente poder avisar quando o email for confirmado
-      const supabaseAdmin = createAdminClient()
-      if (supabaseAdmin) {
-        try {
-          const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
-          const existingUser = usersData?.users?.find((u: { email?: string }) => (u.email ?? '').toLowerCase() === emailTrim)
-          if (existingUser?.id) {
-            await supabaseAdmin.from('whatsapp_sessions').upsert(
-              {
-                phone_number: phoneNorm,
-                user_id: existingUser.id,
-                plen_activated: true,
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: 'phone_number' }
-            )
-            await supabaseAdmin.from('profiles').update({
-              whatsapp: phoneNorm,
-              telefone: phoneNorm,
-              nome: nomeTrim,
-              updated_at: new Date().toISOString(),
-            }).eq('id', existingUser.id)
-            return { success: true, emailEnviado: false }
-          }
-        } catch (e) {
-          console.warn('[criar-conta-whatsapp] Erro ao vincular WhatsApp a conta existente:', e)
-        }
-      }
+  if (existingUser) {
+    if ((existingUser as { email_confirmed_at?: string | null }).email_confirmed_at) {
       return { success: false, error: 'Este e-mail já está cadastrado. Faça login ou use outro e-mail.' }
     }
-    return { success: false, error: result.error || 'Erro ao criar conta.' }
-  }
-
-  const userId = result.data?.user?.id
-  if (!userId) {
-    return { success: false, error: 'Conta criada mas não foi possível vincular o WhatsApp. Entre em contato com o suporte.' }
-  }
-
-  const supabaseAdmin = createAdminClient()
-  if (supabaseAdmin) {
-    await supabaseAdmin.from('whatsapp_sessions').upsert(
-      {
-        phone_number: phoneNorm,
-        user_id: userId,
-        plen_activated: true,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'phone_number' }
-    )
-    // Garantir que o perfil existe com a flag (upsert: cria se não existir, atualiza se existir)
-    await supabaseAdmin.from('profiles').upsert(
-      {
-        id: userId,
-        email: emailTrim,
+    userId = existingUser.id
+  } else {
+    const { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email: emailTrim,
+      password,
+      email_confirm: false,
+      user_metadata: {
         nome: nomeTrim,
         telefone: phoneNorm,
         whatsapp: phoneNorm,
         plano: 'teste',
-        precisa_definir_senha: true,
-        updated_at: new Date().toISOString(),
+        email: emailTrim,
       },
-      { onConflict: 'id' }
-    )
+    })
+
+    if (createError) {
+      const msg = (createError.message || '').toLowerCase()
+      if (
+        msg.includes('already') ||
+        msg.includes('exists') ||
+        msg.includes('registered') ||
+        msg.includes('duplicate')
+      ) {
+        const { data: listAgain } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+        const again = listAgain?.users?.find((u: { email?: string }) => (u.email ?? '').toLowerCase() === emailTrim)
+        if (again && !(again as { email_confirmed_at?: string | null }).email_confirmed_at) {
+          userId = again.id
+        } else if (again?.id) {
+          return { success: false, error: 'Este e-mail já está cadastrado. Faça login ou use outro e-mail.' }
+        } else {
+          return { success: false, error: createError.message || 'Erro ao criar conta.' }
+        }
+      } else {
+        console.error('[criar-conta-whatsapp] createUser falhou:', createError.message)
+        return { success: false, error: createError.message || 'Erro ao criar conta.' }
+      }
+    } else if (createData?.user?.id) {
+      userId = createData.user.id
+    } else {
+      return { success: false, error: 'Conta não foi criada. Tente novamente.' }
+    }
   }
 
-  return { success: true, emailEnviado: result.emailEnviado ?? true }
+  if (!userId) {
+    return { success: false, error: 'Conta criada mas não foi possível vincular o WhatsApp. Entre em contato com o suporte.' }
+  }
+
+  await supabaseAdmin.from('whatsapp_sessions').upsert(
+    {
+      phone_number: phoneNorm,
+      user_id: userId,
+      plen_activated: true,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'phone_number' }
+  )
+  await supabaseAdmin.from('profiles').upsert(
+    {
+      id: userId,
+      email: emailTrim,
+      nome: nomeTrim,
+      telefone: phoneNorm,
+      whatsapp: phoneNorm,
+      plano: 'teste',
+      precisa_definir_senha: true,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'id' }
+  )
+
+  const codeResult = await generateAndSendEmailCode(userId, emailTrim, phoneNorm, nomeTrim)
+  return {
+    success: true,
+    emailEnviado: codeResult.success,
+  }
 }
