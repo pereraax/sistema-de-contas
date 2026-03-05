@@ -91,6 +91,58 @@ export async function markTestIntroSent(phone: string): Promise<void> {
   )
 }
 
+/** Marca que enviamos "Enviei um link para confirmar seu email" para este número (cadastro WhatsApp). */
+export async function markEmailConfirmLinkSent(phone: string): Promise<void> {
+  const supabase = createAdminClient()
+  if (!supabase) return
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return
+  const now = new Date().toISOString()
+  await supabase.from(TABLE).upsert(
+    { phone: p, email_confirm_link_sent_at: now, updated_at: now },
+    { onConflict: 'phone', ignoreDuplicates: false }
+  ).catch(() => {})
+}
+
+const EMAIL_CONFIRM_SENT_TTL_MS = 48 * 60 * 60 * 1000 // 48h
+
+/** Retorna true se enviamos o link de confirmação de email para este número recentemente (últimas 48h). */
+export async function wasEmailConfirmLinkSentRecently(phone: string): Promise<boolean> {
+  const supabase = createAdminClient()
+  if (!supabase) return false
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return false
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('email_confirm_link_sent_at')
+    .eq('phone', p)
+    .maybeSingle()
+  if (error || !data) return false
+  const sentAt = (data as { email_confirm_link_sent_at?: string } | null)?.email_confirm_link_sent_at
+  if (!sentAt) return false
+  const ts = new Date(sentAt).getTime()
+  return Date.now() - ts < EMAIL_CONFIRM_SENT_TTL_MS
+}
+
+/** Limpa a marca de "link de confirmação enviado" para este número (após reconhecer "pronto/verifiquei"). */
+export async function clearEmailConfirmLinkSent(phone: string): Promise<void> {
+  const supabase = createAdminClient()
+  if (!supabase) return
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return
+  await supabase.from(TABLE).update({ email_confirm_link_sent_at: null, updated_at: new Date().toISOString() }).eq('phone', p).then(() => {}).catch(() => {})
+}
+
+/** True se a mensagem parece confirmação de que o lead verificou/confirmou o email (pronto, verifiquei, deu certo, etc.). */
+export function isConfirmacaoEmailMessage(text: string): boolean {
+  if (!text || typeof text !== 'string') return false
+  const t = text.toLowerCase().trim().replace(/\s+/g, ' ')
+  const ok = /^(pronto|verifiquei|deu\s+certo\??|confirmei|j[aá]\s*confirmei|ok\s*verifiquei|pronto\s*verifiquei|verifiquei\s*pronto|confirmei\s*o\s*e? ?mail|verifiquei\s*o\s*e? ?mail)$/i.test(t) ||
+    /pronto\s*verifiquei|verifiquei\s*pronto|deu\s+certo/i.test(t) ||
+    (t === 'pronto' || t === 'verifiquei' || t === 'deu certo' || t === 'deu certo?' || t === 'confirmei')
+  return ok
+}
+
 /** Retorna true se este número já tem cadastro (conta no sistema: sessão WhatsApp vinculada a um user_id). */
 export async function hasCadastro(phone: string): Promise<boolean> {
   const supabase = createAdminClient()
@@ -230,6 +282,45 @@ export async function backfillFromNotificacoes(
     if (!error) importados += 1
   }
   return { importados }
+}
+
+/** Lista leads no fluxo de teste (receberam intro) que estão inativos há 10–50 min e ainda não têm cadastro. Para envio da mensagem estratégica de follow-up. */
+export async function listLeadsInativosParaFollowUp10Min(): Promise<{ phone: string }[]> {
+  const supabase = createAdminClient()
+  if (!supabase) return []
+  const now = new Date()
+  const min10 = new Date(now.getTime() - 10 * 60 * 1000).toISOString()
+  const min50 = new Date(now.getTime() - 50 * 60 * 1000).toISOString()
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('phone, test_intro_sent_at, welcome_sent_at, lead_followup_10min_sent_at')
+    .or('test_intro_sent_at.not.is.null,welcome_sent_at.not.is.null')
+    .is('lead_followup_10min_sent_at', null)
+    .lte('last_message_at', min10)
+    .gte('last_message_at', min50)
+  if (error) {
+    console.error('[whatsapp-contatos-pendentes] listLeadsInativosParaFollowUp10Min error:', error)
+    return []
+  }
+  const rows = (data || []) as { phone: string; lead_followup_10min_sent_at?: string | null }[]
+  const result: { phone: string }[] = []
+  for (const r of rows) {
+    const p = (r.phone ?? '').trim()
+    if (p.length < 10) continue
+    if (await hasCadastro(p).catch(() => true)) continue
+    result.push({ phone: p })
+  }
+  return result
+}
+
+/** Marca que enviamos a mensagem de follow-up 10min para este lead (evita reenviar). */
+export async function markLeadFollowup10minSent(phone: string): Promise<void> {
+  const supabase = createAdminClient()
+  if (!supabase) return
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return
+  const now = new Date().toISOString()
+  await supabase.from(TABLE).update({ lead_followup_10min_sent_at: now, updated_at: now }).eq('phone', p).then(() => {}).catch(() => {})
 }
 
 /** Adicionar contato manualmente para reenvio (ex.: número que não aparece porque escreveu antes do deploy). */

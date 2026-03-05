@@ -22,7 +22,7 @@ export type BoasVindasItem =
   | { type: 'buttons'; body: string; buttons: { id: string; title: string; url?: string }[] }
 
 /** Mensagem única de boas-vindas = intro modo teste (sem botões). */
-const INTRO_SEM_NOME = `Oiii 👋!!✨
+const INTRO_SEM_NOME = `Oii 👋✨!!!
 
 💙 Eu sou a Plen, sua assistente financeira 😊
 

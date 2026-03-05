@@ -461,7 +461,20 @@ async function processarEmBackground(parsed: {
         return
       }
       if (isApifacilConfigured()) {
-        await sendTextMessage(phone, 'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber').catch(() => {})
+        const leadTestContext = `Lead no fluxo de teste da Plenipay (ainda não tem conta). Pedimos para ele dizer um gasto do dia (ex: 50 mercado). Ele respondeu com a mensagem abaixo. Responda de forma amigável e organizada: explique brevemente o que é a Plenipay, responda à dúvida ou objeção dele, e no final convide a testar com um gasto (ex: 50 mercado, 20 uber) ou a criar a conta. Máximo 4-5 frases curtas. Use formatação WhatsApp (*negrito* para ênfase).`
+        let msgResposta: string
+        try {
+          const { getPlenLLMResponse } = await import('@/lib/plen-llm-fallback')
+          const llmResposta = await getPlenLLMResponse({
+            userMessage: (text ?? '').trim(),
+            context: leadTestContext,
+            productMode: true,
+          })
+          msgResposta = (llmResposta && llmResposta.trim()) ? llmResposta.trim() : 'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber'
+        } catch (_) {
+          msgResposta = 'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber'
+        }
+        await sendTextMessage(phone, msgResposta).catch(() => {})
       }
       return
     }

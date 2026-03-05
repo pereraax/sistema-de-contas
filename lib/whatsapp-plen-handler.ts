@@ -507,6 +507,19 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       return null
     }
 
+    // Confirmação de email: lead responde "pronto", "verifiquei", "deu certo" após enviamos o link — responder que está confirmado
+    try {
+      const { isConfirmacaoEmailMessage, wasEmailConfirmLinkSentRecently, clearEmailConfirmLinkSent } = await import('@/lib/whatsapp-contatos-pendentes')
+      if (isConfirmacaoEmailMessage(text) && (await wasEmailConfirmLinkSentRecently(phoneNumber))) {
+        await clearEmailConfirmLinkSent(phoneNumber)
+        console.log('📧 [WhatsApp PLEN] Confirmação de email reconhecida para', phoneNumber)
+        return {
+          success: true,
+          message: `Ok, verifiquei e já está confirmado! 💙 Sua conta está ativa. Pode me dizer seus gastos e receitas para eu registrar. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`,
+        }
+      }
+    } catch (_) {}
+
     console.log('📨 [WhatsApp PLEN] ==========================================')
     console.log('📨 [WhatsApp PLEN] MENSAGEM RECEBIDA PARA PROCESSAR')
     console.log('📨 [WhatsApp PLEN] From:', phoneNumber)
@@ -1319,6 +1332,10 @@ async function handleWhatsAppAuthentication(
         const msgSucesso = emailFoiEnviado
           ? `Perfeito ${nomeExibir} 💙\n\nEnviei um link para confirmar seu email.\n\nDepois disso sua conta já estará ativa e você pode me dizer seus gastos e receitas para eu registrar. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
           : `Conta criada, ${nomeExibir} 💙\n\nO email de confirmação pode demorar ou ir para a pasta de *spam*. Se não chegar em alguns minutos, acesse *plenipay.com* e peça um novo link.\n\nDepois de confirmar, você pode me dizer seus gastos e receitas. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
+        if (emailFoiEnviado) {
+          const { markEmailConfirmLinkSent } = await import('@/lib/whatsapp-contatos-pendentes')
+          await markEmailConfirmLinkSent(phoneNumber).catch(() => {})
+        }
         return {
           success: true,
           message: msgSucesso,

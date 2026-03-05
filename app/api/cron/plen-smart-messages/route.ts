@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getEligibleUsers, sendSmartMessage } from '@/lib/plen-smart-messages'
+import { runLead10MinFollowUp } from '@/lib/whatsapp-lead-followup'
 import { isZapiConfigured } from '@/lib/whatsapp-zapi'
 import { isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 
@@ -54,9 +55,13 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
     )
   }
 
+  // 1) Follow-up 10 min para leads inativos (fluxo de teste, ainda sem cadastro)
+  const leadFollowUp = await runLead10MinFollowUp()
+  const errors: string[] = leadFollowUp.errors ?? []
+
+  // 2) Mensagens inteligentes para usuários já cadastrados (10min, 1h, 24h, marcos)
   const eligible = await getEligibleUsers(supabase)
-  const errors: string[] = []
-  let sent = 0
+  let sent = leadFollowUp.sent
 
   for (const { userId, eventType, payload } of eligible) {
     const result = await sendSmartMessage(supabase, userId, eventType, payload)
@@ -70,7 +75,8 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
   return NextResponse.json({
     ok: true,
     sent,
-    total: eligible.length,
+    total: leadFollowUp.total + eligible.length,
+    leadFollowUp10min: { sent: leadFollowUp.sent, total: leadFollowUp.total },
     errors: errors.length ? errors : undefined,
   })
 }

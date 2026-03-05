@@ -5,11 +5,11 @@
 
 import { extrairValor, categoriaInteligente } from '@/lib/plen-registro'
 
-/** Mensagem inicial do modo teste (formato igual ao da tela). */
+/** Mensagem inicial do modo teste = saudação Plen (igual à mensagem de boas-vindas do WhatsApp). */
 export function getMensagemInicialModoTeste(contactName?: string | null): string {
   const raw = (contactName ?? '').trim().slice(0, 50)
   const nome = raw && raw.toLowerCase() !== 'nome' && raw.toLowerCase() !== 'pessoa' ? raw : ''
-  const saudacao = nome ? `Oiii ${nome} 👋!!✨` : 'Oiii 👋!!✨'
+  const saudacao = nome ? `Oii ${nome} 👋✨!!!` : 'Oii 👋✨!!!'
   return `${saudacao}
 
 💙 Eu sou a Plen, sua assistente financeira 😊

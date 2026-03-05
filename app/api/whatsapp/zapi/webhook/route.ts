@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendButtonList, sendButtonActions, isZapiConfigured } from '@/lib/whatsapp-zapi'
-import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage, hasReceivedTestIntro, markTestIntroSent, hasCadastro } from '@/lib/whatsapp-contatos-pendentes'
+import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage, hasReceivedTestIntro, markTestIntroSent, hasCadastro, markEmailConfirmLinkSent } from '@/lib/whatsapp-contatos-pendentes'
 import { sendBoasVindasToNumber, isBoasVindasConfigured } from '@/lib/whatsapp-enviar-boas-vindas-lib'
 import {
   getMensagemInicialModoTeste,
@@ -584,6 +584,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
             ? `Perfeito ${nomeExibir} 💙\n\nEnviei um link para confirmar seu email.\n\nDepois disso sua conta já estará ativa e você pode me dizer seus gastos e receitas para eu registrar. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
             : `Conta criada, ${nomeExibir} 💙\n\nO email de confirmação pode demorar ou ir para a pasta de *spam*. Se não chegar em alguns minutos, acesse *plenipay.com*, faça login com esse email e peça um novo link de confirmação.\n\nDepois de confirmar, sua conta fica ativa e você pode me dizer seus gastos e receitas. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
           await sendTextMessage(phone, msgSucesso, { delayTyping: 1 }).catch(() => {})
+          if (emailFoiEnviado) await markEmailConfirmLinkSent(phone).catch(() => {})
           await clearSignupPending(phone)
           markResponded(phone, text ?? '')
           console.log('✅ [Z-API Webhook] Conta criada pelo WhatsApp para', phone)
@@ -664,7 +665,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return
     }
 
-    // Modo teste: já recebeu intro mas mensagem não é gasto válido → pedir no formato correto.
+    // Modo teste: já recebeu intro mas mensagem não é gasto válido → LLM explica Plenipay e convida a testar/cadastrar.
     if (
       !temCadastro &&
       !signupPending &&
@@ -673,11 +674,20 @@ async function processarEmBackground(parsed: ZapiParsed) {
       !isCadastrarMessage &&
       isBoasVindasConfigured()
     ) {
-      await sendTextMessage(
-        phone,
-        'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber',
-        { delayTyping: 1 }
-      ).catch(() => {})
+      const leadTestContext = `Lead no fluxo de teste da Plenipay (ainda não tem conta). Pedimos para ele dizer um gasto do dia (ex: 50 mercado). Ele respondeu com a mensagem abaixo. Responda de forma amigável e organizada: explique brevemente o que é a Plenipay, responda à dúvida ou objeção dele, e no final convide a testar com um gasto (ex: 50 mercado, 20 uber) ou a criar a conta. Máximo 4-5 frases curtas. Use formatação WhatsApp (*negrito* para ênfase).`
+      let msgResposta: string
+      try {
+        const { getPlenLLMResponse } = await import('@/lib/plen-llm-fallback')
+        const llmResposta = await getPlenLLMResponse({
+          userMessage: (text ?? '').trim(),
+          context: leadTestContext,
+          productMode: true,
+        })
+        msgResposta = (llmResposta && llmResposta.trim()) ? llmResposta.trim() : 'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber'
+      } catch (_) {
+        msgResposta = 'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber'
+      }
+      await sendTextMessage(phone, msgResposta, { delayTyping: 1 }).catch(() => {})
       markResponded(phone, text ?? '')
       return
     }
