@@ -1,12 +1,14 @@
 /**
  * Cron: mensagens inteligentes da Plen (AHA moments).
- * Eventos: 10min, 1h, 24h sem interação; 10 e 20 registros; categorias frequentes.
- * Chamar a cada 5–10 min. CRON_SECRET obrigatório.
+ * Analisa contatos em plen_user_activity (quem já interagiu pelo WhatsApp) e envia uma
+ * mensagem por inatividade: 10min, 1h ou 24h sem interação (+ eventos de 10/20 registros, categorias).
+ * Chamar a cada 10–15 min (ex.: Railway Cron, Vercel Cron). Header: Authorization: Bearer <CRON_SECRET> ou x-cron-secret.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getEligibleUsers, sendSmartMessage } from '@/lib/plen-smart-messages'
+import { isZapiConfigured } from '@/lib/whatsapp-zapi'
 import { isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 
 const CRON_SECRET = process.env.CRON_SECRET?.trim()
@@ -37,9 +39,9 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
   if (!isAuthorized(request)) {
     return NextResponse.json({ ok: false, error: 'Não autorizado' }, { status: 401 })
   }
-  if (!isApifacilConfigured()) {
+  if (!isZapiConfigured() && !isApifacilConfigured()) {
     return NextResponse.json(
-      { ok: false, error: 'API Fácil não configurada' },
+      { ok: false, error: 'WhatsApp não configurado (Z-API ou API Fácil)' },
       { status: 503 }
     )
   }

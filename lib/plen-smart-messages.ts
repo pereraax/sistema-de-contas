@@ -6,7 +6,9 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/server'
-import { sendTextMessage } from '@/lib/whatsapp-apifacil'
+import { sendTextMessage as sendTextMessageZapi } from '@/lib/whatsapp-zapi'
+import { sendTextMessage as sendTextMessageApifacil } from '@/lib/whatsapp-apifacil'
+import { isZapiConfigured } from '@/lib/whatsapp-zapi'
 
 export const EVENT_10MIN = '10min'
 export const EVENT_1H = '1h'
@@ -154,6 +156,10 @@ export async function getEligibleUsers(supabase: SupabaseClient): Promise<Eligib
   for (const u of users ?? []) {
     userToOwner.set(u.id, u.account_owner_id)
   }
+  // Fallback: se não houver tabela/users, tratar account_owner_id como próprio user (contas com um único usuário)
+  if (userToOwner.size === 0) {
+    for (const id of ownerIds) userToOwner.set(id, id)
+  }
 
   const { data: registros } = await supabase
     .from('registros')
@@ -191,12 +197,17 @@ export async function getEligibleUsers(supabase: SupabaseClient): Promise<Eligib
     const min24h = 24 * 60 * 60 * 1000
     const elapsed = nowMs - lastMsg
 
+    // Janelas ampliadas para o cron não perder contatos (ex.: cron a cada 10–15 min)
+    const window10 = 35 * 60 * 1000   // 10min até 45min de inatividade
+    const window1h = 90 * 60 * 1000   // 1h até 2h30 de inatividade
+    const window24h = 90 * 60 * 1000  // 24h até 25h30 de inatividade
+
     let chosen: { eventType: string; payload?: EligibleSmartMessage['payload'] } | null = null
-    if (!sent.has(EVENT_10MIN) && count >= 1 && elapsed >= min10 && elapsed <= min10 + 15 * 60 * 1000) {
+    if (!sent.has(EVENT_10MIN) && count >= 1 && elapsed >= min10 && elapsed <= min10 + window10) {
       chosen = { eventType: EVENT_10MIN }
-    } else if (!sent.has(EVENT_1H) && elapsed >= min60 && elapsed <= min60 + 20 * 60 * 1000) {
+    } else if (!sent.has(EVENT_1H) && elapsed >= min60 && elapsed <= min60 + window1h) {
       chosen = { eventType: EVENT_1H }
-    } else if (!sent.has(EVENT_24H) && elapsed >= min24h && elapsed <= min24h + 45 * 60 * 1000) {
+    } else if (!sent.has(EVENT_24H) && elapsed >= min24h && elapsed <= min24h + window24h) {
       chosen = { eventType: EVENT_24H }
     } else if (!sent.has(EVENT_10_REGISTROS) && count >= 10) {
       const catName = topCat?.[0] ? (CATEGORIA_LABELS[topCat[0]] ?? topCat[0]) : 'diversos'
@@ -247,6 +258,7 @@ export async function sendSmartMessage(
   }
   const delayMs = 1000 + Math.random() * 3000
   await new Promise((r) => setTimeout(r, delayMs))
+  const sendTextMessage = isZapiConfigured() ? sendTextMessageZapi : sendTextMessageApifacil
   const result = await sendTextMessage(phone, text)
   if (result.success) {
     await recordSmartMessageSent(supabase, userId, eventType, payload as Record<string, unknown>)
