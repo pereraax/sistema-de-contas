@@ -94,10 +94,17 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
   const isHttps = request.headers.get('x-forwarded-proto') === 'https' || (hostHeader.includes('plenipay.com') && !isLocalhost)
   const siteUrl = isHttps ? `https://${hostHeader}` : `http://${hostHeader}`
   let productionUrl = siteUrl.replace(/\/$/, '') // sem barra no final
-  // Em produção, usar sempre a URL pública (Host pode ser interno, ex.: Railway)
-  if (!isLocalhost && process.env.NEXT_PUBLIC_SITE_URL) {
-    productionUrl = process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '')
-    console.log('🔧 [Callback] Produção: usando NEXT_PUBLIC_SITE_URL para redirect/fetch:', productionUrl)
+  // Em produção, SEMPRE usar a URL pública (Host pode ser interno, ex.: Railway). Obrigatório para modal "Email confirmado" e aviso no WhatsApp.
+  if (!isLocalhost) {
+    const siteUrlEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim()
+    if (siteUrlEnv) {
+      productionUrl = siteUrlEnv.replace(/\/$/, '')
+      console.log('🔧 [Callback] Produção: usando NEXT_PUBLIC_SITE_URL para redirect + on-email-confirmed:', productionUrl)
+    } else {
+      const origin = request.nextUrl.origin
+      productionUrl = origin.replace(/\/$/, '')
+      console.warn('⚠️ [Callback] Produção sem NEXT_PUBLIC_SITE_URL. Defina no Railway/Vercel (ex.: https://plenipay.com) para o modal e o WhatsApp funcionarem. Usando origin:', productionUrl)
+    }
   }
   if (isLocalhost) console.log('🔧 [Callback] Localhost detectado - redirect será para', productionUrl)
 

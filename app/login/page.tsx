@@ -8,7 +8,6 @@ import { Eye, EyeOff, ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
-import ModalEmailConfirmadoSucesso from '@/components/ModalEmailConfirmadoSucesso'
 import ModalLoginConcluido from '@/components/ModalLoginConcluido'
 import ModalEsqueceuSenha from '@/components/ModalEsqueceuSenha'
 import logoTipoFundoClaro from '@/assets/fundo claro.png'
@@ -864,9 +863,6 @@ function LoginContent() {
           unoptimized
         />
       </div>
-      
-      {/* Popup de sucesso quando email foi confirmado via link */}
-      <ModalEmailConfirmadoSucesso />
       
       {/* Modal Esqueceu a senha */}
       <ModalEsqueceuSenha

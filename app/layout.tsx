@@ -49,6 +49,11 @@ const CookieConsent = dynamicImport(() => import('@/components/CookieConsent'), 
   loading: () => null,
 })
 
+const ModalEmailConfirmadoSucesso = dynamicImport(() => import('@/components/ModalEmailConfirmadoSucesso'), {
+  ssr: false,
+  loading: () => null,
+})
+
 // GoogleIndexPing não é crítico - carregar após interação
 const GoogleIndexPing = dynamicImport(() => import('@/components/GoogleIndexPing'), {
   ssr: false,
@@ -224,6 +229,7 @@ export default async function RootLayout({
             {!isApp && <NotificationPopup />}
             <FacebookPixelWrapper />
             {!isApp && <CookieConsent />}
+            <ModalEmailConfirmadoSucesso />
           </MenuProvider>
         </ThemeProvider>
         </AppPlatformProvider>
