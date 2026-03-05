@@ -15,16 +15,20 @@ function ModalEmailConfirmadoSucessoContent({ onClose }: ModalEmailConfirmadoSuc
 
   useEffect(() => {
     const emailConfirmed = searchParams?.get('emailConfirmed')
+    const cookieConfirmed = typeof document !== 'undefined' && document.cookie.includes('email_confirmed=true')
     
-    if (emailConfirmed === 'true') {
+    if (emailConfirmed === 'true' || cookieConfirmed) {
       setIsOpen(true)
-      
-      // Limpar parâmetro da URL após 5 segundos
-      setTimeout(() => {
-        const newUrl = new URL(window.location.href)
-        newUrl.searchParams.delete('emailConfirmed')
-        router.replace(newUrl.pathname + (newUrl.search ? newUrl.search : ''))
-      }, 5000)
+      if (cookieConfirmed) {
+        document.cookie = 'email_confirmed=; path=/; max-age=0'
+      }
+      if (emailConfirmed === 'true') {
+        setTimeout(() => {
+          const newUrl = new URL(window.location.href)
+          newUrl.searchParams.delete('emailConfirmed')
+          router.replace(newUrl.pathname + (newUrl.search ? newUrl.search : ''))
+        }, 5000)
+      }
     }
   }, [searchParams, router])
 

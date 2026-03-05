@@ -192,8 +192,10 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
               body: JSON.stringify({ access_token: data.session.access_token, refresh_token: data.session.refresh_token || '' })
             });
           } catch (e) { console.warn('Notify WhatsApp:', e); }
-          var loginPath = nextPath === '/login' ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : nextPath;
-          window.location.replace(productionUrl + loginPath);
+          var destPath = nextPath === '/login' || nextPath === 'login' ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : nextPath;
+          if (destPath === '/home' || destPath === 'home' || destPath.startsWith('/home') && !destPath.includes('emailConfirmed')) destPath = '/home?emailConfirmed=true';
+          else if (destPath && !destPath.includes('emailConfirmed') && destPath !== '/login') destPath = destPath + (destPath.includes('?') ? '&' : '?') + 'emailConfirmed=true';
+          window.location.replace(productionUrl + destPath);
           return;
         }
       }
@@ -312,8 +314,10 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
               });
             } catch (e) { console.warn('Notify WhatsApp:', e); }
             const next = urlParams.get('next') || '/home';
-            const loginPath = (next === '/login' || next === 'login') ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : next;
-            window.location.replace(productionUrl + loginPath);
+            var destPath = (next === '/login' || next === 'login') ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : next;
+            if (destPath === '/home' || destPath === 'home' || (destPath.startsWith('/home') && !destPath.includes('emailConfirmed'))) destPath = '/home?emailConfirmed=true';
+            else if (destPath && !destPath.includes('emailConfirmed') && destPath !== '/login') destPath = destPath + (destPath.includes('?') ? '&' : '?') + 'emailConfirmed=true';
+            window.location.replace(productionUrl + destPath);
             return;
           }
         } catch (error) {
