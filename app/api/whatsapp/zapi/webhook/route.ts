@@ -81,12 +81,13 @@ function buildPlenMessage(from: string, text: string, contactName?: string | nul
   }
 }
 
-/** Mapear clique em botão Z-API para o texto que o handler reconhece */
+/** Mapear clique em botão Z-API para o texto que o handler reconhece (dispara fluxo de cadastro/teste). */
 function buttonIdToText(buttonId: string, label?: string): string {
   const id = (buttonId || '').toLowerCase().trim().replace(/\s+/g, '_')
   const lbl = (label || '').trim()
-  if (id === 'cadastrar') return 'CADASTRAR'
+  if (id === 'cadastrar' || id === 'me_cadastrar') return 'CADASTRAR'
   if (lbl && /^cadastrar$/i.test(lbl.replace(/\s+/g, ''))) return 'CADASTRAR'
+  if (lbl && /^me\s*cadastrar$/i.test(lbl.replace(/\s+/g, ' ').trim())) return 'CADASTRAR'
   if (id === 'ja_cadastrei' || id === 'já_criei' || id === 'ja_criei') return 'JÁ CADASTREI'
   if (id === 'reenviar_codigo' || (lbl && /^reenviar\s*c[oó]digo$/i.test(lbl.replace(/\s+/g, ' ')))) return 'reenviar o email'
   if (id === 'falar_com_humano') return 'Falar com humano'
@@ -652,14 +653,14 @@ async function processarEmBackground(parsed: ZapiParsed) {
       }
     }
 
-    // "CADASTRAR" ou "quero criar conta" (não "sim" — "sim" = quer testar primeiro) → iniciar fluxo de cadastro.
+    // "CADASTRAR" (digitado ou clique no botão) ou "quero criar conta" → sempre iniciar fluxo de cadastro (nome → e-mail → código).
     const textNorm = (text ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
     const isCadastrarMessage =
       (text ?? '').trim() === 'CADASTRAR' ||
       /^cadastrar$/i.test((text ?? '').trim()) ||
       /^(quero|vamos)\s*criar\s*(minha\s*)?conta$/i.test((text ?? '').trim()) ||
       /^quero\s*criar$/i.test(textNorm)
-    if (!temCadastro && !signupPending && isCadastrarMessage && isBoasVindasConfigured()) {
+    if (!temCadastro && !signupPending && isCadastrarMessage) {
       await setSignupStepNome(phone)
       await sendTextMessage(
         phone,
@@ -667,7 +668,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
         { delayTyping: 1 }
       ).catch(() => {})
       markResponded(phone, text ?? '')
-      console.log('📧 [Z-API Webhook] Cadastro pelo WhatsApp iniciado para', phone)
+      console.log('📧 [Z-API Webhook] Cadastro pelo WhatsApp iniciado (botão/digitado CADASTRAR) para', phone)
       return
     }
 
