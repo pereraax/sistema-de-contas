@@ -31,6 +31,7 @@ import {
   isSaudacaoOuRespostaGenerica,
   isRecusaOuAdiamentoCadastro,
 } from '@/lib/whatsapp-signup-flow'
+import { cancelLeadRecoveryOnUserReply, initLeadRecovery, markLeadRecoveryEmailReceived, markLeadRecoveryCadastroConcluido } from '@/lib/whatsapp-lead-recovery'
 
 /** Evita enviar a mesma intro duas vezes quando o webhook é chamado em duplicata (ex.: dois eventos para a mesma mensagem). */
 const introSendingNow = new Set<string>()
@@ -72,6 +73,7 @@ function buttonIdToText(buttonId: string, label?: string): string {
   if (id === 'cadastrar') return 'CADASTRAR'
   if (lbl && /^cadastrar$/i.test(lbl.replace(/\s+/g, ''))) return 'CADASTRAR'
   if (id === 'ja_cadastrei' || id === 'já_criei' || id === 'ja_criei') return 'JÁ CADASTREI'
+  if (id === 'reenviar_codigo' || (lbl && /^reenviar\s*c[oó]digo$/i.test(lbl.replace(/\s+/g, ' ')))) return 'reenviar o email'
   if (id === 'falar_com_humano') return 'Falar com humano'
   if (id === 'voltar_plen') return 'Voltar a falar com a PLEN'
   // Z-API às vezes envia o rótulo do botão como id; reconhecer "JÁ CRIEI" em qualquer campo
@@ -520,6 +522,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
     }
 
     await recordIncomingMessage(phone, text ?? '').catch((e) => console.error('📨 [Z-API Webhook] recordIncomingMessage:', e))
+    await cancelLeadRecoveryOnUserReply(phone).catch(() => {})
 
     const contactName = parsed.contactName
 
@@ -583,6 +586,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
         }
         if (isValidNome(nomeFinal)) {
           await setSignupStepEmail(phone, nomeFinal)
+          await initLeadRecovery(phone).catch(() => {})
           await sendTextMessage(phone, 'Qual seu e-mail?', { delayTyping: 1 }).catch(() => {})
           markResponded(phone, text ?? '')
           console.log('📧 [Z-API Webhook] Cadastro WhatsApp — nome recebido', nomeFinal !== nome ? `(extraído: ${nomeFinal})` : '', 'aguardando e-mail para', phone)
@@ -600,6 +604,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
           markResponded(phone, text ?? '')
           return
         }
+        await markLeadRecoveryEmailReceived(phone).catch(() => {})
         const nomeParaConta = (signupPending.nome || '').trim()
         console.log('📧 [Z-API Webhook] Criando conta WhatsApp | nome:', nomeParaConta || '(vazio)', '| email:', email, '| phone:', phoneDigits)
         const result = await criarContaFromWhatsApp(nomeParaConta, email, phoneDigits)
@@ -608,17 +613,22 @@ async function processarEmBackground(parsed: ZapiParsed) {
           const emailFoiEnviado = result.emailEnviado !== false
           const msgSucesso = emailFoiEnviado
             ? `Perfeito ${nomeExibir} 💙\n\nEnviei um *código de 6 dígitos* no seu e-mail. Digite o código aqui na conversa que eu confirmo sua conta.\n\nDepois disso você pode me dizer seus gastos e receitas. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
-            : `Conta criada, ${nomeExibir} 💙\n\nO e-mail com o código pode demorar ou ir para a pasta de *spam*. Se não chegar em alguns minutos, me avise aqui que eu te oriento.\n\nQuando receber, digite o código de 6 dígitos aqui na conversa. 💙`
+            : `Conta criada, ${nomeExibir} 💙\n\n*Não consegui enviar* o e-mail com o código (falha no servidor). Por favor, me avise aqui que eu te oriento — ou um administrador pode reenviar o código.\n\nSe receber o e-mail depois, digite o código de 6 dígitos aqui na conversa. 💙`
           await sendTextMessage(phone, msgSucesso, { delayTyping: 1 }).catch(() => {})
+          if (!emailFoiEnviado && result.emailError) {
+            console.error('📧 [Z-API Webhook] E-mail do código não enviado:', result.emailError)
+          }
           if (emailFoiEnviado) await markEmailConfirmLinkSent(phone).catch(() => {})
           await markWelcomeSent(phone).catch(() => {})
+          await markLeadRecoveryCadastroConcluido(phone).catch(() => {})
           await clearSignupPending(phone)
           markResponded(phone, text ?? '')
           console.log('✅ [Z-API Webhook] Conta criada pelo WhatsApp para', phone)
         } else {
+          if (result.error) console.error('📧 [Z-API Webhook] Criar conta falhou (não expor ao lead):', result.error)
           await sendTextMessage(
             phone,
-            result.error || 'Não consegui criar a conta. Tente outro e-mail ou me avise aqui. 💙',
+            'Um momento, parece que estão fazendo uma pequena manutenção e eu já volto aqui. 💙',
             { delayTyping: 1 }
           ).catch(() => {})
           markResponded(phone, text ?? '')

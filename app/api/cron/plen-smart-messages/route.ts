@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getEligibleUsers, sendSmartMessage } from '@/lib/plen-smart-messages'
 import { runLead10MinFollowUp } from '@/lib/whatsapp-lead-followup'
+import { runLeadRecoveryFollowUps } from '@/lib/whatsapp-lead-recovery'
 import { isZapiConfigured } from '@/lib/whatsapp-zapi'
 import { isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 
@@ -55,13 +56,26 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
     )
   }
 
+  const sendTextMessage = isZapiConfigured()
+    ? (await import('@/lib/whatsapp-zapi')).sendTextMessage
+    : (await import('@/lib/whatsapp-apifacil')).sendTextMessage
+
+  const sendOne = async (phone: string, text: string) => {
+    const r = await sendTextMessage(phone, text, { delayTyping: 1 })
+    return { success: r?.success ?? false, error: r?.error }
+  }
+
   // 1) Follow-up 10 min para leads inativos (fluxo de teste, ainda sem cadastro)
   const leadFollowUp = await runLead10MinFollowUp()
   const errors: string[] = leadFollowUp.errors ?? []
 
-  // 2) Mensagens inteligentes para usuários já cadastrados (10min, 1h, 24h, marcos)
+  // 2) Recuperação de leads que pararam após o pedido de e-mail (5m, 10m, 15h, 24h, 48h)
+  const recovery = await runLeadRecoveryFollowUps(sendOne)
+  if (recovery.errors?.length) errors.push(...recovery.errors)
+
+  // 3) Mensagens inteligentes para usuários já cadastrados (10min, 1h, 24h, marcos)
   const eligible = await getEligibleUsers(supabase)
-  let sent = leadFollowUp.sent
+  let sent = leadFollowUp.sent + recovery.sent
 
   for (const { userId, eventType, payload } of eligible) {
     const result = await sendSmartMessage(supabase, userId, eventType, payload)
@@ -75,8 +89,9 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
   return NextResponse.json({
     ok: true,
     sent,
-    total: leadFollowUp.total + eligible.length,
+    total: leadFollowUp.total + recovery.total + eligible.length,
     leadFollowUp10min: { sent: leadFollowUp.sent, total: leadFollowUp.total },
+    leadRecovery: { sent: recovery.sent, total: recovery.total },
     errors: errors.length ? errors : undefined,
   })
 }
