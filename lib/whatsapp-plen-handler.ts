@@ -1077,10 +1077,15 @@ REGRAS:
             if (typeof fallbackResult === 'object' && 'buttonUrl' in fallbackResult && fallbackResult.buttonUrl) {
               return {
                 success: true,
-                message: msg,
-                buttonUrl: fallbackResult.buttonUrl,
-                buttonLabel: fallbackResult.buttonLabel,
-                buttonBody: fallbackResult.buttonBody,
+                messages: [
+                  {
+                    type: 'button_actions' as const,
+                    body: msg,
+                    buttonActions: [
+                      { type: 'URL' as const, url: fallbackResult.buttonUrl, label: fallbackResult.buttonLabel || 'Ver planos e mais informações' },
+                    ],
+                  },
+                ],
               }
             }
             return { success: true, message: typeof fallbackResult === 'string' ? fallbackResult : msg }

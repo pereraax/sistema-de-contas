@@ -16,7 +16,30 @@ interface LimitCheckResult {
   error?: string
 }
 
-const LIMITE_ENVIOS_GRATUITO = 7
+const LIMITE_ENVIOS_GRATUITO = 10
+
+/** Mensagem persuasiva quando o limite do plano gratuito é atingido (com promoção e botão para o site). */
+export function getMensagemLimitePlanoGratuito(totalRegistros: number): string {
+  return `Poxa, eu queria muito continuar te ajudando, mas seu limite no plano gratuito expirou. 💙
+
+Você pode consultar todos os seus registros, relatórios e outras funções a qualquer momento na sua conta na plataforma. Mas olha… se eu fosse você, aproveitava a promoção: eu sou a única assistente avançada no momento para te ajudar todo dia com suas finanças.
+
+*Por que escolher a Pleni?*
+• Registros ilimitados pelo WhatsApp
+• Dívidas, metas e lembretes
+• Relatórios e visão do seu dinheiro
+• Tudo organizado em um só lugar
+
+*Promoção:* de ~~R$ 47,99~~ por apenas *R$ 9,99/mês* no plano básico.
+
+*Planos:*
+📌 *Básico (R$ 9,99)* – Registros ilimitados, dívidas, metas, relatórios e calendário.
+📌 *Premium* – Tudo do básico + empréstimos, metas ilimitadas e recursos avançados.
+
+💰 *Indique e ganhe:* convide amigos com seu link e ganhe R$ 3 por indicação. Ao juntar R$ 30, pode sacar.
+
+Quer mais informações? Toque no botão abaixo para ver os planos e a promoção no site. 👇`
+}
 
 /**
  * Verifica o limite de mensagens e registra o envio se permitido
@@ -156,7 +179,7 @@ export async function checkAndRegisterWhatsAppLimit(
         allowed: false,
         currentCount: totalAtual,
         limit: LIMITE_ENVIOS_GRATUITO,
-        message: `❌ Você excedeu o limite de ${LIMITE_ENVIOS_GRATUITO} envios de registros via WhatsApp no plano gratuito.\n\n📊 Você já enviou ${totalAtual} registro(s) via WhatsApp.\n\n💼 Para continuar usando o assistente WhatsApp sem limites, assine um plano:\n\n🔗 plenipay.com/planos\n\n✨ Assine agora e tenha acesso ilimitado a todas as funcionalidades!`
+        message: getMensagemLimitePlanoGratuito(totalAtual),
       }
     }
 

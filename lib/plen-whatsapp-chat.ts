@@ -7,6 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/server'
 import { interpretarMensagem, formatarRespostaRegistro, categoriaInteligente, normalizarNumerosPorExtenso, extrairValor, interpretarComContextoEDescricao } from '@/lib/plen-registro'
 import { getRespostaPlanos, getPlenLLMResponse, RESPOSTA_OPEN_FINANCE } from '@/lib/plen-llm-fallback'
+import { checkAndRegisterWhatsAppLimit } from '@/lib/whatsapp-limit-checker'
 
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
 const MSG_ENTENDER_MELHOR = `Para te entender melhor, você pode começar dizendo o que deseja:
@@ -36,6 +37,14 @@ export function delayRespostaPlen(): Promise<void> {
 }
 const PERFIL_URL = `${PLENIPAY_BASE}/registros`
 const GANHE_INDICANDO_URL = `${PLENIPAY_BASE}/ganhe-indicando`
+
+function getPlanosUrl(): string {
+  if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL?.trim()) {
+    const url = process.env.NEXT_PUBLIC_SITE_URL
+    return (url.startsWith('http') ? url : `https://${url}`).replace(/\/+$/, '')
+  }
+  return PLENIPAY_BASE
+}
 
 /** Mensagem de incentivo à indicação (enviada em mensagem separada após 2 gastos). Sem a pergunta final — o botão já indica a ação. */
 const MSG_INCENTIVE_INDICATION = `✨💙 *Você já registrou alguns gastos comigo!*
@@ -567,6 +576,16 @@ export async function registerGastoReceitaFallback(
   }
   if (!registroUserId) return null
 
+  const comandoTipo = tipo === 'entrada' ? 'registrar_entrada' : 'registrar_gasto'
+  const limitRes = await checkAndRegisterWhatsAppLimit(userId, comandoTipo)
+  if (!limitRes.allowed && limitRes.message) {
+    return {
+      message: limitRes.message,
+      buttonUrl: `${getPlanosUrl()}/planos`,
+      buttonLabel: 'Ver planos e mais informações',
+    }
+  }
+
   const { error } = await supabase.from('registros').insert({
     user_id: registroUserId,
     nome,
@@ -735,6 +754,15 @@ export async function processPlenWhatsAppMessage(
           if (!errC && novo?.id) registroUserId = novo.id
         }
         if (registroUserId) {
+          const comandoTipoCtx = comDesc.tipo === 'entrada' ? 'registrar_entrada' : 'registrar_gasto'
+          const limitCtx = await checkAndRegisterWhatsAppLimit(userId, comandoTipoCtx)
+          if (!limitCtx.allowed && limitCtx.message) {
+            return {
+              response: limitCtx.message,
+              buttonUrl: `${getPlanosUrl()}/planos`,
+              buttonLabel: 'Ver planos e mais informações',
+            }
+          }
           const payload: Record<string, unknown> = {
             user_id: registroUserId,
             nome: comDesc.nome,
@@ -952,6 +980,15 @@ export async function processPlenWhatsAppMessage(
           : null) ?? usuarios[0].id
         const partes: string[] = []
         for (const interp of interpretados) {
+          const comandoTipoMulti = interp.tipo === 'entrada' ? 'registrar_entrada' : 'registrar_gasto'
+          const limitMulti = await checkAndRegisterWhatsAppLimit(userId, comandoTipoMulti)
+          if (!limitMulti.allowed && limitMulti.message) {
+            return {
+              response: limitMulti.message,
+              buttonUrl: `${getPlanosUrl()}/planos`,
+              buttonLabel: 'Ver planos e mais informações',
+            }
+          }
           const valorFinal = Math.round(interp.valor * 100) / 100
           const categoria = interp.categoria ?? 'Outros'
           console.log('[PLEN WhatsApp] Registro (multi):', { msg: interp.nome, valor: valorFinal, tipo: interp.tipo })
@@ -996,6 +1033,15 @@ export async function processPlenWhatsAppMessage(
     if (interpretado) {
       const { tipo, valor, nome, data_registro, categoria } = interpretado
       const valorFinal = Math.round(valor * 100) / 100
+      const comandoTipoSingle = tipo === 'entrada' ? 'registrar_entrada' : 'registrar_gasto'
+      const limitSingle = await checkAndRegisterWhatsAppLimit(userId, comandoTipoSingle)
+      if (!limitSingle.allowed && limitSingle.message) {
+        return {
+          response: limitSingle.message,
+          buttonUrl: `${getPlanosUrl()}/planos`,
+          buttonLabel: 'Ver planos e mais informações',
+        }
+      }
       console.log('[PLEN WhatsApp] Registro interpretado:', { msg: msgForRegistro.slice(0, 100), valor: valorFinal, nome, tipo })
 
       // Nome do dono da conta (profile) para preferir essa pessoa quando não houver segunda linha
