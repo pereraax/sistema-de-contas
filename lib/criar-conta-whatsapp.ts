@@ -48,12 +48,41 @@ export async function criarContaFromWhatsApp(
 
   if (result.error) {
     const msg = result.error.toLowerCase()
-    if (
+    const emailJaCadastrado =
       msg.includes('já está cadastrado') ||
       msg.includes('already registered') ||
       msg.includes('already exists') ||
       msg.includes('email already')
-    ) {
+
+    if (emailJaCadastrado) {
+      // Vincular o WhatsApp à conta existente para o assistente poder avisar quando o email for confirmado
+      const supabaseAdmin = createAdminClient()
+      if (supabaseAdmin) {
+        try {
+          const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+          const existingUser = usersData?.users?.find((u: { email?: string }) => (u.email ?? '').toLowerCase() === emailTrim)
+          if (existingUser?.id) {
+            await supabaseAdmin.from('whatsapp_sessions').upsert(
+              {
+                phone_number: phoneNorm,
+                user_id: existingUser.id,
+                plen_activated: true,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'phone_number' }
+            )
+            await supabaseAdmin.from('profiles').update({
+              whatsapp: phoneNorm,
+              telefone: phoneNorm,
+              nome: nomeTrim,
+              updated_at: new Date().toISOString(),
+            }).eq('id', existingUser.id)
+            return { success: true, emailEnviado: false }
+          }
+        } catch (e) {
+          console.warn('[criar-conta-whatsapp] Erro ao vincular WhatsApp a conta existente:', e)
+        }
+      }
       return { success: false, error: 'Este e-mail já está cadastrado. Faça login ou use outro e-mail.' }
     }
     return { success: false, error: result.error || 'Erro ao criar conta.' }
