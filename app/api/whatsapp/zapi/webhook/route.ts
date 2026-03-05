@@ -36,6 +36,21 @@ import { cancelLeadRecoveryOnUserReply, initLeadRecovery, markLeadRecoveryEmailR
 /** Evita enviar a mesma intro duas vezes quando o webhook é chamado em duplicata (ex.: dois eventos para a mesma mensagem). */
 const introSendingNow = new Set<string>()
 
+/** Mensagem de intro (oi, quero usar, quero registrar, etc.) — deve ir para o handler PLEN para responder com intro + botão CADASTRAR, não para o modo teste/LLM. */
+function isIntroIntentWebhook(text: string): boolean {
+  const t = (text ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
+  if (!t || t.length > 200) return false
+  const cumprimentos = ['oi', 'olá', 'ola', 'oii', 'oiii', 'hello', 'hi', 'bom dia', 'boa tarde', 'boa noite']
+  if (cumprimentos.some((c) => t === c || t.startsWith(c + ' ') || t === c + '!')) return true
+  const temPleni = /pleni\s*pay|plenipay/.test(t)
+  if (temPleni && (/quero\s+usar/.test(t) || /quero\s+utilizar/.test(t) || /quero\s+começar/.test(t))) return true
+  if (/quero\s+usar\s+(a\s+)?plenipay/i.test(t) || /quero\s+utilizar\s+(a\s+)?plenipay/i.test(t)) return true
+  if (/quero\s+registrar\s+(meus?\s+)?(ganhos|gastos|receitas)/i.test(t)) return true
+  if (/quero\s+começar\s+a\s+usar/.test(t) && temPleni) return true
+  if (t.length <= 60 && /\bquero\s+usar\b/.test(t)) return true
+  return false
+}
+
 /** True se a mensagem indica "não gastei nada" / "nada" no contexto do modo teste. */
 function isRespostaNadaOuNaoGastei(text: string): boolean {
   const raw = (text ?? '').trim()
@@ -752,7 +767,8 @@ async function processarEmBackground(parsed: ZapiParsed) {
     }
 
     // Só tratar como "modo teste" (intro/gasto/testar antes) quando o lead ainda NÃO tem conta. Quem já tem cadastro (ex.: acabou de criar e está aguardando confirmar email) deve cair no handler principal (processWhatsAppMessage).
-    if (!jaRecebeuBoasVindas && isBoasVindasConfigured() && !temCadastro) {
+    // Mensagens de intro (oi, quero usar, etc.) vão para o handler PLEN para responder com intro + botão CADASTRAR — não interceptar aqui.
+    if (!jaRecebeuBoasVindas && isBoasVindasConfigured() && !temCadastro && !isIntroIntentWebhook(text ?? '')) {
       // 1) Primeira mensagem do lead: intro já foi enviada pelo WhatsApp (saudação). Só marcar e processar a resposta.
       if (!jaRecebeuTestIntro) {
         await markTestIntroSent(phone).catch(() => {})
@@ -859,7 +875,9 @@ async function processarEmBackground(parsed: ZapiParsed) {
             registerSentMessage(phone, `${body} [botões]`)
             console.log('✅ [Z-API Webhook] Botões', i + 1, '/', result.messages.length, 'enviados para:', phone)
           } else {
-            console.error('❌ [Z-API Webhook] Falha ao enviar botões:', send.error)
+            console.error('❌ [Z-API Webhook] Falha ao enviar botões:', send.error, '— enviando só o texto')
+            const fallback = await sendTextMessage(phone, body, { delayTyping: firstMessageInSequence ? 1 : 0 }).catch(() => ({ success: false }))
+            if (fallback?.success) registerSentMessage(phone, body)
           }
         } else if (typeof msg === 'object' && msg !== null && (msg as any).type === 'button_actions') {
           const { body, buttonActions } = msg as { type: 'button_actions'; body: string; buttonActions: { type: string; url?: string; label: string }[] }
