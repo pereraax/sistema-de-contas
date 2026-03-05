@@ -1,11 +1,13 @@
 /**
- * Lógica compartilhada: backfill da API Fácil + envio das 3 mensagens para todos os pendentes.
- * Usado pelo cron e pela rota admin "enviar todos pendentes agora".
+ * Lógica compartilhada: backfill da API Fácil + envio da mensagem de intro para quem não foi respondido + pendentes gerais.
+ * Usado pelo cron (a cada 2 min) e pela rota admin "enviar todos pendentes agora".
  */
 
 import {
   listPhonesPendentesParaCron,
+  listPhonesIntroNaoRespondidos,
   markWelcomeSent,
+  markTestIntroSent,
   backfillFromNotificacoes,
   isQueroUtilizarPlenipay,
 } from '@/lib/whatsapp-contatos-pendentes'
@@ -17,13 +19,15 @@ export interface RunBoasVindasPendentesResult {
   error?: string
   backfillImported: number
   processed: number
+  introRetryProcessed: number
   total: number
   errors?: string[]
 }
 
 /**
  * 1) Backfill: busca na API Fácil mensagens recebidas (últimas 48h) "quero utilizar plenipay" e preenche whatsapp_contatos.
- * 2) Lista todos com welcome_sent_at null (últimos 7 dias) e envia as 3 mensagens para cada um.
+ * 2) Intro não respondidos: quem mandou "Olá! Quero utilizar a Plenipay." e test_intro_sent_at null (últimas 48h) → envia intro e marca.
+ * 3) Pendentes gerais: welcome_sent_at null (últimos 7 dias) → envia intro e marca.
  */
 export async function runBoasVindasPendentes(
   maxAgeHours: number = 168
@@ -47,13 +51,37 @@ export async function runBoasVindasPendentes(
     console.error('[runBoasVindasPendentes] backfill from API Fácil:', e)
   }
 
-  const pendentes = await listPhonesPendentesParaCron(maxAgeHours)
   const errors: string[] = []
-  let processed = 0
+  let introRetryProcessed = 0
 
+  // 2) Quem mandou "Olá! Quero utilizar a Plenipay." e não recebeu a intro (envio falhou no webhook) — reenviar a cada 2 min.
+  const introNaoRespondidos = await listPhonesIntroNaoRespondidos(48)
+  for (let i = 0; i < introNaoRespondidos.length; i++) {
+    const { phone } = introNaoRespondidos[i]
+    if (i > 0) {
+      const delayMs = 2000 + Math.floor(Math.random() * 4000)
+      await new Promise((r) => setTimeout(r, delayMs))
+    }
+    try {
+      const result = await sendBoasVindasToNumber(phone)
+      if (result.success) {
+        await markTestIntroSent(phone)
+        await markWelcomeSent(phone)
+        introRetryProcessed += 1
+      } else {
+        errors.push(`${phone}: ${result.error ?? 'erro ao enviar'}`)
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      errors.push(`${phone}: ${msg}`)
+    }
+  }
+
+  // 3) Pendentes gerais (welcome_sent_at null)
+  const pendentes = await listPhonesPendentesParaCron(maxAgeHours)
+  let processed = 0
   for (let i = 0; i < pendentes.length; i++) {
     const { phone } = pendentes[i]
-    // Delay aleatório entre cada contato (3–12 s) para evitar pico de envio e aparência de spam
     if (i > 0) {
       const delayMs = 3000 + Math.floor(Math.random() * 9000)
       await new Promise((r) => setTimeout(r, delayMs))
@@ -61,6 +89,7 @@ export async function runBoasVindasPendentes(
     try {
       const result = await sendBoasVindasToNumber(phone)
       if (result.success) {
+        await markTestIntroSent(phone)
         await markWelcomeSent(phone)
         processed += 1
       } else {
@@ -76,7 +105,8 @@ export async function runBoasVindasPendentes(
     ok: true,
     backfillImported,
     processed,
-    total: pendentes.length,
+    introRetryProcessed,
+    total: introNaoRespondidos.length + pendentes.length,
     errors: errors.length ? errors : undefined,
   }
 }

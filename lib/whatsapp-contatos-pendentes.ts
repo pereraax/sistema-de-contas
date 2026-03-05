@@ -201,6 +201,32 @@ export interface ContatoPendente {
 const LAST_MESSAGE_MANUAL = 'Adicionado manualmente para reenvio'
 
 /**
+ * Lista números que mandaram "Olá! Quero utilizar a Plenipay." e ainda NÃO receberam a mensagem de intro (test_intro_sent_at null).
+ * Usado pelo cron a cada 2 min para reenviar a intro quando o envio no webhook falhou.
+ * @param maxAgeHours janela da última mensagem (default 48h)
+ */
+export async function listPhonesIntroNaoRespondidos(maxAgeHours: number = 48): Promise<{ phone: string }[]> {
+  const supabase = createAdminClient()
+  if (!supabase) return []
+  const since = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000).toISOString()
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('phone, last_message')
+    .is('test_intro_sent_at', null)
+    .not('last_message_at', 'is', null)
+    .gte('last_message_at', since)
+    .order('last_message_at', { ascending: false })
+  if (error) {
+    console.error('[whatsapp-contatos-pendentes] listPhonesIntroNaoRespondidos error:', error)
+    return []
+  }
+  const rows = (data || []) as { phone: string; last_message: string | null }[]
+  return rows
+    .filter((r) => isQueroUtilizarPlenipay(r.last_message ?? ''))
+    .map((r) => ({ phone: r.phone }))
+}
+
+/**
  * Lista números que ainda não receberam as 3 mensagens de boas-vindas, para a checagem periódica (cron).
  * Retorna apenas contatos com última mensagem nos últimos maxAgeHours (evita enviar para números muito antigos).
  * @param maxAgeHours default 168 (7 dias)

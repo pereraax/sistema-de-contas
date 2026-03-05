@@ -9,7 +9,7 @@ import { extrairValor, categoriaInteligente } from '@/lib/plen-registro'
 export function getMensagemInicialModoTeste(contactName?: string | null): string {
   const raw = (contactName ?? '').trim().slice(0, 50)
   const nome = raw && raw.toLowerCase() !== 'nome' && raw.toLowerCase() !== 'pessoa' ? raw : ''
-  const saudacao = nome ? `Oii ${nome} 👋✨!!!` : 'Oii 👋✨!!!'
+  const saudacao = nome ? `Oiii ${nome} 👋✨!!!` : 'Oiii 👋✨!!!'
   return `${saudacao}
 
 💙 Eu sou a Plen, sua assistente financeira 😊

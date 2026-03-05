@@ -699,7 +699,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
         await setSignupStepNome(phone)
         await sendTextMessage(
           phone,
-          'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail. É bem rápido, prometo 💙',
+          'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail para ativar, e pronto já vai poder registrar tudo!\n\nÉ bem rápido, prometo 💙',
           { delayTyping: 1 }
         ).catch(() => {})
         await markWelcomeSent(phone).catch(() => {})
@@ -738,14 +738,16 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return
     }
 
-    // "Quero utilizar Plenipay" (primeira vez, sem cadastro): enviar apresentação breve + convite a testar.
-    if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured() && !temCadastro && !jaRecebeuTestIntro) {
+    // "Olá! Quero utilizar a Plenipay." (primeira vez, sem cadastro): SEMPRE enviar mensagem de intro (não depender da saudação do Facebook/WhatsApp).
+    if (isQueroUtilizarPlenipayMessage(text) && !temCadastro && !jaRecebeuTestIntro) {
       const apresentacao = getMensagemInicialModoTeste(contactName)
-      await sendTextMessage(phone, apresentacao, { delayTyping: 1 }).catch(() => {})
-      await markTestIntroSent(phone).catch(() => {})
-      await markWelcomeSent(phone).catch(() => {})
+      const sent = await sendTextMessage(phone, apresentacao, { delayTyping: 1 }).catch(() => ({ success: false }))
+      if (sent?.success) {
+        await markTestIntroSent(phone).catch(() => {})
+        await markWelcomeSent(phone).catch(() => {})
+      }
       markResponded(phone, text ?? '')
-      console.log('👋 [Z-API Webhook] "Quero utilizar Plenipay" — enviada apresentação + teste para lead:', phone)
+      console.log('👋 [Z-API Webhook] "Quero utilizar Plenipay" — enviada apresentação + teste para lead:', phone, sent?.success ? '' : '(envio falhou; cron reenviará)')
       return
     }
 
@@ -771,7 +773,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
         await setSignupStepNome(phone)
         await sendTextMessage(
           phone,
-          'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail. É bem rápido, prometo 💙',
+          'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail para ativar, e pronto já vai poder registrar tudo!\n\nÉ bem rápido, prometo 💙',
           { delayTyping: 1 }
         ).catch(() => {})
         await markWelcomeSent(phone).catch(() => {})
@@ -820,7 +822,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return
     }
 
-    // "Quero utilizar PleniPay" — enviar apresentação breve + convite a testar (fluxo: apresentação → teste free → cadastro).
+    // "Quero utilizar PleniPay" (já tem cadastro ou já recebeu intro): reenviar apresentação se configurado.
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
       if (introSendingNow.has(phone)) {
         markResponded(phone, text ?? '')
