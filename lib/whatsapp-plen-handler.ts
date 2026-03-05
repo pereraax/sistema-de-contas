@@ -45,8 +45,17 @@ function cleanContactDisplayName(name: string | undefined | null): string | unde
   return cleaned.slice(0, 80) || undefined
 }
 
-/** Botão "Reenviar código" nas mensagens de confirmação de e-mail (aguardando código de 6 dígitos). */
+/** Botão "Reenviar código" — exibido no máximo 1 vez por contato, só quando o lead disser que o e-mail não chegou e o reenvio falhar. */
 const BOTAO_REENVIAR_CODIGO = { id: 'reenviar_codigo', title: 'Reenviar código' }
+
+/** Contatos que já receberam o botão "Reenviar código" (para não enviar aleatoriamente). */
+const reenviarButtonSentToPhones = new Set<string>()
+
+function shouldShowReenviarButton(phone: string): boolean {
+  if (reenviarButtonSentToPhones.has(phone)) return false
+  reenviarButtonSentToPhones.add(phone)
+  return true
+}
 
 /** Mensagem genérica para o lead quando algo falha (nunca expor erros internos da plataforma). */
 const MSG_LEAD_ERRO_GENERICO = 'Um momento, parece que estão fazendo uma pequena manutenção e eu já volto aqui. 💙'
@@ -861,26 +870,14 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
               } else {
                 return {
                   success: true,
-                  messages: [
-                    {
-                      type: 'buttons' as const,
-                      body: 'Ainda não apareceu como confirmado aqui. 💙 Confira o email (e a pasta de *spam*) e digite o *código de 6 dígitos* que enviamos. Se já digitou, me diga "meu email foi confirmado?" que eu verifico de novo. Ou toque no botão para reenviar o código.',
-                      buttons: [BOTAO_REENVIAR_CODIGO],
-                    },
-                  ],
+                  message: 'Ainda não apareceu como confirmado aqui. 💙 Confira o email (e a pasta de *spam*) e digite o *código de 6 dígitos* que enviamos. Se já digitou, me diga "meu email foi confirmado?" que eu verifico de novo.',
                 }
               }
             }
           } catch (_) {
             return {
               success: true,
-              messages: [
-                {
-                  type: 'buttons' as const,
-                  body: 'Estou verificando... Por favor, confira seu e-mail (e a pasta de *spam*) e digite o código de 6 dígitos que enviamos. Ou toque no botão para reenviar. 💙',
-                  buttons: [BOTAO_REENVIAR_CODIGO],
-                },
-              ],
+              message: 'Estou verificando... Por favor, confira seu e-mail (e a pasta de *spam*) e digite o código de 6 dígitos que enviamos. 💙',
             }
           }
         }
@@ -908,30 +905,24 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
                   }
                 }
                 console.warn('[WhatsApp PLEN] Reenvio de código falhou (não expor ao lead):', res.error)
+                const showBtn = shouldShowReenviarButton(phoneNumber)
                 return {
                   success: true,
-                  messages: [
-                    {
-                      type: 'buttons' as const,
-                      body: `${MSG_LEAD_ERRO_GENERICO}\n\nOu tente de novo em instantes:`,
-                      buttons: [BOTAO_REENVIAR_CODIGO],
-                    },
-                  ],
+                  ...(showBtn
+                    ? { messages: [{ type: 'buttons' as const, body: `${MSG_LEAD_ERRO_GENERICO}\n\nToque no botão para reenviar o código:`, buttons: [BOTAO_REENVIAR_CODIGO] }] }
+                    : { message: MSG_LEAD_ERRO_GENERICO + '\n\nVocê pode dizer "reenviar email" para tentar de novo.' }),
                 }
               }
             }
           } catch (err) {
             console.warn('[WhatsApp PLEN] Erro ao reenviar código (não expor ao lead):', (err as Error)?.message)
           }
+          const showBtn = shouldShowReenviarButton(phoneNumber)
           return {
             success: true,
-            messages: [
-              {
-                type: 'buttons' as const,
-                body: `${MSG_LEAD_ERRO_GENERICO}\n\nOu tente de novo em instantes:`,
-                buttons: [BOTAO_REENVIAR_CODIGO],
-              },
-            ],
+            ...(showBtn
+              ? { messages: [{ type: 'buttons' as const, body: `${MSG_LEAD_ERRO_GENERICO}\n\nToque no botão para reenviar o código:`, buttons: [BOTAO_REENVIAR_CODIGO] }] }
+              : { message: MSG_LEAD_ERRO_GENERICO + '\n\nVocê pode dizer "reenviar email" para tentar de novo.' }),
           }
         }
         if (emailConfirmado !== true) {
@@ -941,13 +932,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
           if (ehPerguntaProximoPasso) {
             return {
               success: true,
-              messages: [
-                {
-                  type: 'buttons' as const,
-                  body: 'Agora é só abrir seu *email* (e a pasta de *spam*), pegar o *código de 6 dígitos* que enviamos e digitar aqui na conversa. Aí sua conta fica ativa. 💙\n\nOu toque no botão para reenviar o código.\n\nDepois pode me dizer um gasto ou receita! Ex.: "gastei 200 com roupas" ou "recebi 1500 salário".',
-                  buttons: [BOTAO_REENVIAR_CODIGO],
-                },
-              ],
+              message: 'Agora é só abrir seu *email* (e a pasta de *spam*), pegar o *código de 6 dígitos* que enviamos e digitar aqui na conversa. Aí sua conta fica ativa. 💙\n\nDepois pode me dizer um gasto ou receita! Ex.: "gastei 200 com roupas" ou "recebi 1500 salário". Se o email não chegou, diga "reenviar email".',
             }
           }
           // Comandos desconhecidos: usar LLM para identificar intenção (email não chegou, cancelar, dúvida, etc.)
@@ -968,14 +953,7 @@ REGRAS:
             if (llmReply && llmReply.trim()) {
               return {
                 success: true,
-                messages: [
-                  llmReply.trim(),
-                  {
-                    type: 'buttons' as const,
-                    body: 'Toque no botão para reenviar o código por e-mail:',
-                    buttons: [BOTAO_REENVIAR_CODIGO],
-                  },
-                ],
+                message: llmReply.trim(),
               }
             }
           } catch (err) {
@@ -984,13 +962,7 @@ REGRAS:
           // Fallback se LLM falhar ou retornar vazio
           return {
             success: true,
-            messages: [
-              {
-                type: 'buttons' as const,
-                body: '📧 Para ativar sua conta, digite aqui o *código de 6 dígitos* que enviamos no seu e-mail (confira também a pasta de *spam*). Ou toque no botão para reenviar. 💙',
-                buttons: [BOTAO_REENVIAR_CODIGO],
-              },
-            ],
+            message: '📧 Para ativar sua conta, digite aqui o *código de 6 dígitos* que enviamos no seu e-mail (confira também a pasta de *spam*). Se o email não chegou, diga "reenviar email". 💙',
           }
         }
       }
