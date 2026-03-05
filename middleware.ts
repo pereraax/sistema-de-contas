@@ -57,13 +57,29 @@ export function middleware(request: NextRequest) {
     return res
   }
 
-  // OAuth (Google/Apple): se a URL tiver ?code= em QUALQUER path (exceto /auth/callback), enviar para /auth/callback
-  // Assim, mesmo que o redirect_uri no Google aponte para / ou outro path, o usuário cai no callback e vai para /home
+  // OAuth ou confirmação de email: se a URL tiver ?code= fora do callback, enviar para /auth/callback.
+  // Quando o usuário vem da raiz (pathname === '/') com code=, é tipicamente confirmação de email (link com redirect_to só o domínio) -> next=/login para mostrar modal.
   const oauthCode = searchParams.get('code')
   if (oauthCode && pathname !== '/auth/callback') {
     const callbackUrl = new URL('/auth/callback', url.origin)
     searchParams.forEach((value, key) => callbackUrl.searchParams.set(key, value))
-    if (!callbackUrl.searchParams.has('next')) callbackUrl.searchParams.set('next', '/home')
+    if (!callbackUrl.searchParams.has('next')) {
+      callbackUrl.searchParams.set('next', pathname === '/' ? '/login' : '/home')
+    }
+    const res = NextResponse.redirect(callbackUrl, { status: 303 })
+    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+    return res
+  }
+
+  // Confirmação de email: quando o link do email tem redirect_to só o domínio (ex.: https://plenipay.com),
+  // o Supabase redireciona para / com token_hash e type. Redirecionar para /auth/callback para processar e mostrar modal + WhatsApp.
+  const tokenHash = searchParams.get('token_hash')
+  const typeAuth = searchParams.get('type')
+  if (pathname === '/' && tokenHash && pathname !== '/auth/callback') {
+    const callbackUrl = new URL('/auth/callback', url.origin)
+    callbackUrl.searchParams.set('token_hash', tokenHash)
+    if (typeAuth) callbackUrl.searchParams.set('type', typeAuth)
+    if (!callbackUrl.searchParams.has('next')) callbackUrl.searchParams.set('next', '/login')
     const res = NextResponse.redirect(callbackUrl, { status: 303 })
     res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
     return res

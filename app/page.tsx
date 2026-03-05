@@ -21,6 +21,23 @@ export default async function RootPage({
       : Array.isArray(params?.code)
         ? params.code[0]
         : undefined
+  const tokenHash =
+    typeof params?.token_hash === 'string'
+      ? params.token_hash
+      : Array.isArray(params?.token_hash)
+        ? params.token_hash[0]
+        : undefined
+
+  // Confirmação de email: link com redirect_to só o domínio leva o usuário à raiz com token_hash/code
+  if (tokenHash) {
+    const q = new URLSearchParams()
+    Object.entries(params || {}).forEach(([k, v]) => {
+      if (v === undefined || v === '') return
+      q.set(k, Array.isArray(v) ? v[0] : v)
+    })
+    if (!q.has('next')) q.set('next', '/login')
+    redirect('/auth/callback?' + q.toString())
+  }
 
   if (code) {
     const q = new URLSearchParams()
