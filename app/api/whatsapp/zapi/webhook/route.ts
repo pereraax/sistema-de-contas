@@ -653,7 +653,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       }
     }
 
-    // "CADASTRAR" (digitado ou clique no botão) ou "quero criar conta" → sempre iniciar fluxo de cadastro (nome → e-mail → código).
+    // "CADASTRAR" (digitado ou clique no botão) → primeiro MODO TESTE ("Me diga um gasto"), depois cadastro (nome → e-mail).
     const textNorm = (text ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
     const isCadastrarMessage =
       (text ?? '').trim() === 'CADASTRAR' ||
@@ -661,26 +661,23 @@ async function processarEmBackground(parsed: ZapiParsed) {
       /^(quero|vamos)\s*criar\s*(minha\s*)?conta$/i.test((text ?? '').trim()) ||
       /^quero\s*criar$/i.test(textNorm)
     if (!temCadastro && !signupPending && isCadastrarMessage) {
-      await setSignupStepNome(phone)
-      await sendTextMessage(
-        phone,
-        'O cadastro é feito aqui pelo WhatsApp! 💙\n\nMe diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail.',
-        { delayTyping: 1 }
-      ).catch(() => {})
+      const msgTeste = getMensagemInicialModoTeste(contactName)
+      await sendTextMessage(phone, msgTeste, { delayTyping: 1 }).catch(() => {})
+      await markTestIntroSent(phone).catch(() => {})
+      await markWelcomeSent(phone).catch(() => {})
       markResponded(phone, text ?? '')
-      console.log('📧 [Z-API Webhook] Cadastro pelo WhatsApp iniciado (botão/digitado CADASTRAR) para', phone)
+      console.log('📧 [Z-API Webhook] CADASTRAR clicado/digitado — enviado modo teste (depois cadastro) para', phone)
       return
     }
 
-    // Modo teste: sem cadastro + mensagem que parece gasto simples ("30 carro", "50 mercado") → fluxo teste (não exige jaRecebeuTestIntro para evitar falha de marcação).
+    // Modo teste: sem cadastro + mensagem que parece gasto simples ("30 carro", "50 mercado") → registrar gasto e depois pedir nome (cadastro).
     const gastoModoTeste = parseGastoSimples(text ?? '')
     if (
       !temCadastro &&
       !signupPending &&
       gastoModoTeste &&
       !isQueroUtilizarPlenipayMessage(text) &&
-      !isCadastrarMessage &&
-      isBoasVindasConfigured()
+      !isCadastrarMessage
     ) {
       const gasto = gastoModoTeste
         console.log('🧪 [Z-API Webhook] Modo teste (2ª msg) — gasto registrado:', gasto.valor, gasto.categoria, 'para', phone)
@@ -702,14 +699,13 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return
     }
 
-    // Modo teste: já recebeu intro e usuário respondeu "nada" / "não gastei" → resposta inteligente (não repetir intro nem formato).
+    // Modo teste: já recebeu intro e usuário respondeu "nada" / "não gastei" → resposta inteligente e convite a cadastro.
     if (
       !temCadastro &&
       !signupPending &&
       jaRecebeuTestIntro &&
       isRespostaNadaOuNaoGastei(text) &&
-      !isCadastrarMessage &&
-      isBoasVindasConfigured()
+      !isCadastrarMessage
     ) {
       await sendTextMessage(
         phone,
@@ -735,8 +731,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       !signupPending &&
       jaRecebeuTestIntro &&
       !isQueroUtilizarPlenipayMessage(text) &&
-      !isCadastrarMessage &&
-      isBoasVindasConfigured()
+      !isCadastrarMessage
     ) {
       const leadTestContext = `Lead no fluxo de teste da Plenipay (ainda não tem conta). Pedimos para ele dizer um gasto do dia (ex: 50 mercado). Ele respondeu com a mensagem abaixo. Responda de forma amigável e organizada: explique brevemente o que é a Plenipay, responda à dúvida ou objeção dele, e no final convide a testar com um gasto (ex: 50 mercado, 20 uber) ou a criar a conta aqui pelo WhatsApp (digite CADASTRAR ou me diga seu nome — não mencione link nem site para cadastro). Máximo 4-5 frases curtas. Use formatação WhatsApp (*negrito* para ênfase).`
       let msgResposta: string
@@ -871,7 +866,15 @@ async function processarEmBackground(parsed: ZapiParsed) {
         const msg = result.messages[i]
         if (typeof msg === 'object' && msg !== null && (msg as any).type === 'buttons') {
           const { body, buttons } = msg as { type: 'buttons'; body: string; buttons: { id: string; title: string }[] }
-          const send = await sendButtonListReply(phone, body, buttons)
+          const isSingleCadastrar =
+            buttons.length === 1 &&
+            (buttons[0].id === 'cadastrar' || /^cadastrar$/i.test(buttons[0].title?.trim() ?? ''))
+          let send = { success: false as boolean, error: '' as string }
+          if (isSingleCadastrar) {
+            send = await sendButtonActionsReply(phone, body, [{ type: 'REPLY', label: 'CADASTRAR', id: 'cadastrar' }])
+            if (send.success) console.log('✅ [Z-API Webhook] Botão CADASTRAR (REPLY) enviado para:', phone)
+          }
+          if (!send.success) send = await sendButtonListReply(phone, body, buttons)
           if (send.success) {
             registerSentMessage(phone, `${body} [botões]`)
             console.log('✅ [Z-API Webhook] Botões', i + 1, '/', result.messages.length, 'enviados para:', phone)
