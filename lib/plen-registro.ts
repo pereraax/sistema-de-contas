@@ -407,13 +407,14 @@ function getSiteUrlSemPreview(): string {
 
 /**
  * Monta a resposta no formato pedido:
- * 📌 (nome)
+ * 📌 nome do registro
  * 🔴 R$ valor (gasto) ou 🟢 R$ valor (ganho)
  * 📅 data
  * 🗂️ Categoria: ...
- * usuario: (nome do usuário/pessoa) — opcional
- * ✨ Mensagem de sucesso
- * (O link "Ver detalhes" é enviado como botão separado pelo WhatsApp.)
+ * 👤 usuario: ...
+ * 💬 Descrição: ... (quando houver)
+ * ✨ Mensagem de sucesso nome do contato (sem parênteses)
+ * Veja com mais detalhes no seu perfil:
  */
 export function formatarRespostaRegistro(params: {
   nome: string
@@ -425,7 +426,7 @@ export function formatarRespostaRegistro(params: {
   nomeUsuario?: string
   /** Descrição/observação do registro (ex.: "guardei na caixinha nubank"). */
   observacao?: string
-  /** Nome do contato na conversa (ex.: nome no WhatsApp) — usado nos parênteses da mensagem de sucesso. */
+  /** Nome do contato na conversa (ex.: nome no WhatsApp) — usado na mensagem de sucesso, sem parênteses. */
   nomeContatoWhatsApp?: string
 }): string {
   const { nome, tipo, valor, dataRegistro, categoria, nomeUsuario, observacao, nomeContatoWhatsApp } = params
@@ -436,14 +437,14 @@ export function formatarRespostaRegistro(params: {
     maximumFractionDigits: 2,
   })
   const dataBR = formatarDataBR(dataRegistro)
-  const emojiValor = tipo === 'entrada' ? '🟢' : '🔴' // entrada = ganho (verde), saida/divida = vermelho
-  const nomeNaMensagem = (nomeContatoWhatsApp || '').trim() || (nome || '').trim() || 'registro'
+  const emojiValor = tipo === 'entrada' ? '🟢' : '🔴'
+  const nomeNaMensagem = (nomeContatoWhatsApp || '').trim() || (nomeUsuario || '').trim() || (nome || '').trim() || 'registro'
   const mensagemSucesso =
     tipo === 'saida'
-      ? `✨ Seu gasto foi registrado com sucesso (${nomeNaMensagem})!`
+      ? `✨ Seu gasto foi registrado com sucesso ${nomeNaMensagem}!`
       : tipo === 'divida'
-        ? `✨ Sua dívida foi registrada com sucesso (${nomeNaMensagem})!`
-        : `✨ Sua entrada foi registrada com sucesso (${nomeNaMensagem})!`
+        ? `✨ Sua dívida foi registrada com sucesso ${nomeNaMensagem}!`
+        : `✨ Sua entrada foi registrada com sucesso ${nomeNaMensagem}!`
 
   const linhas = [
     `📌 ${nome}`,
@@ -451,12 +452,12 @@ export function formatarRespostaRegistro(params: {
     `📅 ${dataBR}`,
     `🗂️ Categoria: ${categoria}`,
   ]
-  if (observacao != null && observacao.trim() !== '') {
-    linhas.push(`📝 Descrição: ${observacao.trim()}`)
-  }
   if (nomeUsuario != null && nomeUsuario.trim() !== '') {
-    linhas.push(`usuario: ${nomeUsuario.trim()}`)
+    linhas.push(`👤 usuario: ${nomeUsuario.trim()}`)
   }
-  linhas.push('', mensagemSucesso)
+  if (observacao != null && observacao.trim() !== '') {
+    linhas.push(`💬 Descrição: ${observacao.trim()}`)
+  }
+  linhas.push('', mensagemSucesso, '', 'Veja com mais detalhes no seu perfil:')
   return linhas.join('\n')
 }
