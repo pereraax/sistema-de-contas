@@ -28,6 +28,7 @@ import {
   isValidNome,
   validateEmailWithHint,
 } from '@/lib/whatsapp-signup-flow'
+import { extrairNomeComOpenAI } from '@/lib/openai-validar-nome'
 import { criarContaFromWhatsApp } from '@/lib/criar-conta-whatsapp'
 import { downloadMedia, transcribeAudio, processComprovanteImage } from '@/lib/whatsapp-media-processor'
 
@@ -522,11 +523,16 @@ async function processarEmBackground(parsed: ZapiParsed) {
     if (signupPending) {
       if (signupPending.step === 'nome') {
         const nome = (text ?? '').trim()
-        if (isValidNome(nome)) {
-          await setSignupStepEmail(phone, nome)
+        let nomeFinal = nome
+        if (!isValidNome(nome)) {
+          const extraido = await extrairNomeComOpenAI(nome).catch(() => null)
+          if (extraido && isValidNome(extraido)) nomeFinal = extraido
+        }
+        if (isValidNome(nomeFinal)) {
+          await setSignupStepEmail(phone, nomeFinal)
           await sendTextMessage(phone, 'Qual seu e-mail?', { delayTyping: 1 }).catch(() => {})
           markResponded(phone, text ?? '')
-          console.log('📧 [Z-API Webhook] Cadastro WhatsApp — nome recebido, aguardando e-mail para', phone)
+          console.log('📧 [Z-API Webhook] Cadastro WhatsApp — nome recebido', nomeFinal !== nome ? `(extraído: ${nomeFinal})` : '', 'aguardando e-mail para', phone)
         } else {
           await sendTextMessage(phone, 'Me diga seu nome (ex.: Maria Silva).', { delayTyping: 1 }).catch(() => {})
           markResponded(phone, text ?? '')
