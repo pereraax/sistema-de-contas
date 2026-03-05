@@ -338,14 +338,15 @@ export async function signUp(
     
     if (deveTentarSmtpProprio) {
       if (usuarioJaExistia) {
-        logInfo('📧 Usuário já existia (email não confirmado) - gerando e enviando link de confirmação via SMTP...', 'SIGNUP')
+        logInfo('📧 Usuário já existia (email não confirmado) - gerando e enviando link de confirmação por email...', 'SIGNUP')
       } else {
-        logInfo('📧 Email não confirmado - gerando e enviando link de confirmação via SMTP...', 'SIGNUP')
+        logInfo('📧 Email não confirmado - gerando e enviando link de confirmação por email...', 'SIGNUP')
       }
       
-      const { isSmtpConfigured, sendMail } = await import('./mailer')
+      const { isSmtpConfigured, isResendConfigured, sendMail } = await import('./mailer')
+      const emailEnvioConfigurado = isSmtpConfigured() || isResendConfigured()
       
-      if (isSmtpConfigured()) {
+      if (emailEnvioConfigurado) {
         try {
           // Link do email sempre com domínio oficial (getSiteUrlForEmailRedirect = plenipay.com)
           const redirectToEmail = redirectTo
@@ -471,29 +472,29 @@ export async function signUp(
               html: templateHtml
             })
             
-            logSuccess('✅ Email enviado via SMTP próprio (fallback)!', 'SIGNUP')
+            logSuccess('✅ Email enviado (Resend ou SMTP)!', 'SIGNUP')
             emailEnviado = true
           } else {
             logError(`❌ Erro ao gerar link: ${linkError?.message || 'Link não gerado'}`, 'SIGNUP')
           }
         } catch (smtpError: any) {
-          logError(`❌ Erro ao enviar via SMTP próprio: ${smtpError.message}`, 'SIGNUP')
+          logError(`❌ Erro ao enviar email (Resend/SMTP): ${smtpError.message}`, 'SIGNUP')
           // Só marcar como enviado se Supabase enviou (usuário criado agora, sem erro de envio)
           // Se usuário já existia ou teve erro de envio, email não foi enviado
           if (!usuarioJaExistia && !teveErroEnvioEmail && authData?.user) {
-            logInfo('✅ Supabase provavelmente enviou (SMTP próprio falhou)', 'SIGNUP')
+            logInfo('✅ Supabase provavelmente enviou (envio próprio falhou)', 'SIGNUP')
             emailEnviado = true
           } else {
             emailEnviado = false
           }
         }
       } else {
-        logWarn('⚠️ SMTP próprio não configurado - não foi possível enviar link', 'SIGNUP')
+        logWarn('⚠️ Envio de email não configurado - configure RESEND_API_KEY (recomendado) ou SMTP_* no Railway para enviar o link', 'SIGNUP')
         // Só marcar como enviado se Supabase enviou (usuário criado agora e sem erro de envio)
         // Se usuário já existia, Supabase não envia de novo - então emailEnviado fica false
         if (!usuarioJaExistia && !teveErroEnvioEmail && authData?.user) {
           emailEnviado = true
-          logInfo('✅ Supabase provavelmente enviou (SMTP próprio não configurado)', 'SIGNUP')
+          logInfo('✅ Supabase provavelmente enviou (envio próprio não configurado)', 'SIGNUP')
         }
       }
     }
