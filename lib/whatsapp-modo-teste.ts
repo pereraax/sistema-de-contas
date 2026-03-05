@@ -5,7 +5,7 @@
 
 import { extrairValor, categoriaInteligente } from '@/lib/plen-registro'
 
-/** Texto da mensagem de saudação (configurada no próprio WhatsApp; não enviamos do app ao receber "Quero utilizar a Plenipay"). Usado apenas como referência ou se precisar reenviar em outro fluxo. */
+/** Mensagem do modo teste: saudação + pedir um gasto do dia (ex.: 50 mercado). Usada quando o lead clica CADASTRAR ou em fluxos de boas-vindas. */
 export function getMensagemInicialModoTeste(contactName?: string | null): string {
   const raw = (contactName ?? '').trim().slice(0, 50)
   const nome = raw && raw.toLowerCase() !== 'nome' && raw.toLowerCase() !== 'pessoa' ? raw : ''
@@ -41,6 +41,9 @@ Clique no botão CADASTRAR abaixo.`
 
 /** Quando o lead envia algo que não é gasto/entrada: convite para testar antes. */
 export const MSG_TESTAR_ANTES = `Vamos testar antes? 😊 Me diga um gasto ou uma entrada do dia (ex.: 50 mercado ou recebi 100) e seguimos a partir daí. 💙`
+
+/** Quando o lead diz que não gastou nada / ainda não gastou: convite a testar com valor fictício. */
+export const MSG_NADA_VAMOS_TESTAR = `Vamos testar pra você ver como funciona! 😊 Pode dizer um valor fictício por enquanto.\n\nExemplo:\n* 50 mercado\n* 20 uber`
 
 /** Resultado do parse de um gasto simples (ex.: "50 mercado", "20 uber"). */
 export type GastoSimples = { valor: number; categoria: string; descricao: string }

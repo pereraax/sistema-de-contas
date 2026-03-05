@@ -20,6 +20,7 @@ import {
   getMsgGastoRegistradoModoTeste,
   MSG_FOLLOW_UP_CRIAR_CONTA,
   MSG_TESTAR_ANTES,
+  MSG_NADA_VAMOS_TESTAR,
 } from '@/lib/whatsapp-modo-teste'
 import {
   getSignupPending,
@@ -53,7 +54,7 @@ function isIntroIntentWebhook(text: string): boolean {
   return false
 }
 
-/** True se a mensagem indica "não gastei nada" / "nada" no contexto do modo teste. */
+/** True se a mensagem indica "não gastei nada" / "nada" / "ainda não gastei" no contexto do modo teste. */
 function isRespostaNadaOuNaoGastei(text: string): boolean {
   const raw = (text ?? '').trim()
   if (!raw) return true
@@ -63,6 +64,8 @@ function isRespostaNadaOuNaoGastei(text: string): boolean {
     const short = /^(nada|nao|n[aã]o|nope|zero|nenhum|nenhuma|n[aã]o\s*gastei|n[aã]o\s*gastou|n[aã]o\s*tenho|t[aá]\s*bem|tudo\s*bem|por\s*enquanto\s*n[aã]o|hoje\s*n[aã]o)\s*\.?\s*$/i.test(t)
     if (short || t === 'n' || t === 'nao') return true
   }
+  // "Não gastei nada até agora", "não gastei nada ainda", "ainda não gastei", etc.
+  if (/n[aã]o\s*gastei\s*nada|nada\s*(at[eé]\s*agora|ainda)|ainda\s*n[aã]o\s*gastei/i.test(t)) return true
   // Mensagem que termina com "nada" (ex.: "Oiii ... Nada")
   if (/\bnada\s*\.?\s*$/i.test(t) || /\bnao\s*\.?\s*$/i.test(t)) return true
   return false
@@ -706,7 +709,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return
     }
 
-    // Modo teste: já recebeu intro e usuário respondeu "nada" / "não gastei" → resposta inteligente e convite a cadastro.
+    // Modo teste: já recebeu intro e usuário respondeu "nada" / "não gastei" → convidar a testar com valor fictício (sem pular para cadastro).
     if (
       !temCadastro &&
       !signupPending &&
@@ -714,20 +717,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       isRespostaNadaOuNaoGastei(text) &&
       !isCadastrarMessage
     ) {
-      await sendTextMessage(
-        phone,
-        'Tudo bem! 😊 Quando tiver algum gasto pode me contar. Quer criar sua conta já? Assim organizo tudo pra você.',
-        { delayTyping: 1 }
-      ).catch(() => {})
-      await delay(600)
-      await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
-      await delay(600)
-      await setSignupStepNome(phone)
-      await sendTextMessage(
-        phone,
-        'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail.',
-        { delayTyping: 1 }
-      ).catch(() => {})
+      await sendTextMessage(phone, MSG_NADA_VAMOS_TESTAR, { delayTyping: 1 }).catch(() => {})
       markResponded(phone, text ?? '')
       return
     }
@@ -740,7 +730,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       !isQueroUtilizarPlenipayMessage(text) &&
       !isCadastrarMessage
     ) {
-      const leadTestContext = `Lead no fluxo de teste da Plenipay (ainda não tem conta). Pedimos para ele dizer um gasto do dia (ex: 50 mercado). Ele respondeu com a mensagem abaixo. Responda de forma amigável e organizada: explique brevemente o que é a Plenipay, responda à dúvida ou objeção dele, e no final convide a testar com um gasto (ex: 50 mercado, 20 uber) ou a criar a conta aqui pelo WhatsApp (digite CADASTRAR ou me diga seu nome — não mencione link nem site para cadastro). Máximo 4-5 frases curtas. Use formatação WhatsApp (*negrito* para ênfase).`
+      const leadTestContext = `Lead no fluxo de teste da Plenipay (ainda não tem conta). Pedimos para ele dizer um gasto do dia (ex: 50 mercado). Ele respondeu com a mensagem abaixo. Responda de forma amigável: se ele disser que não gastou nada ou que não tem gasto, diga que pode testar com um VALOR FICTÍCIO por enquanto (ex.: 50 mercado, 20 uber) para ver como funciona. Se for outra dúvida, explique brevemente a Plenipay e convide a testar com um gasto ou a criar a conta (digite CADASTRAR — não mencione link). Máximo 4-5 frases. Use *negrito* para ênfase.`
       let msgResposta: string
       try {
         const { getPlenLLMResponse } = await import('@/lib/plen-llm-fallback')
@@ -801,22 +791,9 @@ async function processarEmBackground(parsed: ZapiParsed) {
         return
       }
 
-      // Resposta "nada" / "não gastei" → mensagem única, sem repetir intro nem pedir formato
+      // Resposta "nada" / "não gastei" → convidar a testar com valor fictício
       if (isRespostaNadaOuNaoGastei(text)) {
-        await sendTextMessage(
-          phone,
-          'Tudo bem! 😊 Quando tiver algum gasto pode me contar. Quer criar sua conta já? Assim organizo tudo pra você.',
-          { delayTyping: 1 }
-        ).catch(() => {})
-        await delay(600)
-        await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
-        await delay(600)
-        await setSignupStepNome(phone)
-        await sendTextMessage(
-          phone,
-          'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail.',
-          { delayTyping: 1 }
-        ).catch(() => {})
+        await sendTextMessage(phone, MSG_NADA_VAMOS_TESTAR, { delayTyping: 1 }).catch(() => {})
         markResponded(phone, text ?? '')
         return
       }
