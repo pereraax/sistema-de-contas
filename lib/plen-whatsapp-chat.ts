@@ -82,13 +82,11 @@ async function countRegistrosPlen(supabase: SupabaseClient, accountOwnerId: stri
   return count ?? 0
 }
 
-/** Intervalo aleatório entre 2 e 3 (inclusive) para intercalar envios "indique e ganhe". */
-function nextMilestoneOffset(): number {
-  return 2 + Math.floor(Math.random() * 2) // 2 ou 3
-}
+/** Intervalo fixo: mensagem de "indique e ganhe" a cada 3 registros. */
+const INCENTIVE_EVERY_N_REGISTROS = 3
 
 /**
- * Envia "indique e ganhe" após 2 registros, depois a cada 2 ou 3 registros (aleatório).
+ * Envia "indique e ganhe" a cada 3 registros (3º, 6º, 9º, ...).
  * Retorna duas mensagens (confirmação + incentivo) quando for hora de enviar.
  */
 async function maybeAppendIncentiveIndication(
@@ -100,7 +98,7 @@ async function maybeAppendIncentiveIndication(
   currentButtonBody: string | undefined
 ): Promise<ProcessPlenWhatsAppResult> {
   const count = await countRegistrosPlen(supabase, userId)
-  if (count < 2) {
+  if (count < INCENTIVE_EVERY_N_REGISTROS) {
     return {
       response: currentResponse,
       buttonUrl: currentButtonUrl,
@@ -117,7 +115,7 @@ async function maybeAppendIncentiveIndication(
 
   const nextSendAfter = row?.next_send_after_registro_count ?? null
   const isFirstTime = row == null || (row.last_sent_at_registro_count == null && nextSendAfter == null)
-  const shouldSend = isFirstTime ? count >= 2 : nextSendAfter != null && count >= nextSendAfter
+  const shouldSend = isFirstTime ? count >= INCENTIVE_EVERY_N_REGISTROS : nextSendAfter != null && count >= nextSendAfter
 
   if (!shouldSend) {
     return {
@@ -128,7 +126,7 @@ async function maybeAppendIncentiveIndication(
     }
   }
 
-  const nextMilestone = count + nextMilestoneOffset()
+  const nextMilestone = count + INCENTIVE_EVERY_N_REGISTROS
   await supabase
     .from('plen_incentive_indication_sent')
     .upsert(
