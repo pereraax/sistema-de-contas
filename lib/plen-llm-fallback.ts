@@ -105,8 +105,14 @@ const buildChatPayload = (systemPrompt: string, prompt: string) => ({
  * Ordem: 1) Grok (xAI) se XAI_API_KEY; 2) Groq se GROQ_API_KEY; 3) OpenAI se OPENAI_API_KEY.
  * Retorna null se nenhuma chave estiver configurada ou em caso de erro.
  */
+let _llmKeyWarned = false
 export async function getPlenLLMResponse(options: PlenLLMFallbackOptions): Promise<string | null> {
   const { userMessage, context, productMode } = options
+  const hasKey = !!(process.env.XAI_API_KEY?.trim() || process.env.GROQ_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim())
+  if (!hasKey && !_llmKeyWarned) {
+    _llmKeyWarned = true
+    console.warn('[PLEN LLM] Nenhuma chave configurada (XAI_API_KEY, GROQ_API_KEY ou OPENAI_API_KEY). Respostas inteligentes para mensagens não reconhecidas usarão apenas o texto fixo "Oops! não entendi".')
+  }
   const systemPrompt = productMode ? PRODUCT_SYSTEM_PROMPT : SYSTEM_PROMPT
   const prompt = context
     ? `${context}\n\nMensagem do usuário: "${userMessage}"\n\nResponda de forma amigável (uma mensagem curta para WhatsApp).`

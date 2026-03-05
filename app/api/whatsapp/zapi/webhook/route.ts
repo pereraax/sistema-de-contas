@@ -575,6 +575,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
           return
         }
         const nomeParaConta = (signupPending.nome || '').trim()
+        console.log('📧 [Z-API Webhook] Criando conta WhatsApp | nome:', nomeParaConta || '(vazio)', '| email:', email, '| phone:', phoneDigits)
         const result = await criarContaFromWhatsApp(nomeParaConta, email, phoneDigits)
         if (result.success) {
           const nomeExibir = nomeParaConta || 'pessoa'
@@ -880,11 +881,12 @@ async function processarEmBackground(parsed: ZapiParsed) {
         if (i < result.messages.length - 1) await delay(280)
       }
       markResponded(phone, text ?? '')
-    } else if (result?.message && typeof result.message === 'string') {
+    } else if (result?.message && typeof result.message === 'string' && result.message.trim()) {
       if (isMsgBloqueada(result.message)) {
         console.log('📨 [Z-API Webhook] Resposta bloqueada (não enviar):', result.message.slice(0, 30))
+        markResponded(phone, text ?? '')
       } else {
-      const send = await sendTextReply(phone, result.message, { delayTyping: 2 })
+      const send = await sendTextReply(phone, result.message.trim(), { delayTyping: 2 })
       if (send.success) {
         markResponded(phone, text ?? '')
         registerSentMessage(phone, result.message)
@@ -894,8 +896,9 @@ async function processarEmBackground(parsed: ZapiParsed) {
         await sendTextReply(phone, 'Desculpe, tive um problema ao enviar. Tente de novo em um instante. 💙').catch(() => {})
       }
       }
-    } else if (result === null) {
-      console.warn('📨 [Z-API Webhook] processWhatsAppMessage retornou null (sem resposta). phone:', phone, 'text:', text?.slice(0, 50))
+    } else if (result === null || (result && !result.messages?.length && !(typeof result.message === 'string' && result.message.trim()))) {
+      const motivo = result === null ? 'null' : 'sem mensagem válida'
+      console.warn('📨 [Z-API Webhook] processWhatsAppMessage', motivo, '— phone:', phone, 'text:', text?.slice(0, 50))
       // Se a assistente está pausada no admin, não enviar nenhum fallback (silêncio).
       if (!(await assistenteDeveResponderAsync())) {
         console.log('🛑 [Z-API Webhook] Assistente pausada — não enviar fallback.')
