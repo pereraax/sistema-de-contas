@@ -38,16 +38,15 @@ export const MENSAGENS_BOAS_VINDAS: BoasVindasItem[] = [
   INTRO_SEM_NOME,
   {
     type: 'button_actions' as const,
-    body: 'Antes de começar a registrar seus gastos:\n\n1️⃣ Salve meu contato\n2️⃣ Crie sua conta — é rápido, prometo! 😊\n\nToque em *CADASTRAR* para abrir o site ou em *JÁ CRIEI* se já tem conta que eu peço seu e-mail e te libero aqui. 💙',
+    body: 'Antes de começar a registrar seus gastos:\n\n1️⃣ Salve meu contato\n2️⃣ Crie sua conta aqui pelo WhatsApp — é rápido! 😊\n\nDigite *CADASTRAR* que eu peço seu nome e e-mail e crio sua conta (envio o link de confirmação no seu e-mail). Ou *JÁ CRIEI* se já tem conta. 💙',
     buttonActions: [
-      { type: 'URL', url: 'https://plenipay.com', label: 'CADASTRAR' },
+      { type: 'REPLY', label: 'CADASTRAR', id: 'cadastrar' },
       { type: 'REPLY', label: 'JÁ CRIEI', id: 'ja_cadastrei' },
     ],
   },
 ]
 
-const CADASTRO_URL = 'https://plenipay.com'
-const FALLBACK_LINK_MSG = `Antes de começar:\n1️⃣ Salve meu contato\n2️⃣ Crie sua conta: ${CADASTRO_URL}\n\nDigite *CADASTRAR* para o link ou *JÁ CRIEI* que eu peço seu e-mail.`
+const FALLBACK_LINK_MSG = `Antes de começar:\n1️⃣ Salve meu contato\n2️⃣ Crie sua conta aqui pelo WhatsApp — digite *CADASTRAR* que eu peço seu nome e e-mail e crio sua conta. Ou *JÁ CRIEI* se já tem conta. 💙`
 
 /** Provedor de boas-vindas: só Z-API (API Fácil não é mais usada neste fluxo). */
 export function getBoasVindasProvider(): 'zapi' | 'apifacil' | null {

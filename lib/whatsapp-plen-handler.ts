@@ -786,49 +786,56 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
     // A partir daqui: usuário já está autenticado via WhatsApp
     // Só registrar gastos/consultar quando o email estiver confirmado (evitar "teste" após "enviei o link")
     if (userContext.userId) {
+      let emailConfirmado: boolean | null = null
       try {
         const { createAdminClient } = await import('./supabase/server')
-        const { isConfirmacaoEmailMessage } = await import('@/lib/whatsapp-contatos-pendentes')
         const supabaseAdmin = createAdminClient()
         if (supabaseAdmin) {
-          // Se o usuário disse que clicou no link / pronto / já confirmei, re-verificar email antes de insistir ou escalar
-          const ehMensagemDeConfirmacao = isConfirmacaoEmailMessage(text)
           const { data: authData } = await supabaseAdmin.auth.admin.getUserById(userContext.userId)
-          if (authData?.user && !authData.user.email_confirmed_at) {
-            if (ehMensagemDeConfirmacao) {
-              // Re-fetch para pegar email_confirmed_at atualizado (pode ter acabado de confirmar)
+          emailConfirmado = !!(authData?.user?.email_confirmed_at)
+        }
+      } catch (e) {
+        console.warn('⚠️ [WhatsApp PLEN] Erro ao verificar email_confirmed_at:', (e as Error)?.message)
+      }
+      // Se não conseguimos verificar ou email NÃO está confirmado: sempre responder (nunca deixar em branco)
+      if (emailConfirmado !== true) {
+        const { isConfirmacaoEmailMessage } = await import('@/lib/whatsapp-contatos-pendentes')
+        const ehMensagemDeConfirmacao = isConfirmacaoEmailMessage(text)
+        if (ehMensagemDeConfirmacao) {
+          try {
+            const { createAdminClient } = await import('./supabase/server')
+            const supabaseAdmin = createAdminClient()
+            if (supabaseAdmin) {
               const { data: authDataFresh } = await supabaseAdmin.auth.admin.getUserById(userContext.userId)
               if (authDataFresh?.user?.email_confirmed_at) {
                 console.log('📧 [WhatsApp PLEN] Email confirmado após re-verificação — seguindo fluxo')
-                // não retorna aqui; deixa seguir para o PLEN
+                emailConfirmado = true
               } else {
-                console.log('📧 [WhatsApp PLEN] Usuário disse que clicou no link — re-verificamos e ainda não confirmado')
                 return {
                   success: true,
                   message: 'Vou verificar novamente se foi confirmado... Ainda não apareceu aqui. Confira a pasta de *spam* ou aguarde alguns minutos e tente de novo. 💙',
                 }
               }
-            } else {
-              // Perguntas de próximo passo ("e agora?", "o que faço?") → resposta contextual e amigável
-              const t = text.trim().toLowerCase().replace(/\s+/g, ' ')
-              const ehPerguntaProximoPasso = /^(e\s+agora\??|e\s+depois\??|e\s+a[ií]\??|e\s+ent[aã]o\??|o\s+que\s+fa[cç]o\??|e\s+da[ií]\??|como\s+(fa[cç]o|prossigo)|pr[oó]ximo\s+passo|agora\s+o\s+que)\s*$/i.test(t)
-              if (ehPerguntaProximoPasso) {
-                console.log('📧 [WhatsApp PLEN] Pergunta "próximo passo" com email pendente — resposta contextual')
-                return {
-                  success: true,
-                  message: 'Agora é só abrir seu *email* (e a pasta de *spam*), clicar no *link* que enviamos e sua conta fica ativa. 💙\n\nDepois volte aqui e me diga um gasto ou receita que eu registro! Ex.: "gastei 200 com roupas" ou "recebi 1500 salário".',
-                }
-              }
-              console.log('📧 [WhatsApp PLEN] Email ainda não confirmado — bloqueando registro/uso até confirmação')
-              return {
-                success: true,
-                message: '📧 Seu email ainda não foi confirmado.\n\n1) Abra sua caixa de entrada (e a pasta de *spam*)\n2) Clique no link que enviamos\n3) Depois volte aqui e me diga de novo (ex.: "gastei 340")\n\nAssim sua conta fica ativa e eu registro tudo para você. 💙',
-              }
+            }
+          } catch (_) {}
+        }
+        if (emailConfirmado !== true) {
+          const t = text.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.?!,]+$/g, '').trim()
+          const ehPerguntaProximoPasso =
+            /^e\s+agora\s*$/.test(t) ||
+            /^(e\s+depois|e\s+a[ií]|e\s+ent[aã]o|o\s+que\s+fa[cç]o|e\s+da[ií]|como\s+(fa[cç]o|prossigo)|pr[oó]ximo\s+passo|agora\s+o\s+que)\s*$/i.test(t)
+          if (ehPerguntaProximoPasso) {
+            return {
+              success: true,
+              message: 'Agora é só abrir seu *email* (e a pasta de *spam*), clicar no *link* que enviamos e sua conta fica ativa. 💙\n\nDepois volte aqui e me diga um gasto ou receita que eu registro! Ex.: "gastei 200 com roupas" ou "recebi 1500 salário".',
             }
           }
+          // Qualquer outra mensagem (ex.: "extra de 300", "gastei 50") com email pendente: instruir a confirmar
+          return {
+            success: true,
+            message: '📧 Seu email ainda não foi confirmado.\n\n1) Abra sua caixa de entrada (e a pasta de *spam*)\n2) Clique no link que enviamos\n3) Depois volte aqui e me diga de novo (ex.: "gastei 340" ou "extra de 300")\n\nAssim sua conta fica ativa e eu registro tudo para você. 💙',
+          }
         }
-      } catch (e) {
-        console.warn('⚠️ [WhatsApp PLEN] Erro ao verificar email_confirmed_at:', (e as Error)?.message)
       }
     }
 
@@ -897,26 +904,6 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
     console.log('✅ [WhatsApp PLEN] User ID:', userContext.userId)
     console.log('✅ [WhatsApp PLEN] Text:', text.substring(0, 100))
     console.log('✅ [WhatsApp PLEN] ==========================================')
-    
-    // Se está "aguardando humano", não responder automaticamente — exceto se pedir para voltar ao assistente
-    const {
-      getAguardandoHumanoAte,
-      clearAguardandoHumano,
-      isPedidoVoltarAssistente,
-      incrementConsecutiveNaoEntendi,
-      setAguardandoHumano,
-      resetConsecutiveNaoEntendi,
-    } = await import('@/lib/whatsapp-contatos-pendentes')
-    const aguardandoAte = await getAguardandoHumanoAte(phoneNumber)
-    if (aguardandoAte) {
-      if (isPedidoVoltarAssistente(text)) {
-        await clearAguardandoHumano(phoneNumber)
-        console.log('✅ [WhatsApp PLEN] Usuário pediu voltar ao assistente — limpando aguardando humano')
-      } else {
-        console.log('🛑 [WhatsApp PLEN] Contato em aguardando humano — não enviar resposta automática')
-        return { success: true, skipReply: true }
-      }
-    }
     
     // Verificar se há imagem no texto (marcador especial)
     let imageBase64: string | undefined = undefined
@@ -1004,6 +991,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       return false
     }
 
+    const { incrementConsecutiveNaoEntendi, resetConsecutiveNaoEntendi } = await import('@/lib/whatsapp-contatos-pendentes')
     if (ehRespostaNegativaOfertaAjuda && isNaoEntendiResponse(plenResult)) {
       await resetConsecutiveNaoEntendi(phoneNumber)
       console.log('✅ [WhatsApp PLEN] Usuário disse que não precisa de ajuda humana — não escalar')
@@ -1039,8 +1027,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       }
       const count = await incrementConsecutiveNaoEntendi(phoneNumber)
       if (count >= 3) {
-        await setAguardandoHumano(phoneNumber, 24)
-        console.log('🛑 [WhatsApp PLEN] 3+ "não entendi" seguidas — aguardando humano ativado para', phoneNumber)
+        console.log('📨 [WhatsApp PLEN] 3+ "não entendi" seguidas — enviando mensagem (sem ativar aguardando humano)')
         return {
           success: true,
           message: 'Parece que você está com problemas, vou chamar um humano. Um momento! 💙',
@@ -1376,8 +1363,8 @@ async function handleWhatsAppAuthentication(
         const nomeExibir = nome.trim().slice(0, 50)
         const emailFoiEnviado = result.emailEnviado !== false
         const msgSucesso = emailFoiEnviado
-          ? `Perfeito ${nomeExibir} 💙\n\nEnviei um link para confirmar seu email.\n\nDepois disso sua conta já estará ativa e você pode me dizer seus gastos e receitas para eu registrar. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
-          : `Conta criada, ${nomeExibir} 💙\n\nO email de confirmação pode demorar ou ir para a pasta de *spam*. Se não chegar em alguns minutos, acesse *plenipay.com* e peça um novo link.\n\nDepois de confirmar, você pode me dizer seus gastos e receitas. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
+          ? `Perfeito ${nomeExibir} 💙\n\nEnviei um *link para confirmar seu e-mail* na sua caixa de entrada.\n\nDepois de clicar no link sua conta fica ativa e você pode me dizer seus gastos e receitas aqui. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
+          : `Conta criada, ${nomeExibir} 💙\n\nO e-mail de confirmação pode demorar ou ir para a pasta de *spam*. Se não chegar em alguns minutos, me avise aqui que eu te oriento a reenviar o link.\n\nDepois de confirmar, você pode me dizer seus gastos e receitas. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
         if (emailFoiEnviado) {
           const { markEmailConfirmLinkSent } = await import('@/lib/whatsapp-contatos-pendentes')
           await markEmailConfirmLinkSent(phoneNumber).catch(() => {})
@@ -1389,7 +1376,7 @@ async function handleWhatsAppAuthentication(
       }
       return {
         success: true,
-        message: result.error || 'Não consegui criar a conta. Tente no site plenipay.com.',
+        message: result.error || 'Não consegui criar a conta. Tente outro e-mail ou me avise aqui. 💙',
       }
     }
     // Nome inválido — pedir de novo
@@ -1401,17 +1388,12 @@ async function handleWhatsAppAuthentication(
     }
   }
 
-  // Botão "CADASTRAR" — enviar mensagem com botão/link para plenipay.com (já pode ter sido tratado no início do handler)
+  // "CADASTRAR" — cadastro é pelo WhatsApp (nome + e-mail); sem link
   if (lowerText === 'cadastrar') {
     return {
       success: true,
-      messages: [
-        {
-          type: 'button_actions' as const,
-          body: '👉 Abra o site para cadastro abaixo. Depois que criar a conta, toque em *JÁ CRIEI* ou digite aqui que eu peço seu e-mail. 🚀',
-          buttonActions: [{ type: 'URL' as const, url: 'https://plenipay.com', label: 'CADASTRAR' }],
-        },
-      ],
+      message:
+        'O cadastro é feito aqui pelo WhatsApp! 💙\n\nMe diga seu nome (ex.: Maria) que eu crio sua conta e envio o link de confirmação no seu e-mail.\n\nSe já tem conta, digite *JÁ CRIEI* que eu peço seu e-mail para liberar.',
     }
   }
 

@@ -582,8 +582,8 @@ async function processarEmBackground(parsed: ZapiParsed) {
           const nomeExibir = nomeParaConta || 'pessoa'
           const emailFoiEnviado = result.emailEnviado !== false
           const msgSucesso = emailFoiEnviado
-            ? `Perfeito ${nomeExibir} 💙\n\nEnviei um link para confirmar seu email.\n\nDepois disso sua conta já estará ativa e você pode me dizer seus gastos e receitas para eu registrar. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
-            : `Conta criada, ${nomeExibir} 💙\n\nO email de confirmação pode demorar ou ir para a pasta de *spam*. Se não chegar em alguns minutos, acesse *plenipay.com*, faça login com esse email e peça um novo link de confirmação.\n\nDepois de confirmar, sua conta fica ativa e você pode me dizer seus gastos e receitas. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
+            ? `Perfeito ${nomeExibir} 💙\n\nEnviei um *link para confirmar seu e-mail* na sua caixa de entrada.\n\nDepois de clicar no link sua conta fica ativa e você pode me dizer seus gastos e receitas aqui. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
+            : `Conta criada, ${nomeExibir} 💙\n\nO e-mail de confirmação pode demorar ou ir para a pasta de *spam*. Se não chegar em alguns minutos, me avise aqui que eu te oriento a reenviar o link.\n\nDepois de confirmar, você pode me dizer seus gastos e receitas. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
           await sendTextMessage(phone, msgSucesso, { delayTyping: 1 }).catch(() => {})
           if (emailFoiEnviado) await markEmailConfirmLinkSent(phone).catch(() => {})
           await markWelcomeSent(phone).catch(() => {})
@@ -593,7 +593,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
         } else {
           await sendTextMessage(
             phone,
-            result.error || 'Não consegui criar a conta. Tente outro e-mail ou cadastre-se no site plenipay.com.',
+            result.error || 'Não consegui criar a conta. Tente outro e-mail ou me avise aqui. 💙',
             { delayTyping: 1 }
           ).catch(() => {})
           markResponded(phone, text ?? '')
@@ -612,7 +612,11 @@ async function processarEmBackground(parsed: ZapiParsed) {
       textNorm === 'quero criar'
     if (!temCadastro && !signupPending && isCadastrarMessage && isBoasVindasConfigured()) {
       await setSignupStepNome(phone)
-      await sendTextMessage(phone, 'Qual seu nome?', { delayTyping: 1 }).catch(() => {})
+      await sendTextMessage(
+        phone,
+        'O cadastro é feito aqui pelo WhatsApp! 💙\n\nMe diga seu nome (ex.: Maria) que eu crio sua conta e envio o link de confirmação no seu e-mail.',
+        { delayTyping: 1 }
+      ).catch(() => {})
       markResponded(phone, text ?? '')
       console.log('📧 [Z-API Webhook] Cadastro pelo WhatsApp iniciado para', phone)
       return
@@ -676,7 +680,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       !isCadastrarMessage &&
       isBoasVindasConfigured()
     ) {
-      const leadTestContext = `Lead no fluxo de teste da Plenipay (ainda não tem conta). Pedimos para ele dizer um gasto do dia (ex: 50 mercado). Ele respondeu com a mensagem abaixo. Responda de forma amigável e organizada: explique brevemente o que é a Plenipay, responda à dúvida ou objeção dele, e no final convide a testar com um gasto (ex: 50 mercado, 20 uber) ou a criar a conta. Máximo 4-5 frases curtas. Use formatação WhatsApp (*negrito* para ênfase).`
+      const leadTestContext = `Lead no fluxo de teste da Plenipay (ainda não tem conta). Pedimos para ele dizer um gasto do dia (ex: 50 mercado). Ele respondeu com a mensagem abaixo. Responda de forma amigável e organizada: explique brevemente o que é a Plenipay, responda à dúvida ou objeção dele, e no final convide a testar com um gasto (ex: 50 mercado, 20 uber) ou a criar a conta aqui pelo WhatsApp (digite CADASTRAR ou me diga seu nome — não mencione link nem site para cadastro). Máximo 4-5 frases curtas. Use formatação WhatsApp (*negrito* para ênfase).`
       let msgResposta: string
       try {
         const { getPlenLLMResponse } = await import('@/lib/plen-llm-fallback')
@@ -846,6 +850,15 @@ async function processarEmBackground(parsed: ZapiParsed) {
       // Se a assistente está pausada no admin, não enviar nenhum fallback (silêncio).
       if (!(await assistenteDeveResponderAsync())) {
         console.log('🛑 [Z-API Webhook] Assistente pausada — não enviar fallback.')
+        return
+      }
+      // Quem já tem cadastro (ex.: acabou de receber "Enviei link para confirmar email") deve sempre receber resposta — fallback contextual
+      if (temCadastro) {
+        const msgFallback =
+          'Agora é só abrir seu *email* (e a pasta de *spam*), clicar no *link* que enviamos e sua conta fica ativa. 💙\n\nDepois volte aqui e me diga um gasto ou receita que eu registro! Ex.: "gastei 200 com roupas" ou "recebi 1500 salário".'
+        await sendTextReply(phone, msgFallback, { delayTyping: 1 }).catch(() => {})
+        markResponded(phone, text ?? '')
+        console.log('📨 [Z-API Webhook] Fallback para cadastro (pós-email): resposta enviada para', phone)
         return
       }
       const jaRecebeu = await hasReceivedWelcome(phoneDigits).catch(() => false)
