@@ -801,7 +801,12 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       if (emailConfirmado !== true) {
         const { isConfirmacaoEmailMessage } = await import('@/lib/whatsapp-contatos-pendentes')
         const ehMensagemDeConfirmacao = isConfirmacaoEmailMessage(text)
-        if (ehMensagemDeConfirmacao) {
+        // Pergunta se o email já foi confirmado (ex.: "meu email foi confirmado?") — reverificar e responder sempre
+        const t = text.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.?!,]+$/g, '').trim()
+        const ehPerguntaSeEmailConfirmado =
+          /(meu\s+)?e-?mail\s+foi\s+confirmado|(j[aá]\s+)?confirmou\s+(o\s+)?e-?mail|e-?mail\s+(j[aá]\s+)?confirmado\??$/i.test(t) ||
+          /^(confirmou\s*|confirmado\s*)\??$/i.test(t)
+        if (ehMensagemDeConfirmacao || ehPerguntaSeEmailConfirmado) {
           try {
             const { createAdminClient } = await import('./supabase/server')
             const supabaseAdmin = createAdminClient()
@@ -810,17 +815,22 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
               if (authDataFresh?.user?.email_confirmed_at) {
                 console.log('📧 [WhatsApp PLEN] Email confirmado após re-verificação — seguindo fluxo')
                 emailConfirmado = true
+                // Deixar seguir para processWithPLEN abaixo (não return aqui)
               } else {
                 return {
                   success: true,
-                  message: 'Vou verificar novamente se foi confirmado... Ainda não apareceu aqui. Confira a pasta de *spam* ou aguarde alguns minutos e tente de novo. 💙',
+                  message: 'Ainda não apareceu como confirmado aqui. 💙 Confira a pasta de *spam* do seu e-mail, clique no link que enviamos e aguarde uns minutos. Se já clicou, me diga de novo "meu email foi confirmado?" que eu verifico outra vez.',
                 }
               }
             }
-          } catch (_) {}
+          } catch (_) {
+            return {
+              success: true,
+              message: 'Estou verificando... Por favor, confira seu e-mail (e a pasta de *spam*) e clique no link. Depois me avise aqui. 💙',
+            }
+          }
         }
         if (emailConfirmado !== true) {
-          const t = text.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.?!,]+$/g, '').trim()
           const ehPerguntaProximoPasso =
             /^e\s+agora\s*$/.test(t) ||
             /^(e\s+depois|e\s+a[ií]|e\s+ent[aã]o|o\s+que\s+fa[cç]o|e\s+da[ií]|como\s+(fa[cç]o|prossigo)|pr[oó]ximo\s+passo|agora\s+o\s+que)\s*$/i.test(t)
