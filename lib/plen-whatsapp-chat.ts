@@ -26,6 +26,8 @@ Em seguida explique: o que foi, qual data e horário (se for lembrete). Exemplos
 
 /** URL da plataforma para botões no WhatsApp: sempre produção (plenipay.com) para o usuário abrir no celular. */
 const PLENIPAY_BASE = 'https://plenipay.com'
+/** Link oficial da aba de planos (sempre domínio de produção, nunca localhost). */
+const PLENIPAY_PLANOS_URL = `${PLENIPAY_BASE}/planos`
 /** Texto e rótulo do botão "ver no perfil" em qualquer resposta de registro ou relatório. */
 const PERFIL_BUTTON_BODY = 'Veja com mais detalhes no seu perfil:'
 const PERFIL_BUTTON_LABEL = 'Ver no perfil'
@@ -552,7 +554,7 @@ export async function registerGastoReceitaFallback(
   if (!limitRes.allowed && limitRes.message) {
     return {
       message: limitRes.message,
-      buttonUrl: `${getPlanosUrl()}/planos`,
+      buttonUrl: PLENIPAY_PLANOS_URL,
       buttonLabel: 'Ver planos e mais informações',
     }
   }
@@ -640,17 +642,9 @@ export async function processPlenWhatsAppMessage(
       /\b(plano|planos|pre[cç]o|quanto\s+custa|qual\s+valor|qual\s+o\s+valor|quanto\s+é|valor\s+do\s+plano|assinatura|mensalidade)\b/.test(t) ||
       /^qual\s+valor\s*\??\s*$/i.test(rawMessage.trim())
     if (isPlanos) {
-      const planosUrl =
-        typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL?.trim()
-          ? (process.env.NEXT_PUBLIC_SITE_URL.startsWith('http')
-              ? process.env.NEXT_PUBLIC_SITE_URL
-              : `https://${process.env.NEXT_PUBLIC_SITE_URL}`
-            ).replace(/\/+$/, '')
-          : 'https://plenipay.com'
-      const planosLink = `${planosUrl}/planos`
       return {
         response: getRespostaPlanos(),
-        buttonUrl: planosLink,
+        buttonUrl: PLENIPAY_PLANOS_URL,
         buttonLabel: 'Ver planos e assinar',
       }
     }
@@ -730,7 +724,7 @@ export async function processPlenWhatsAppMessage(
           if (!limitCtx.allowed && limitCtx.message) {
             return {
               response: limitCtx.message,
-              buttonUrl: `${getPlanosUrl()}/planos`,
+              buttonUrl: PLENIPAY_PLANOS_URL,
               buttonLabel: 'Ver planos e mais informações',
             }
           }
@@ -818,13 +812,9 @@ export async function processPlenWhatsAppMessage(
             buttonBody: PERFIL_BUTTON_BODY,
           }
         }
-        const planosUrl = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SITE_URL?.trim())
-          ? (process.env.NEXT_PUBLIC_SITE_URL.startsWith('http') ? process.env.NEXT_PUBLIC_SITE_URL : `https://${process.env.NEXT_PUBLIC_SITE_URL}`).replace(/\/+$/, '')
-          : 'https://plenipay.com'
-        const planosLink = `${planosUrl}/planos`
         return {
           response: `Ops, você está no plano básico. Acesse o link para obter essa e outras dezenas de funções.\n\nAcesse:`,
-          buttonUrl: planosLink,
+          buttonUrl: PLENIPAY_PLANOS_URL,
           buttonLabel: 'Ver planos',
         }
       }
@@ -956,7 +946,7 @@ export async function processPlenWhatsAppMessage(
           if (!limitMulti.allowed && limitMulti.message) {
             return {
               response: limitMulti.message,
-              buttonUrl: `${getPlanosUrl()}/planos`,
+              buttonUrl: PLENIPAY_PLANOS_URL,
               buttonLabel: 'Ver planos e mais informações',
             }
           }
@@ -1009,7 +999,7 @@ export async function processPlenWhatsAppMessage(
       if (!limitSingle.allowed && limitSingle.message) {
         return {
           response: limitSingle.message,
-          buttonUrl: `${getPlanosUrl()}/planos`,
+          buttonUrl: PLENIPAY_PLANOS_URL,
           buttonLabel: 'Ver planos e mais informações',
         }
       }

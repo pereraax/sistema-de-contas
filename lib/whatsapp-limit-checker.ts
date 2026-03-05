@@ -20,7 +20,7 @@ const LIMITE_ENVIOS_GRATUITO = 10
 
 /** Mensagem persuasiva quando o limite do plano gratuito é atingido (com promoção e botão para o site). */
 export function getMensagemLimitePlanoGratuito(totalRegistros: number): string {
-  return `Poxa, eu queria muito continuar te ajudando, mas seu limite no plano gratuito expirou. 💙
+  return `😔 Poxa, eu queria muito continuar te ajudando, mas seu limite no plano gratuito expirou. 💙
 
 Você pode consultar todos os seus registros, relatórios e outras funções a qualquer momento na sua conta na plataforma. Mas olha… se eu fosse você, aproveitava a promoção: eu sou a única assistente avançada no momento para te ajudar todo dia com suas finanças.
 
