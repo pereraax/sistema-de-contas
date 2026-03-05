@@ -699,7 +699,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
         await setSignupStepNome(phone)
         await sendTextMessage(
           phone,
-          'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail.',
+          'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail. É bem rápido, prometo 💙',
           { delayTyping: 1 }
         ).catch(() => {})
         await markWelcomeSent(phone).catch(() => {})
@@ -771,7 +771,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
         await setSignupStepNome(phone)
         await sendTextMessage(
           phone,
-          'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail.',
+          'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail. É bem rápido, prometo 💙',
           { delayTyping: 1 }
         ).catch(() => {})
         await markWelcomeSent(phone).catch(() => {})
