@@ -58,16 +58,25 @@ export function parseGastoSimples(texto: string): GastoSimples | null {
   return { valor, categoria, descricao }
 }
 
-/** Mensagem de confirmação do gasto registrado no modo teste (com emojis, data e frase motivacional). */
-export function getMsgGastoRegistradoModoTeste(categoria: string, valor: number, data?: Date): string {
+/** Mensagem de confirmação do gasto registrado no modo teste (nome, data do dia, categoria, valor). */
+export function getMsgGastoRegistradoModoTeste(
+  categoria: string,
+  valor: number,
+  data?: Date,
+  nome?: string | null
+): string {
   const valorStr = typeof valor === 'number' && valor >= 0
     ? valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : String(valor)
   const d = data ?? new Date()
+  const dataDoDia = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const hoje = new Date()
   const isHoje = d.toDateString() === hoje.toDateString()
-  const dataStr = isHoje ? 'Hoje' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-  return `💙 Gasto registrado!
+  const dataStr = isHoje ? `Hoje (${dataDoDia})` : dataDoDia
+  const linhaNome = nome && nome.trim() && nome.toLowerCase() !== 'nome' && nome.toLowerCase() !== 'pessoa'
+    ? `${nome.trim().slice(0, 50)}\n\n`
+    : ''
+  return `${linhaNome}💙 Gasto registrado!
 
 📂 Categoria: ${categoria}
 💰 Valor: R$ ${valorStr}

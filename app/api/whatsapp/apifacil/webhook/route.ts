@@ -441,8 +441,9 @@ async function processarEmBackground(parsed: {
       }
       const gasto = parseGastoSimples(text ?? '')
       if (gasto) {
+        const contactNameModoTeste = (parsed as { contactName?: string }).contactName
         console.log('🧪 [Apifacil Webhook] Modo teste — gasto registrado:', gasto.valor, gasto.categoria, 'para', phone)
-        const msgRegistro = getMsgGastoRegistradoModoTeste(gasto.categoria, gasto.valor)
+        const msgRegistro = getMsgGastoRegistradoModoTeste(gasto.categoria, gasto.valor, undefined, contactNameModoTeste)
         if (isApifacilConfigured()) {
           await sendTextMessage(phone, msgRegistro).catch(() => {})
           await delay(800)

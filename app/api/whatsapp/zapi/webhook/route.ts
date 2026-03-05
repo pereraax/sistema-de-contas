@@ -593,7 +593,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
     ) {
       const gasto = gastoModoTeste
         console.log('🧪 [Z-API Webhook] Modo teste (2ª msg) — gasto registrado:', gasto.valor, gasto.categoria, 'para', phone)
-        const msgRegistro = getMsgGastoRegistradoModoTeste(gasto.categoria, gasto.valor)
+        const msgRegistro = getMsgGastoRegistradoModoTeste(gasto.categoria, gasto.valor, undefined, contactName)
         await sendTextMessage(phone, msgRegistro, { delayTyping: 1 }).catch(() => {})
         await delay(800)
         await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
@@ -666,7 +666,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       const gasto = parseGastoSimples(text ?? '')
       if (gasto) {
         console.log('🧪 [Z-API Webhook] Modo teste — gasto registrado:', gasto.valor, gasto.categoria, 'para', phone)
-        const msgRegistro = getMsgGastoRegistradoModoTeste(gasto.categoria, gasto.valor)
+        const msgRegistro = getMsgGastoRegistradoModoTeste(gasto.categoria, gasto.valor, undefined, contactName)
         await sendTextMessage(phone, msgRegistro, { delayTyping: 1 }).catch(() => {})
         await delay(800)
         await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
