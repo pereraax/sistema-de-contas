@@ -133,12 +133,13 @@ export async function clearEmailConfirmLinkSent(phone: string): Promise<void> {
   await supabase.from(TABLE).update({ email_confirm_link_sent_at: null, updated_at: new Date().toISOString() }).eq('phone', p).then(() => {}).catch(() => {})
 }
 
-/** True se a mensagem parece confirmação de que o lead verificou/confirmou o email (pronto, verifiquei, deu certo, etc.). */
+/** True se a mensagem parece confirmação de que o lead verificou/confirmou o email (pronto, verifiquei, cliquei no link, etc.). */
 export function isConfirmacaoEmailMessage(text: string): boolean {
   if (!text || typeof text !== 'string') return false
   const t = text.toLowerCase().trim().replace(/\s+/g, ' ')
   const ok = /^(pronto|verifiquei|deu\s+certo\??|confirmei|j[aá]\s*confirmei|ok\s*verifiquei|pronto\s*verifiquei|verifiquei\s*pronto|confirmei\s*o\s*e? ?mail|verifiquei\s*o\s*e? ?mail)$/i.test(t) ||
     /pronto\s*verifiquei|verifiquei\s*pronto|deu\s+certo/i.test(t) ||
+    /(eu\s+)?cliquei\s+(no\s+)?link|cliquei\s+no\s+link|j[aá]\s+cliquei|link\s+clicado/i.test(t) ||
     (t === 'pronto' || t === 'verifiquei' || t === 'deu certo' || t === 'deu certo?' || t === 'confirmei')
   return ok
 }

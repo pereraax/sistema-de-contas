@@ -793,14 +793,32 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
     if (userContext.userId) {
       try {
         const { createAdminClient } = await import('./supabase/server')
+        const { isConfirmacaoEmailMessage } = await import('@/lib/whatsapp-contatos-pendentes')
         const supabaseAdmin = createAdminClient()
         if (supabaseAdmin) {
+          // Se o usuário disse que clicou no link / pronto / já confirmei, re-verificar email antes de insistir ou escalar
+          const ehMensagemDeConfirmacao = isConfirmacaoEmailMessage(text)
           const { data: authData } = await supabaseAdmin.auth.admin.getUserById(userContext.userId)
           if (authData?.user && !authData.user.email_confirmed_at) {
-            console.log('📧 [WhatsApp PLEN] Email ainda não confirmado — bloqueando registro/uso até confirmação')
-            return {
-              success: true,
-              message: '📧 Seu email ainda não foi confirmado.\n\n1) Abra sua caixa de entrada (e a pasta de *spam*)\n2) Clique no link que enviamos\n3) Depois volte aqui e me diga de novo (ex.: "gastei 340")\n\nAssim sua conta fica ativa e eu registro tudo para você. 💙',
+            if (ehMensagemDeConfirmacao) {
+              // Re-fetch para pegar email_confirmed_at atualizado (pode ter acabado de confirmar)
+              const { data: authDataFresh } = await supabaseAdmin.auth.admin.getUserById(userContext.userId)
+              if (authDataFresh?.user?.email_confirmed_at) {
+                console.log('📧 [WhatsApp PLEN] Email confirmado após re-verificação — seguindo fluxo')
+                // não retorna aqui; deixa seguir para o PLEN
+              } else {
+                console.log('📧 [WhatsApp PLEN] Usuário disse que clicou no link — re-verificamos e ainda não confirmado')
+                return {
+                  success: true,
+                  message: 'Vou verificar novamente se foi confirmado... Ainda não apareceu aqui. Confira a pasta de *spam* ou aguarde alguns minutos e tente de novo. 💙',
+                }
+              }
+            } else {
+              console.log('📧 [WhatsApp PLEN] Email ainda não confirmado — bloqueando registro/uso até confirmação')
+              return {
+                success: true,
+                message: '📧 Seu email ainda não foi confirmado.\n\n1) Abra sua caixa de entrada (e a pasta de *spam*)\n2) Clique no link que enviamos\n3) Depois volte aqui e me diga de novo (ex.: "gastei 340")\n\nAssim sua conta fica ativa e eu registro tudo para você. 💙',
+              }
             }
           }
         }
@@ -990,7 +1008,30 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       }
     }
 
+    // Se o PLEN devolveu "Falar com humano" mas a mensagem é "cliquei no link" / "pronto" etc., re-verificar email antes de escalar
     if (isNaoEntendiResponse(plenResult)) {
+      const { isConfirmacaoEmailMessage } = await import('@/lib/whatsapp-contatos-pendentes')
+      if (isConfirmacaoEmailMessage(text) && userContext?.userId) {
+        const { createAdminClient } = await import('./supabase/server')
+        const supabaseAdmin = createAdminClient()
+        if (supabaseAdmin) {
+          const { data: authDataFresh } = await supabaseAdmin.auth.admin.getUserById(userContext.userId)
+          if (authDataFresh?.user?.email_confirmed_at) {
+            await resetConsecutiveNaoEntendi(phoneNumber)
+            console.log('📧 [WhatsApp PLEN] Email confirmado após re-verificação (antes de escalar) — sucesso')
+            return {
+              success: true,
+              message: 'Confirmado! 💙 Pode continuar — me diga por exemplo: gastei 200.',
+            }
+          }
+          await resetConsecutiveNaoEntendi(phoneNumber)
+          console.log('📧 [WhatsApp PLEN] Usuário disse que clicou no link — re-verificamos e ainda não confirmado (não escalar)')
+          return {
+            success: true,
+            message: 'Vou verificar novamente se foi confirmado... Ainda não apareceu aqui. Confira a pasta de *spam* ou aguarde alguns minutos e tente de novo. 💙',
+          }
+        }
+      }
       const count = await incrementConsecutiveNaoEntendi(phoneNumber)
       if (count >= 3) {
         await setAguardandoHumano(phoneNumber, 24)
