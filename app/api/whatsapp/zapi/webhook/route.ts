@@ -29,6 +29,7 @@ import {
   isValidNome,
   validateEmailWithHint,
   isSaudacaoOuRespostaGenerica,
+  isRecusaOuAdiamentoCadastro,
 } from '@/lib/whatsapp-signup-flow'
 
 /** Evita enviar a mesma intro duas vezes quando o webhook é chamado em duplicata (ex.: dois eventos para a mesma mensagem). */
@@ -550,6 +551,18 @@ async function processarEmBackground(parsed: ZapiParsed) {
 
     // Fluxo de criação de conta pelo WhatsApp: aguardando nome ou e-mail.
     if (signupPending) {
+      // Lead disse que não quer criar conta agora / quer só testar → entender contexto e sair do fluxo.
+      if (isRecusaOuAdiamentoCadastro(text ?? '')) {
+        await clearSignupPending(phone)
+        await sendTextMessage(
+          phone,
+          'Tudo bem! 💙 Quando quiser criar sua conta é só me avisar ou digitar *CADASTRAR*.\n\nPor enquanto pode *testar*: me diga um gasto do dia (ex.: 50 mercado, 20 uber) que eu registro e te mostro como funciona.',
+          { delayTyping: 1 }
+        ).catch(() => {})
+        markResponded(phone, text ?? '')
+        console.log('📧 [Z-API Webhook] Lead adiou cadastro — fluxo limpo, convite a testar:', phone)
+        return
+      }
       if (signupPending.step === 'nome') {
         const nome = (text ?? '').trim()
         // Identificar contexto: saudação ou resposta genérica não é nome — não avançar nem chamar LLM.
@@ -717,11 +730,15 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return
     }
 
-    // Saudação "Oii" é enviada pelo próprio WhatsApp (função de saudação). Não enviamos intro aqui.
-    // "Quero utilizar Plenipay" ou qualquer primeira mensagem: só marcar que a intro já foi (pelo WhatsApp) e dar continuidade ao fluxo.
+    // "Quero utilizar Plenipay" (primeira vez, sem cadastro): enviar apresentação breve + convite a testar.
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured() && !temCadastro && !jaRecebeuTestIntro) {
+      const apresentacao = getMensagemInicialModoTeste(contactName)
+      await sendTextMessage(phone, apresentacao, { delayTyping: 1 }).catch(() => {})
       await markTestIntroSent(phone).catch(() => {})
-      console.log('🧪 [Z-API Webhook] Intro enviada pelo WhatsApp (saudação) — marcando e processando resposta do lead:', phone)
+      await markWelcomeSent(phone).catch(() => {})
+      markResponded(phone, text ?? '')
+      console.log('👋 [Z-API Webhook] "Quero utilizar Plenipay" — enviada apresentação + teste para lead:', phone)
+      return
     }
 
     // Só tratar como "modo teste" (intro/gasto/testar antes) quando o lead ainda NÃO tem conta. Quem já tem cadastro (ex.: acabou de criar e está aguardando confirmar email) deve cair no handler principal (processWhatsAppMessage).
@@ -781,7 +798,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return
     }
 
-    // "Quero utilizar PleniPay" — saudação já está configurada no próprio WhatsApp; não enviamos nada, só marcamos e aguardamos a próxima mensagem do lead.
+    // "Quero utilizar PleniPay" — enviar apresentação breve + convite a testar (fluxo: apresentação → teste free → cadastro).
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
       if (introSendingNow.has(phone)) {
         markResponded(phone, text ?? '')
@@ -789,7 +806,13 @@ async function processarEmBackground(parsed: ZapiParsed) {
       }
       introSendingNow.add(phone)
       try {
-        console.log('👋 [Z-API Webhook] "Quero utilizar PleniPay" — saudação no WhatsApp; marcando intro e aguardando lead:', phone)
+        if (!temCadastro) {
+          const apresentacao = getMensagemInicialModoTeste(contactName)
+          await sendTextMessage(phone, apresentacao, { delayTyping: 1 }).catch(() => {})
+          console.log('👋 [Z-API Webhook] "Quero utilizar PleniPay" — enviada apresentação + convite a testar:', phone)
+        } else {
+          console.log('👋 [Z-API Webhook] "Quero utilizar PleniPay" — já tem cadastro; marcando intro:', phone)
+        }
         await markTestIntroSent(phone).catch(() => {})
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')

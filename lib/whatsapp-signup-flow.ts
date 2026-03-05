@@ -194,6 +194,28 @@ export function isSaudacaoOuRespostaGenerica(text: string): boolean {
   return false
 }
 
+/** Retorna true se a mensagem indica que o lead não quer criar conta agora / quer adiar / só testar. */
+export function isRecusaOuAdiamentoCadastro(text: string): boolean {
+  const t = (text || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  if (!t || t.length > 200) return false
+  const padroes = [
+    /n[aã]o\s+quero\s+(criar\s+)?conta/,
+    /n[aã]o\s+quero\s+cadastr/,
+    /n[aã]o\s+quero\s+(me\s+)?cadastr/,
+    /deixa\s+(pra|para)\s+(depois|agora|lá)/,
+    /depois\s+(eu\s+)?crio/,
+    /(quero\s+)?s[oó]\s+testar/,
+    /(s[oó]\s+)?testar\s+primeiro/,
+    /agora\s+n[aã]o/,
+    /n[aã]o\s+agora/,
+    /n[aã]o\s+nesse\s+momento/,
+    /talvez\s+depois/,
+    /outra\s+hora/,
+    /n[aã]o\s+quero\s+me\s+cadastr/,
+  ]
+  return padroes.some((re) => re.test(t))
+}
+
 /** Valida nome de pessoa: mínimo 3 caracteres, pelo menos 2 letras diferentes, só letras/espaços/acentos, não pode ser resposta genérica. */
 export function isValidNome(nome: string): boolean {
   const trimmed = (nome || '').trim()
