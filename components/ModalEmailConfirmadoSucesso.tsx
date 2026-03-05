@@ -15,10 +15,15 @@ function ModalEmailConfirmadoSucessoContent({ onClose }: ModalEmailConfirmadoSuc
 
   useEffect(() => {
     const emailConfirmed = searchParams?.get('emailConfirmed')
+    const mensagem = searchParams?.get('mensagem')
     const cookieConfirmed = typeof document !== 'undefined' && document.cookie.includes('email_confirmed=true')
     const sessionFlag = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('email_just_confirmed') === '1'
-    
-    if (emailConfirmed === 'true' || cookieConfirmed || sessionFlag) {
+    const pathname = typeof window !== 'undefined' ? window.location.pathname : ''
+
+    const isLoginOrHome = pathname === '/login' || pathname === '/'
+    const mensagemConfirmacao = mensagem && (mensagem.includes('confirmado') || mensagem.includes('confirmada') || mensagem.includes('verificad'))
+
+    if (emailConfirmed === 'true' || cookieConfirmed || sessionFlag || (isLoginOrHome && mensagemConfirmacao)) {
       setIsOpen(true)
       if (cookieConfirmed) {
         document.cookie = 'email_confirmed=; path=/; max-age=0'
@@ -26,33 +31,23 @@ function ModalEmailConfirmadoSucessoContent({ onClose }: ModalEmailConfirmadoSuc
       if (sessionFlag) {
         try { sessionStorage.removeItem('email_just_confirmed') } catch { /* ignore */ }
       }
-      if (emailConfirmed === 'true') {
-        setTimeout(() => {
-          const newUrl = new URL(window.location.href)
-          newUrl.searchParams.delete('emailConfirmed')
-          router.replace(newUrl.pathname + (newUrl.search ? newUrl.search : ''))
-        }, 5000)
-      }
     }
   }, [searchParams, router])
 
   const handleClose = async () => {
     setIsOpen(false)
-    
-    // Limpar parâmetro da URL
+
     const newUrl = new URL(window.location.href)
     newUrl.searchParams.delete('emailConfirmed')
-    router.replace(newUrl.pathname + (newUrl.search ? newUrl.search : ''))
-    
-    if (onClose) {
-      onClose()
-    }
-    
-    // Forçar refresh do usuário para garantir que o estado está atualizado
-    // Aguardar um pouco antes de recarregar
+    newUrl.searchParams.delete('mensagem')
+    const newSearch = newUrl.searchParams.toString()
+    router.replace(newUrl.pathname + (newSearch ? '?' + newSearch : ''))
+
+    if (onClose) onClose()
+
     setTimeout(() => {
       window.location.reload()
-    }, 500)
+    }, 300)
   }
 
   if (!isOpen) {

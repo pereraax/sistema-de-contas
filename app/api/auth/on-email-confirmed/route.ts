@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     const result = await sendTextMessage(
       ws.phone_number,
-      'Email confirmado! ✅ Agora você já pode me pedir para registrar seus gastos e receitas. Por exemplo: "gastei 200 com roupas", "recebi 1500 salário", "extra de 300".',
+      'Sua conta foi confirmada! ✅ Agora você já pode me pedir para registrar seus gastos e receitas. Por exemplo: "gastei 200 com roupas", "recebi 1500 salário", "extra de 300".',
       { delayTyping: 1 }
     )
 

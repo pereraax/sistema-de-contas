@@ -59,11 +59,13 @@ export async function getSiteUrl(): Promise<string> {
   return productionUrl
 }
 
-/** URL para links de confirmação de email: sempre domínio oficial Plenipay (plenipay.com), nunca localhost. */
+/** URL para links de confirmação de email: em produção SEMPRE plenipay.com (para o link do email e redirect abrirem no domínio certo). */
 export async function getSiteUrlForEmailRedirect(): Promise<string> {
-  const env = process.env.NEXT_PUBLIC_SITE_URL?.trim()
-  if (env && env.includes('plenipay') && !env.includes('localhost') && !env.includes('127.0.0.1')) {
-    return env.replace(/\/$/, '')
+  if (process.env.NODE_ENV === 'development') {
+    const env = process.env.NEXT_PUBLIC_SITE_URL?.trim()
+    if (env && (env.includes('localhost') || env.includes('127.0.0.1'))) {
+      return env.replace(/\/$/, '')
+    }
   }
   return 'https://plenipay.com'
 }

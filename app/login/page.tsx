@@ -557,6 +557,13 @@ function LoginContent() {
             Voltar
           </Link>
 
+          {searchParams?.get('emailConfirmed') === 'true' && (
+            <div className="mb-4 p-4 rounded-xl bg-green-500/15 border border-green-500/40 text-green-800 dark:text-green-200 text-sm">
+              <p className="font-semibold">✅ Email confirmado!</p>
+              <p className="mt-1 opacity-90">Sua conta foi verificada. Faça login com seu e-mail e senha para continuar.</p>
+            </div>
+          )}
+
           <div className="mb-6">
             <h1 className="text-2xl font-semibold text-[#0D1B2A] dark:text-white mb-1">
               Entrar

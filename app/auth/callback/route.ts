@@ -94,17 +94,10 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
   const isHttps = request.headers.get('x-forwarded-proto') === 'https' || (hostHeader.includes('plenipay.com') && !isLocalhost)
   const siteUrl = isHttps ? `https://${hostHeader}` : `http://${hostHeader}`
   let productionUrl = siteUrl.replace(/\/$/, '') // sem barra no final
-  // Em produção, SEMPRE usar a URL pública (Host pode ser interno, ex.: Railway). Obrigatório para modal "Email confirmado" e aviso no WhatsApp.
+  // Em produção, SEMPRE usar plenipay.com para redirect e on-email-confirmed (link do email e janela "verificado" devem abrir no domínio certo).
   if (!isLocalhost) {
-    const siteUrlEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim()
-    if (siteUrlEnv) {
-      productionUrl = siteUrlEnv.replace(/\/$/, '')
-      console.log('🔧 [Callback] Produção: usando NEXT_PUBLIC_SITE_URL para redirect + on-email-confirmed:', productionUrl)
-    } else {
-      const origin = request.nextUrl.origin
-      productionUrl = origin.replace(/\/$/, '')
-      console.warn('⚠️ [Callback] Produção sem NEXT_PUBLIC_SITE_URL. Defina no Railway/Vercel (ex.: https://plenipay.com) para o modal e o WhatsApp funcionarem. Usando origin:', productionUrl)
-    }
+    productionUrl = 'https://plenipay.com'
+    console.log('🔧 [Callback] Produção: usando https://plenipay.com para redirect + modal + WhatsApp')
   }
   if (isLocalhost) console.log('🔧 [Callback] Localhost detectado - redirect será para', productionUrl)
 
@@ -705,7 +698,7 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
           if (ws?.phone_number) {
             await sendTextMessage(
               ws.phone_number,
-              'Email confirmado! ✅ Agora você já pode me pedir para registrar seus gastos e receitas. Por exemplo: "gastei 200 com roupas", "recebi 1500 salário", "extra de 300".',
+              'Sua conta foi confirmada! ✅ Agora você já pode me pedir para registrar seus gastos e receitas. Por exemplo: "gastei 200 com roupas", "recebi 1500 salário", "extra de 300".',
               { delayTyping: 1 }
             )
             console.log('✅ [Callback] WhatsApp pós-confirmação enviado para', ws.phone_number)
