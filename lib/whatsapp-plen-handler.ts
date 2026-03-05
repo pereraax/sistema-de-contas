@@ -950,6 +950,12 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       return null
     }
     
+    // Resposta negativa à oferta "Precisa de ajuda humana?" — não contar como "não entendi" nem escalar
+    const textoNorm = text.trim().toLowerCase().replace(/\s+/g, ' ')
+    const ehRespostaNegativaOfertaAjuda =
+      /^(n[aã]o|nope|t[aá] bom|tudo bem|ok|okay|deixa|dispenso|n[aã]o preciso|n[aã]o quero|estou bem|tranquilo|beleza|blz|n[aã]o obrigad[oa])\.?\s*$/i.test(textoNorm) ||
+      textoNorm === 'n' || textoNorm === 'nao'
+
     // Detectar resposta "não entendi" (botão "Falar com humano") para contagem e eventual "vou chamar um humano"
     const isNaoEntendiResponse = (r: typeof plenResult): boolean => {
       if (!r?.messages?.length) return false
@@ -961,6 +967,16 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       }
       return false
     }
+
+    if (ehRespostaNegativaOfertaAjuda && isNaoEntendiResponse(plenResult)) {
+      await resetConsecutiveNaoEntendi(phoneNumber)
+      console.log('✅ [WhatsApp PLEN] Usuário disse que não precisa de ajuda humana — não escalar')
+      return {
+        success: true,
+        message: 'Beleza! Qualquer coisa é só chamar. 😊',
+      }
+    }
+
     if (isNaoEntendiResponse(plenResult)) {
       const count = await incrementConsecutiveNaoEntendi(phoneNumber)
       if (count >= 3) {
