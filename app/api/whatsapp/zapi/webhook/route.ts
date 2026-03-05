@@ -339,8 +339,9 @@ function shouldIgnoreEventDuringWelcomeCooldown(text: string): boolean {
   if (emailOnlyRegex.test(t)) return false
   const lower = t.toLowerCase().replace(/\s+/g, ' ')
   if (/^j[aá]\s*criei$/.test(lower) || /^j[aá]\s*cadastrei$/.test(lower)) return false
-  // Este "Olá" é o fallback do parse quando o payload vem sem texto — típico de evento duplicado.
-  if (lower === 'olá' || lower === 'ola') return true
+  // Saudações ou "quero utilizar" que disparam intro — ignorar no cooldown para evitar duplicata.
+  if (/^(olá|ola|oi|hey|e\s*a[ií]|bom\s*dia|boa\s*tarde|boa\s*noite)$/.test(lower)) return true
+  if (isQueroUtilizarPlenipayMessage(t)) return true
   return false
 }
 
@@ -642,6 +643,10 @@ async function processarEmBackground(parsed: ZapiParsed) {
 
     // "Olá! Quero utilizar a Plenipay" + contato SEM cadastro → sempre responder com "Oiii" + intro (permite testar desde o início sempre).
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured() && !temCadastro) {
+      if (wasWelcomeJustSent(phone)) {
+        console.log('📨 [Z-API Webhook] Cooldown: ignorando evento duplicado "quero utilizar" para', phone)
+        return
+      }
       const delayAntesMs = Math.floor(Math.random() * 5001)
       console.log('🧪 [Z-API Webhook] "Quero utilizar Plenipay" sem cadastro — enviando oi + modo teste (intro) para', phone)
       await delay(delayAntesMs)
@@ -649,6 +654,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       const sent = await sendTextMessage(phone, msgIntro, { delayTyping: 1 })
       if (sent.success) {
         await markTestIntroSent(phone).catch(() => {})
+        markWelcomeJustSent(phone)
         markResponded(phone, text ?? '')
         registerSentMessage(phone, '[modo teste] intro (sem cadastro)')
         console.log('✅ [Z-API Webhook] Modo teste enviado para contato sem cadastro:', phone)
@@ -661,6 +667,10 @@ async function processarEmBackground(parsed: ZapiParsed) {
     if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
       // 1) Ainda não enviamos a mensagem inicial do modo teste → enviar intro "Me diga um gasto"
       if (!jaRecebeuTestIntro) {
+        if (wasWelcomeJustSent(phone)) {
+          console.log('📨 [Z-API Webhook] Cooldown: ignorando evento duplicado (intro já enviada) para', phone)
+          return
+        }
         const delayAntesMs = Math.floor(Math.random() * 5001)
         console.log('🧪 [Z-API Webhook] Modo teste — enviando mensagem inicial para', phone)
         await delay(delayAntesMs)
@@ -668,6 +678,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
         const sent = await sendTextMessage(phone, msgIntro, { delayTyping: 1 })
         if (sent.success) {
           await markTestIntroSent(phone).catch(() => {})
+          markWelcomeJustSent(phone)
           markResponded(phone, text ?? '')
           registerSentMessage(phone, '[modo teste] intro')
           console.log('✅ [Z-API Webhook] Mensagem inicial modo teste enviada para', phone)
@@ -677,7 +688,26 @@ async function processarEmBackground(parsed: ZapiParsed) {
         return
       }
 
-      // 2) Já enviamos o intro do modo teste → tentar interpretar como gasto simples ("50 mercado", "20 uber")
+      // 2) Resposta "nada" / "não gastei" ao pedido de gasto → resposta inteligente e oferta de criar conta
+      const textoGasto = (text ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+      const ehRespostaNada =
+        /^(nada|nao|n[aã]o|nothing|nenhum|n[aã]o\s*gastei|n[aã]o\s*gastei\s*nada|zero|n[aã]o\s*tenho|ainda\s*n[aã]o)$/.test(textoGasto) ||
+        textoGasto === 'n' || textoGasto === 'não' || textoGasto === 'nao'
+      if (ehRespostaNada) {
+        const msgNada = `Tudo bem! 😊 Quando tiver um gasto, é só me contar no formato: valor e o que foi (ex.: 50 mercado).\n\nQuer criar sua conta agora? Assim você já pode ir organizando tudo.`
+        await sendTextMessage(phone, msgNada, { delayTyping: 1 }).catch(() => {})
+        await delay(600)
+        await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
+        await delay(600)
+        await setSignupStepNome(phone)
+        await sendTextMessage(phone, 'Qual seu nome?', { delayTyping: 1 }).catch(() => {})
+        await markWelcomeSent(phone).catch(() => {})
+        markResponded(phone, text ?? '')
+        console.log('✅ [Z-API Webhook] Resposta "nada" tratada — oferta de criar conta para', phone)
+        return
+      }
+
+      // 3) Já enviamos o intro do modo teste → tentar interpretar como gasto simples ("50 mercado", "20 uber")
       const gasto = parseGastoSimples(text ?? '')
       if (gasto) {
         console.log('🧪 [Z-API Webhook] Modo teste — gasto registrado:', gasto.valor, gasto.categoria, 'para', phone)
@@ -707,6 +737,10 @@ async function processarEmBackground(parsed: ZapiParsed) {
 
     // "Quero utilizar PleniPay" (com cadastro ou já recebeu antes) — sempre enviar só o novo modelo (intro modo teste, 1 mensagem de texto).
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
+      if (wasWelcomeJustSent(phone)) {
+        console.log('📨 [Z-API Webhook] Cooldown: ignorando evento duplicado "quero utilizar" para', phone)
+        return
+      }
       const delayAntesMs = Math.floor(Math.random() * 5001)
       console.log('👋 [Z-API Webhook] "Quero utilizar PleniPay" — enviando intro modo teste (novo modelo) para', phone)
       await delay(delayAntesMs)
