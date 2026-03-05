@@ -23,20 +23,16 @@ Exemplo:
 * 20 uber`
 }
 
-/** Mensagem de intro Plenipay (oi, quero usar, quero registrar): uma única mensagem com CTA "clique no botão abaixo". Usar com botão de resposta CADASTRAR (sem link). */
+/** Mensagem de intro Plenipay (oi, quero usar, quero registrar): uma única mensagem com CTA. Usar com botão de resposta CADASTRAR (ao clicar o lead envia a mensagem). */
 export function getMensagemIntroPlenipay(contactName?: string | null): string {
   const raw = (contactName ?? '').trim().slice(0, 50)
   const nome = raw && raw.toLowerCase() !== 'nome' && raw.toLowerCase() !== 'pessoa' ? raw : ''
   const saudacao = nome ? `Olá ${nome} 😊!` : 'Olá! 😊'
   return `${saudacao} Estou aqui para te ajudar!
 
-A Plenipay é uma ferramenta que ajuda você a controlar suas finanças de forma fácil e rápida.
+A Plenipay é uma ferramenta que ajuda a controlar suas finanças de forma fácil, registrando gastos, receitas e dívidas.
 
-Você pode registrar gastos, receitas e dívidas!
-
-Quer começar a usar a Plenipay?
-
-Clique em cadastrar.`
+Quer começar a usar a Plenipay? Clique no botão *CADASTRAR* abaixo. 👇`
 }
 
 /** Quando o lead envia algo que não é gasto/entrada: convite para testar antes. */

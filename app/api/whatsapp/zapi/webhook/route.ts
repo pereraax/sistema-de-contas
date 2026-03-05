@@ -878,12 +878,13 @@ async function processarEmBackground(parsed: ZapiParsed) {
           const body = isSingleCadastrar ? getMensagemIntroPlenipay(contactName) : bodyFromHandler
           let send = { success: false as boolean, error: '' as string }
           if (isSingleCadastrar) {
-            send = await sendButtonListReply(phone, body, buttons)
-            if (send.success) console.log('✅ [Z-API Webhook] Botão CADASTRAR (lista) enviado para:', phone)
-          }
-          if (!send.success && isSingleCadastrar) {
+            // REPLY primeiro: botão que ao clicar envia a mensagem (recomendado pela Z-API para respostas)
             send = await sendButtonActionsReply(phone, body, [{ type: 'REPLY', label: 'CADASTRAR', id: 'cadastrar' }])
             if (send.success) console.log('✅ [Z-API Webhook] Botão CADASTRAR (REPLY) enviado para:', phone)
+          }
+          if (!send.success && isSingleCadastrar) {
+            send = await sendButtonListReply(phone, body, buttons)
+            if (send.success) console.log('✅ [Z-API Webhook] Botão CADASTRAR (lista) enviado para:', phone)
           }
           if (!send.success) send = await sendButtonListReply(phone, body, buttons)
           if (send.success) {
@@ -891,8 +892,11 @@ async function processarEmBackground(parsed: ZapiParsed) {
             console.log('✅ [Z-API Webhook] Botões', i + 1, '/', result.messages.length, 'enviados para:', phone)
           } else {
             console.error('❌ [Z-API Webhook] Falha ao enviar botões:', send.error, '— enviando só o texto')
-            const fallback = await sendTextMessage(phone, body, { delayTyping: firstMessageInSequence ? 1 : 0 }).catch(() => ({ success: false }))
-            if (fallback?.success) registerSentMessage(phone, body)
+            const fallbackBody = isSingleCadastrar
+              ? `${body}\n\n_Se não aparecer o botão, digite_ *CADASTRAR* _para começar._`
+              : body
+            const fallback = await sendTextMessage(phone, fallbackBody, { delayTyping: firstMessageInSequence ? 1 : 0 }).catch(() => ({ success: false }))
+            if (fallback?.success) registerSentMessage(phone, fallbackBody)
           }
         } else if (typeof msg === 'object' && msg !== null && (msg as any).type === 'button_actions') {
           const { body, buttonActions } = msg as { type: 'button_actions'; body: string; buttonActions: { type: string; url?: string; label: string }[] }
