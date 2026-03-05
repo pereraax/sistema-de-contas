@@ -787,7 +787,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
             console.log('📧 [WhatsApp PLEN] Email ainda não confirmado — bloqueando registro/uso até confirmação')
             return {
               success: true,
-              message: 'Seu email ainda não foi confirmado. Verifique sua caixa de entrada (e a pasta de spam) e clique no link para ativar sua conta. 💙',
+              message: '📧 Seu email ainda não foi confirmado.\n\n1) Abra sua caixa de entrada (e a pasta de *spam*)\n2) Clique no link que enviamos\n3) Depois volte aqui e me diga de novo (ex.: "gastei 340")\n\nAssim sua conta fica ativa e eu registro tudo para você. 💙',
             }
           }
         }

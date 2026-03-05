@@ -70,6 +70,7 @@ export async function criarContaFromWhatsApp(
       {
         phone_number: phoneNorm,
         user_id: userId,
+        plen_activated: true,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'phone_number' }

@@ -95,10 +95,6 @@ function parseZapiBody(body: unknown, logReject?: (reason: string) => void): Zap
     return null
   }
   const eventType = String((b.type as string) || (data.type as string) || '').trim()
-  if (eventType && /MessageStatus|DeliveryCallback|ReadCallback|Connect|Disconnect|SentCallBack/i.test(eventType)) {
-    logReject?.('evento ignorado (type=' + eventType + ')')
-    return null
-  }
 
   // Em grupos, o remetente real pode vir em participantPhone
   const rawPhone =
@@ -173,8 +169,21 @@ function parseZapiBody(body: unknown, logReject?: (reason: string) => void): Zap
   if (!text && data && typeof data.text === 'object' && (data.text as { message?: string })?.message) {
     text = (data.text as { message: string }).message
   }
+  // messageData.text (formato alternativo Z-API)
+  const messageData = (b.messageData ?? data.messageData) as { text?: string; message?: string } | undefined
+  if (!text?.trim() && messageData && typeof messageData === 'object') {
+    const mdText = messageData.text ?? (messageData as { message?: string }).message
+    if (typeof mdText === 'string' && mdText.trim()) text = mdText
+  }
   // Reforço: se tem phone mas não extraiu texto, tratar como "Olá" para não descartar contato novo
+  const hadRealText = !!text.trim()
   if (!text.trim()) text = 'Olá'
+
+  // Ignorar callbacks de status (RECEIVED, READ, etc.) apenas quando não há texto de mensagem — evita descartar mensagens reais
+  if (eventType && /MessageStatus|DeliveryCallback|ReadCallback|Connect|Disconnect|SentCallBack/i.test(eventType) && !hadRealText) {
+    logReject?.('evento ignorado (type=' + eventType + ')')
+    return null
+  }
 
   const from = phoneDigits.startsWith('55') ? phoneDigits : '55' + phoneDigits
   let messageId: string | undefined = typeof b.messageId === 'string' ? b.messageId : undefined
@@ -869,9 +878,7 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json({ success: true, message: 'Payload ignorado' })
     }
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📨 [Z-API Webhook] Payload aceito. from:', parsed.from, 'text:', parsed.text?.slice(0, 50))
-    }
+    console.log('📨 [Z-API Webhook] Payload aceito. from:', parsed.from, 'text:', parsed.text?.slice(0, 80))
     if (parsed.messageId && wasAlreadyProcessed(parsed.messageId)) {
       console.log('📨 [Z-API Webhook] Mensagem duplicada (messageId já processado), ignorando:', parsed.messageId)
       return NextResponse.json({ success: true, message: 'Duplicado ignorado' })
