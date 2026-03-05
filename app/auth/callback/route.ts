@@ -80,7 +80,12 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
   const isLocalhost = hostHeader.includes('localhost') || hostHeader.startsWith('127.0.0.1')
   const isHttps = request.headers.get('x-forwarded-proto') === 'https' || (hostHeader.includes('plenipay.com') && !isLocalhost)
   const siteUrl = isHttps ? `https://${hostHeader}` : `http://${hostHeader}`
-  const productionUrl = siteUrl.replace(/\/$/, '') // sem barra no final
+  let productionUrl = siteUrl.replace(/\/$/, '') // sem barra no final
+  // Em produção, usar sempre a URL pública (Host pode ser interno, ex.: Railway)
+  if (!isLocalhost && process.env.NEXT_PUBLIC_SITE_URL) {
+    productionUrl = process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '')
+    console.log('🔧 [Callback] Produção: usando NEXT_PUBLIC_SITE_URL para redirect/fetch:', productionUrl)
+  }
   if (isLocalhost) console.log('🔧 [Callback] Localhost detectado - redirect será para', productionUrl)
 
   const isCorrectDomain = hostHeader === 'plenipay.com' || hostHeader === 'www.plenipay.com' || hostHeader.includes('plenipay.com')
@@ -186,7 +191,7 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
         if (!error && data?.session) {
           console.log('✅ Sessão criada via verifyOtp');
           try {
-            await fetch(window.location.origin + '/api/auth/on-email-confirmed', {
+            await fetch(productionUrl + '/api/auth/on-email-confirmed', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
@@ -350,7 +355,7 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
           if (data.session) {
             console.log('✅ [Callback Client] Sessão criada via code!');
             try {
-              await fetch(window.location.origin + '/api/auth/on-email-confirmed', {
+              await fetch(productionUrl + '/api/auth/on-email-confirmed', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',

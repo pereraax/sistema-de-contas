@@ -38,11 +38,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (!userId) {
+      console.warn('[on-email-confirmed] Não autenticado: sem token válido e sem sessão nos cookies')
       return NextResponse.json({ ok: false, error: 'Não autenticado' }, { status: 401 })
     }
 
     const admin = createAdminClient()
     if (!admin) {
+      console.warn('[on-email-confirmed] Admin client indisponível (sem SERVICE_ROLE_KEY)')
       return NextResponse.json({ ok: false }, { status: 200 })
     }
 
@@ -52,16 +54,26 @@ export async function POST(request: NextRequest) {
       .eq('user_id', userId)
       .maybeSingle()
 
-    if (ws?.phone_number) {
-      await sendTextMessage(
-        ws.phone_number,
-        'Email confirmado! ✅ Agora você já pode me pedir para registrar seus gastos e receitas. Por exemplo: "gastei 200 com roupas", "recebi 1500 salário", "extra de 300".',
-        { delayTyping: 1 }
-      )
+    if (!ws?.phone_number) {
+      console.warn('[on-email-confirmed] Usuário sem WhatsApp vinculado:', userId)
+      return NextResponse.json({ ok: true }) // ok para não quebrar o fluxo; mensagem só vai se tiver sessão
+    }
+
+    const result = await sendTextMessage(
+      ws.phone_number,
+      'Email confirmado! ✅ Agora você já pode me pedir para registrar seus gastos e receitas. Por exemplo: "gastei 200 com roupas", "recebi 1500 salário", "extra de 300".',
+      { delayTyping: 1 }
+    )
+
+    if (result.success) {
+      console.log('[on-email-confirmed] Mensagem WhatsApp enviada para', ws.phone_number)
+    } else {
+      console.error('[on-email-confirmed] Falha ao enviar WhatsApp:', result.error, '| phone:', ws.phone_number)
     }
 
     return NextResponse.json({ ok: true })
-  } catch {
+  } catch (e) {
+    console.error('[on-email-confirmed] Erro:', e)
     return NextResponse.json({ ok: false }, { status: 200 })
   }
 }
