@@ -299,6 +299,27 @@ async function isPlenActivated(phoneNumber: string): Promise<boolean> {
 }
 
 /**
+ * Retorna true se o assistente foi explicitamente desativado pelo admin para este usuário.
+ * Nesse caso não devemos enviar nenhuma resposta automática (suporte assume).
+ */
+async function isPlenDesativadoPeloAdmin(userId: string): Promise<boolean> {
+  try {
+    const { createAdminClient } = await import('./supabase/server')
+    const supabaseAdmin = createAdminClient()
+    if (!supabaseAdmin) return false
+    const { data: profile, error } = await supabaseAdmin
+      .from('profiles')
+      .select('plen_activated_by_admin')
+      .eq('id', userId)
+      .maybeSingle()
+    if (error || profile == null) return false
+    return (profile as { plen_activated_by_admin?: boolean }).plen_activated_by_admin === false
+  } catch {
+    return false
+  }
+}
+
+/**
  * Ativar assistente PLEN para este número
  * Atualiza memória e banco de dados
  */
@@ -796,6 +817,11 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
     
     // Autenticado mas assistente não ativado: se a mensagem parece comando de gasto/receita, ativar PLEN e processar
     if (!isActivated) {
+      // Se o admin desativou o assistente para este usuário, não enviar resposta — suporte assume
+      if (userContext.userId && (await isPlenDesativadoPeloAdmin(userContext.userId))) {
+        console.log('🛑 [WhatsApp PLEN] Assistente desativada pelo admin para este usuário — não enviar resposta (suporte no controle)')
+        return { success: true, skipReply: true }
+      }
       const t = text.trim()
       const looksLikeGastoReceita =
         /^(gastei|recebi|paguei|extra|entrada|salário|salario)\s+/i.test(t) ||
@@ -818,6 +844,10 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
     // NOTA: Não ativamos automaticamente aqui porque o usuário pode ter desativado explicitamente
     // A ativação automática só acontece após autenticação bem-sucedida (no handleWhatsAppAuthentication)
     if (!(await isPlenActivated(phoneNumber))) {
+      if (userContext.userId && (await isPlenDesativadoPeloAdmin(userContext.userId))) {
+        console.log('🛑 [WhatsApp PLEN] Assistente desativada pelo admin — não enviar resposta (suporte no controle)')
+        return { success: true, skipReply: true }
+      }
       console.log('⚠️ [WhatsApp PLEN] Assistente não está ativado para usuário autenticado - enviando instrução')
       return {
         success: true,
