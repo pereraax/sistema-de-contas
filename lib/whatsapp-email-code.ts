@@ -1,131 +1,101 @@
 /**
  * Confirmação de email por código no cadastro via WhatsApp.
- * Usuário recebe um código de 6 dígitos por email e digita na conversa; o sistema verifica e marca o email como confirmado.
- * O site continua usando o link de confirmação normal (signUp + link no email).
+ * O código de 6 dígitos é enviado e verificado pelo SUPABASE AUTH (signInWithOtp + verifyOtp).
+ * Nada de Resend nem SMTP no app: configure o SMTP no Dashboard do Supabase (Authentication → SMTP)
+ * e use o template "Magic Link" com {{ .Token }} para mostrar o código no email.
  */
 
+import { createClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/server'
-import { sendMail, isSmtpConfigured, isResendConfigured } from '@/lib/mailer'
-import { randomInt } from 'crypto'
 
 const CODE_LENGTH = 6
-const CODE_EXPIRY_MINUTES = 15
 
 function normalizarPhone(phone: string): string {
   const limpo = String(phone ?? '').replace(/\D/g, '')
   return limpo.length >= 10 ? (limpo.startsWith('55') ? limpo : `55${limpo}`) : limpo
 }
 
-/** Gera código numérico de 6 dígitos. */
-function generateCode(): string {
-  return String(randomInt(0, 1_000_000)).padStart(CODE_LENGTH, '0')
+function getSupabaseAuthClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !anon) return null
+  return createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } })
 }
 
 /**
- * Gera um código, salva na tabela email_confirm_codes e envia por email.
- * Usado após criar o usuário via Admin API (cadastro WhatsApp).
+ * Pede ao Supabase Auth para enviar o código por email (OTP).
+ * O email é enviado pelo Supabase (configure SMTP em Authentication → SMTP no Dashboard).
+ * No template "Magic Link", use {{ .Token }} para exibir o código de 6 dígitos.
  */
 export async function generateAndSendEmailCode(
-  userId: string,
+  _userId: string,
   email: string,
-  phone: string,
-  nome: string
+  _phone: string,
+  _nome: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createAdminClient()
+  const supabase = getSupabaseAuthClient()
   if (!supabase) return { success: false, error: 'Serviço indisponível.' }
 
-  const phoneNorm = normalizarPhone(phone)
-  if (phoneNorm.length < 10) return { success: false, error: 'Telefone inválido.' }
-
-  const code = generateCode()
-  const expiresAt = new Date(Date.now() + CODE_EXPIRY_MINUTES * 60 * 1000)
-
-  const { error: insertError } = await supabase.from('email_confirm_codes').insert({
-    user_id: userId,
-    code,
-    phone: phoneNorm,
-    expires_at: expiresAt.toISOString(),
-  })
-
-  if (insertError) {
-    console.error('[whatsapp-email-code] Erro ao salvar código:', insertError.message)
-    return { success: false, error: 'Erro ao gerar código.' }
+  const emailTrim = (email ?? '').trim().toLowerCase()
+  if (!emailTrim || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+    return { success: false, error: 'E-mail inválido.' }
   }
-
-  const hasMail = isSmtpConfigured() || isResendConfigured()
-  if (!hasMail) {
-    console.warn('[whatsapp-email-code] SMTP/Resend não configurado — código não enviado:', code)
-    return { success: true } // código salvo; envio falhou por config
-  }
-
-  const nomeExibir = (nome || '').trim().slice(0, 50) || 'usuário'
-  const subject = 'Seu código de confirmação Plenipay'
-  const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 16px;">
-  <p>Olá, ${nomeExibir}!</p>
-  <p>Use o código abaixo para confirmar seu e-mail no cadastro feito pelo WhatsApp:</p>
-  <p style="font-size: 28px; letter-spacing: 6px; font-weight: bold; margin: 24px 0;">${code}</p>
-  <p style="color: #666;">Digite esse código na conversa do WhatsApp que a Plen vai confirmar sua conta.</p>
-  <p style="color: #666;">O código vale por ${CODE_EXPIRY_MINUTES} minutos. Se não foi você quem pediu, ignore este e-mail.</p>
-  <p>— Equipe Plenipay</p>
-</body>
-</html>`
 
   try {
-    await sendMail({ to: email, subject, html })
+    const { error } = await supabase.auth.signInWithOtp({
+      email: emailTrim,
+      options: { shouldCreateUser: false },
+    })
+    if (error) {
+      console.error('[whatsapp-email-code] signInWithOtp falhou:', error.message)
+      return { success: false, error: error.message }
+    }
+    console.log('[whatsapp-email-code] Código enviado pelo Supabase para', emailTrim)
     return { success: true }
   } catch (err: any) {
-    console.error('[whatsapp-email-code] Erro ao enviar email:', err?.message)
-    return { success: false, error: err?.message || 'Erro ao enviar email.' }
+    console.error('[whatsapp-email-code] Erro ao enviar código:', err?.message)
+    return { success: false, error: err?.message || 'Erro ao enviar código.' }
   }
 }
 
 /**
- * Verifica o código digitado pelo usuário no WhatsApp.
- * Se válido e não expirado, marca o email como confirmado no Supabase e remove o código.
+ * Verifica o código digitado pelo usuário no WhatsApp usando Supabase Auth (verifyOtp).
+ * Marca o email como confirmado no Supabase.
  */
 export async function verifyEmailCode(
   phone: string,
   codeRaw: string
 ): Promise<{ success: boolean; userId?: string; error?: string }> {
-  const supabase = createAdminClient()
-  if (!supabase) return { success: false, error: 'Serviço indisponível.' }
+  const admin = createAdminClient()
+  if (!admin) return { success: false, error: 'Serviço indisponível.' }
 
   const phoneNorm = normalizarPhone(phone)
-  const code = String(codeRaw ?? '').replace(/\D/g, '').slice(0, CODE_LENGTH)
-  if (code.length !== CODE_LENGTH) return { success: false, error: 'Código deve ter 6 dígitos.' }
+  const digits = String(codeRaw ?? '').replace(/\D/g, '')
+  const code = digits.length >= 6 ? digits.slice(0, 6) : digits
+  if (code.length !== 6) return { success: false, error: 'Código deve ter 6 dígitos.' }
 
-  const { data: row, error: selectError } = await supabase
-    .from('email_confirm_codes')
-    .select('id, user_id, expires_at')
-    .eq('code', code)
-    .eq('phone', phoneNorm)
-    .maybeSingle()
+  // Obter email do usuário pelo phone (whatsapp_sessions → user_id → auth.users)
+  const { data: session } = await admin.from('whatsapp_sessions').select('user_id').eq('phone_number', phoneNorm).maybeSingle()
+  if (!session?.user_id) return { success: false, error: 'Código inválido ou expirado.' }
 
-  if (selectError || !row) {
+  const { data: userData } = await admin.auth.admin.getUserById(session.user_id)
+  const email = (userData?.user?.email ?? '').trim()
+  if (!email) return { success: false, error: 'Código inválido ou expirado.' }
+
+  const supabase = getSupabaseAuthClient()
+  if (!supabase) return { success: false, error: 'Serviço indisponível.' }
+
+  try {
+    const { data, error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' })
+    if (error) {
+      console.warn('[whatsapp-email-code] verifyOtp falhou:', error.message)
+      return { success: false, error: 'Código inválido ou expirado.' }
+    }
+    // verifyOtp já marca o email como confirmado no Supabase; garantir por via das dúvidas
+    await admin.auth.admin.updateUserById(session.user_id, { email_confirm: true }).catch(() => {})
+    return { success: true, userId: session.user_id }
+  } catch (err: any) {
+    console.error('[whatsapp-email-code] Erro ao verificar código:', err?.message)
     return { success: false, error: 'Código inválido ou expirado.' }
   }
-
-  const expiresAt = new Date((row as { expires_at: string }).expires_at)
-  if (expiresAt <= new Date()) {
-    await supabase.from('email_confirm_codes').delete().eq('id', (row as { id: string }).id)
-    return { success: false, error: 'Código expirado. Peça um novo código.' }
-  }
-
-  const userId = (row as { user_id: string }).user_id
-
-  const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
-    email_confirm: true,
-  })
-
-  if (updateError) {
-    console.error('[whatsapp-email-code] Erro ao confirmar email:', updateError.message)
-    return { success: false, error: 'Erro ao confirmar. Tente de novo.' }
-  }
-
-  await supabase.from('email_confirm_codes').delete().eq('id', (row as { id: string }).id)
-  return { success: true, userId }
 }

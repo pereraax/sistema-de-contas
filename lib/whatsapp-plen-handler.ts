@@ -45,6 +45,24 @@ function cleanContactDisplayName(name: string | undefined | null): string | unde
   return cleaned.slice(0, 80) || undefined
 }
 
+/** Botão "Reenviar código" nas mensagens de confirmação de e-mail (aguardando código de 6 dígitos). */
+const BOTAO_REENVIAR_CODIGO = { id: 'reenviar_codigo', title: 'Reenviar código' }
+
+/** Mensagem genérica para o lead quando algo falha (nunca expor erros internos da plataforma). */
+const MSG_LEAD_ERRO_GENERICO = 'Um momento, parece que estão fazendo uma pequena manutenção e eu já volto aqui. 💙'
+
+/** Mensagem única após confirmar email com código: conta ativada + exemplos de comandos (sem pedir código de novo, sem botão). */
+const MSG_CONTA_CONFIRMADA_COMANDOS = `✅ *Conta confirmada!* 💙 Agora você já pode usar normalmente.
+
+*Exemplos do que pode me dizer:*
+• "gastei 200 com roupas"
+• "recebi 1500 salário"
+• "quanto gastei no mês?"
+• "me mostre o relatório"
+• "quanto tenho de saldo?"
+
+É só mandar uma mensagem que eu registro ou respondo. 😊`
+
 /** Mensagem com todos os comandos que o assistente aceita (enviada após confirmação de e-mail ou quando usuário já está liberado). */
 const MSG_COMANDOS_PLEN = `Olá! Se você está pronto para começar a gerenciar suas finanças, basta me dizer como posso ajudar! 😊
 
@@ -799,17 +817,16 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
       }
       // Se não conseguimos verificar ou email NÃO está confirmado: sempre responder (nunca deixar em branco)
       if (emailConfirmado !== true) {
-        // Código de 6 dígitos (cadastro WhatsApp): usuário digitou o código que recebeu por email
+        // Código de 6 dígitos (cadastro WhatsApp): usuário digitou o código que recebeu por email (aceitar 6 ou 8 dígitos)
         const codigoDigitado = (text ?? '').trim().replace(/\s/g, '')
-        if (/^\d{6}$/.test(codigoDigitado)) {
+        if (/^\d{6,8}$/.test(codigoDigitado)) {
           try {
             const { verifyEmailCode } = await import('@/lib/whatsapp-email-code')
             const result = await verifyEmailCode(phoneNumber, codigoDigitado)
             if (result.success) {
               return {
                 success: true,
-                message:
-                  '✅ Email confirmado! 💙 Sua conta está ativa. Pode me dizer seus gastos e receitas que eu registro. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"',
+                message: MSG_CONTA_CONFIRMADA_COMANDOS,
               }
             }
             return {
@@ -844,15 +861,77 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
               } else {
                 return {
                   success: true,
-                  message: 'Ainda não apareceu como confirmado aqui. 💙 Confira o email (e a pasta de *spam*) e digite o *código de 6 dígitos* que enviamos. Se já digitou, me diga "meu email foi confirmado?" que eu verifico de novo.',
+                  messages: [
+                    {
+                      type: 'buttons' as const,
+                      body: 'Ainda não apareceu como confirmado aqui. 💙 Confira o email (e a pasta de *spam*) e digite o *código de 6 dígitos* que enviamos. Se já digitou, me diga "meu email foi confirmado?" que eu verifico de novo. Ou toque no botão para reenviar o código.',
+                      buttons: [BOTAO_REENVIAR_CODIGO],
+                    },
+                  ],
                 }
               }
             }
           } catch (_) {
             return {
               success: true,
-              message: 'Estou verificando... Por favor, confira seu e-mail (e a pasta de *spam*) e digite o código de 6 dígitos que enviamos. 💙',
+              messages: [
+                {
+                  type: 'buttons' as const,
+                  body: 'Estou verificando... Por favor, confira seu e-mail (e a pasta de *spam*) e digite o código de 6 dígitos que enviamos. Ou toque no botão para reenviar. 💙',
+                  buttons: [BOTAO_REENVIAR_CODIGO],
+                },
+              ],
             }
+          }
+        }
+        // Pedido de reenvio do email com código ("não recebi", "não achei", "reenviar", etc.)
+        const ehPedidoReenviarEmail =
+          /n[aã]o\s+recebi\s+(o\s+)?e-?mail|e-?mail\s+n[aã]o\s+chegou|n[aã]o\s+achei\s+(o\s+)?e-?mail|n[aã]o\s+chegou\s+(o\s+)?e-?mail/i.test(t) ||
+          /(pode\s+)?reenviar\s+(o\s+)?e-?mail|(re)?envia\s+(o\s+)?e-?mail|manda\s+(de\s+novo|o\s+c[oó]digo)|envia\s+de\s+novo|(quero\s+)?(o\s+)?c[oó]digo\s+de\s+novo/i.test(t) ||
+          /^(reenviar|reenvia|envia\s+de\s+novo)\s*\.?\s*$/i.test(t)
+        if (emailConfirmado !== true && ehPedidoReenviarEmail && userContext.userId) {
+          try {
+            const { createAdminClient } = await import('./supabase/server')
+            const supabaseAdmin = createAdminClient()
+            if (supabaseAdmin) {
+              const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userContext.userId)
+              const email = (authUser?.user?.email ?? '').trim()
+              const nome = (authUser?.user?.user_metadata?.nome ?? userContext.nome ?? '').trim() || 'usuário'
+              if (email) {
+                const { generateAndSendEmailCode } = await import('@/lib/whatsapp-email-code')
+                const phoneNorm = phoneNumber.replace(/\D/g, '')
+                const res = await generateAndSendEmailCode(userContext.userId, email, phoneNorm.length >= 10 ? phoneNorm : phoneNumber, nome)
+                if (res.success) {
+                  return {
+                    success: true,
+                    message: '💙 *Reenviei* o código de 6 dígitos no seu e-mail. Confira a caixa de entrada e a pasta de *spam*. Digite o código aqui na conversa que eu confirmo sua conta.',
+                  }
+                }
+                console.warn('[WhatsApp PLEN] Reenvio de código falhou (não expor ao lead):', res.error)
+                return {
+                  success: true,
+                  messages: [
+                    {
+                      type: 'buttons' as const,
+                      body: `${MSG_LEAD_ERRO_GENERICO}\n\nOu tente de novo em instantes:`,
+                      buttons: [BOTAO_REENVIAR_CODIGO],
+                    },
+                  ],
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('[WhatsApp PLEN] Erro ao reenviar código (não expor ao lead):', (err as Error)?.message)
+          }
+          return {
+            success: true,
+            messages: [
+              {
+                type: 'buttons' as const,
+                body: `${MSG_LEAD_ERRO_GENERICO}\n\nOu tente de novo em instantes:`,
+                buttons: [BOTAO_REENVIAR_CODIGO],
+              },
+            ],
           }
         }
         if (emailConfirmado !== true) {
@@ -862,13 +941,56 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
           if (ehPerguntaProximoPasso) {
             return {
               success: true,
-              message: 'Agora é só abrir seu *email* (e a pasta de *spam*), pegar o *código de 6 dígitos* que enviamos e digitar aqui na conversa. Aí sua conta fica ativa. 💙\n\nDepois pode me dizer um gasto ou receita! Ex.: "gastei 200 com roupas" ou "recebi 1500 salário".',
+              messages: [
+                {
+                  type: 'buttons' as const,
+                  body: 'Agora é só abrir seu *email* (e a pasta de *spam*), pegar o *código de 6 dígitos* que enviamos e digitar aqui na conversa. Aí sua conta fica ativa. 💙\n\nOu toque no botão para reenviar o código.\n\nDepois pode me dizer um gasto ou receita! Ex.: "gastei 200 com roupas" ou "recebi 1500 salário".',
+                  buttons: [BOTAO_REENVIAR_CODIGO],
+                },
+              ],
             }
           }
-          // Qualquer outra mensagem com email pendente: instruir a digitar o código
+          // Comandos desconhecidos: usar LLM para identificar intenção (email não chegou, cancelar, dúvida, etc.)
+          try {
+            const { getPlenLLMResponse } = await import('@/lib/plen-llm-fallback')
+            const contextAguardandoCodigo = `O lead acabou de criar a conta pelo WhatsApp. Enviamos um código de 6 dígitos por e-mail. A mensagem dele foi: "${(text ?? '').trim()}"
+
+REGRAS:
+- Se ele disser que o e-mail NÃO CHEGOU: reconheça e diga que pode pedir "reenviar o email"; sugira verificar a pasta de spam.
+- Se quiser CANCELAR: reconheça com empatia; pode ignorar o e-mail.
+- Se a mensagem for SÓ NÚMEROS (ex.: código que ele já digitou): NÃO peça para "digite o código" de novo. Diga: "Se você já digitou o código e a conta foi ativada, pode usar normalmente — por exemplo: gastei 200, recebi 1500, quanto gastei no mês? Se ainda não ativou, digite só os 6 dígitos do e-mail (sem números a mais)."
+- Para qualquer outra dúvida: analise o que ele realmente quer e responda de forma direta e útil. Use *negrito* para ênfase. Emojis: só 💙 😊. Respostas curtas (2-4 frases).`
+            const llmReply = await getPlenLLMResponse({
+              userMessage: (text ?? '').trim(),
+              context: contextAguardandoCodigo,
+              productMode: true,
+            })
+            if (llmReply && llmReply.trim()) {
+              return {
+                success: true,
+                messages: [
+                  llmReply.trim(),
+                  {
+                    type: 'buttons' as const,
+                    body: 'Toque no botão para reenviar o código por e-mail:',
+                    buttons: [BOTAO_REENVIAR_CODIGO],
+                  },
+                ],
+              }
+            }
+          } catch (err) {
+            console.warn('[WhatsApp PLEN] LLM fallback (aguardando código) falhou:', (err as Error)?.message)
+          }
+          // Fallback se LLM falhar ou retornar vazio
           return {
             success: true,
-            message: '📧 Para ativar sua conta, digite aqui o *código de 6 dígitos* que enviamos no seu e-mail (confira também a pasta de *spam*). 💙',
+            messages: [
+              {
+                type: 'buttons' as const,
+                body: '📧 Para ativar sua conta, digite aqui o *código de 6 dígitos* que enviamos no seu e-mail (confira também a pasta de *spam*). Ou toque no botão para reenviar. 💙',
+                buttons: [BOTAO_REENVIAR_CODIGO],
+              },
+            ],
           }
         }
       }
@@ -1409,9 +1531,10 @@ async function handleWhatsAppAuthentication(
           message: msgSucesso,
         }
       }
+      console.warn('[WhatsApp PLEN] Criar conta falhou (não expor ao lead):', result.error)
       return {
         success: true,
-        message: result.error || 'Não consegui criar a conta. Tente outro e-mail ou me avise aqui. 💙',
+        message: MSG_LEAD_ERRO_GENERICO,
       }
     }
     // Nome inválido — pedir de novo
