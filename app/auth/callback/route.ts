@@ -99,7 +99,8 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
   const code = request.nextUrl.searchParams.get('code')
   const tokenHash = request.nextUrl.searchParams.get('token_hash')
   const typeParam = request.nextUrl.searchParams.get('type') || 'signup'
-  const nextParam = request.nextUrl.searchParams.get('next') || '/home'
+  let nextParam = request.nextUrl.searchParams.get('next') || '/home'
+  if (nextParam === '/Ilogin' || nextParam === 'Ilogin') nextParam = '/login'
 
   // token_hash: processar SEMPRE no cliente para evitar loop (cookies do servidor podem não ser enviados no redirect)
   if (tokenHash && !code) {
@@ -268,7 +269,8 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
                 body: JSON.stringify({ access_token: data.session.access_token, refresh_token: data.session.refresh_token || '' })
               });
             } catch (e) { console.warn('Notify WhatsApp:', e); }
-            const next = new URLSearchParams(window.location.search).get('next') || '/home';
+            let next = new URLSearchParams(window.location.search).get('next') || '/home';
+            if (next === '/Ilogin' || next === 'Ilogin') next = '/login';
             var destPath = (next === '/login' || next === 'login') ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : next;
             if (destPath === '/home' || destPath === 'home' || (destPath.startsWith('/home') && destPath.indexOf('emailConfirmed') === -1)) destPath = '/home?emailConfirmed=true';
             else if (destPath && destPath.indexOf('emailConfirmed') === -1 && destPath !== '/login') destPath = destPath + (destPath.indexOf('?') >= 0 ? '&' : '?') + 'emailConfirmed=true';
@@ -314,7 +316,8 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
                 });
               } catch (e) { console.warn('Notify WhatsApp:', e); }
               try { document.cookie = 'email_confirmed=true; path=/; max-age=120; SameSite=Lax'; sessionStorage.setItem('email_just_confirmed', '1'); } catch (e) {}
-              const next = new URLSearchParams(window.location.search).get('next') || '/home';
+              let next = new URLSearchParams(window.location.search).get('next') || '/home';
+              if (next === '/Ilogin' || next === 'Ilogin') next = '/login';
               var destPath = (next === '/login' || next === 'login') ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : next;
               if (destPath === '/home' || destPath === 'home' || (destPath.startsWith('/home') && destPath.indexOf('emailConfirmed') === -1)) destPath = '/home?emailConfirmed=true';
               else if (destPath && destPath.indexOf('emailConfirmed') === -1 && destPath !== '/login') destPath = destPath + (destPath.indexOf('?') >= 0 ? '&' : '?') + 'emailConfirmed=true';
@@ -355,7 +358,8 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
               });
             } catch (e) { console.warn('Notify WhatsApp:', e); }
             try { document.cookie = 'email_confirmed=true; path=/; max-age=120; SameSite=Lax'; sessionStorage.setItem('email_just_confirmed', '1'); } catch (e) {}
-            const next = urlParams.get('next') || '/home';
+            let next = urlParams.get('next') || '/home';
+            if (next === '/Ilogin' || next === 'Ilogin') next = '/login';
             var destPath = (next === '/login' || next === 'login') ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : next;
             if (destPath === '/home' || destPath === 'home' || (destPath.startsWith('/home') && !destPath.includes('emailConfirmed'))) destPath = '/home?emailConfirmed=true';
             else if (destPath && !destPath.includes('emailConfirmed') && destPath !== '/login') destPath = destPath + (destPath.includes('?') ? '&' : '?') + 'emailConfirmed=true';
@@ -374,8 +378,11 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
       
       if (session) {
         console.log('✅ [Callback Client] Já autenticado - redirecionando...');
-        const next = urlParams.get('next') || '/home';
-        window.location.replace(productionUrl + next);
+        let next = urlParams.get('next') || '/home';
+        if (next === '/Ilogin' || next === 'Ilogin') next = '/login';
+        var destPath = (next === '/login' || next === 'login') ? '/login?emailConfirmed=true' : (next + (next.indexOf('?') >= 0 ? '&' : '?') + 'emailConfirmed=true');
+        try { document.cookie = 'email_confirmed=true; path=/; max-age=120; SameSite=Lax'; sessionStorage.setItem('email_just_confirmed', '1'); } catch (e) {}
+        window.location.replace(productionUrl + (destPath.startsWith('/') ? destPath : '/' + destPath));
         return;
       }
       
@@ -426,7 +433,7 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
     return buildClientSideExchangeHtml(
       code!,
       productionUrl,
-      request.nextUrl.searchParams.get('next') || '/home',
+      nextParam,
       request.nextUrl.searchParams.get('platform') === 'app',
       supabaseUrl,
       supabaseAnonKey
@@ -446,7 +453,7 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
    */
   if (code) {
     console.log('🔑 [Callback] code detectado - trocando por sessão no cliente (PKCE)')
-    const nextPath = request.nextUrl.searchParams.get('next') || '/home'
+    const nextPath = nextParam
     const platformApp = request.nextUrl.searchParams.get('platform') === 'app'
     return buildClientSideExchangeHtml(code, productionUrl, nextPath, platformApp, supabaseUrl, supabaseAnonKey)
   }
@@ -564,7 +571,8 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
       next = decodeURIComponent(nextMatch[1])
     }
   }
-  
+  if (next === '/Ilogin' || next === 'Ilogin') next = '/login'
+
   console.log('🔍 [Callback] Parâmetros finais extraídos:', { 
     token_hash: token_hash ? token_hash.substring(0, 20) + '...' : null, 
     type, 
