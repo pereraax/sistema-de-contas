@@ -28,6 +28,7 @@ import {
   isValidEmail,
   isValidNome,
   validateEmailWithHint,
+  isSaudacaoOuRespostaGenerica,
 } from '@/lib/whatsapp-signup-flow'
 
 /** Evita enviar a mesma intro duas vezes quando o webhook é chamado em duplicata (ex.: dois eventos para a mesma mensagem). */
@@ -551,6 +552,17 @@ async function processarEmBackground(parsed: ZapiParsed) {
     if (signupPending) {
       if (signupPending.step === 'nome') {
         const nome = (text ?? '').trim()
+        // Identificar contexto: saudação ou resposta genérica não é nome — não avançar nem chamar LLM.
+        if (isSaudacaoOuRespostaGenerica(nome)) {
+          await sendTextMessage(
+            phone,
+            'Oi! 💙 Para criar sua conta preciso do seu *nome completo*. Ex.: Maria Silva.',
+            { delayTyping: 1 }
+          ).catch(() => {})
+          markResponded(phone, text ?? '')
+          console.log('📧 [Z-API Webhook] Cadastro WhatsApp — mensagem é saudação/resposta genérica, pedindo nome completo de novo:', phone)
+          return
+        }
         let nomeFinal = nome
         if (!isValidNome(nome)) {
           const extraido = await extrairNomeComOpenAI(nome).catch(() => null)

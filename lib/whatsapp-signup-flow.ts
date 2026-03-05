@@ -167,11 +167,32 @@ export function validateEmailWithHint(email: string): EmailValidationResult {
 
 /** Respostas comuns que não são nome de pessoa (rejeitadas ao pedir "Qual seu nome?"). */
 const NAO_E_NOME = new Set([
-  'ss', 's', 'sim', 'nao', 'não', 'ok', 'oi', 'na', 'nn', 'tb', 'vc', 'pq', 'qual', 'meu', 'nome',
+  'ss', 's', 'sim', 'nao', 'não', 'ok', 'oi', 'oii', 'na', 'nn', 'tb', 'vc', 'pq', 'qual', 'meu', 'nome',
+  'olá', 'ola', 'hello', 'hi', 'e aí', 'eai', 'e ai', 'opa', 'fala', 'salve', 'bom dia', 'boa tarde', 'boa noite',
   'eh', 'isso', 'certo', 'correto', 'aham', 'aha', 'pode ser', 'tanto faz', 'nao sei', 'não sei',
   'ah', 'uh', 'hmm', 'hm', 'x', 'q', 'e', 'a', 'o', 'u', 'i', 'c', 'n', 'r', 't', 'já', 'ja',
   'cadastrar', 'cadastrei', 'criei', 'quero', 'criar', 'conta', 'email', 'e-mail', 'teste', 'test',
 ])
+
+/** Saudações e respostas genéricas que não são nome — para não avançar o fluxo e responder com contexto. */
+const SAUDACOES_E_GENERICOS = new Set([
+  'oi', 'oii', 'oi!', 'oii!', 'olá', 'ola', 'olá!', 'ola!', 'hello', 'hi', 'e aí', 'eai', 'e ai', 'e aí?', 'e ai?',
+  'opa', 'fala', 'fala!', 'salve', 'bom dia', 'boa tarde', 'boa noite', 'tudo bem', 'tudo bom', 'e aí?',
+  'qual nome', 'meu nome', 'não sei', 'nao sei', 'cadastrar', 'quero cadastrar', 'quero criar',
+])
+
+/** Retorna true se a mensagem é claramente saudação ou resposta genérica (não é nome). */
+export function isSaudacaoOuRespostaGenerica(text: string): boolean {
+  const t = (text || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  if (!t) return true
+  if (SAUDACOES_E_GENERICOS.has(t)) return true
+  // Variações com pontuação
+  const semPontuacao = t.replace(/[.!?]+$/, '')
+  if (SAUDACOES_E_GENERICOS.has(semPontuacao)) return true
+  // Mensagens muito curtas que são só repetição de oi/olá
+  if (/^(oi|oii|olá|ola)\s*!*\s*$/i.test(t)) return true
+  return false
+}
 
 /** Valida nome de pessoa: mínimo 3 caracteres, pelo menos 2 letras diferentes, só letras/espaços/acentos, não pode ser resposta genérica. */
 export function isValidNome(nome: string): boolean {
