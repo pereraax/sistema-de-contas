@@ -165,9 +165,23 @@ export function validateEmailWithHint(email: string): EmailValidationResult {
   return { valid: true }
 }
 
-/** Valida nome (mínimo 2 caracteres; letras, espaços, acentos, hífen, apóstrofo). */
+/** Respostas comuns que não são nome de pessoa (rejeitadas ao pedir "Qual seu nome?"). */
+const NAO_E_NOME = new Set([
+  'ss', 's', 'sim', 'nao', 'não', 'ok', 'oi', 'na', 'nn', 'tb', 'vc', 'pq', 'qual', 'meu', 'nome',
+  'eh', 'isso', 'certo', 'correto', 'aham', 'aha', 'pode ser', 'tanto faz', 'nao sei', 'não sei',
+  'ah', 'uh', 'hmm', 'hm', 'x', 'q', 'e', 'a', 'o', 'u', 'i', 'c', 'n', 'r', 't', 'já', 'ja',
+  'cadastrar', 'cadastrei', 'criei', 'quero', 'criar', 'conta', 'email', 'e-mail', 'teste', 'test',
+])
+
+/** Valida nome de pessoa: mínimo 3 caracteres, pelo menos 2 letras diferentes, só letras/espaços/acentos, não pode ser resposta genérica. */
 export function isValidNome(nome: string): boolean {
   const trimmed = (nome || '').trim()
-  if (trimmed.length < 2) return false
-  return /^[a-záàâãéêíóôõúç\s\-']+$/i.test(trimmed)
+  if (trimmed.length < 3) return false
+  if (!/^[a-záàâãéêíóôõúç\s\-']+$/i.test(trimmed)) return false
+  const lower = trimmed.toLowerCase()
+  if (NAO_E_NOME.has(lower)) return false
+  const soLetras = trimmed.replace(/[\s\-']/g, '')
+  const letrasDiferentes = new Set(soLetras.toLowerCase().split(''))
+  if (letrasDiferentes.size < 2) return false
+  return true
 }
