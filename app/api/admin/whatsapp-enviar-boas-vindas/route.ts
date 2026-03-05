@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminToken } from '@/lib/admin-middleware'
 import { sendBoasVindasToNumber } from '@/lib/whatsapp-enviar-boas-vindas-lib'
-import { markWelcomeSent } from '@/lib/whatsapp-contatos-pendentes'
+import { markWelcomeSent, markTestIntroSent } from '@/lib/whatsapp-contatos-pendentes'
 import { isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 
 function normalizarPhone(n: string): string {
@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
   const result = await sendBoasVindasToNumber(phone)
   if (result.success) {
     await markWelcomeSent(phone)
+    await markTestIntroSent(phone).catch(() => {})
   }
   return NextResponse.json({
     success: result.success,

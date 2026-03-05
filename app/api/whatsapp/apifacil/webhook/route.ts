@@ -18,7 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendReplyButtons, sendCtaUrlButton, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
-import { recordIncomingMessage, markWelcomeSent, hasReceivedWelcome, hasReceivedTestIntro, markTestIntroSent } from '@/lib/whatsapp-contatos-pendentes'
+import { recordIncomingMessage, markWelcomeSent, hasReceivedWelcome, hasReceivedTestIntro, markTestIntroSent, hasCadastro } from '@/lib/whatsapp-contatos-pendentes'
 import { sendBoasVindasToNumber, isBoasVindasConfigured, MENSAGENS_BOAS_VINDAS, sendBoasVindasSingleMessage } from '@/lib/whatsapp-enviar-boas-vindas-lib'
 import { getMensagemInicialModoTeste, parseGastoSimples, getMsgGastoRegistradoModoTeste, MSG_FOLLOW_UP_CRIAR_CONTA } from '@/lib/whatsapp-modo-teste'
 
@@ -480,6 +480,36 @@ async function processarEmBackground(parsed: {
       } catch (err) {
         console.error('❌ [Apifacil Webhook] Erro ao enviar boas-vindas:', err)
       }
+    }
+
+    // Boas-vindas já enviadas (manual ou automático) + mensagem é gasto de teste → processar gasto e não repetir intro nem passar ao PLEN
+    const temCadastro = await hasCadastro(phoneDigits).catch(() => false)
+    const gastoJaRecebeuWelcome = parseGastoSimples(text ?? '')
+    if (
+      !temCadastro &&
+      (jaRecebeuBoasVindas || jaRecebeuTestIntro) &&
+      gastoJaRecebeuWelcome &&
+      isBoasVindasConfigured() &&
+      !isQueroUtilizarPlenipayMessage(text)
+    ) {
+      const contactNameModoTeste = (parsed as { contactName?: string }).contactName
+      console.log('🧪 [Apifacil Webhook] Gasto pós-boas-vindas (intro já enviada) — registrando:', gastoJaRecebeuWelcome.valor, gastoJaRecebeuWelcome.categoria, 'para', phone)
+      if (isApifacilConfigured()) {
+        const msgRegistro = getMsgGastoRegistradoModoTeste(gastoJaRecebeuWelcome.categoria, gastoJaRecebeuWelcome.valor, undefined, contactNameModoTeste)
+        await sendTextMessage(phone, msgRegistro).catch(() => {})
+        await delay(800)
+        await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA).catch(() => {})
+        await delay(1000)
+        const segundoBloco = MENSAGENS_BOAS_VINDAS[1]
+        if (typeof segundoBloco === 'object' && segundoBloco?.type === 'button_actions') {
+          await sendBoasVindasSingleMessage(phone, 2).catch(() => {})
+        } else {
+          await sendTextMessage(phone, 'Toque em *CADASTRAR* para criar sua conta ou digite *JÁ CRIEI* se já tem conta. 💙').catch(() => {})
+        }
+        await markWelcomeSent(phone).catch(() => {})
+        console.log('✅ [Apifacil Webhook] Modo teste (pós-boas-vindas) concluído para', phone)
+      }
+      return
     }
 
     // Assistente pausada: não responder automaticamente, EXCETO para "quero utilizar plenipay" (reenviar as 3)

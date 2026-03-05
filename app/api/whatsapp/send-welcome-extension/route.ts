@@ -11,7 +11,7 @@ import {
   sendBoasVindasSingleMessage,
   isBoasVindasConfigured,
 } from '@/lib/whatsapp-enviar-boas-vindas-lib'
-import { markWelcomeSent } from '@/lib/whatsapp-contatos-pendentes'
+import { markWelcomeSent, markTestIntroSent } from '@/lib/whatsapp-contatos-pendentes'
 
 const EXTENSION_TOKEN = process.env.EXTENSION_CRM_API_KEY?.trim()
 
@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
       result = await sendBoasVindasToNumber(phone)
       if (result.success) {
         await markWelcomeSent(phone)
+        await markTestIntroSent(phone).catch(() => {})
       }
     }
   } catch (err) {
