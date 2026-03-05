@@ -649,8 +649,9 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
         
         let redirectPath = next.startsWith('/') ? next : `/${next}`
         const redirectUrl = new URL(redirectPath, productionUrl)
+        // Sempre adicionar emailConfirmed=true para a página destino mostrar o modal de sucesso
+        redirectUrl.searchParams.set('emailConfirmed', 'true')
         if (isLoginPage) {
-          redirectUrl.searchParams.set('emailConfirmed', 'true')
           redirectUrl.searchParams.set('mensagem', 'Email confirmado! Faça login para continuar.')
         }
         
@@ -660,7 +661,10 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
         // Verificar se a URL não contém 0.0.0.0:10000
         if (finalUrl.includes('0.0.0.0') || finalUrl.includes(':10000')) {
           console.error('❌ [Callback] URL de redirecionamento contém 0.0.0.0:10000 - CORRIGINDO!')
-          finalUrl = `${productionUrl}${redirectPath}`
+          const fixedUrl = new URL(redirectPath, productionUrl)
+          fixedUrl.searchParams.set('emailConfirmed', 'true')
+          if (isLoginPage) fixedUrl.searchParams.set('mensagem', 'Email confirmado! Faça login para continuar.')
+          finalUrl = fixedUrl.toString()
           console.log(`✅ [Callback] URL corrigida: ${finalUrl}`)
         }
         
@@ -670,9 +674,8 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
           console.log(`⚠️ [Callback] URL não era absoluta, convertendo: ${finalUrl}`)
         }
         
-        // CRÍTICO: Usar redirect simples SEM parâmetros de query para evitar loops
-        // Os parâmetros emailConfirmed e mensagem serão mostrados via cookies ou localStorage no cliente
-        console.log(`✅ [Callback] Redirecionando para URL absoluta (sem query params): ${finalUrl}`)
+        // emailConfirmed na URL + cookie para o modal de sucesso aparecer na página destino
+        console.log(`✅ [Callback] Redirecionando para URL absoluta: ${finalUrl}`)
         
         // Marcar token como processado para evitar loops
         const response = NextResponse.redirect(finalUrl, { status: 303 })
@@ -693,15 +696,15 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
             maxAge: 10,
             path: '/'
           })
-          // Marcar que o email foi confirmado (para mostrar mensagem na home)
-          response.cookies.set('email_confirmed', 'true', {
-            httpOnly: false,
-            secure: isSecureOrigin,
-            sameSite: 'lax',
-            maxAge: 60,
-            path: '/'
-          })
         }
+        // Sempre setar cookie de email confirmado (fluxo code ou token_hash) para o modal aparecer
+        response.cookies.set('email_confirmed', 'true', {
+          httpOnly: false,
+          secure: isSecureOrigin,
+          sameSite: 'lax',
+          maxAge: 60,
+          path: '/'
+        })
         
         // CRÍTICO: Adicionar headers para evitar que o navegador siga redirects múltiplos
         response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
