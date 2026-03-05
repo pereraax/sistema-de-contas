@@ -454,16 +454,18 @@ export async function signUp(
               logWarn(`✅ Link forçado para redirectTo: ${linkGerado}`, 'SIGNUP')
             }
             
-            // Enviar via SMTP próprio
+            // Template de email: arquivo no projeto ou fallback embutido (para produção onde o arquivo pode não existir)
             const { readFileSync, existsSync } = await import('fs')
             const { join } = await import('path')
-            
             const templatePath = join(process.cwd(), 'TEMPLATE-EMAIL-CONFIRMACAO-CORRETO.html')
-            if (!existsSync(templatePath)) {
-              logError(`❌ Template de email não encontrado: ${templatePath}`, 'SIGNUP')
-              throw new Error('Template de confirmação de email não encontrado. Verifique TEMPLATE-EMAIL-CONFIRMACAO-CORRETO.html no projeto.')
+            const fallbackTemplate = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Confirme seu Cadastro</title></head><body style="margin:0;padding:0;background:#f5f5f5;font-family:sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:20px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.1);"><tr><td style="background:linear-gradient(135deg,#1B263B,#0D1B2A);padding:30px;text-align:center;"><h1 style="margin:0;color:#E6E6E6;font-size:24px;">Confirme seu Cadastro</h1></td></tr><tr><td style="padding:40px;"><p style="margin:0 0 20px;color:#333;">Olá! 👋</p><p style="margin:0 0 24px;color:#333;">Bem-vindo(a)! Para ativar sua conta, clique no botão abaixo:</p><p style="text-align:center;margin:0 0 24px;"><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#00C2FF,#0099CC);color:#fff;text-decoration:none;border-radius:12px;font-weight:600;">Confirmar Email</a></p><p style="margin:0;color:#666;font-size:14px;">Ou copie e cole no navegador:<br><a href="{{ .ConfirmationURL }}" style="color:#00C2FF;word-break:break-all;">{{ .ConfirmationURL }}</a></p><p style="margin:24px 0 0;color:#666;font-size:13px;">Este link é válido por 24 horas.</p></td></tr><tr><td style="padding:20px;background:#f8f9fa;text-align:center;color:#999;font-size:12px;">PleniPay</td></tr></table></body></html>`
+            let templateHtml: string
+            if (existsSync(templatePath)) {
+              templateHtml = readFileSync(templatePath, 'utf-8')
+            } else {
+              logWarn(`⚠️ Template não encontrado em ${templatePath} - usando template embutido`, 'SIGNUP')
+              templateHtml = fallbackTemplate
             }
-            let templateHtml = readFileSync(templatePath, 'utf-8')
             templateHtml = templateHtml.replace(/\{\{ \.ConfirmationURL \}\}/g, linkGerado)
             
             await sendMail({
