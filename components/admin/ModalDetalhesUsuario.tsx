@@ -790,7 +790,7 @@ export default function ModalDetalhesUsuario({ usuario, onClose, onPlanoAlterado
                       className="w-full px-3 py-2 bg-white dark:bg-brand-midnight border border-gray-300 dark:border-white/30 rounded-lg text-sm text-brand-midnight dark:text-brand-clean focus:outline-none focus:border-brand-aqua"
                     >
                       <option value="teste">Teste (Gratuito)</option>
-                      <option value="basico">Básico (R$ 19,90/mês)</option>
+                      <option value="basico">Básico (R$ 9,90/mês)</option>
                       <option value="premium">Premium (R$ 49,90/mês)</option>
                     </select>
                   </div>

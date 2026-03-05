@@ -8,7 +8,7 @@ import {
 } from '@/lib/asaas'
 
 const PLANOS = {
-  basico: { valor: 19.9, ciclo: 'MONTHLY' as const, descricao: 'Plano Básico', trialDias: 7 },
+  basico: { valor: 9.9, ciclo: 'MONTHLY' as const, descricao: 'Plano Básico', trialDias: 7 },
   premium: { valor: 49.9, ciclo: 'MONTHLY' as const, descricao: 'Plano Premium', trialDias: 0 },
   anual: { valor: 197, ciclo: 'YEARLY' as const, descricao: 'Plano Anual', trialDias: 0 },
 }

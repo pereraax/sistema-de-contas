@@ -1002,7 +1002,7 @@ export default function LandingPageClient() {
               </div>
               <div className="mb-3 sm:mb-4">
                 <div className="flex items-baseline gap-2">
-                          <span className={`text-xl sm:text-2xl md:text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>R$ 19,90</span>
+                          <span className={`text-xl sm:text-2xl md:text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-[#0D1B2A]'}`}>R$ 9,90</span>
                   <span className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>/mês</span>
                 </div>
                 <p className={`text-xs font-semibold mt-1 sm:mt-2 ${isDarkMode ? 'text-cyan-400' : 'text-[#1e4976]'}`}>7 dias grátis</p>

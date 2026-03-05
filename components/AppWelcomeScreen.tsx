@@ -34,7 +34,7 @@ function GoogleGIcon({ className }: { className?: string }) {
 
 const PLANOS = [
   { id: 'teste' as const, nome: 'Gratuito', preco: 'R$ 0', periodo: 'sempre grátis', destaque: false },
-  { id: 'basico' as const, nome: 'Básico', preco: 'R$ 19,90', periodo: '/mês', testeGratis: '7 dias grátis', destaque: false },
+  { id: 'basico' as const, nome: 'Básico', preco: 'R$ 9,90', periodo: '/mês', testeGratis: '7 dias grátis', destaque: false },
   { id: 'premium' as const, nome: 'Premium', preco: 'R$ 49,90', periodo: '/mês', destaque: true },
 ]
 
