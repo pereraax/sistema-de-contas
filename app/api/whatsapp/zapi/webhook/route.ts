@@ -602,19 +602,18 @@ async function processarEmBackground(parsed: ZapiParsed) {
       }
     }
 
-    // "CADASTRAR" (ou "quero criar conta" / "sim") + sem cadastro → iniciar fluxo de cadastro pelo WhatsApp (nome -> e-mail).
+    // "CADASTRAR" ou "quero criar conta" (não "sim" — "sim" = quer testar primeiro) → iniciar fluxo de cadastro.
     const textNorm = (text ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
     const isCadastrarMessage =
       (text ?? '').trim() === 'CADASTRAR' ||
       /^cadastrar$/i.test((text ?? '').trim()) ||
       /^(quero|vamos)\s*criar\s*(minha\s*)?conta$/i.test((text ?? '').trim()) ||
-      /^(sim|quero|criar\s*conta|conta)$/i.test(textNorm) ||
-      textNorm === 'quero criar'
+      /^quero\s*criar$/i.test(textNorm)
     if (!temCadastro && !signupPending && isCadastrarMessage && isBoasVindasConfigured()) {
       await setSignupStepNome(phone)
       await sendTextMessage(
         phone,
-        'O cadastro é feito aqui pelo WhatsApp! 💙\n\nMe diga seu nome (ex.: Maria) que eu crio sua conta e envio o link de confirmação no seu e-mail.',
+        'O cadastro é feito aqui pelo WhatsApp! 💙\n\nMe diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail.',
         { delayTyping: 1 }
       ).catch(() => {})
       markResponded(phone, text ?? '')
@@ -640,7 +639,11 @@ async function processarEmBackground(parsed: ZapiParsed) {
         await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
         await delay(800)
         await setSignupStepNome(phone)
-        await sendTextMessage(phone, 'Qual seu nome?', { delayTyping: 1 }).catch(() => {})
+        await sendTextMessage(
+          phone,
+          'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail.',
+          { delayTyping: 1 }
+        ).catch(() => {})
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
         markWelcomeJustSent(phone)
@@ -666,7 +669,11 @@ async function processarEmBackground(parsed: ZapiParsed) {
       await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
       await delay(600)
       await setSignupStepNome(phone)
-      await sendTextMessage(phone, 'Qual seu nome?', { delayTyping: 1 }).catch(() => {})
+      await sendTextMessage(
+        phone,
+        'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail.',
+        { delayTyping: 1 }
+      ).catch(() => {})
       markResponded(phone, text ?? '')
       return
     }
@@ -724,7 +731,11 @@ async function processarEmBackground(parsed: ZapiParsed) {
         await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
         await delay(800)
         await setSignupStepNome(phone)
-        await sendTextMessage(phone, 'Qual seu nome?', { delayTyping: 1 }).catch(() => {})
+        await sendTextMessage(
+          phone,
+          'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail.',
+          { delayTyping: 1 }
+        ).catch(() => {})
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
         markWelcomeJustSent(phone)
@@ -743,7 +754,11 @@ async function processarEmBackground(parsed: ZapiParsed) {
         await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
         await delay(600)
         await setSignupStepNome(phone)
-        await sendTextMessage(phone, 'Qual seu nome?', { delayTyping: 1 }).catch(() => {})
+        await sendTextMessage(
+          phone,
+          'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail.',
+          { delayTyping: 1 }
+        ).catch(() => {})
         markResponded(phone, text ?? '')
         return
       }

@@ -1418,7 +1418,7 @@ async function handleWhatsAppAuthentication(
     if (nome.length > 0) {
       return {
         success: true,
-        message: 'Me diga seu nome (ex.: Maria) para eu criar sua conta e enviar o link de confirmação no seu email. 💙',
+        message: 'Me diga seu nome (ex.: Maria) para eu criar sua conta e enviar o código de confirmação no seu e-mail. 💙',
       }
     }
   }
@@ -1428,7 +1428,7 @@ async function handleWhatsAppAuthentication(
     return {
       success: true,
       message:
-        'O cadastro é feito aqui pelo WhatsApp! 💙\n\nMe diga seu nome (ex.: Maria) que eu crio sua conta e envio o link de confirmação no seu e-mail.\n\nSe já tem conta, digite *JÁ CRIEI* que eu peço seu e-mail para liberar.',
+        'O cadastro é feito aqui pelo WhatsApp! 💙\n\nMe diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail.\n\nSe já tem conta, digite *JÁ CRIEI* que eu peço seu e-mail para liberar.',
     }
   }
 
@@ -1541,7 +1541,7 @@ async function handleWhatsAppAuthentication(
         pendingSignupCreate.set(phoneNumber, { email })
         return {
           success: true,
-          message: `Esse e-mail *não está cadastrado* ainda.\n\nQuer que eu *crie sua conta agora*? Me diga seu *nome* (ex.: Maria) que eu crio e já envio o link de confirmação no seu email. 💙`,
+          message: `Esse e-mail *não está cadastrado* ainda.\n\nQuer que eu *crie sua conta agora*? Me diga seu *nome* (ex.: Maria) que eu crio e envio o código de confirmação no seu e-mail. 💙`,
         }
       }
       // Verificar se o e-mail já está ativo (sessão vinculada E email já confirmado)

@@ -38,7 +38,7 @@ export const MENSAGENS_BOAS_VINDAS: BoasVindasItem[] = [
   INTRO_SEM_NOME,
   {
     type: 'button_actions' as const,
-    body: 'Antes de começar a registrar seus gastos:\n\n1️⃣ Salve meu contato\n2️⃣ Crie sua conta aqui pelo WhatsApp — é rápido! 😊\n\nDigite *CADASTRAR* que eu peço seu nome e e-mail e crio sua conta (envio o link de confirmação no seu e-mail). Ou *JÁ CRIEI* se já tem conta. 💙',
+    body: 'Antes de começar a registrar seus gastos:\n\n1️⃣ Salve meu contato\n2️⃣ Crie sua conta aqui pelo WhatsApp — é rápido! 😊\n\nDigite *CADASTRAR* que eu peço seu nome e e-mail e crio sua conta (envio o código de confirmação no seu e-mail). Ou *JÁ CRIEI* se já tem conta. 💙',
     buttonActions: [
       { type: 'REPLY', label: 'CADASTRAR', id: 'cadastrar' },
       { type: 'REPLY', label: 'JÁ CRIEI', id: 'ja_cadastrei' },
