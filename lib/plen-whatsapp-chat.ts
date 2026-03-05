@@ -1300,9 +1300,22 @@ export async function processPlenWhatsAppMessage(
         linhas.push(`Pago: ${fmt(sMes.dividasPagas)}`)
         linhas.push(`Pendente: ${fmt(sMes.totalDividasPendentes)}`)
       }
+      // Pedido só de "saldo": resposta detalhada (semana + mês + dívidas) em vez de 2 linhas
       if (isSaldo && !linhas.length) {
-        linhas.push(`💰 Saldo atual (entradas − gastos): ${fmt(sMes.saldo)}`)
-        linhas.push(`📌 Dívidas pendentes: ${fmt(sMes.totalDividasPendentes)}`)
+        linhas.push('📅 Esta semana')
+        linhas.push(`🟢 Entradas: ${fmt(sSemana.totalEntradas)}`)
+        linhas.push(`🔴 Gastos: ${fmt(sSemana.totalSaidas)}`)
+        linhas.push(`💰 Saldo da semana: ${fmt(sSemana.saldo)}`)
+        linhas.push('')
+        linhas.push('📆 Este mês')
+        linhas.push(`🟢 Entradas: ${fmt(sMes.totalEntradas)}`)
+        linhas.push(`🔴 Gastos: ${fmt(sMes.totalSaidas)}`)
+        linhas.push(`💰 Saldo do mês: ${fmt(sMes.saldo)}`)
+        linhas.push('')
+        linhas.push('📌 Dívidas')
+        linhas.push(`Total: ${fmt(sMes.totalDividas)}`)
+        linhas.push(`Pago: ${fmt(sMes.dividasPagas)}`)
+        linhas.push(`Pendente: ${fmt(sMes.totalDividasPendentes)}`)
       }
       const text = linhas.length ? linhas.join('\n') : `💰 Saldo: ${fmt(sMes.saldo)}\n📌 Dívidas pendentes: ${fmt(sMes.totalDividasPendentes)}`
       return {
@@ -1394,33 +1407,35 @@ Eu entendo diferentes formas de falar e vou organizar tudo para você! 🎯`
       }
     }
 
-    // Comando não reconhecido: usar Gemini/Groq/OpenAI para entender contexto e sugerir como registrar (ex.: "emprestei minha tia 34" → sugerir frase exata)
+    // "E agora?", "o que faço?", "e aí?" → resposta humanizada, sem botão "Falar com humano"
+    const tNorm = t.replace(/[.?!,]+$/g, '').trim()
+    const ehPerguntaProximoPasso =
+      /^e\s+agora\s*$/i.test(tNorm) ||
+      /^(e\s+depois|e\s+a[ií]|e\s+ent[aã]o|o\s+que\s+fa[cç]o|e\s+da[ií]|como\s+(fa[cç]o|prossigo)|pr[oó]ximo\s+passo|agora\s+o\s+que)\s*$/i.test(tNorm)
+    if (ehPerguntaProximoPasso) {
+      return {
+        response:
+          'Agora é com você! 💙 Pode me dizer um *gasto* ou uma *receita*, por exemplo:\n• "gastei 50 no mercado"\n• "recebi 100"\n• "extra de 300"\n\nSe quiser ver como está sua vida financeira, diga *quanto gastei no mês?* ou *me mostre o relatório*. Estou aqui para ajudar! 😊',
+      }
+    }
+
+    // Comando não reconhecido: usar LLM para resposta humanizada (NUNCA dizer "não é comando reconhecido")
     try {
       const llmReply = await getPlenLLMResponse({
         userMessage: rawMessage,
         context:
-          'O usuário enviou uma mensagem que não foi reconhecida como comando. Entenda o que ele quis fazer (ex.: registrar gasto, entrada, empréstimo para alguém) e responda em UMA mensagem curta para WhatsApp: (1) confirme o que ele quis dizer; (2) sugira a frase exata que ele pode usar para registrar. Ex.: se disse "emprestei minha tia 34", responda que ele quer registrar um empréstimo e sugira "Emprestei 34 reais para minha tia" ou "Gastei 34 com minha tia". Seja amigável e direto.',
+          'O usuário mandou uma mensagem no WhatsApp. Responda de forma AMIGÁVEL e NATURAL, como um amigo que ajuda com finanças. NUNCA diga que "não é um comando reconhecido" ou que a mensagem não foi reconhecida. Interprete o que ele pode querer (registrar gasto, entrada, empréstimo, dúvida sobre o que fazer) e: (1) responda com empatia; (2) sugira exatamente o que ele pode digitar para registrar ou consultar. Ex.: se disse "emprestei minha tia 34", responda algo como "Entendi! Você quer registrar esse empréstimo. Pode me dizer assim: *Emprestei 34 reais para minha tia* que eu registro. 💙" Seja curto, caloroso e direto (uma mensagem para WhatsApp).',
       })
       if (llmReply && llmReply.trim()) {
-        return {
-          response: llmReply.trim(),
-          replyButtons: {
-            body: 'Precisa de ajuda humana?',
-            buttons: [{ id: 'falar_com_humano', title: 'Falar com humano' }],
-          },
-        }
+        return { response: llmReply.trim() }
       }
     } catch (e) {
       console.warn('[PLEN whatsapp-chat] LLM fallback (Grok xAI/Groq/OpenAI) falhou:', e)
     }
 
-    // Fallback: "Oops!" com exemplos + botão "Falar com humano"
+    // Fallback: mensagem humanizada com exemplos (sem botão "Falar com humano")
     return {
       response: msgNaoEntendi,
-      replyButtons: {
-        body: 'Precisa de ajuda humana?',
-        buttons: [{ id: 'falar_com_humano', title: 'Falar com humano' }],
-      },
     }
   } catch (err: any) {
     const msg = err?.message ?? String(err)
