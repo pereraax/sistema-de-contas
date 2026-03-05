@@ -332,21 +332,22 @@ export async function signUp(
       logInfo('✅ Email já confirmado - não precisa enviar', 'SIGNUP')
     }
     
-    // SEMPRE tentar enviar via SMTP próprio quando o email NÃO está confirmado
-    // Assim garantimos envio tanto para conta nova quanto para "criar de novo" com mesmo email
+    // Para CONTA NOVA: Supabase já envia o email oficial (template Plenipay). Não enviar segundo email (onboarding).
+    // Para USUÁRIO JÁ EXISTENTE (email não confirmado): enviar link por nosso email (Resend/SMTP) para reenvio.
     const deveTentarSmtpProprio = userToUse && !emailConfirmado && supabaseAdmin
     
     if (deveTentarSmtpProprio) {
-      if (usuarioJaExistia) {
-        logInfo('📧 Usuário já existia (email não confirmado) - gerando e enviando link de confirmação por email...', 'SIGNUP')
+      if (!usuarioJaExistia) {
+        emailEnviado = true
+        logInfo('✅ Supabase enviou o email oficial de confirmação (um único email, link plenipay.com via redirect)', 'SIGNUP')
       } else {
-        logInfo('📧 Email não confirmado - gerando e enviando link de confirmação por email...', 'SIGNUP')
+        logInfo('📧 Usuário já existia (email não confirmado) - gerando e enviando link de confirmação por email...', 'SIGNUP')
       }
       
       const { isSmtpConfigured, isResendConfigured, sendMail } = await import('./mailer')
       const emailEnvioConfigurado = isSmtpConfigured() || isResendConfigured()
       
-      if (emailEnvioConfigurado) {
+      if (usuarioJaExistia && emailEnvioConfigurado) {
         try {
           // Link do email sempre com domínio oficial (getSiteUrlForEmailRedirect = plenipay.com)
           const redirectToEmail = redirectTo
@@ -491,12 +492,12 @@ export async function signUp(
           }
         }
       } else {
-        logWarn('⚠️ Envio de email não configurado - configure RESEND_API_KEY (recomendado) ou SMTP_* no Railway para enviar o link', 'SIGNUP')
-        // Só marcar como enviado se Supabase enviou (usuário criado agora e sem erro de envio)
-        // Se usuário já existia, Supabase não envia de novo - então emailEnviado fica false
+        if (usuarioJaExistia) {
+          logWarn('⚠️ Envio de email não configurado - configure RESEND_API_KEY ou SMTP_* para reenviar link a quem já tem conta', 'SIGNUP')
+        }
         if (!usuarioJaExistia && !teveErroEnvioEmail && authData?.user) {
           emailEnviado = true
-          logInfo('✅ Supabase provavelmente enviou (envio próprio não configurado)', 'SIGNUP')
+          logInfo('✅ Supabase enviou o email oficial de confirmação', 'SIGNUP')
         }
       }
     }

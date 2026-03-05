@@ -6,7 +6,7 @@ import { sendTextMessage } from '@/lib/whatsapp-zapi'
 
 export const dynamic = 'force-dynamic'
 
-/** HTML que faz exchangeCodeForSession no cliente (fallback quando cookies() falha no servidor). */
+/** HTML que faz exchangeCodeForSession no cliente (link do email oficial Supabase = ?code=...). Chama on-email-confirmed e redireciona com emailConfirmed para modal + WhatsApp. */
 function buildClientSideExchangeHtml(
   code: string,
   productionUrl: string,
@@ -22,7 +22,7 @@ function buildClientSideExchangeHtml(
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
 <body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#00C2FF,#0099CC);font-family:sans-serif;">
 <div style="background:#fff;padding:2rem;border-radius:16px;text-align:center;max-width:380px;">
-<p style="margin:0 0 1rem;">Entrando na plataforma...</p>
+<p style="margin:0 0 1rem;">Confirmando email e entrando...</p>
 <script>
 (function(){
   var supabaseUrl = ${JSON.stringify(supabaseUrl)};
@@ -32,10 +32,23 @@ function buildClientSideExchangeHtml(
   var fallbackSuffix = ${JSON.stringify(fallbackSuffix)};
   var base = ${JSON.stringify(productionUrl)};
   if (!supabaseUrl || !supabaseKey || !code) { window.location.replace(base + '/login?error=Configuração inválida'); return; }
+  if (nextPath === '/Ilogin' || nextPath === 'Ilogin') nextPath = '/login';
   var supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
   supabase.auth.exchangeCodeForSession(code).then(function(r) {
     if (r.error) { window.location.replace(base + '/login?error=' + encodeURIComponent(r.error.message)); return; }
-    window.location.replace(base + nextPath + fallbackSuffix);
+    var session = r.data && r.data.session;
+    if (session) {
+      fetch(base + '/api/auth/on-email-confirmed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token || '' })
+      }).catch(function() {});
+      try { document.cookie = 'email_confirmed=true; path=/; max-age=120; SameSite=Lax'; sessionStorage.setItem('email_just_confirmed', '1'); } catch (e) {}
+    }
+    var dest = (nextPath === '/login' || nextPath === 'login') ? '/login?emailConfirmed=true' : (nextPath + (nextPath.indexOf('?') >= 0 ? '&' : '?') + 'emailConfirmed=true');
+    if (dest.indexOf('emailConfirmed') === -1) dest = dest + (dest.indexOf('?') >= 0 ? '&' : '?') + 'emailConfirmed=true';
+    window.location.replace(base + dest + (platformApp ? '&platform=app' : ''));
   }).catch(function(e) { window.location.replace(base + '/login?error=' + encodeURIComponent(e.message)); });
 })();
 </script>
