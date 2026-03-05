@@ -175,8 +175,8 @@ export async function signUp(
         logInfo('⚠️ Usuário já existe - verificando...', 'SIGNUP')
         
         try {
-          const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
-          const existingUser = usersData?.users?.find((u: any) => u.email === email)
+          const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+          const existingUser = usersData?.users?.find((u: any) => (u.email ?? '').toLowerCase() === email)
           
           if (existingUser?.email_confirmed_at) {
             logError('❌ Email já confirmado', 'SIGNUP')
@@ -209,8 +209,8 @@ export async function signUp(
         else if (supabaseAdmin) {
           logInfo('🔍 Verificando se usuário foi criado via Admin API...', 'SIGNUP')
           try {
-            const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
-            const existingUser = usersData?.users?.find((u: any) => u.email === email)
+            const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+            const existingUser = usersData?.users?.find((u: any) => (u.email ?? '').toLowerCase() === email)
             
             if (existingUser) {
               logSuccess('✅ Usuário encontrado via Admin API - usando ele', 'SIGNUP')
@@ -260,9 +260,17 @@ export async function signUp(
 
     // Verificar se temos usuário
     if (!userToUse) {
-      logError('❌ Usuário não foi criado', 'SIGNUP')
+      logError(`❌ Usuário não foi criado. ${authError?.message || ''}`, 'SIGNUP')
+      const msg = (authError?.message || '').toLowerCase()
+      if (msg.includes('rate limit') || msg.includes('429') || msg.includes('too many')) {
+        return { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' }
+      }
+      if (msg.includes('invalid') && msg.includes('email')) {
+        return { error: 'E-mail inválido. Verifique e tente outro.' }
+      }
       return { 
-        error: 'Erro ao criar usuário. Tente novamente.'
+        error: 'Erro ao criar usuário. Tente novamente.',
+        details: authError?.message
       }
     }
 
