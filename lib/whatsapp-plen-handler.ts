@@ -1562,7 +1562,7 @@ async function handleWhatsAppAuthentication(
     return {
       success: true,
       message:
-        'O cadastro é feito aqui pelo WhatsApp! 💙\n\nMe diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail. É bem rápido, prometo 💙\n\nSe já tem conta, digite *JÁ CRIEI* que eu peço seu e-mail para liberar.',
+        'O cadastro é feito aqui pelo WhatsApp! 💙\n\nMe diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail para ativar, e pronto já vai poder registrar tudo!\n\nÉ bem rápido, prometo 💙\n\nSe já tem conta, digite *JÁ CRIEI* que eu peço seu e-mail para liberar.',
     }
   }
 
