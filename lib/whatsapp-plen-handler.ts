@@ -55,10 +55,13 @@ const reenviarButtonSentToPhones = new Set<string>()
 
 /** Detecta intenção de intro (oi, quero usar, quero registrar ganhos/gastos, quero usar plenipay). Usado para enviar mensagem de boas-vindas + botão CADASTRAR. */
 function isIntroIntent(lowerText: string): boolean {
-  const t = lowerText.replace(/\s+/g, ' ').trim()
+  const t = String(lowerText ?? '')
+    .replace(/\s+/g, ' ')
+    .replace(/[\u200B\uFEFF\u00AD]/g, '')
+    .trim()
   if (!t || t.length > 200) return false
   const cumprimentos = ['oi', 'olá', 'ola', 'oii', 'oiii', 'hello', 'hi', 'bom dia', 'boa tarde', 'boa noite']
-  if (cumprimentos.some((c) => t === c || t.startsWith(c + ' ') || t === c + '!')) return true
+  if (cumprimentos.some((c) => t === c || t.startsWith(c + ' ') || t === c + '!' || t === c + '?')) return true
   const temPleni = /pleni\s*pay|plenipay/.test(t)
   if (temPleni && (/quero\s+usar/.test(t) || /quero\s+utilizar/.test(t) || /quero\s+começar/.test(t))) return true
   if (/quero\s+usar\s+(a\s+)?plenipay/i.test(t) || /quero\s+utilizar\s+(a\s+)?plenipay/i.test(t)) return true
@@ -499,8 +502,8 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       return null
     }
 
-    // CRÍTICO: Intro (oi, olá, quero usar, etc.) — SEMPRE resposta fixa + botão CADASTRAR, sem LLM e sem await
-    const lowerTextEarly = String(text).toLowerCase().trim()
+    // CRÍTICO: Intro (oi, olá, quero usar, etc.) — SEMPRE resposta fixa + botão CADASTRAR, sem LLM
+    const lowerTextEarly = String(text).replace(/\u200B|\uFEFF/g, '').toLowerCase().trim()
     if (isIntroIntent(lowerTextEarly)) {
       console.log('👋 [WhatsApp PLEN] Intro detectada (oi/olá) — enviando mensagem fixa + botão CADASTRAR')
       addLog('info', '👋 [PLEN WhatsApp] Intro (oi/olá) — resposta fixa com botão CADASTRAR')
@@ -1730,6 +1733,10 @@ async function handleWhatsAppAuthentication(
       }
     }
 
+    // Nunca usar LLM para intro (oi, olá, etc.) — sempre resposta fixa + botão
+    if (isIntroIntent(trimmedText.toLowerCase())) {
+      return introMessageWithButton(contactName)
+    }
     // Parece pergunta sobre o produto (preço, como funciona, etc.) — responder com IA
     const parecePergunta =
       trimmedText.includes('?') ||
