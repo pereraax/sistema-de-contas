@@ -91,12 +91,13 @@ async function countRegistrosPlen(supabase: SupabaseClient, accountOwnerId: stri
   return count ?? 0
 }
 
-/** Intervalo fixo: mensagem de "indique e ganhe" a cada 3 registros. */
+/** Mensagem "indique e ganhe" só a partir do 3º registro e de 3 em 3 (3º, 6º, 9º, 12º...). */
 const INCENTIVE_EVERY_N_REGISTROS = 3
+const INCENTIVE_MIN_REGISTROS = 3
 
 /**
- * Envia "indique e ganhe" a cada 3 registros (3º, 6º, 9º, ...).
- * Retorna duas mensagens (confirmação + incentivo) quando for hora de enviar.
+ * Envia "indique e ganhe" apenas no 3º, 6º, 9º, 12º... registro (a partir de 3 e de 3 em 3).
+ * Retorna duas mensagens (confirmação + incentivo) só quando total de registros é múltiplo de 3 e >= 3.
  */
 async function maybeAppendIncentiveIndication(
   supabase: SupabaseClient,
@@ -107,7 +108,8 @@ async function maybeAppendIncentiveIndication(
   currentButtonBody: string | undefined
 ): Promise<ProcessPlenWhatsAppResult> {
   const count = await countRegistrosPlen(supabase, userId)
-  if (count < INCENTIVE_EVERY_N_REGISTROS) {
+  const isMilestone = count >= INCENTIVE_MIN_REGISTROS && count % INCENTIVE_EVERY_N_REGISTROS === 0
+  if (!isMilestone) {
     return {
       response: currentResponse,
       buttonUrl: currentButtonUrl,
@@ -115,37 +117,6 @@ async function maybeAppendIncentiveIndication(
       buttonBody: currentButtonBody,
     }
   }
-
-  const { data: row } = await supabase
-    .from('plen_incentive_indication_sent')
-    .select('last_sent_at_registro_count, next_send_after_registro_count')
-    .eq('user_id', userId)
-    .maybeSingle()
-
-  const nextSendAfter = row?.next_send_after_registro_count ?? null
-  const isFirstTime = row == null || (row.last_sent_at_registro_count == null && nextSendAfter == null)
-  const shouldSend = isFirstTime ? count >= INCENTIVE_EVERY_N_REGISTROS : nextSendAfter != null && count >= nextSendAfter
-
-  if (!shouldSend) {
-    return {
-      response: currentResponse,
-      buttonUrl: currentButtonUrl,
-      buttonLabel: currentButtonLabel,
-      buttonBody: currentButtonBody,
-    }
-  }
-
-  const nextMilestone = count + INCENTIVE_EVERY_N_REGISTROS
-  await supabase
-    .from('plen_incentive_indication_sent')
-    .upsert(
-      {
-        user_id: userId,
-        last_sent_at_registro_count: count,
-        next_send_after_registro_count: nextMilestone,
-      },
-      { onConflict: 'user_id' }
-    )
 
   const urlPerfil = currentButtonUrl || PERFIL_URL
   const labelPerfil = currentButtonLabel || PERFIL_BUTTON_LABEL
