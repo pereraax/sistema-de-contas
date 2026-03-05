@@ -407,13 +407,13 @@ function getSiteUrlSemPreview(): string {
 
 /**
  * Monta a resposta no formato pedido:
- * 📌 nome do registro
+ * 📌 Gasto (ou nome do registro para entrada/dívida)
  * 🔴 R$ valor (gasto) ou 🟢 R$ valor (ganho)
  * 📅 data
  * 🗂️ Categoria: ...
  * 👤 usuario: ...
- * 💬 Descrição: ... (quando houver)
- * ✨ Mensagem de sucesso nome do contato (sem parênteses)
+ * 💬Descrição: (sempre; valor quando houver)
+ * ✨ Seu gasto foi registrado com sucesso 📿!
  * Veja com mais detalhes no seu perfil:
  */
 export function formatarRespostaRegistro(params: {
@@ -426,7 +426,7 @@ export function formatarRespostaRegistro(params: {
   nomeUsuario?: string
   /** Descrição/observação do registro (ex.: "guardei na caixinha nubank"). */
   observacao?: string
-  /** Nome do contato na conversa (ex.: nome no WhatsApp) — usado na mensagem de sucesso, sem parênteses. */
+  /** Nome do contato na conversa (ex.: nome no WhatsApp) — usado na mensagem de sucesso para entrada/dívida. */
   nomeContatoWhatsApp?: string
 }): string {
   const { nome, tipo, valor, dataRegistro, categoria, nomeUsuario, observacao, nomeContatoWhatsApp } = params
@@ -441,13 +441,14 @@ export function formatarRespostaRegistro(params: {
   const nomeNaMensagem = (nomeContatoWhatsApp || '').trim() || (nomeUsuario || '').trim() || (nome || '').trim() || 'registro'
   const mensagemSucesso =
     tipo === 'saida'
-      ? `✨ Seu gasto foi registrado com sucesso ${nomeNaMensagem}!`
+      ? '✨ Seu gasto foi registrado com sucesso 📿!'
       : tipo === 'divida'
         ? `✨ Sua dívida foi registrada com sucesso ${nomeNaMensagem}!`
         : `✨ Sua entrada foi registrada com sucesso ${nomeNaMensagem}!`
 
+  const titulo = tipo === 'saida' ? 'Gasto' : nome
   const linhas = [
-    `📌 ${nome}`,
+    `📌 ${titulo}`,
     `${emojiValor} ${valorFormatado}`,
     `📅 ${dataBR}`,
     `🗂️ Categoria: ${categoria}`,
@@ -455,9 +456,7 @@ export function formatarRespostaRegistro(params: {
   if (nomeUsuario != null && nomeUsuario.trim() !== '') {
     linhas.push(`👤 usuario: ${nomeUsuario.trim()}`)
   }
-  if (observacao != null && observacao.trim() !== '') {
-    linhas.push(`💬 Descrição: ${observacao.trim()}`)
-  }
+  linhas.push(observacao != null && observacao.trim() !== '' ? `💬Descrição: ${observacao.trim()}` : '💬Descrição:')
   linhas.push('', mensagemSucesso, '', 'Veja com mais detalhes no seu perfil:')
   return linhas.join('\n')
 }
