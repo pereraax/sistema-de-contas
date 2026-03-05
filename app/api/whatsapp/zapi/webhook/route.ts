@@ -18,6 +18,7 @@ import {
   parseGastoSimples,
   getMsgGastoRegistradoModoTeste,
   MSG_FOLLOW_UP_CRIAR_CONTA,
+  MSG_TESTAR_ANTES,
 } from '@/lib/whatsapp-modo-teste'
 import {
   getSignupPending,
@@ -585,6 +586,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
             : `Conta criada, ${nomeExibir} 💙\n\nO email de confirmação pode demorar ou ir para a pasta de *spam*. Se não chegar em alguns minutos, acesse *plenipay.com*, faça login com esse email e peça um novo link de confirmação.\n\nDepois de confirmar, sua conta fica ativa e você pode me dizer seus gastos e receitas. Por exemplo:\n• "gastei 200 com roupas"\n• "recebi 1500 salário"\n• "extra de 300"`
           await sendTextMessage(phone, msgSucesso, { delayTyping: 1 }).catch(() => {})
           if (emailFoiEnviado) await markEmailConfirmLinkSent(phone).catch(() => {})
+          await markWelcomeSent(phone).catch(() => {})
           await clearSignupPending(phone)
           markResponded(phone, text ?? '')
           console.log('✅ [Z-API Webhook] Conta criada pelo WhatsApp para', phone)
@@ -692,72 +694,23 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return
     }
 
-    // "Olá! Quero utilizar a Plenipay" + contato SEM cadastro → sempre responder com "Oiii" + intro (permite testar desde o início sempre).
-    if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured() && !temCadastro) {
-      if (introSendingNow.has(phone)) {
-        markResponded(phone, text ?? '')
-        return
-      }
-      introSendingNow.add(phone)
-      try {
-        const delayAntesMs = Math.floor(Math.random() * 5001)
-        console.log('🧪 [Z-API Webhook] "Quero utilizar Plenipay" sem cadastro — enviando oi + modo teste (intro) para', phone)
-        await delay(delayAntesMs)
-        if (await hasReceivedTestIntro(phone).catch(() => false)) {
-          console.log('📨 [Z-API Webhook] Intro já enviada antes para', phone, '— evitando duplicata')
-          markResponded(phone, text ?? '')
-          return
-        }
-        const msgIntro = getMensagemInicialModoTeste(contactName)
-        const sent = await sendTextMessage(phone, msgIntro, { delayTyping: 1 })
-        if (sent.success) {
-          await markTestIntroSent(phone).catch(() => {})
-          markResponded(phone, text ?? '')
-          registerSentMessage(phone, '[modo teste] intro (sem cadastro)')
-          console.log('✅ [Z-API Webhook] Modo teste enviado para contato sem cadastro:', phone)
-        } else {
-          await enviarFallbackContatoNovo()
-        }
-      } finally {
-        introSendingNow.delete(phone)
-      }
-      return
+    // Saudação "Oii" é enviada pelo próprio WhatsApp (função de saudação). Não enviamos intro aqui.
+    // "Quero utilizar Plenipay" ou qualquer primeira mensagem: só marcar que a intro já foi (pelo WhatsApp) e dar continuidade ao fluxo.
+    if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured() && !temCadastro && !jaRecebeuTestIntro) {
+      await markTestIntroSent(phone).catch(() => {})
+      console.log('🧪 [Z-API Webhook] Intro enviada pelo WhatsApp (saudação) — marcando e processando resposta do lead:', phone)
     }
 
-    if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
-      // 1) Ainda não enviamos a mensagem inicial do modo teste → enviar intro "Me diga um gasto"
+    // Só tratar como "modo teste" (intro/gasto/testar antes) quando o lead ainda NÃO tem conta. Quem já tem cadastro (ex.: acabou de criar e está aguardando confirmar email) deve cair no handler principal (processWhatsAppMessage).
+    if (!jaRecebeuBoasVindas && isBoasVindasConfigured() && !temCadastro) {
+      // 1) Primeira mensagem do lead: intro já foi enviada pelo WhatsApp (saudação). Só marcar e processar a resposta.
       if (!jaRecebeuTestIntro) {
-        if (introSendingNow.has(phone)) {
-          markResponded(phone, text ?? '')
-          return
-        }
-        introSendingNow.add(phone)
-        try {
-          const delayAntesMs = Math.floor(Math.random() * 5001)
-          console.log('🧪 [Z-API Webhook] Modo teste — enviando mensagem inicial para', phone)
-          await delay(delayAntesMs)
-          if (await hasReceivedTestIntro(phone).catch(() => false)) {
-            console.log('📨 [Z-API Webhook] Intro já enviada (evitando duplicata) para', phone)
-            markResponded(phone, text ?? '')
-            return
-          }
-          const msgIntro = getMensagemInicialModoTeste(contactName)
-          const sent = await sendTextMessage(phone, msgIntro, { delayTyping: 1 })
-          if (sent.success) {
-            await markTestIntroSent(phone).catch(() => {})
-            markResponded(phone, text ?? '')
-            registerSentMessage(phone, '[modo teste] intro')
-            console.log('✅ [Z-API Webhook] Mensagem inicial modo teste enviada para', phone)
-          } else {
-            await enviarFallbackContatoNovo()
-          }
-        } finally {
-          introSendingNow.delete(phone)
-        }
-        return
+        await markTestIntroSent(phone).catch(() => {})
+        console.log('🧪 [Z-API Webhook] Intro enviada pelo WhatsApp (saudação) — processando primeira resposta do lead:', phone)
+        // Não enviar nossa intro; cair no bloco 2) para processar gasto / nada / LLM.
       }
 
-      // 2) Já enviamos o intro do modo teste → tentar interpretar como gasto simples ("50 mercado", "20 uber")
+      // 2) Intro já enviada (por nós antes ou pelo WhatsApp) → processar resposta: gasto, "nada" ou LLM
       const gasto = parseGastoSimples(text ?? '')
       if (gasto) {
         console.log('🧪 [Z-API Webhook] Modo teste — gasto registrado:', gasto.valor, gasto.categoria, 'para', phone)
@@ -791,17 +744,13 @@ async function processarEmBackground(parsed: ZapiParsed) {
         return
       }
 
-      // Não pareceu um gasto → pedir no formato correto
-      await sendTextMessage(
-        phone,
-        'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber',
-        { delayTyping: 1 }
-      ).catch(() => {})
+      // Não pareceu um gasto → pedir para testar antes (gasto ou entrada)
+      await sendTextMessage(phone, MSG_TESTAR_ANTES, { delayTyping: 1 }).catch(() => {})
       markResponded(phone, text ?? '')
       return
     }
 
-    // "Quero utilizar PleniPay" (com cadastro ou já recebeu antes) — sempre enviar só o novo modelo (intro modo teste, 1 mensagem de texto).
+    // "Quero utilizar PleniPay" — saudação já está configurada no próprio WhatsApp; não enviamos nada, só marcamos e aguardamos a próxima mensagem do lead.
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
       if (introSendingNow.has(phone)) {
         markResponded(phone, text ?? '')
@@ -809,26 +758,11 @@ async function processarEmBackground(parsed: ZapiParsed) {
       }
       introSendingNow.add(phone)
       try {
-        const delayAntesMs = Math.floor(Math.random() * 5001)
-        console.log('👋 [Z-API Webhook] "Quero utilizar PleniPay" — enviando intro modo teste (novo modelo) para', phone)
-        await delay(delayAntesMs)
-        if (await hasReceivedTestIntro(phone).catch(() => false)) {
-          console.log('📨 [Z-API Webhook] Intro já enviada (evitando duplicata) para', phone)
-          markResponded(phone, text ?? '')
-          return
-        }
-        const msgIntro = getMensagemInicialModoTeste(contactName)
-        const sent = await sendTextMessage(phone, msgIntro, { delayTyping: 1 })
-        if (sent.success) {
-          await markTestIntroSent(phone).catch(() => {})
-          await markWelcomeSent(phone).catch(() => {})
-          markResponded(phone, text ?? '')
-          markWelcomeJustSent(phone)
-          registerSentMessage(phone, '[modo teste] intro')
-          console.log('✅ [Z-API Webhook] Intro modo teste enviada:', phone)
-        } else {
-          await enviarFallbackContatoNovo()
-        }
+        console.log('👋 [Z-API Webhook] "Quero utilizar PleniPay" — saudação no WhatsApp; marcando intro e aguardando lead:', phone)
+        await markTestIntroSent(phone).catch(() => {})
+        await markWelcomeSent(phone).catch(() => {})
+        markResponded(phone, text ?? '')
+        markWelcomeJustSent(phone)
       } finally {
         introSendingNow.delete(phone)
       }

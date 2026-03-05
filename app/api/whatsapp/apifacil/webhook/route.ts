@@ -20,7 +20,7 @@ import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen
 import { sendTextMessage, sendReplyButtons, sendCtaUrlButton, isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 import { recordIncomingMessage, markWelcomeSent, hasReceivedWelcome, hasReceivedTestIntro, markTestIntroSent, hasCadastro } from '@/lib/whatsapp-contatos-pendentes'
 import { sendBoasVindasToNumber, isBoasVindasConfigured, MENSAGENS_BOAS_VINDAS, sendBoasVindasSingleMessage } from '@/lib/whatsapp-enviar-boas-vindas-lib'
-import { getMensagemInicialModoTeste, parseGastoSimples, getMsgGastoRegistradoModoTeste, MSG_FOLLOW_UP_CRIAR_CONTA } from '@/lib/whatsapp-modo-teste'
+import { getMensagemInicialModoTeste, parseGastoSimples, getMsgGastoRegistradoModoTeste, MSG_FOLLOW_UP_CRIAR_CONTA, MSG_TESTAR_ANTES } from '@/lib/whatsapp-modo-teste'
 
 /** Normalizar número (evita dependência do bundle que falhava com normalizarPhone importado). */
 function normalizarPhone(phone: string): string {
@@ -425,19 +425,15 @@ async function processarEmBackground(parsed: {
 
     const jaRecebeuBoasVindas = await hasReceivedWelcome(phoneDigits).catch(() => false)
     const jaRecebeuTestIntro = await hasReceivedTestIntro(phoneDigits).catch(() => false)
+    const temCadastro = await hasCadastro(phoneDigits).catch(() => false)
 
-    // Modo teste inicial: contato novo primeiro recebe "Me diga algo que você gastou hoje"; depois registramos gasto e oferecemos criar conta.
-    if (!jaRecebeuBoasVindas && isBoasVindasConfigured()) {
+    // Só tratar como modo teste quando o lead ainda NÃO tem conta. Quem já tem cadastro (ex.: aguardando confirmar email) deve cair no handler principal.
+    // Saudação "Oii" é enviada pelo próprio WhatsApp (função de saudação). Não enviamos intro aqui.
+    if (!jaRecebeuBoasVindas && isBoasVindasConfigured() && !temCadastro) {
       if (!jaRecebeuTestIntro) {
-        console.log('🧪 [Apifacil Webhook] Modo teste — enviando mensagem inicial para', phone)
-        const contactName = (parsed as { contactName?: string }).contactName
-        const msgIntro = getMensagemInicialModoTeste(contactName)
-        if (isApifacilConfigured()) {
-          await sendTextMessage(phone, msgIntro).catch(() => {})
-          await markTestIntroSent(phone).catch(() => {})
-          console.log('✅ [Apifacil Webhook] Mensagem inicial modo teste enviada para', phone)
-        }
-        return
+        await markTestIntroSent(phone).catch(() => {})
+        console.log('🧪 [Apifacil Webhook] Intro enviada pelo WhatsApp (saudação) — processando primeira resposta do lead:', phone)
+        // Não enviar nossa intro; cair no fluxo abaixo para processar gasto / nada / LLM.
       }
       const gasto = parseGastoSimples(text ?? '')
       if (gasto) {
@@ -461,42 +457,20 @@ async function processarEmBackground(parsed: {
         return
       }
       if (isApifacilConfigured()) {
-        const leadTestContext = `Lead no fluxo de teste da Plenipay (ainda não tem conta). Pedimos para ele dizer um gasto do dia (ex: 50 mercado). Ele respondeu com a mensagem abaixo. Responda de forma amigável e organizada: explique brevemente o que é a Plenipay, responda à dúvida ou objeção dele, e no final convide a testar com um gasto (ex: 50 mercado, 20 uber) ou a criar a conta. Máximo 4-5 frases curtas. Use formatação WhatsApp (*negrito* para ênfase).`
-        let msgResposta: string
-        try {
-          const { getPlenLLMResponse } = await import('@/lib/plen-llm-fallback')
-          const llmResposta = await getPlenLLMResponse({
-            userMessage: (text ?? '').trim(),
-            context: leadTestContext,
-            productMode: true,
-          })
-          msgResposta = (llmResposta && llmResposta.trim()) ? llmResposta.trim() : 'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber'
-        } catch (_) {
-          msgResposta = 'Me diga um gasto no formato: valor e o que foi. Ex: 50 mercado, 20 uber'
-        }
-        await sendTextMessage(phone, msgResposta).catch(() => {})
+        await sendTextMessage(phone, MSG_TESTAR_ANTES).catch(() => {})
       }
       return
     }
 
-    // "Quero utilizar PleniPay" (quem já recebeu boas-vindas antes) — reenviar intro + botões
+    // "Quero utilizar PleniPay" — saudação já está configurada no próprio WhatsApp; não enviamos nada, só marcamos e aguardamos a próxima mensagem do lead.
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
-      console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" — reenviando 3 mensagens para', phone)
-      try {
-        const result = await sendBoasVindasToNumber(phone)
-        await markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
-        if (result.success) {
-          console.log('✅ [Apifacil Webhook] 3 mensagens de boas-vindas reenviadas:', phone)
-          return
-        }
-        console.error('❌ [Apifacil Webhook] sendBoasVindasToNumber falhou:', result.error)
-      } catch (err) {
-        console.error('❌ [Apifacil Webhook] Erro ao enviar boas-vindas:', err)
-      }
+      console.log('👋 [Apifacil Webhook] "Quero utilizar PleniPay" — saudação no WhatsApp; marcando e aguardando lead:', phone)
+      await markTestIntroSent(phoneDigits).catch(() => {})
+      await markWelcomeSent(phone).catch((e) => console.error('📨 [Apifacil Webhook] markWelcomeSent:', e))
+      return
     }
 
     // Boas-vindas já enviadas (manual ou automático) + mensagem é gasto de teste → processar gasto e não repetir intro nem passar ao PLEN
-    const temCadastro = await hasCadastro(phoneDigits).catch(() => false)
     const gastoJaRecebeuWelcome = parseGastoSimples(text ?? '')
     if (
       !temCadastro &&

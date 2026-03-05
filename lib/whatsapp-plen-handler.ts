@@ -655,14 +655,9 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       hasQueroUsar
 
     if (isQueroUtilizarPlenipay) {
-      console.log('👋 [WhatsApp PLEN] "Quero utilizar Plenipay" — enviando intro modo teste (novo modelo)')
+      console.log('👋 [WhatsApp PLEN] "Quero utilizar Plenipay" — saudação no WhatsApp; não enviar mensagem')
       addLog('info', `👋 [PLEN WhatsApp] QUERO UTILIZAR PLENIPAY: ${text}`)
-      const { getMensagemInicialModoTeste } = await import('@/lib/whatsapp-modo-teste')
-      const msgIntro = getMensagemInicialModoTeste(contactNameWhatsApp)
-      return {
-        success: true,
-        message: msgIntro,
-      }
+      return { success: true, skipReply: true }
     }
 
     // PRIORIDADE 2b: Verificar mensagem de boas-vindas "quero começar a usar"
@@ -814,6 +809,16 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
                 }
               }
             } else {
+              // Perguntas de próximo passo ("e agora?", "o que faço?") → resposta contextual e amigável
+              const t = text.trim().toLowerCase().replace(/\s+/g, ' ')
+              const ehPerguntaProximoPasso = /^(e\s+agora\??|e\s+depois\??|e\s+a[ií]\??|e\s+ent[aã]o\??|o\s+que\s+fa[cç]o\??|e\s+da[ií]\??|como\s+(fa[cç]o|prossigo)|pr[oó]ximo\s+passo|agora\s+o\s+que)\s*$/i.test(t)
+              if (ehPerguntaProximoPasso) {
+                console.log('📧 [WhatsApp PLEN] Pergunta "próximo passo" com email pendente — resposta contextual')
+                return {
+                  success: true,
+                  message: 'Agora é só abrir seu *email* (e a pasta de *spam*), clicar no *link* que enviamos e sua conta fica ativa. 💙\n\nDepois volte aqui e me diga um gasto ou receita que eu registro! Ex.: "gastei 200 com roupas" ou "recebi 1500 salário".',
+                }
+              }
               console.log('📧 [WhatsApp PLEN] Email ainda não confirmado — bloqueando registro/uso até confirmação')
               return {
                 success: true,
