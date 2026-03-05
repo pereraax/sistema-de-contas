@@ -1514,8 +1514,10 @@ async function handleWhatsAppAuthentication(
   // Criar conta aqui: usuário enviou email "não cadastrado" e depois enviou o nome
   const signupPending = pendingSignupCreate.get(phoneNumber)
   if (signupPending?.email) {
-    const nome = trimmedText.trim()
-    const { isValidNome } = await import('@/lib/whatsapp-signup-flow')
+    const { isValidNome, extrairNomeDaMensagem } = await import('@/lib/whatsapp-signup-flow')
+    const nomeBruto = trimmedText.trim()
+    const nomeExtraido = extrairNomeDaMensagem(nomeBruto)
+    const nome = (nomeExtraido && nomeExtraido.length >= 2 ? nomeExtraido : nomeBruto).trim()
     if (nome.length >= 2 && isValidNome(nome)) {
       const { criarContaFromWhatsApp } = await import('@/lib/criar-conta-whatsapp')
       const phoneDigits = phoneNumber.replace(/\D/g, '')

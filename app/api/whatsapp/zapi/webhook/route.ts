@@ -31,6 +31,7 @@ import {
   validateEmailWithHint,
   isSaudacaoOuRespostaGenerica,
   isRecusaOuAdiamentoCadastro,
+  extrairNomeDaMensagem,
 } from '@/lib/whatsapp-signup-flow'
 import { cancelLeadRecoveryOnUserReply, initLeadRecovery, markLeadRecoveryEmailReceived, markLeadRecoveryCadastroConcluido } from '@/lib/whatsapp-lead-recovery'
 
@@ -588,9 +589,9 @@ async function processarEmBackground(parsed: ZapiParsed) {
         return
       }
       if (signupPending.step === 'nome') {
-        const nome = (text ?? '').trim()
+        const msg = (text ?? '').trim()
         // Identificar contexto: saudação ou resposta genérica não é nome — não avançar nem chamar LLM.
-        if (isSaudacaoOuRespostaGenerica(nome)) {
+        if (isSaudacaoOuRespostaGenerica(msg)) {
           await sendTextMessage(
             phone,
             'Oi! 💙 Para criar sua conta preciso do seu *nome completo*. Ex.: Maria Silva.',
@@ -600,17 +601,18 @@ async function processarEmBackground(parsed: ZapiParsed) {
           console.log('📧 [Z-API Webhook] Cadastro WhatsApp — mensagem é saudação/resposta genérica, pedindo nome completo de novo:', phone)
           return
         }
-        let nomeFinal = nome
-        if (!isValidNome(nome)) {
-          const extraido = await extrairNomeComOpenAI(nome).catch(() => null)
-          if (extraido && isValidNome(extraido)) nomeFinal = extraido
+        const nomeExtraido = extrairNomeDaMensagem(msg)
+        let nomeFinal = nomeExtraido && nomeExtraido.length >= 2 ? nomeExtraido : msg
+        if (!isValidNome(nomeFinal)) {
+          const extraidoOpenAI = await extrairNomeComOpenAI(msg).catch(() => null)
+          if (extraidoOpenAI && isValidNome(extraidoOpenAI)) nomeFinal = extraidoOpenAI
         }
         if (isValidNome(nomeFinal)) {
           await setSignupStepEmail(phone, nomeFinal)
           await initLeadRecovery(phone).catch(() => {})
           await sendTextMessage(phone, 'Qual seu e-mail?', { delayTyping: 1 }).catch(() => {})
           markResponded(phone, text ?? '')
-          console.log('📧 [Z-API Webhook] Cadastro WhatsApp — nome recebido', nomeFinal !== nome ? `(extraído: ${nomeFinal})` : '', 'aguardando e-mail para', phone)
+          console.log('📧 [Z-API Webhook] Cadastro WhatsApp — nome recebido', nomeFinal !== msg ? `(extraído: ${nomeFinal})` : '', 'aguardando e-mail para', phone)
         } else {
           await sendTextMessage(phone, 'Me diga seu nome (ex.: Maria Silva).', { delayTyping: 1 }).catch(() => {})
           markResponded(phone, text ?? '')

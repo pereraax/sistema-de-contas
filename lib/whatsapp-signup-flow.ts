@@ -228,3 +228,32 @@ export function isValidNome(nome: string): boolean {
   if (letrasDiferentes.size < 2) return false
   return true
 }
+
+/** Padrões para extrair só o nome da mensagem (ex.: "meu nome é ycaro" → "ycaro"). Ordem importa. */
+const PADROES_NOME = [
+  /(?:meu\s+nome\s+é|meu\s+nome\s+e\s+|meu\s+nome\s+eh)\s*[:.]?\s*(.+)/i,
+  /(?:me\s+chamo|me\s+chamam\s+de)\s*[:.]?\s*(.+)/i,
+  /(?:sou\s+(?:o|a)\s+)(.+)/i,
+  /(?:pode\s+me\s+chamar\s+de|me\s+chama\s+de)\s*[:.]?\s*(.+)/i,
+  /(?:nome\s*[:.]?\s*)(.+)/i,
+  /(?:é\s+|eh\s+)\s*([a-záàâãéêíóôõúç\s\-']{2,80})$/i,
+  /(?:i'm|i\s+am|my\s+name\s+is)\s+(.+)/i,
+  /(?:mi\s+nombre\s+es)\s+(.+)/i,
+]
+
+/**
+ * Extrai apenas o nome da pessoa de uma mensagem como "meu nome é ycaro", "me chamo Maria Silva".
+ * Retorna o nome extraído (trimmed, até 80 chars) ou null se não reconhecer padrão.
+ */
+export function extrairNomeDaMensagem(mensagem: string): string | null {
+  const t = (mensagem || '').trim()
+  if (!t || t.length > 300) return null
+  for (const re of PADROES_NOME) {
+    const m = t.match(re)
+    if (m && m[1]) {
+      const nome = m[1].trim().replace(/\s+/g, ' ').slice(0, 80)
+      if (nome.length >= 2 && /[a-záàâãéêíóôõúç]/i.test(nome)) return nome
+    }
+  }
+  return null
+}
