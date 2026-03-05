@@ -215,7 +215,7 @@ export default function CheckoutPage() {
   }
 
   const valores = {
-    basico: 29.90,
+    basico: 9.90,
     premium: 49.90,
   }
 

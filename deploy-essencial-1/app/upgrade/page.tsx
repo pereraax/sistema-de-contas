@@ -15,7 +15,7 @@ const planos = [
     id: 'basico' as const,
     nome: 'Plano Básico',
     descricao: 'Ideal para uso pessoal',
-    preco: 'R$ 29,90',
+    preco: 'R$ 9,90',
     periodo: 'por mês',
     testeGratis: '7 dias grátis',
     features: [

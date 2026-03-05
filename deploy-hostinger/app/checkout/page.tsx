@@ -254,7 +254,7 @@ function CheckoutContent() {
   }
 
   const valores = {
-    basico: 29.90,
+    basico: 9.90,
     premium: 49.90,
     anual: 197.00,
   }

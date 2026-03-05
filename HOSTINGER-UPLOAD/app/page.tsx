@@ -987,7 +987,7 @@ export default function LandingPage() {
               </div>
               <div className="mb-3 sm:mb-4">
                 <div className="flex items-baseline gap-2">
-                          <span className="text-xl sm:text-2xl md:text-3xl font-bold text-[#0D1B2A]">R$ 29,90</span>
+                          <span className="text-xl sm:text-2xl md:text-3xl font-bold text-[#0D1B2A]">R$ 9,90</span>
                   <span className="text-gray-600 text-xs sm:text-sm">/mês</span>
                 </div>
                 <p className="text-xs text-[#00C2FF] font-semibold mt-1 sm:mt-2">7 dias grátis</p>
