@@ -59,8 +59,13 @@ export async function getSiteUrl(): Promise<string> {
   return productionUrl
 }
 
-/** URL para links de confirmação de email: em produção SEMPRE plenipay.com (para o link do email e redirect abrirem no domínio certo). */
+/** URL para links de confirmação de email. Use EMAIL_REDIRECT_BASE_URL no servidor para forçar (ex.: https://plenipay.com). */
 export async function getSiteUrlForEmailRedirect(): Promise<string> {
+  // Forçar base do link do email (Railway/Vercel: defina EMAIL_REDIRECT_BASE_URL=https://plenipay.com para nunca sair localhost)
+  const forced = process.env.EMAIL_REDIRECT_BASE_URL?.trim()
+  if (forced && forced.startsWith('http') && !forced.includes('localhost') && !forced.includes('127.0.0.1')) {
+    return forced.replace(/\/$/, '')
+  }
   if (process.env.NODE_ENV === 'development') {
     const env = process.env.NEXT_PUBLIC_SITE_URL?.trim()
     if (env && (env.includes('localhost') || env.includes('127.0.0.1'))) {

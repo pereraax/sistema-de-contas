@@ -23,9 +23,12 @@ Exemplo de link no template:
 
 O `ConfirmationURL` já inclui o token e o `redirect_to` que enviamos no signUp (`https://plenipay.com/auth/callback?next=/login`).
 
-## 3. Código (já implementado)
+## 3. Código e variável de ambiente
 
-- `lib/auth.ts`: `getSiteUrlForEmailRedirect()` retorna `https://plenipay.com` em produção.
-- O redirect usado no signUp e no generateLink é sempre: `https://plenipay.com/auth/callback?next=/login`.
+- `lib/auth.ts`: `getSiteUrlForEmailRedirect()` usa, nesta ordem:
+  1. **EMAIL_REDIRECT_BASE_URL** (se definida e não for localhost) → use em produção para forçar o link do email.
+  2. Em desenvolvimento: `NEXT_PUBLIC_SITE_URL` com localhost.
+  3. Caso contrário: `https://plenipay.com`.
+- **No Railway (ou outro host de produção):** defina `EMAIL_REDIRECT_BASE_URL=https://plenipay.com` para o link de confirmação **sempre** apontar para plenipay.com, mesmo que `NODE_ENV` ou `NEXT_PUBLIC_SITE_URL` estejam com valor de dev/localhost.
 
 Mesmo que o email saia com `redirect_to=https://plenipay.com`, o **middleware** e a **página raiz** redirecionam `/?code=...` ou `/?token_hash=...` para `/auth/callback`, que processa a confirmação, mostra o modal e dispara o aviso no WhatsApp.
