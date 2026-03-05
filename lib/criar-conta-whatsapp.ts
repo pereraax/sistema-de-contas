@@ -47,6 +47,11 @@ export async function criarContaFromWhatsApp(
   )
 
   if (result.error) {
+    const details = (result as { details?: string }).details
+    console.error('[criar-conta-whatsapp] signUp falhou:', result.error, details ? `| detalhe: ${details}` : '')
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[criar-conta-whatsapp] Local: confira .env.local (SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_*) e no Supabase Dashboard > Authentication > Users se o usuário foi criado.')
+    }
     const msg = result.error.toLowerCase()
     const emailJaCadastrado =
       msg.includes('já está cadastrado') ||

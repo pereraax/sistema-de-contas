@@ -101,7 +101,7 @@ export async function signUp(
     }
     
     if (!supabaseAdmin) {
-      logWarn('⚠️ Admin client não disponível (sem SERVICE_ROLE_KEY) - continuando sem Admin API', 'SIGNUP')
+      logWarn('⚠️ Admin client não disponível (SUPABASE_SERVICE_ROLE_KEY ausente no .env.local). Se aparecer "Erro ao criar usuário", adicione a chave para o fallback funcionar.', 'SIGNUP')
       // Continuar mesmo sem admin client - podemos tentar criar usuário normalmente
     }
 
@@ -255,6 +255,20 @@ export async function signUp(
         return { 
           error: authError.message || 'Erro ao criar conta'
         }
+      }
+    }
+
+    // Última tentativa: Supabase pode ter criado o usuário mas a resposta não trouxe (ex.: erro só no envio do email, timeout)
+    if (!userToUse && supabaseAdmin) {
+      try {
+        const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+        const found = usersData?.users?.find((u: any) => (u.email ?? '').toLowerCase() === email.toLowerCase())
+        if (found) {
+          logInfo('✅ Usuário encontrado via listUsers (fallback)', 'SIGNUP')
+          userToUse = found
+        }
+      } catch (e) {
+        logWarn(`⚠️ Fallback listUsers falhou: ${(e as Error)?.message}`, 'SIGNUP')
       }
     }
 
