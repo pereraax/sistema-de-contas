@@ -5,7 +5,7 @@
 
 import { extrairValor, categoriaInteligente } from '@/lib/plen-registro'
 
-/** Mensagem inicial do modo teste = saudação Plen (igual à mensagem de boas-vindas do WhatsApp). */
+/** Texto da mensagem de saudação (configurada no próprio WhatsApp; não enviamos do app ao receber "Quero utilizar a Plenipay"). Usado apenas como referência ou se precisar reenviar em outro fluxo. */
 export function getMensagemInicialModoTeste(contactName?: string | null): string {
   const raw = (contactName ?? '').trim().slice(0, 50)
   const nome = raw && raw.toLowerCase() !== 'nome' && raw.toLowerCase() !== 'pessoa' ? raw : ''
@@ -22,6 +22,23 @@ Exemplo:
 * 50 mercado
 * 20 uber`
 }
+
+/** Mensagem de intro Plenipay (oi, quero usar, quero registrar): uma única mensagem com CTA "clique no botão abaixo". Usar com botão de resposta CADASTRAR (sem link). */
+export function getMensagemIntroPlenipay(contactName?: string | null): string {
+  const raw = (contactName ?? '').trim().slice(0, 50)
+  const nome = raw && raw.toLowerCase() !== 'nome' && raw.toLowerCase() !== 'pessoa' ? raw : ''
+  const saudacao = nome ? `Olá ${nome} 😊!` : 'Olá! 😊'
+  return `${saudacao} Estou aqui para te ajudar!
+
+A Plenipay é uma ferramenta que ajuda você a controlar suas finanças de forma fácil e rápida.
+
+Você pode registrar gastos, receitas e dívidas!
+
+Quer começar a usar a Plenipay? Clique no botão abaixo.`
+}
+
+/** Quando o lead envia algo que não é gasto/entrada: convite para testar antes. */
+export const MSG_TESTAR_ANTES = `Vamos testar antes? 😊 Me diga um gasto ou uma entrada do dia (ex.: 50 mercado ou recebi 100) e seguimos a partir daí. 💙`
 
 /** Resultado do parse de um gasto simples (ex.: "50 mercado", "20 uber"). */
 export type GastoSimples = { valor: number; categoria: string; descricao: string }

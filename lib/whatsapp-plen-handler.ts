@@ -2,6 +2,8 @@
  * Handler para processar mensagens WhatsApp e integrar com PLEN
  */
 
+import { getMensagemIntroPlenipay } from '@/lib/whatsapp-modo-teste'
+
 // Armazenar emails pendentes temporariamente (em memória)
 // Formato: phoneNumber -> email
 const pendingEmails = new Map<string, string>()
@@ -50,6 +52,36 @@ const BOTAO_REENVIAR_CODIGO = { id: 'reenviar_codigo', title: 'Reenviar código'
 
 /** Contatos que já receberam o botão "Reenviar código" (para não enviar aleatoriamente). */
 const reenviarButtonSentToPhones = new Set<string>()
+
+/** Detecta intenção de intro (oi, quero usar, quero registrar ganhos/gastos, quero usar plenipay). Usado para enviar mensagem de boas-vindas + botão CADASTRAR. */
+function isIntroIntent(lowerText: string): boolean {
+  const t = lowerText.replace(/\s+/g, ' ').trim()
+  if (!t || t.length > 200) return false
+  const cumprimentos = ['oi', 'olá', 'ola', 'oii', 'oiii', 'hello', 'hi', 'bom dia', 'boa tarde', 'boa noite']
+  if (cumprimentos.some((c) => t === c || t.startsWith(c + ' ') || t === c + '!')) return true
+  const temPleni = /pleni\s*pay|plenipay/.test(t)
+  if (temPleni && (/quero\s+usar/.test(t) || /quero\s+utilizar/.test(t) || /quero\s+começar/.test(t))) return true
+  if (/quero\s+usar\s+(a\s+)?plenipay/i.test(t) || /quero\s+utilizar\s+(a\s+)?plenipay/i.test(t)) return true
+  if (/quero\s+registrar\s+(meus?\s+)?(ganhos|gastos|receitas)/i.test(t)) return true
+  if (/quero\s+começar\s+a\s+usar/.test(t) && temPleni) return true
+  // "quero usar" sozinho ou com poucas palavras (ex.: "quero usar", "quero usar isso")
+  if (t.length <= 60 && /\bquero\s+usar\b/.test(t)) return true
+  return false
+}
+
+/** Resposta de intro com botão CADASTRAR (sem link) para oi / quero usar / quero registrar. */
+function introMessageWithButton(contactName?: string | null) {
+  return {
+    success: true as const,
+    messages: [
+      {
+        type: 'buttons' as const,
+        body: getMensagemIntroPlenipay(contactName),
+        buttons: [{ id: 'cadastrar', title: 'CADASTRAR' }],
+      },
+    ],
+  }
+}
 
 function shouldShowReenviarButton(phone: string): boolean {
   if (reenviarButtonSentToPhones.has(phone)) return false
@@ -703,27 +735,9 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       console.log('👋 [WhatsApp PLEN] MENSAGEM DE BOAS-VINDAS DETECTADA!')
       console.log('👋 [WhatsApp PLEN] Text:', text)
       console.log('👋 [WhatsApp PLEN] ==========================================')
-      
       addLog('info', `👋 [PLEN WhatsApp] MENSAGEM DE BOAS-VINDAS DETECTADA: ${text}`)
       process.stdout.write(`\n👋 MENSAGEM DE BOAS-VINDAS DETECTADA: ${text}\n`)
-      
-      // Sem link na mensagem para não mostrar preview. Usuário digita CADASTRAR para receber o link.
-      return {
-        success: true,
-        message: `👋 Oi! Seja bem-vindo(a) à PleniPay
-
-Eu sou a Plen, sua assistente financeira 🤖💙
-Estou aqui pra te ajudar a registrar seus gastos e ganhos de forma simples e acompanhar como está o seu controle financeiro no dia a dia, sem planilhas e sem complicação.
-
-✨ Você pode começar gratuitamente agora mesmo
-👉 Digite *CADASTRAR* que eu te mando o link do site
-
-Depois do cadastro, é só me mandar mensagens pelo WhatsApp que eu te ajudo a registrar tudo de forma rápida e organizada 📊💬
-
-Se tiver qualquer dúvida, pode falar comigo por aqui. E, se precisar, eu chamo nosso suporte humano pra te ajudar 😉
-
-Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a conta. 🚀`,
-      }
+      return introMessageWithButton(contactNameWhatsApp)
     }
     
     // CRÍTICO: Verificar contexto do usuário PRIMEIRO para que qualquer contato novo receba resposta
@@ -734,7 +748,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
     const emailOnlyRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
     if (emailOnlyRegex.test(trimmedForEmail)) {
       const userContextForEmail = await getUserContext(phoneNumber)
-      const authResult = await handleWhatsAppAuthentication(phoneNumber, text, userContextForEmail)
+      const authResult = await handleWhatsAppAuthentication(phoneNumber, text, userContextForEmail, contactNameWhatsApp)
       if (authResult) {
         console.log('📧 [WhatsApp PLEN] Mensagem era e-mail, processada no fluxo de autenticação')
         return authResult
@@ -805,7 +819,7 @@ Pronto(a) pra começar? Digite *CADASTRAR* ou *JÁ CADASTREI* se já criou a con
         }
       }
       console.log('📧 [WhatsApp PLEN] Contato não autenticado - iniciando fluxo de email/key')
-      const authResult = await handleWhatsAppAuthentication(phoneNumber, text, userContext)
+      const authResult = await handleWhatsAppAuthentication(phoneNumber, text, userContext, contactNameWhatsApp)
       console.log('📤 [WhatsApp PLEN] Resultado da autenticação:', authResult ? `success: ${authResult.success}` : 'null')
       return authResult
     }
@@ -1461,10 +1475,17 @@ async function verificarEmailJaAtivoNoWhatsApp(
 async function handleWhatsAppAuthentication(
   phoneNumber: string,
   text: string,
-  context: UserContext
+  context: UserContext,
+  contactName?: string | null
 ) {
   const trimmedText = text.replace(/\u200B|\uFEFF/g, '').trim()
   const lowerText = trimmedText.toLowerCase()
+
+  // Intro (oi, quero usar, quero registrar, etc.) — resposta com mensagem + botão CADASTRAR (sem link)
+  if (isIntroIntent(lowerText)) {
+    pendingEmails.delete(phoneNumber)
+    return introMessageWithButton(contactName)
+  }
 
   // Botão "JÁ CADASTREI" / "Já criei" — usuário avisou que já se cadastrou; pedir e-mail
   const norm = trimmedText.toLowerCase().replace(/\s+/g, ' ').replace(/[.,!?]+/g, '').trim()
@@ -1529,16 +1550,6 @@ async function handleWhatsAppAuthentication(
       success: true,
       message:
         'O cadastro é feito aqui pelo WhatsApp! 💙\n\nMe diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail.\n\nSe já tem conta, digite *JÁ CRIEI* que eu peço seu e-mail para liberar.',
-    }
-  }
-
-  // Verificar se é primeira mensagem (oi, olá, etc)
-  if (lowerText === 'oi' || lowerText === 'olá' || lowerText === 'ola' || lowerText === 'hello' || lowerText === 'hi' || lowerText === 'bom dia' || lowerText === 'boa tarde' || lowerText === 'boa noite') {
-    // Limpar qualquer email pendente anterior
-    pendingEmails.delete(phoneNumber)
-    return {
-      success: true,
-      message: `👋 Olá! Eu sou o PLEN, seu assistente financeiro pessoal! 😊\n\nEstou aqui para tornar o controle das suas finanças mais simples e organizado. Você pode falar comigo de forma natural, como se estivesse conversando com um amigo!\n\n💼 O que eu posso fazer por você:\n\n📝 REGISTRAR:\n• Gastos: "paguei 50 reais no mercado"\n• Entradas: "recebi 1000 reais"\n• Dívidas: "tenho uma dívida de 200 reais"\n• Salários: "meu salário é 3000 reais"\n\n📊 CONSULTAR:\n• "quais são minhas dívidas?"\n• "quanto gastei na semana?"\n• "quanto gastei no mês?"\n• "quanto tenho de saldo?"\n• "quanto recebi este mês?"\n\n📈 RELATÓRIOS:\n• "me mostre o relatório"\n• "quero ver meu relatório financeiro"\n• "mostre meu resumo do mês"\n• "como estão minhas finanças?"\n\n💡 Como eu entendo você:\n\nVocê pode falar de forma natural! Por exemplo:\n• "gastei 30 reais de ônibus hoje"\n• "paguei 150 reais de conta de luz"\n• "recebi 500 reais do cliente"\n• "tenho uma dívida de 2000 no cartão"\n\nEu entendo diferentes formas de falar e vou organizar tudo para você! 🎯\n\n📧 Para começar, me envie seu email de cadastro para eu identificar sua conta...`,
     }
   }
 
