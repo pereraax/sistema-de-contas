@@ -366,15 +366,29 @@ function isMsgBloqueada(msg: string): boolean {
   return false
 }
 
+/** Detecta "Olá! Quero utilizar a Plenipay." e variações — CRÍTICO para não pular nenhum contato novo. */
 function isQueroUtilizarPlenipayMessage(t: string): boolean {
   if (!t || typeof t !== 'string') return false
-  const msg = t.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.,!?]+/g, ' ')
+  const raw = t.replace(/\u200B|\uFEFF|\u00AD/g, '').trim()
+  const msg = raw.toLowerCase().replace(/[.,!?;:]+/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!msg || msg.length > 300) return false
+  // Frase exata (Facebook/WhatsApp envia assim)
+  if (
+    msg === 'ola! quero utilizar a plenipay' ||
+    msg === 'olá! quero utilizar a plenipay' ||
+    msg === 'ola quero utilizar a plenipay' ||
+    msg === 'olá quero utilizar a plenipay' ||
+    /^ol[aá]\s*!?\s*quero\s+utilizar\s+(a\s+)?plenipay\.?\s*$/.test(msg) ||
+    /^ol[aá]\s*!?\s*quero\s+usar\s+(a\s+)?plenipay\.?\s*$/.test(msg)
+  )
+    return true
   const temPlenipay = msg.includes('plenipay') || (msg.includes('pleni') && msg.includes('pay'))
   const temIntencao =
     msg.includes('quero utilizar') ||
     msg.includes('quero usar') ||
     msg.includes('utilizar a plenipay') ||
     msg.includes('usar a plenipay') ||
+    /utilizar\s+(a\s+)?pleni\s*pay|usar\s+(a\s+)?pleni\s*pay/.test(msg) ||
     (msg.includes('quero') && (msg.includes('utilizar') || msg.includes('usar') || msg.includes('plenipay')))
   return !!(temPlenipay && temIntencao)
 }
@@ -577,6 +591,26 @@ async function processarEmBackground(parsed: ZapiParsed) {
     const temCadastro = await hasCadastro(phoneDigits).catch(() => false)
     const signupPending = await getSignupPending(phoneDigits).catch(() => null)
 
+    // PRIORIDADE MÁXIMA: "Olá! Quero utilizar a Plenipay." — SEMPRE enviar saudação para contato novo, sem pular ninguém.
+    if (isQueroUtilizarPlenipayMessage(text) && !temCadastro && !jaRecebeuTestIntro) {
+      const apresentacao = getMensagemInicialModoTeste(contactName)
+      let sent = await sendTextMessage(phone, apresentacao, { delayTyping: 1 }).catch(() => ({ success: false }))
+      if (!sent?.success) {
+        console.warn('⚠️ [Z-API Webhook] Saudação 1ª tentativa falhou, retry em 2s:', sent?.error, '—', phone)
+        await delay(2000)
+        sent = await sendTextMessage(phone, apresentacao, { delayTyping: 1 }).catch(() => ({ success: false }))
+      }
+      if (sent?.success) {
+        await markTestIntroSent(phone).catch(() => {})
+        await markWelcomeSent(phone).catch(() => {})
+        console.log('👋 [Z-API Webhook] "Quero utilizar Plenipay" — saudação enviada para lead:', phone)
+      } else {
+        console.error('❌ [Z-API Webhook] Saudação falhou após retry (cron reenviará):', phone, sent?.error)
+      }
+      markResponded(phone, text ?? '')
+      return
+    }
+
     // Fluxo de criação de conta pelo WhatsApp: aguardando nome ou e-mail.
     if (signupPending) {
       // Lead disse que não quer criar conta agora / quer só testar → entender contexto e sair do fluxo.
@@ -612,7 +646,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
         }
         if (isValidNome(nomeFinal)) {
           await setSignupStepEmail(phone, nomeFinal)
-          await initLeadRecovery(phone).catch(() => {})
+          await initLeadRecovery(phone).catch((e) => console.error('📧 [Z-API Webhook] initLeadRecovery:', e))
           await sendTextMessage(phone, 'Qual seu e-mail?', { delayTyping: 1 }).catch(() => {})
           markResponded(phone, text ?? '')
           console.log('📧 [Z-API Webhook] Cadastro WhatsApp — nome recebido', nomeFinal !== msg ? `(extraído: ${nomeFinal})` : '', 'aguardando e-mail para', phone)
@@ -738,18 +772,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
       return
     }
 
-    // "Olá! Quero utilizar a Plenipay." (primeira vez, sem cadastro): SEMPRE enviar mensagem de intro (não depender da saudação do Facebook/WhatsApp).
-    if (isQueroUtilizarPlenipayMessage(text) && !temCadastro && !jaRecebeuTestIntro) {
-      const apresentacao = getMensagemInicialModoTeste(contactName)
-      const sent = await sendTextMessage(phone, apresentacao, { delayTyping: 1 }).catch(() => ({ success: false }))
-      if (sent?.success) {
-        await markTestIntroSent(phone).catch(() => {})
-        await markWelcomeSent(phone).catch(() => {})
-      }
-      markResponded(phone, text ?? '')
-      console.log('👋 [Z-API Webhook] "Quero utilizar Plenipay" — enviada apresentação + teste para lead:', phone, sent?.success ? '' : '(envio falhou; cron reenviará)')
-      return
-    }
+    // (Saudação "Quero utilizar Plenipay" já tratada no bloco de prioridade máxima acima.)
 
     // Só tratar como "modo teste" (intro/gasto/testar antes) quando o lead ainda NÃO tem conta. Quem já tem cadastro (ex.: acabou de criar e está aguardando confirmar email) deve cair no handler principal (processWhatsAppMessage).
     // Mensagens de intro (oi, quero usar, etc.) vão para o handler PLEN para responder com intro + botão CADASTRAR — não interceptar aqui.

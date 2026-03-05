@@ -159,20 +159,38 @@ export async function hasCadastro(phone: string): Promise<boolean> {
   return (data as { user_id?: string } | null)?.user_id != null
 }
 
+/** Normaliza texto para detecção "quero utilizar Plenipay": remove espaços extras, pontuação e caracteres invisíveis. */
+function normalizeForQueroPlenipay(text: string): string {
+  return text
+    .replace(/\u200B|\uFEFF|\u00AD/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[.,!?;:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /** Verifica se a mensagem indica intenção de usar a Plenipay (fluxo de boas-vindas). Identifica "Olá! Quero utilizar a plenipay" e variações. */
 export function isQueroUtilizarPlenipay(text: string): boolean {
   if (!text || typeof text !== 'string') return false
-  const t = text
-    .toLowerCase()
-    .trim()
-    .replace(/[.,!?]+/g, ' ')
-    .replace(/\s+/g, ' ')
+  const t = normalizeForQueroPlenipay(text)
+  if (!t || t.length > 300) return false
+  // Frase exata (com pequenas variações): "olá! quero utilizar a plenipay"
+  const fraseExata =
+    /^(ol[aá]\s*!?\s*)?quero\s+utilizar\s+(a\s+)?pleni\s*pay\.?$/i.test(t) ||
+    /^(ol[aá]\s*!?\s*)?quero\s+usar\s+(a\s+)?pleni\s*pay\.?$/i.test(t) ||
+    t === 'ola! quero utilizar a plenipay' ||
+    t === 'olá! quero utilizar a plenipay' ||
+    t === 'ola quero utilizar a plenipay' ||
+    t === 'olá quero utilizar a plenipay'
+  if (fraseExata) return true
   const temPlenipay = /pleni\s*pay|plenipay/.test(t)
   const temIntencao =
     t.includes('quero utilizar') ||
     t.includes('quero usar') ||
-    /olá\s*,?\s*quero|ola\s*,?\s*quero/.test(t)
-  return temPlenipay && temIntencao
+    /utilizar\s+(a\s+)?pleni\s*pay|usar\s+(a\s+)?pleni\s*pay/.test(t) ||
+    /ol[aá]\s*,?\s*quero|ola\s*,?\s*quero/.test(t)
+  return !!(temPlenipay && temIntencao)
 }
 
 /** Mensagem de saudação automática "Olá, Bem vindo (a) a Plenipay" que NÃO conta como resposta do fluxo de 3. Quem só recebeu isso ainda é pendente. */
