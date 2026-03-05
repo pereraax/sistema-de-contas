@@ -249,8 +249,37 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
       // Criar cliente Supabase
       const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
       
-      // Verificar se há hash com access_token
       const hash = window.location.hash;
+      const hashParams = hash ? new URLSearchParams(hash.substring(1)) : null;
+      const tokenHashFromHash = hashParams && hashParams.get('token_hash');
+      const typeFromHash = hashParams && hashParams.get('type');
+      if (tokenHashFromHash && typeFromHash) {
+        console.log('🔑 [Callback Client] Processando token_hash do hash...');
+        const typesToTry = [typeFromHash, 'magiclink', 'signup', 'email'];
+        for (const t of typesToTry) {
+          const { data, error } = await supabaseClient.auth.verifyOtp({ type: t, token_hash: tokenHashFromHash });
+          if (!error && data && data.session) {
+            console.log('✅ [Callback Client] Sessão criada via verifyOtp (hash)');
+            try {
+              await fetch(productionUrl + '/api/auth/on-email-confirmed', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ access_token: data.session.access_token, refresh_token: data.session.refresh_token || '' })
+              });
+            } catch (e) { console.warn('Notify WhatsApp:', e); }
+            const next = new URLSearchParams(window.location.search).get('next') || '/home';
+            var destPath = (next === '/login' || next === 'login') ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : next;
+            if (destPath === '/home' || destPath === 'home' || (destPath.startsWith('/home') && destPath.indexOf('emailConfirmed') === -1)) destPath = '/home?emailConfirmed=true';
+            else if (destPath && destPath.indexOf('emailConfirmed') === -1 && destPath !== '/login') destPath = destPath + (destPath.indexOf('?') >= 0 ? '&' : '?') + 'emailConfirmed=true';
+            window.location.replace(productionUrl + (destPath.startsWith('/') ? destPath : '/' + destPath));
+            return;
+          }
+        }
+        console.error('❌ [Callback Client] verifyOtp com token_hash falhou');
+        window.location.replace(productionUrl + '/login?error=' + encodeURIComponent('Link inválido ou expirado. Solicite um novo link.'));
+        return;
+      }
       if (hash && hash.includes('access_token')) {
         console.log('🔑 [Callback Client] Processando access_token do hash...');
         
@@ -275,9 +304,19 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
             
             if (data.session) {
               console.log('✅ [Callback Client] Sessão criada com sucesso!');
-              // Limpar hash da URL
+              try {
+                await fetch(productionUrl + '/api/auth/on-email-confirmed', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({ access_token: data.session.access_token, refresh_token: data.session.refresh_token || '' })
+                });
+              } catch (e) { console.warn('Notify WhatsApp:', e); }
               const next = new URLSearchParams(window.location.search).get('next') || '/home';
-              window.location.replace(productionUrl + next);
+              var destPath = (next === '/login' || next === 'login') ? '/login?emailConfirmed=true&mensagem=' + encodeURIComponent('Email confirmado! Faça login para continuar.') : next;
+              if (destPath === '/home' || destPath === 'home' || (destPath.startsWith('/home') && destPath.indexOf('emailConfirmed') === -1)) destPath = '/home?emailConfirmed=true';
+              else if (destPath && destPath.indexOf('emailConfirmed') === -1 && destPath !== '/login') destPath = destPath + (destPath.indexOf('?') >= 0 ? '&' : '?') + 'emailConfirmed=true';
+              window.location.replace(productionUrl + (destPath.startsWith('/') ? destPath : '/' + destPath));
               return;
             }
           }
