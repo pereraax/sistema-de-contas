@@ -17,6 +17,8 @@ const CRON_SECRET = process.env.CRON_SECRET?.trim()
 
 function isAuthorized(request: NextRequest): boolean {
   if (!CRON_SECRET) return false
+  const urlSecret = request.nextUrl.searchParams.get('secret')?.trim()
+  if (urlSecret && urlSecret === CRON_SECRET) return true
   const auth = request.headers.get('authorization')
   const secret = request.headers.get('x-cron-secret')
   const token = auth?.startsWith('Bearer ') ? auth.slice(7).trim() : secret?.trim()
@@ -86,12 +88,20 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
     }
   }
 
+  if (recovery.listError) {
+    console.error('[Cron plen-smart] lead recovery listError:', recovery.listError)
+  }
+
   return NextResponse.json({
     ok: true,
     sent,
     total: leadFollowUp.total + recovery.total + eligible.length,
     leadFollowUp10min: { sent: leadFollowUp.sent, total: leadFollowUp.total },
-    leadRecovery: { sent: recovery.sent, total: recovery.total },
+    leadRecovery: {
+      sent: recovery.sent,
+      total: recovery.total,
+      listError: recovery.listError,
+    },
     errors: errors.length ? errors : undefined,
   })
 }

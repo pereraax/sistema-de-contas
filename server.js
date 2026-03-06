@@ -125,14 +125,14 @@ app.prepare().then(() => {
       setTimeout(runBoasVindas, 60 * 1000)     // primeira execução após 1 minuto
       console.log('✅ [Cron] Boas-vindas + lead recovery (vácuo): a cada 2 minutos')
 
-      const cronSmartUrl = `${baseUrl}/api/cron/plen-smart-messages`
+      const cronSmartUrl = `${baseUrl}/api/cron/plen-smart-messages?secret=${encodeURIComponent(cronSecret)}`
       const runPlenSmart = () => {
         const http = require('http')
         const url = new URL(cronSmartUrl)
         const options = {
           hostname: url.hostname,
           port: url.port,
-          path: url.pathname,
+          path: url.pathname + url.search,
           method: 'GET',
           timeout: 180000,
           headers: { Authorization: `Bearer ${cronSecret}` },
@@ -146,10 +146,16 @@ app.prepare().then(() => {
               if (data.ok && data.sent > 0) {
                 console.log('[Cron plen-smart]', data.sent, 'mensagens enviadas (follow-up 10min + recovery + smart)')
               }
+              if (data.leadRecovery?.listError) {
+                console.error('[Cron plen-smart] leadRecovery.listError:', data.leadRecovery.listError)
+              }
+              if (!data.ok && (data.error || body)) {
+                console.error('[Cron plen-smart] falha:', data.error || res.statusCode, body?.slice(0, 200))
+              }
             } catch (_) {}
           })
         })
-        req.on('error', () => {})
+        req.on('error', (err) => { console.error('[Cron plen-smart] request error:', err?.message || err) })
         req.on('timeout', () => req.destroy())
         req.end()
       }

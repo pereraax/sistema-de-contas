@@ -57,17 +57,26 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
   const result = await runBoasVindasPendentes(168)
 
   // Recuperação de leads que pararam após "Qual seu e-mail?" — follow-up em 5m, 10m, 15h, 24h, 48h (Z-API ou API Fácil)
-  let leadRecovery = { sent: 0, total: 0, errors: undefined as string[] | undefined }
+  let leadRecovery: { sent: number; total: number; errors?: string[]; listError?: string } = { sent: 0, total: 0 }
   if (isZapiConfigured() || isApifacilConfigured()) {
     const sendTextMessage = isZapiConfigured() ? zapiSendText : apifacilSendText
     const sendOne = async (phone: string, text: string) => {
       const r = await sendTextMessage(phone, text, { delayTyping: 1 })
       return { success: r?.success ?? false, error: r?.error }
     }
-    const recovery = await runLeadRecoveryFollowUps(sendOne)
-    leadRecovery = { sent: recovery.sent, total: recovery.total, errors: recovery.errors }
-    if (recovery.errors?.length) {
-      (result as { errors?: string[] }).errors = [...((result as { errors?: string[] }).errors ?? []), ...recovery.errors]
+    try {
+      const recovery = await runLeadRecoveryFollowUps(sendOne)
+      leadRecovery = { sent: recovery.sent, total: recovery.total, errors: recovery.errors, listError: recovery.listError }
+      if (recovery.listError) {
+        console.error('[Cron boas-vindas] lead recovery listError:', recovery.listError)
+      }
+      if (recovery.errors?.length) {
+        (result as { errors?: string[] }).errors = [...((result as { errors?: string[] }).errors ?? []), ...recovery.errors]
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error('[Cron boas-vindas] runLeadRecoveryFollowUps exceção:', msg)
+      leadRecovery = { sent: 0, total: 0, listError: msg }
     }
   }
 

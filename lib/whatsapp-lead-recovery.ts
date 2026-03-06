@@ -110,14 +110,18 @@ export interface LeadRecoveryRow {
 /**
  * Inicia o estado de recuperação quando a assistente envia "Qual seu e-mail?".
  * Chamar logo após setSignupStepEmail e envio da mensagem.
+ * Requer tabela whatsapp_lead_recovery (migration 20260306100000_whatsapp_lead_recovery.sql).
  */
 export async function initLeadRecovery(phone: string): Promise<void> {
   const supabase = createAdminClient()
-  if (!supabase) return
+  if (!supabase) {
+    console.warn('[lead-recovery] initLeadRecovery: Supabase admin não disponível')
+    return
+  }
   const p = normalizarPhone(phone)
   if (p.length < 10) return
   const now = new Date().toISOString()
-  await supabase.from(TABLE).upsert(
+  const { error } = await supabase.from(TABLE).upsert(
     {
       phone: p,
       status_conversa: 'aguardando_email',
@@ -131,6 +135,9 @@ export async function initLeadRecovery(phone: string): Promise<void> {
     },
     { onConflict: 'phone' }
   )
+  if (error) {
+    console.error('[lead-recovery] initLeadRecovery falhou para', p, '—', error.message, '| Aplique a migration whatsapp_lead_recovery se a tabela não existir.')
+  }
 }
 
 /**
@@ -223,7 +230,9 @@ export async function listLeadsDueForFollowUp(): Promise<
   { phone: string; stage: 1 | 2 | 3 | 4 | 5; message: string }[]
 > {
   const supabase = createAdminClient()
-  if (!supabase) return []
+  if (!supabase) {
+    throw new Error('Supabase admin não disponível (SUPABASE_SERVICE_ROLE_KEY?)')
+  }
 
   const { data: rows, error } = await supabase
     .from(TABLE)
@@ -232,7 +241,8 @@ export async function listLeadsDueForFollowUp(): Promise<
     .eq('cadastro_finalizado', false)
     .eq('email_recebido', false)
 
-  if (error || !rows?.length) return []
+  if (error) throw new Error(`whatsapp_lead_recovery: ${error.message}`)
+  if (!rows?.length) return []
 
   const phones = (rows as { phone: string }[]).map((r) => r.phone).filter(Boolean)
   const { data: contatos } = await supabase
@@ -325,6 +335,8 @@ export interface RunLeadRecoveryResult {
   sent: number
   total: number
   errors?: string[]
+  /** Preenchido quando a listagem de leads devido falha (ex.: tabela ausente, Supabase indisponível). */
+  listError?: string
 }
 
 /**
@@ -336,7 +348,15 @@ export async function runLeadRecoveryFollowUps(sendTextMessage: (phone: string, 
   const { getSignupPending } = await import('@/lib/whatsapp-signup-flow')
   const { hasCadastro } = await import('@/lib/whatsapp-contatos-pendentes')
 
-  const due = await listLeadsDueForFollowUp()
+  let due: { phone: string; stage: 1 | 2 | 3 | 4 | 5; message: string }[]
+  try {
+    due = await listLeadsDueForFollowUp()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error('[lead-recovery] listLeadsDueForFollowUp falhou:', msg)
+    return { ok: false, sent: 0, total: 0, listError: msg }
+  }
+
   const errors: string[] = []
   let sent = 0
 
