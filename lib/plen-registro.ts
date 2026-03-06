@@ -225,6 +225,9 @@ export function categoriaInteligente(nome: string, tipo: TipoRegistro): string {
     farmácia: 'Saúde',
     roupas: 'Vestuário',
     roupa: 'Vestuário',
+    'guarda roupa': 'Vestuário',
+    guardaroupa: 'Vestuário',
+    guardado: 'Outros',
     pix: 'Transferência',
     pagsmile: 'Transferência',
     transferencia: 'Transferência',
@@ -233,7 +236,12 @@ export function categoriaInteligente(nome: string, tipo: TipoRegistro): string {
   }
   const cat = categoriasGasto[n] || Object.keys(categoriasGasto).find((k) => n.includes(k))
   if (cat) return categoriasGasto[cat] || cat
-  if (tipo === 'entrada') return n.length <= 2 || /^(da|do|de|do\s|da\s)/.test(n) ? 'Outros' : 'Pessoas'
+  // Entrada: se o nome parece pessoa (nome próprio curto, ou "mãe", "pai", "joão"), usar Pessoas
+  if (tipo === 'entrada') {
+    if (n.length <= 2 || /^(da|do|de|do\s|da\s)/.test(n)) return 'Outros'
+    const parecePessoa = /^(m[aã]e|pai|marido|esposa|amigo|cliente|jo[aã]o|maria|pedro|ana|jose|carolina)$/i.test(n) || (n.length <= 25 && !/\d/.test(n) && !/mercado|conta|banco|guardado|saldo|entrada|ganho|receita/.test(n))
+    return parecePessoa ? 'Pessoas' : 'Outros'
+  }
   if (tipo === 'divida') return n === 'dívida' ? 'Outros' : 'Pessoas'
   return 'Outros'
 }
@@ -350,12 +358,17 @@ export function interpretarMensagem(texto: string): InterpretadoPlen | null {
     return { tipo: 'entrada', valor: valorNum, nome, data_registro, categoria: 'Outros' }
   }
 
-  // Saldo/entrada: "tenho 145,15 na conta", "tenho 200 reais na conta", "esse é meu saldo até agora" (valor já extraído)
+  // Entrada: "tenho 100 reais guardado" → nome = guardado; "tenho 200 na conta" → nome = Saldo na conta
   const tenhoNaContaMatch = t.match(/\btenho\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:na\s+conta|no\s+banco|de\s+saldo)?\s*(.*)/i)
   if (tenhoNaContaMatch && /\btenho\s+[\d.,]+\s*(?:reais?|r\$|r\b)?/.test(t)) {
-    nome = 'Saldo na conta'
+    const resto = (tenhoNaContaMatch[1] || '')
+      .trim()
+      .replace(/\s*(hoje|ontem|dia\s+\d{1,2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*$/gi, '')
+      .trim()
+    nome = resto.length >= 2 ? resto.substring(0, 200) : 'Saldo na conta'
     const data_registro = parseDataDoTexto(t)
-    return { tipo: 'entrada', valor: valorNum, nome, data_registro, categoria: 'Outros' }
+    const categoria = categoriaInteligente(nome, 'entrada')
+    return { tipo: 'entrada', valor: valorNum, nome, data_registro, categoria }
   }
 
   // Verbos de GASTO: gastei, gasteu, paguei, pagou, etc.
