@@ -107,6 +107,44 @@ const MSG_CONTA_CONFIRMADA_COMANDOS = `✅ *Conta confirmada!* 💙 Agora você 
 
 É só mandar uma mensagem que eu registro ou respondo. 😊`
 
+/** Instrução do menu — enviada logo após a mensagem de conta confirmada. */
+const MSG_MENU_INSTRUCOES = `📋 Mande *MENU* a qualquer momento para acessar as opções disponíveis. 😊`
+
+/** Botões do menu principal (máx. 3 no WhatsApp). A 4ª opção (Total de registros) fica no texto: digite TOTAL. */
+const MENU_BUTTONS = [
+  { id: 'editar_nome', title: 'Editar nome do usuário' },
+  { id: 'falar_humano', title: 'Falar com humano' },
+  { id: 'indique_ganhe', title: 'Evento indique e ganhe' },
+] as const
+
+const MENU_BODY = `📋 *Menu*
+
+Escolha uma opção abaixo ou digite *TOTAL* para ver seu total de registros.`
+
+/** True se a mensagem é pedido de menu ou clique em um botão do menu. */
+function isMenuTrigger(text: string): boolean {
+  const t = (text ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+  if (!t) return false
+  if (/^menu\s*\.?\s*$/i.test(t)) return true
+  if (['editar_nome', 'falar_humano', 'indique_ganhe', 'total_registros'].includes(t)) return true
+  if (/^editar\s*nome/i.test(t) || /^falar\s*com\s*humano/i.test(t)) return true
+  if (/^evento\s*indique\s*(e\s*)?ganhe/i.test(t) || /^indique\s*(e\s*)?ganhe/i.test(t)) return true
+  if (/^total\s*(de\s*)?registros?/i.test(t) || t === 'total') return true
+  return false
+}
+
+/** Identifica qual opção do menu foi escolhida. */
+function getMenuOption(text: string): 'menu' | 'editar_nome' | 'falar_humano' | 'indique_ganhe' | 'total_registros' | null {
+  const t = (text ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+  if (!t) return null
+  if (/^menu\s*\.?\s*$/i.test(t)) return 'menu'
+  if (t === 'editar_nome' || /^editar\s*nome/i.test(t)) return 'editar_nome'
+  if (t === 'falar_humano' || /^falar\s*com\s*humano/i.test(t)) return 'falar_humano'
+  if (t === 'indique_ganhe' || /^evento\s*indique|^indique\s*(e\s*)?ganhe/i.test(t)) return 'indique_ganhe'
+  if (t === 'total_registros' || /^total\s*(de\s*)?registros?/i.test(t) || t === 'total') return 'total_registros'
+  return null
+}
+
 /** Mensagem com todos os comandos que o assistente aceita (enviada após confirmação de e-mail ou quando usuário já está liberado). */
 const MSG_COMANDOS_PLEN = `Olá! Se você está pronto para começar a gerenciar suas finanças, basta me dizer como posso ajudar! 😊
 
@@ -502,9 +540,18 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       return null
     }
 
-    // CRÍTICO: Intro (oi, olá, quero usar, etc.) — SEMPRE resposta fixa + botão CADASTRAR, sem LLM
+    // CRÍTICO: Intro (oi, olá, quero usar, etc.) — só enviar cadastro se NÃO estiver autenticado
     const lowerTextEarly = String(text).replace(/\u200B|\uFEFF/g, '').toLowerCase().trim()
     if (isIntroIntent(lowerTextEarly)) {
+      const ctxIntro = await getUserContext(phoneNumber)
+      if (ctxIntro.whatsappAuthenticated) {
+        console.log('👋 [WhatsApp PLEN] Intro detectada mas lead JÁ CADASTRADO — não enviar fluxo de cadastro')
+        addLog('info', '👋 [PLEN WhatsApp] Lead já autenticado — ignorando intro, enviando mensagem de já cadastrado')
+        return {
+          success: true,
+          message: 'Você já está cadastrado! 💙 Digite *MENU* para opções ou me diga um gasto/receita. Ex.: gastei 50 mercado, recebi 1500 salário.',
+        }
+      }
       console.log('👋 [WhatsApp PLEN] Intro detectada (oi/olá) — enviando mensagem fixa + botão CADASTRAR')
       addLog('info', '👋 [PLEN WhatsApp] Intro (oi/olá) — resposta fixa com botão CADASTRAR')
       return introMessageWithButton(contactNameWhatsApp)
@@ -547,9 +594,18 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       }
     }
 
-    // "CADASTRAR" (botão ou digitado) — responder na hora com link para a plataforma
+    // "CADASTRAR" (botão ou digitado) — só enviar link se NÃO estiver autenticado
     const isCadastrar = normalizedForJaCadastrei === 'cadastrar'
     if (isCadastrar) {
+      const ctxCadastrar = await getUserContext(phoneNumber)
+      if (ctxCadastrar.whatsappAuthenticated) {
+        console.log('📧 [WhatsApp PLEN] "CADASTRAR" detectado mas lead JÁ CADASTRADO — não enviar link')
+        addLog('info', '📧 [PLEN WhatsApp] Lead já autenticado — ignorando CADASTRAR')
+        return {
+          success: true,
+          message: 'Você já está cadastrado! 💙 Digite *MENU* para opções ou me diga um gasto/receita. Ex.: gastei 50 mercado, recebi 1500 salário.',
+        }
+      }
       console.log('📧 [WhatsApp PLEN] "CADASTRAR" detectado — enviando link da plataforma')
       return {
         success: true,
@@ -742,6 +798,14 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
       (welcomeMessage.includes('quero começar') && welcomeMessage.includes('plenipay'))
     
     if (isWelcomeMessage) {
+      const ctxWelcome = await getUserContext(phoneNumber)
+      if (ctxWelcome.whatsappAuthenticated) {
+        console.log('👋 [WhatsApp PLEN] "Quero começar" mas lead JÁ CADASTRADO — não enviar intro')
+        return {
+          success: true,
+          message: 'Você já está cadastrado! 💙 Digite *MENU* para opções ou me diga um gasto/receita.',
+        }
+      }
       console.log('👋 [WhatsApp PLEN] ==========================================')
       console.log('👋 [WhatsApp PLEN] MENSAGEM DE BOAS-VINDAS DETECTADA!')
       console.log('👋 [WhatsApp PLEN] Text:', text)
@@ -860,7 +924,7 @@ export async function processWhatsAppMessage(message: WhatsAppMessage) {
             if (result.success) {
               return {
                 success: true,
-                message: MSG_CONTA_CONFIRMADA_COMANDOS,
+                messages: [MSG_CONTA_CONFIRMADA_COMANDOS, MSG_MENU_INSTRUCOES],
               }
             }
             return {
@@ -990,6 +1054,60 @@ REGRAS:
             message: '📧 Para ativar sua conta, digite aqui o *código de 6 dígitos* que enviamos no seu e-mail (confira também a pasta de *spam*). Se o email não chegou, diga "reenviar email". 💙',
           }
         }
+      }
+    }
+
+    // Menu (apenas para usuário já autenticado): MENU ou clique em um botão do menu
+    if (userContext.userId && isMenuTrigger(text)) {
+      const option = getMenuOption(text)
+      if (option === 'menu' || option === null) {
+        return {
+          success: true,
+          messages: [{ type: 'buttons' as const, body: MENU_BODY, buttons: [...MENU_BUTTONS] }],
+        }
+      }
+      if (option === 'editar_nome') {
+        return {
+          success: true,
+          message: '✏️ Para alterar seu nome, me envie: *Alterar nome para [seu novo nome]*\n\nEx.: Alterar nome para Maria Silva.',
+        }
+      }
+      if (option === 'falar_humano') {
+        return {
+          success: true,
+          message: '👋 Entendido! Nossa equipe vai entrar em contato em breve. Enquanto isso, digite *MENU* para outras opções. 💙',
+        }
+      }
+      if (option === 'indique_ganhe') {
+        const ganheUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim()?.replace(/\/+$/, '') || 'https://plenipay.com'
+        const urlGanhe = `${ganheUrl}/ganhe-indicando`
+        return {
+          success: true,
+          messages: [
+            {
+              type: 'button_actions' as const,
+              body: '🎁 *Evento Indique e Ganhe*\n\nIndique a Plenipay para amigos e ganhe benefícios. Toque no botão para acessar seu link exclusivo:',
+              buttonActions: [{ type: 'URL' as const, url: urlGanhe, label: 'Ver Indique e Ganhe' }],
+            },
+          ],
+        }
+      }
+      if (option === 'total_registros') {
+        try {
+          const { createAdminClient } = await import('./supabase/server')
+          const supabase = createAdminClient()
+          if (supabase) {
+            const { count: totalE } = await supabase.from('registros').select('*', { count: 'exact', head: true }).eq('user_id', userContext.userId).eq('tipo', 'entrada')
+            const { count: totalS } = await supabase.from('registros').select('*', { count: 'exact', head: true }).eq('user_id', userContext.userId).eq('tipo', 'saida')
+            const e = totalE ?? 0
+            const s = totalS ?? 0
+            return {
+              success: true,
+              message: `📊 *Total de registros:* ${e + s}\n\n• Entradas: ${e}\n• Gastos: ${s}\n\nDigite *MENU* para mais opções.`,
+            }
+          }
+        } catch (_) {}
+        return { success: true, message: 'Não consegui buscar seu total de registros agora. Tente de novo em instantes. 💙' }
       }
     }
 
