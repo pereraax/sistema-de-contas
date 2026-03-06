@@ -59,8 +59,18 @@ export async function getInboxList(options?: {
     }
   }
 
+  const toText = (v: unknown): string | null => {
+    if (v == null) return null
+    if (typeof v === 'string') return v === '[object Object]' ? null : v
+    if (typeof v === 'object' && v !== null && 'message' in v) return String((v as { message?: unknown }).message ?? '')
+    if (typeof v === 'object' && v !== null && 'text' in v) return String((v as { text?: unknown }).text ?? '')
+    return null
+  }
+
   const items: InboxConversationItem[] = contacts.map((c: any) => {
     const conv = convByContact.get(c.id)
+    const rawLast = conv?.ultima_mensagem ?? null
+    const lastMsg = toText(rawLast)
     return {
       contact_id: c.id,
       contact_telefone: c.telefone,
@@ -70,7 +80,7 @@ export async function getInboxList(options?: {
       contact_ultima_interacao: c.ultima_interacao,
       conversation_id: conv?.id ?? '',
       conversation_status: conv?.status_conversa ?? 'aberta',
-      ultima_mensagem: conv?.ultima_mensagem ?? null,
+      ultima_mensagem: lastMsg,
       ultima_interacao: conv?.ultima_interacao ?? c.ultima_interacao,
     }
   })

@@ -138,6 +138,10 @@ export default function CrmConversasPage() {
         <div>
           <h1 className="text-xl font-bold text-white">Conversas</h1>
           <p className="text-sm text-zinc-500 mt-0.5">Gerencie contatos e mensagens</p>
+          <p className="text-xs text-zinc-600 mt-1 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#25D366]" aria-hidden />
+            WhatsApp conectado via Z-API. Clique em &quot;Sincronizar WhatsApp&quot; para carregar todas as conversas.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {syncResult && (

@@ -64,6 +64,15 @@ export function ChatWindow({
   const formatTime = (s: string) =>
     new Date(s).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
+  const messageText = (m: ChatMessage): string => {
+    const v = m.mensagem
+    if (v == null) return ''
+    if (typeof v === 'string') return v === '[object Object]' ? '' : v
+    if (typeof v === 'object' && v !== null && 'message' in v) return String((v as { message?: unknown }).message ?? '')
+    if (typeof v === 'object' && v !== null && 'text' in v) return String((v as { text?: unknown }).text ?? '')
+    return ''
+  }
+
   const handleInsertVariable = (key: string) => {
     onInsertVariable?.(key)
     setShowVariables(false)
@@ -100,7 +109,7 @@ export function ChatWindow({
                 <div className="mb-2">
                   <img
                     src={m.media_url}
-                    alt={m.mensagem || 'Imagem'}
+                    alt={messageText(m) || 'Imagem'}
                     className="max-w-full max-h-64 rounded-lg object-contain"
                   />
                 </div>
@@ -127,17 +136,17 @@ export function ChatWindow({
                   className={`flex items-center gap-2 mb-2 px-3 py-2 rounded-lg bg-black/20 ${m.tipo === 'saida' ? 'text-white' : 'text-zinc-200'}`}
                 >
                   <FileText size={20} />
-                  <span className="text-sm truncate">{m.mensagem || 'Documento'}</span>
+                  <span className="text-sm truncate">{messageText(m) || 'Documento'}</span>
                 </a>
               )}
-              {(m.message_type === 'contact' || m.message_type === 'location' || m.message_type === 'text' || !m.message_type) && m.mensagem ? (
-                <p className="text-sm whitespace-pre-wrap break-words">{m.mensagem}</p>
+              {(m.message_type === 'contact' || m.message_type === 'location' || m.message_type === 'text' || !m.message_type) && messageText(m) ? (
+                <p className="text-sm whitespace-pre-wrap break-words">{messageText(m)}</p>
               ) : null}
-              {m.message_type === 'image' && m.mensagem && m.mensagem !== '[Imagem]' && (
-                <p className="text-sm whitespace-pre-wrap break-words mt-1 opacity-90">{m.mensagem}</p>
+              {m.message_type === 'image' && messageText(m) && messageText(m) !== '[Imagem]' && (
+                <p className="text-sm whitespace-pre-wrap break-words mt-1 opacity-90">{messageText(m)}</p>
               )}
-              {m.message_type === 'video' && m.mensagem && m.mensagem !== '[Vídeo]' && (
-                <p className="text-sm whitespace-pre-wrap break-words mt-1 opacity-90">{m.mensagem}</p>
+              {m.message_type === 'video' && messageText(m) && messageText(m) !== '[Vídeo]' && (
+                <p className="text-sm whitespace-pre-wrap break-words mt-1 opacity-90">{messageText(m)}</p>
               )}
               <p className={`text-xs mt-1 ${m.tipo === 'saida' ? 'text-white/80' : 'text-zinc-500'}`}>
                 {formatTime(m.timestamp)}
