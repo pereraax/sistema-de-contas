@@ -16,6 +16,8 @@ export function getMensagemInicialModoTeste(contactName?: string | null): string
 
 ✨ Antes de criar sua conta, vamos testar rapidinho.
 
+aaah eu só funciono quando você salva meu contato, então salva pra não ocorrer erro em reconhecer sua conversa! 😊
+
 👉 Me diga algo que você gastou hoje.
 
 Exemplo:
