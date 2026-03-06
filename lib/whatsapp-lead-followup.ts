@@ -36,9 +36,10 @@ export async function runLead10MinFollowUp(): Promise<RunLead10MinFollowUpResult
   const errors: string[] = []
   let sent = 0
 
+  const delayBetweenMs = () => 8000 + Math.random() * 4000
   for (let i = 0; i < leads.length; i++) {
     if (i > 0) {
-      await new Promise((r) => setTimeout(r, 2000 + Math.random() * 3000))
+      await new Promise((r) => setTimeout(r, delayBetweenMs()))
     }
     const { phone } = leads[i]
     try {

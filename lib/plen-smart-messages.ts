@@ -17,8 +17,11 @@ export const EVENT_10_REGISTROS = '10_registros'
 export const EVENT_20_REGISTROS = '20_registros'
 export const EVENT_CATEGORIA_PREFIX = 'categoria_'
 
-/** Mínimo 1 hora entre duas mensagens inteligentes para o mesmo usuário. */
+/** Mínimo 1 hora entre duas mensagens inteligentes para o mesmo usuário (evita repetição na mesma conversa). */
 export const MIN_INTERVAL_SMART_MS_MS = 60 * 60 * 1000
+
+/** Intervalo aleatório entre cada envio no cron: 8–12 s (anti-spam). */
+const DELAY_BETWEEN_SENDS_MS = { min: 8000, max: 12000 }
 
 /** Atualiza last_message_at quando o usuário envia qualquer mensagem (cancelar envios automáticos). */
 export async function updateLastActivity(supabase: SupabaseClient, accountOwnerId: string): Promise<void> {
@@ -329,7 +332,7 @@ export async function sendSmartMessage(
   if (!text) {
     return { success: false, error: 'Mensagem vazia' }
   }
-  const delayMs = 1000 + Math.random() * 3000
+  const delayMs = DELAY_BETWEEN_SENDS_MS.min + Math.random() * (DELAY_BETWEEN_SENDS_MS.max - DELAY_BETWEEN_SENDS_MS.min)
   await new Promise((r) => setTimeout(r, delayMs))
   const sendTextMessage = isZapiConfigured() ? sendTextMessageZapi : sendTextMessageApifacil
   const result = await sendTextMessage(phone, text)

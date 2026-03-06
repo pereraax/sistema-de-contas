@@ -80,6 +80,7 @@ const STAGE_DELAYS_MS = [
 
 /**
  * Escolhe uma mensagem aleatória do estágio que ainda não foi enviada nesta conversa.
+ * Se todas do estágio já foram enviadas, retorna null para não repetir na mesma conversa.
  */
 export function pickRandomMessageForStage(
   stage: 1 | 2 | 3 | 4 | 5,
@@ -88,7 +89,7 @@ export function pickRandomMessageForStage(
   const pool = STAGE_MESSAGES[stage]
   if (!pool?.length) return null
   const available = pool.filter((m) => !alreadySent.includes(m))
-  if (available.length === 0) return pool[Math.floor(Math.random() * pool.length)]
+  if (available.length === 0) return null
   return available[Math.floor(Math.random() * available.length)]
 }
 
@@ -360,9 +361,10 @@ export async function runLeadRecoveryFollowUps(sendTextMessage: (phone: string, 
   const errors: string[] = []
   let sent = 0
 
+  const delayBetweenMs = () => 8000 + Math.random() * 4000
   for (let i = 0; i < due.length; i++) {
     if (i > 0) {
-      await new Promise((r) => setTimeout(r, 2000 + Math.random() * 2000))
+      await new Promise((r) => setTimeout(r, delayBetweenMs()))
     }
     const { phone, stage, message } = due[i]
     const signup = await getSignupPending(phone).catch(() => null)
