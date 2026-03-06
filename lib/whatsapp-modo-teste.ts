@@ -25,7 +25,7 @@ Exemplo:
 * 20 uber`
 }
 
-/** Mensagem de intro Plenipay (oi, quero usar, quero registrar): texto fixo + botão CADASTRAR. Ao clicar o lead envia a mensagem. */
+/** Mensagem de intro Plenipay (oi, quero usar, quero registrar): texto fixo. Sem botão — o lead digita CADASTRAR. */
 export function getMensagemIntroPlenipay(contactName?: string | null): string {
   const raw = (contactName ?? '').trim().slice(0, 50)
   const nome = raw && raw.toLowerCase() !== 'nome' && raw.toLowerCase() !== 'pessoa' ? raw : ''
@@ -38,7 +38,7 @@ registrando gastos, receitas e dívidas.
 
 Quer começar a usar a Plenipay?
 
-Clique no botão CADASTRAR abaixo.`
+Digite *CADASTRAR* para começar. 😊`
 }
 
 /** Quando o lead envia algo que não é gasto/entrada: convite para testar antes. */
