@@ -87,7 +87,7 @@ app.prepare().then(() => {
     // O keep-alive do apifacil é opcional e não é crítico para o funcionamento da aplicação
     console.log('ℹ️ [Apifacil] Keep-alive desabilitado em produção (módulo TypeScript)')
 
-    // Automação interna: a cada 2 min = boas-vindas + lead recovery (5m, 10m, 15h, 24h, 48h); a cada 10 min = follow-up 10min + smart messages
+    // Automação: boas-vindas + recovery a cada 15 min; follow-up 10min + smart a cada 30 min (intervalos longos para evitar banimento WhatsApp)
     const cronSecret = process.env.CRON_SECRET?.trim()
     const baseUrl = `http://${hostname === '0.0.0.0' ? '127.0.0.1' : hostname}:${port}`
     if (cronSecret && !dev) {
@@ -121,9 +121,9 @@ app.prepare().then(() => {
         req.on('timeout', () => req.destroy())
         req.end()
       }
-      setInterval(runBoasVindas, 2 * 60 * 1000) // a cada 2 minutos
-      setTimeout(runBoasVindas, 60 * 1000)     // primeira execução após 1 minuto
-      console.log('✅ [Cron] Boas-vindas + lead recovery (vácuo): a cada 2 minutos')
+      setInterval(runBoasVindas, 15 * 60 * 1000) // a cada 15 minutos
+      setTimeout(runBoasVindas, 2 * 60 * 1000)   // primeira execução após 2 minutos
+      console.log('✅ [Cron] Boas-vindas + lead recovery: a cada 15 minutos (defina WHATSAPP_CRON_VACUUM_DISABLED=true para desativar recovery)')
 
       const cronSmartUrl = `${baseUrl}/api/cron/plen-smart-messages?secret=${encodeURIComponent(cronSecret)}`
       const runPlenSmart = () => {
@@ -159,9 +159,9 @@ app.prepare().then(() => {
         req.on('timeout', () => req.destroy())
         req.end()
       }
-      setInterval(runPlenSmart, 10 * 60 * 1000) // a cada 10 minutos
-      setTimeout(runPlenSmart, 3 * 60 * 1000)   // primeira execução após 3 minutos (depois do primeiro boas-vindas)
-      console.log('✅ [Cron] Follow-up 10min + smart messages: a cada 10 minutos')
+      setInterval(runPlenSmart, 30 * 60 * 1000) // a cada 30 minutos
+      setTimeout(runPlenSmart, 5 * 60 * 1000)   // primeira execução após 5 minutos
+      console.log('✅ [Cron] Follow-up 10min + smart messages: a cada 30 min (máx. 2+2+2 envios/run; WHATSAPP_CRON_VACUUM_DISABLED=true desativa)')
     } else if (!cronSecret && !dev) {
       console.log('ℹ️ [Cron] CRON_SECRET não definido: configure para ativar envio automático de boas-vindas e mensagens de vácuo')
     }

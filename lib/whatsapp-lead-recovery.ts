@@ -358,15 +358,17 @@ export async function runLeadRecoveryFollowUps(sendTextMessage: (phone: string, 
     return { ok: false, sent: 0, total: 0, listError: msg }
   }
 
+  const MAX_RECOVERY_PER_RUN = 2
+  const toProcess = due.slice(0, MAX_RECOVERY_PER_RUN)
   const errors: string[] = []
   let sent = 0
 
-  const delayBetweenMs = () => 8000 + Math.random() * 4000
-  for (let i = 0; i < due.length; i++) {
+  const delayBetweenMs = () => 60000 + Math.random() * 30000
+  for (let i = 0; i < toProcess.length; i++) {
     if (i > 0) {
       await new Promise((r) => setTimeout(r, delayBetweenMs()))
     }
-    const { phone, stage, message } = due[i]
+    const { phone, stage, message } = toProcess[i]
     const signup = await getSignupPending(phone).catch(() => null)
     if (!signup || signup.step !== 'email' || signup.email != null) continue
     if (await hasCadastro(phone).catch(() => true)) continue
@@ -392,7 +394,7 @@ export async function runLeadRecoveryFollowUps(sendTextMessage: (phone: string, 
   return {
     ok: true,
     sent,
-    total: due.length,
+    total: toProcess.length,
     errors: errors.length ? errors : undefined,
   }
 }

@@ -20,8 +20,8 @@ export const EVENT_CATEGORIA_PREFIX = 'categoria_'
 /** Mínimo 1 hora entre duas mensagens inteligentes para o mesmo usuário (evita repetição na mesma conversa). */
 export const MIN_INTERVAL_SMART_MS_MS = 60 * 60 * 1000
 
-/** Intervalo aleatório entre cada envio no cron: 8–12 s (anti-spam). */
-const DELAY_BETWEEN_SENDS_MS = { min: 8000, max: 12000 }
+/** Intervalo entre cada envio no cron: 60–90 s (evitar banimento por spam no WhatsApp). */
+const DELAY_BETWEEN_SENDS_MS = { min: 60000, max: 90000 }
 
 /** Atualiza last_message_at quando o usuário envia qualquer mensagem (cancelar envios automáticos). */
 export async function updateLastActivity(supabase: SupabaseClient, accountOwnerId: string): Promise<void> {

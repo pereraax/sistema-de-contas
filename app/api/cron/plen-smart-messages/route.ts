@@ -1,8 +1,7 @@
 /**
  * Cron: mensagens inteligentes da Plen (AHA moments).
- * Analisa contatos em plen_user_activity (quem já interagiu pelo WhatsApp) e envia uma
- * mensagem por inatividade: 10min, 1h ou 24h sem interação (+ eventos de 10/20 registros, categorias).
- * Chamar a cada 10–15 min (ex.: Railway Cron, Vercel Cron). Header: Authorization: Bearer <CRON_SECRET> ou x-cron-secret.
+ * Limitado e com intervalos longos (60–90 s entre envios) para evitar banimento por spam no WhatsApp.
+ * Definir WHATSAPP_CRON_VACUUM_DISABLED=true para desativar toda automação de vácuo (recovery + follow-up + smart).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -14,6 +13,8 @@ import { isZapiConfigured } from '@/lib/whatsapp-zapi'
 import { isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 
 const CRON_SECRET = process.env.CRON_SECRET?.trim()
+const VACUUM_DISABLED = process.env.WHATSAPP_CRON_VACUUM_DISABLED === 'true' || process.env.WHATSAPP_CRON_VACUUM_DISABLED === '1'
+const MAX_SMART_PER_RUN = 2
 
 function isAuthorized(request: NextRequest): boolean {
   if (!CRON_SECRET) return false
@@ -43,6 +44,10 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
   if (!isAuthorized(request)) {
     return NextResponse.json({ ok: false, error: 'Não autorizado' }, { status: 401 })
   }
+  if (VACUUM_DISABLED) {
+    return NextResponse.json({ ok: true, sent: 0, vacuumDisabled: true, message: 'Automação de vácuo desativada (WHATSAPP_CRON_VACUUM_DISABLED)' })
+  }
+
   if (!isZapiConfigured() && !isApifacilConfigured()) {
     return NextResponse.json(
       { ok: false, error: 'WhatsApp não configurado (Z-API ou API Fácil)' },
@@ -75,8 +80,8 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
   const recovery = await runLeadRecoveryFollowUps(sendOne)
   if (recovery.errors?.length) errors.push(...recovery.errors)
 
-  // 3) Mensagens inteligentes para usuários já cadastrados (10min, 1h, 24h, marcos)
-  const eligible = await getEligibleUsers(supabase)
+  // 3) Mensagens inteligentes para usuários já cadastrados (limitado por run para evitar spam)
+  const eligible = (await getEligibleUsers(supabase)).slice(0, MAX_SMART_PER_RUN)
   let sent = leadFollowUp.sent + recovery.sent
 
   for (const { userId, eventType, payload } of eligible) {

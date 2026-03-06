@@ -23,8 +23,12 @@ export interface RunLead10MinFollowUpResult {
   errors?: string[]
 }
 
+/** Máximo de mensagens de follow-up 10min em uma execução (anti-spam WhatsApp). */
+const MAX_FOLLOWUP_10MIN_PER_RUN = 2
+
 /**
  * Lista leads inativos (10–50 min) no fluxo de teste, envia uma mensagem de follow-up por número e marca como enviado.
+ * Limitado a MAX_FOLLOWUP_10MIN_PER_RUN por execução para evitar banimento.
  */
 export async function runLead10MinFollowUp(): Promise<RunLead10MinFollowUpResult> {
   if (!isZapiConfigured() && !isApifacilConfigured()) {
@@ -33,15 +37,16 @@ export async function runLead10MinFollowUp(): Promise<RunLead10MinFollowUpResult
   const sendTextMessage = isZapiConfigured() ? sendZapi : sendApifacil
 
   const leads = await listLeadsInativosParaFollowUp10Min()
+  const toProcess = leads.slice(0, MAX_FOLLOWUP_10MIN_PER_RUN)
   const errors: string[] = []
   let sent = 0
 
-  const delayBetweenMs = () => 8000 + Math.random() * 4000
-  for (let i = 0; i < leads.length; i++) {
+  const delayBetweenMs = () => 60000 + Math.random() * 30000
+  for (let i = 0; i < toProcess.length; i++) {
     if (i > 0) {
       await new Promise((r) => setTimeout(r, delayBetweenMs()))
     }
-    const { phone } = leads[i]
+    const { phone } = toProcess[i]
     try {
       const result = await sendTextMessage(phone, MSG_LEAD_FOLLOWUP_10MIN)
       if (result.success) {
@@ -59,7 +64,7 @@ export async function runLead10MinFollowUp(): Promise<RunLead10MinFollowUpResult
   return {
     ok: true,
     sent,
-    total: leads.length,
+    total: toProcess.length,
     errors: errors.length ? errors : undefined,
   }
 }

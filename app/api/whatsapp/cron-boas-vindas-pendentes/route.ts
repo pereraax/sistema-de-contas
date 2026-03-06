@@ -19,6 +19,7 @@ import { isApifacilConfigured } from '@/lib/whatsapp-apifacil'
 import { sendTextMessage as apifacilSendText } from '@/lib/whatsapp-apifacil'
 
 const CRON_SECRET = process.env.CRON_SECRET?.trim()
+const VACUUM_DISABLED = process.env.WHATSAPP_CRON_VACUUM_DISABLED === 'true' || process.env.WHATSAPP_CRON_VACUUM_DISABLED === '1'
 
 function isAuthorized(request: NextRequest): boolean {
   if (!CRON_SECRET) return false
@@ -57,9 +58,9 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
 
   const result = await runBoasVindasPendentes(168)
 
-  // Recuperação de leads que pararam após "Qual seu e-mail?" — follow-up em 5m, 10m, 15h, 24h, 48h (Z-API ou API Fácil)
+  // Recuperação de leads que pararam após "Qual seu e-mail?" — follow-up em 5m, 10m, 15h, 24h, 48h (Z-API ou API Fácil). Desativado se WHATSAPP_CRON_VACUUM_DISABLED.
   let leadRecovery: { sent: number; total: number; errors?: string[]; listError?: string } = { sent: 0, total: 0 }
-  if (isZapiConfigured() || isApifacilConfigured()) {
+  if (!VACUUM_DISABLED && (isZapiConfigured() || isApifacilConfigured())) {
     const sendTextMessage = isZapiConfigured() ? zapiSendText : apifacilSendText
     const sendOne = async (phone: string, text: string) => {
       const r = await sendTextMessage(phone, text, { delayTyping: 1 })
@@ -81,9 +82,9 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Revisão de leads no vácuo: quem enviou mensagem e não recebeu resposta (a cada 2 min, responde com PLEN)
+  // Revisão de leads no vácuo: quem enviou mensagem e não recebeu resposta. Desativado se WHATSAPP_CRON_VACUUM_DISABLED.
   let revisaoVacuo: { processed: number; errors: string[] } = { processed: 0, errors: [] }
-  if (isZapiConfigured()) {
+  if (!VACUUM_DISABLED && isZapiConfigured()) {
     try {
       const rev = await runRevisaoVacuo(2, 48)
       revisaoVacuo = { processed: rev.processed, errors: rev.errors ?? [] }
