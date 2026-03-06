@@ -87,13 +87,14 @@ app.prepare().then(() => {
     // O keep-alive do apifacil é opcional e não é crítico para o funcionamento da aplicação
     console.log('ℹ️ [Apifacil] Keep-alive desabilitado em produção (módulo TypeScript)')
 
-    // Automação interna: a cada 2 min chama a rota de boas-vindas pendentes (sem precisar de cron externo)
+    // Automação interna: a cada 2 min = boas-vindas + lead recovery (5m, 10m, 15h, 24h, 48h); a cada 10 min = follow-up 10min + smart messages
     const cronSecret = process.env.CRON_SECRET?.trim()
+    const baseUrl = `http://${hostname === '0.0.0.0' ? '127.0.0.1' : hostname}:${port}`
     if (cronSecret && !dev) {
-      const cronUrl = `http://${hostname === '0.0.0.0' ? '127.0.0.1' : hostname}:${port}/api/whatsapp/cron-boas-vindas-pendentes?secret=${encodeURIComponent(cronSecret)}`
-      const runCron = () => {
+      const cronBoasVindasUrl = `${baseUrl}/api/whatsapp/cron-boas-vindas-pendentes?secret=${encodeURIComponent(cronSecret)}`
+      const runBoasVindas = () => {
         const http = require('http')
-        const url = new URL(cronUrl)
+        const url = new URL(cronBoasVindasUrl)
         const options = {
           hostname: url.hostname,
           port: url.port,
@@ -110,6 +111,9 @@ app.prepare().then(() => {
               if (data.ok && (data.processed > 0 || data.total > 0)) {
                 console.log('[Cron boas-vindas]', data.processed, 'de', data.total, 'pendentes enviados')
               }
+              if (data.leadRecovery && (data.leadRecovery.sent > 0 || data.leadRecovery.total > 0)) {
+                console.log('[Cron lead-recovery]', data.leadRecovery.sent, 'de', data.leadRecovery.total, 'mensagens de vácuo enviadas')
+              }
             } catch (_) {}
           })
         })
@@ -117,11 +121,43 @@ app.prepare().then(() => {
         req.on('timeout', () => req.destroy())
         req.end()
       }
-      setInterval(runCron, 2 * 60 * 1000) // a cada 2 minutos
-      setTimeout(runCron, 60 * 1000)      // primeira execução após 1 minuto
-      console.log('✅ [Cron] Boas-vindas pendentes: verificação automática a cada 2 minutos (sem cron externo)')
+      setInterval(runBoasVindas, 2 * 60 * 1000) // a cada 2 minutos
+      setTimeout(runBoasVindas, 60 * 1000)     // primeira execução após 1 minuto
+      console.log('✅ [Cron] Boas-vindas + lead recovery (vácuo): a cada 2 minutos')
+
+      const cronSmartUrl = `${baseUrl}/api/cron/plen-smart-messages`
+      const runPlenSmart = () => {
+        const http = require('http')
+        const url = new URL(cronSmartUrl)
+        const options = {
+          hostname: url.hostname,
+          port: url.port,
+          path: url.pathname,
+          method: 'GET',
+          timeout: 180000,
+          headers: { Authorization: `Bearer ${cronSecret}` },
+        }
+        const req = http.request(options, (res) => {
+          let body = ''
+          res.on('data', (chunk) => { body += chunk })
+          res.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}')
+              if (data.ok && data.sent > 0) {
+                console.log('[Cron plen-smart]', data.sent, 'mensagens enviadas (follow-up 10min + recovery + smart)')
+              }
+            } catch (_) {}
+          })
+        })
+        req.on('error', () => {})
+        req.on('timeout', () => req.destroy())
+        req.end()
+      }
+      setInterval(runPlenSmart, 10 * 60 * 1000) // a cada 10 minutos
+      setTimeout(runPlenSmart, 3 * 60 * 1000)   // primeira execução após 3 minutos (depois do primeiro boas-vindas)
+      console.log('✅ [Cron] Follow-up 10min + smart messages: a cada 10 minutos')
     } else if (!cronSecret && !dev) {
-      console.log('ℹ️ [Cron] CRON_SECRET não definido: configure para ativar envio automático de boas-vindas pendentes')
+      console.log('ℹ️ [Cron] CRON_SECRET não definido: configure para ativar envio automático de boas-vindas e mensagens de vácuo')
     }
   })
 })

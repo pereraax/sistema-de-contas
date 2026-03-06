@@ -112,10 +112,16 @@ Os textos estão definidos em `lib/whatsapp-lead-recovery.ts` (constantes `FOLLO
 
 ## Deploy
 
-1. Aplicar a migration no Supabase (SQL Editor ou `supabase db push`):
+1. **Obrigatório:** aplicar a migration no Supabase (SQL Editor ou `supabase db push`):
    - `supabase/migrations/20260306100000_whatsapp_lead_recovery.sql`
-2. O cron já existente (`/api/cron/plen-smart-messages`) passa a executar também a recuperação; não é necessário novo job.
-3. Garantir que o cron seja chamado a cada **5–15 minutos** (ex.: Railway Cron, Vercel Cron) com header `Authorization: Bearer <CRON_SECRET>` ou `x-cron-secret: <CRON_SECRET>`.
+   - Sem essa tabela, o follow-up de 5 min nunca dispara (initLeadRecovery falha em silêncio; verifique logs por `[lead-recovery]`).
+2. O cron **a cada 2 min** (`/api/whatsapp/cron-boas-vindas-pendentes`) executa a recuperação de leads além das boas-vindas. O **server.js** chama essa rota automaticamente quando `CRON_SECRET` está definido (não precisa de cron externo).
+3. O **server.js** também chama `/api/cron/plen-smart-messages` **a cada 10 min** (follow-up 10 min para leads no modo teste + mensagens inteligentes para cadastrados). Mesmo `CRON_SECRET`, header `Authorization: Bearer <CRON_SECRET>`.
+
+### Por que as mensagens de vácuo não estavam saindo (correção)
+
+- **Lead recovery (5m, 10m, 15h, 24h, 48h):** o cron de boas-vindas só rodava `runLeadRecoveryFollowUps` quando **Z-API** estava configurado. Quem usava só **API Fácil** nunca recebia essas mensagens. Corrigido: agora roda com Z-API **ou** API Fácil.
+- **Follow-up 10 min (leads no modo teste) e smart messages:** o **server.js** não chamava `/api/cron/plen-smart-messages`. Só rodava se houvesse um cron externo (cron-job.org etc.) apontando para essa URL. Corrigido: o server.js passou a chamar essa rota a cada 10 minutos com `Authorization: Bearer CRON_SECRET`.
 
 ---
 
