@@ -9,6 +9,7 @@ export interface CrmConversation {
   ultima_mensagem: string | null
   ultima_interacao: string
   responsavel: string | null
+  unread_count?: number
   created_at: string
   updated_at: string
 }
@@ -41,17 +42,18 @@ export async function findOrCreateConversationForContact(contactId: string): Pro
 
 export async function updateConversation(
   id: string,
-  updates: { status_conversa?: ConversationStatus; ultima_mensagem?: string; responsavel?: string }
+  updates: { status_conversa?: ConversationStatus; ultima_mensagem?: string; ultima_interacao?: string; responsavel?: string; unread_count?: number }
 ): Promise<boolean> {
   const supabase = createAdminClient()
   if (!supabase) return false
   const payload: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
-    ultima_interacao: new Date().toISOString(),
+    ultima_interacao: updates.ultima_interacao ?? new Date().toISOString(),
   }
   if (updates.status_conversa !== undefined) payload.status_conversa = updates.status_conversa
   if (updates.ultima_mensagem !== undefined) payload.ultima_mensagem = updates.ultima_mensagem
   if (updates.responsavel !== undefined) payload.responsavel = updates.responsavel
+  if (updates.unread_count !== undefined) payload.unread_count = updates.unread_count
 
   const { error } = await supabase.from('crm_conversations').update(payload).eq('id', id)
   if (error) {
@@ -59,6 +61,19 @@ export async function updateConversation(
     return false
   }
   return true
+}
+
+/** Incrementa contador de não lidas (mensagem de entrada). */
+export async function incrementConversationUnread(conversationId: string): Promise<boolean> {
+  const supabase = createAdminClient()
+  if (!supabase) return false
+  const { data: row } = await supabase
+    .from('crm_conversations')
+    .select('unread_count')
+    .eq('id', conversationId)
+    .single()
+  const current = typeof row?.unread_count === 'number' ? row.unread_count : 0
+  return updateConversation(conversationId, { unread_count: current + 1 })
 }
 
 export async function getConversationsByContactId(contactId: string): Promise<CrmConversation[]> {

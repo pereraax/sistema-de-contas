@@ -8,10 +8,15 @@ export interface InboxConversationItem {
   contact_email: string | null
   contact_status: ContactStatus
   contact_ultima_interacao: string
+  contact_avatar_url: string | null
+  contact_last_seen_at: string | null
+  contact_is_online: boolean | null
+  contact_typing_until: string | null
   conversation_id: string
   conversation_status: string
   ultima_mensagem: string | null
   ultima_interacao: string
+  unread_count: number
 }
 
 export async function getInboxList(options?: {
@@ -30,7 +35,11 @@ export async function getInboxList(options?: {
       nome,
       email,
       status,
-      ultima_interacao
+      ultima_interacao,
+      avatar_url,
+      last_seen_at,
+      is_online,
+      typing_until
     `
     )
     .order('ultima_interacao', { ascending: false })
@@ -46,7 +55,7 @@ export async function getInboxList(options?: {
   const contactIds = contacts.map((c: { id: string }) => c.id)
   const { data: convs, error: convsError } = await supabase
     .from('crm_conversations')
-    .select('id, contact_id, status_conversa, ultima_mensagem, ultima_interacao')
+    .select('id, contact_id, status_conversa, ultima_mensagem, ultima_interacao, unread_count')
     .in('contact_id', contactIds)
     .order('ultima_interacao', { ascending: false })
 
@@ -78,10 +87,15 @@ export async function getInboxList(options?: {
       contact_email: c.email ?? null,
       contact_status: c.status,
       contact_ultima_interacao: c.ultima_interacao,
+      contact_avatar_url: c.avatar_url ?? null,
+      contact_last_seen_at: c.last_seen_at ?? null,
+      contact_is_online: c.is_online ?? null,
+      contact_typing_until: c.typing_until ?? null,
       conversation_id: conv?.id ?? '',
       conversation_status: conv?.status_conversa ?? 'aberta',
       ultima_mensagem: lastMsg,
       ultima_interacao: conv?.ultima_interacao ?? c.ultima_interacao,
+      unread_count: typeof conv?.unread_count === 'number' ? conv.unread_count : 0,
     }
   })
 

@@ -14,6 +14,8 @@ export interface ChatMessage {
   timestamp: string
   message_type?: ChatMessageType | string | null
   media_url?: string | null
+  /** Status Evolution: sent, delivered, read */
+  status_envio?: string | null
 }
 
 interface ChatWindowProps {
@@ -91,7 +93,7 @@ export function ChatWindow({
           <p className="font-medium text-white truncate">{contactName}</p>
         </div>
       ) : null}
-      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 space-y-2 flex flex-col">
+      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2 space-y-1.5 flex flex-col">
         {disabled && messages.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-zinc-500">
             Selecione um contato para ver a conversa
@@ -154,9 +156,20 @@ export function ChatWindow({
               {m.message_type === 'video' && messageText(m) && messageText(m) !== '[Vídeo]' && (
                 <p className="text-sm whitespace-pre-wrap break-words mt-1 opacity-90">{messageText(m)}</p>
               )}
-              <p className={`text-[10px] mt-0.5 ${m.tipo === 'saida' ? 'text-white/80' : 'text-zinc-500'}`}>
-                {formatTime(m.timestamp)}
-              </p>
+              <div className={`text-[10px] mt-0.5 flex items-center gap-1 ${m.tipo === 'saida' ? 'justify-end text-white/80' : 'text-zinc-500'}`}>
+                <span>{formatTime(m.timestamp)}</span>
+                {m.tipo === 'saida' && m.status_envio && (
+                  <span className="inline-flex" title={m.status_envio === 'read' ? 'Lido' : m.status_envio === 'delivered' ? 'Entregue' : 'Enviado'}>
+                    {m.status_envio === 'read' ? (
+                      <span className="text-blue-200">✓✓</span>
+                    ) : m.status_envio === 'delivered' ? (
+                      <span className="text-white/90">✓✓</span>
+                    ) : (
+                      <span className="text-white/80">✓</span>
+                    )}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         ))}
@@ -165,16 +178,16 @@ export function ChatWindow({
         )}
       </div>
 
-      <div ref={inputAreaRef} className="relative px-2 py-1.5 border-t border-white/10 bg-zinc-900/30 flex-shrink-0">
-        <div className="flex items-center gap-1.5">
+      {/* Aba de digitar — visível e estilo WhatsApp Web */}
+      <div ref={inputAreaRef} className="relative px-3 py-2 border-t border-white/10 bg-zinc-900/50 flex-shrink-0">
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            className="p-1.5 rounded-lg text-zinc-500 hover:bg-white/10 hover:text-zinc-300"
+            className="p-2 rounded-xl text-zinc-400 hover:bg-white/10 hover:text-white transition-colors"
             title="Anexar"
           >
-            <Paperclip size={16} />
+            <Paperclip size={20} />
           </button>
-          {/* Ícone variáveis ao lado do clip; janela abre logo acima dele */}
           {onInsertVariable && DYNAMIC_VARIABLES.length > 0 && (
             <div className="relative">
               {showVariables && (
@@ -182,7 +195,7 @@ export function ChatWindow({
                   ref={variablesRef}
                   className="absolute left-0 bottom-full mb-1.5 w-44 p-2 rounded-lg bg-zinc-800 border border-white/10 shadow-xl z-20"
                 >
-                  <p className="text-[10px] text-zinc-500 mb-1.5 font-medium">Variáveis</p>
+                  <p className="text-xs text-zinc-500 mb-1.5 font-medium">Variáveis</p>
                   <div className="flex flex-col gap-1">
                     {DYNAMIC_VARIABLES.map((v) => (
                       <button
@@ -201,14 +214,14 @@ export function ChatWindow({
                 type="button"
                 data-variables-toggle
                 onClick={() => setShowVariables((v) => !v)}
-                className={`p-1.5 rounded-lg transition-colors ${
+                className={`p-2 rounded-xl transition-colors ${
                   showVariables
                     ? 'bg-[#25D366]/20 text-[#25D366]'
-                    : 'text-zinc-500 hover:bg-white/10 hover:text-zinc-300'
+                    : 'text-zinc-400 hover:bg-white/10 hover:text-white'
                 }`}
                 title="Variáveis dinâmicas"
               >
-                <Braces size={16} />
+                <Braces size={20} />
               </button>
             </div>
           )}
@@ -218,23 +231,24 @@ export function ChatWindow({
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && onSend()}
             placeholder="Digite sua mensagem..."
-            className="flex-1 min-w-0 px-3 py-1.5 text-sm rounded-lg bg-zinc-800 border border-white/10 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/50"
+            className="flex-1 min-w-0 px-4 py-2.5 text-[15px] rounded-xl bg-zinc-800 border border-white/10 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/50 focus:border-[#25D366]/30"
             disabled={disabled}
           />
           <button
             type="button"
-            className="p-1.5 rounded-lg text-zinc-500 hover:bg-white/10 hover:text-zinc-300"
+            className="p-2 rounded-xl text-zinc-400 hover:bg-white/10 hover:text-white transition-colors"
             title="Emoji"
           >
-            <Smile size={16} />
+            <Smile size={20} />
           </button>
           <Button
             size="md"
             variant="primary"
             onClick={onSend}
             disabled={!inputValue.trim() || loading || disabled}
+            className="!px-4 !py-2.5 !rounded-xl"
           >
-            <Send size={16} />
+            <Send size={20} />
           </Button>
         </div>
       </div>
