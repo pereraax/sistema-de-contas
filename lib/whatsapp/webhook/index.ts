@@ -1,6 +1,5 @@
 /**
- * WhatsApp — Webhook
- * Nova arquitetura: recepção de eventos/mensagens (a implementar).
+ * WhatsApp — Webhook (parser usado pela rota Z-API)
  */
-
-export {}
+export { parseZApiPayload } from './parser'
+export type { IncomingWebhookMessage } from './parser'
