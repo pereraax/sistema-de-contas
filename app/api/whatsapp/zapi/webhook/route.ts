@@ -30,7 +30,6 @@ import {
   isValidEmail,
   isValidNome,
   validateEmailWithHint,
-  isSaudacaoOuRespostaGenerica,
   isRecusaOuAdiamentoCadastro,
   extrairNomeDaMensagem,
 } from '@/lib/whatsapp-signup-flow'
@@ -627,17 +626,6 @@ async function processarEmBackground(parsed: ZapiParsed) {
       }
       if (signupPending.step === 'nome') {
         const msg = (text ?? '').trim()
-        // Identificar contexto: saudação ou resposta genérica não é nome — não avançar nem chamar LLM.
-        if (isSaudacaoOuRespostaGenerica(msg)) {
-          await sendTextMessage(
-            phone,
-            'Oi! 💙 Para criar sua conta preciso do seu *nome completo*. Ex.: Maria Silva.',
-            { delayTyping: 1 }
-          ).catch(() => {})
-          markResponded(phone, text ?? '')
-          console.log('📧 [Z-API Webhook] Cadastro WhatsApp — mensagem é saudação/resposta genérica, pedindo nome completo de novo:', phone)
-          return
-        }
         const nomeExtraido = extrairNomeDaMensagem(msg)
         let nomeFinal = nomeExtraido && nomeExtraido.length >= 2 ? nomeExtraido : msg
         if (!isValidNome(nomeFinal)) {
@@ -651,8 +639,25 @@ async function processarEmBackground(parsed: ZapiParsed) {
           markResponded(phone, text ?? '')
           console.log('📧 [Z-API Webhook] Cadastro WhatsApp — nome recebido', nomeFinal !== msg ? `(extraído: ${nomeFinal})` : '', 'aguardando e-mail para', phone)
         } else {
-          await sendTextMessage(phone, 'Me diga seu nome (ex.: Maria Silva).', { delayTyping: 1 }).catch(() => {})
+          // Lead não enviou nome: ChatGPT responde (pedir nome para continuidade ou responder dúvida tipo preço/valor)
+          const ctxNome = `O lead está no fluxo de cadastro pelo WhatsApp. Acabamos de pedir o NOME dele. A mensagem que ele enviou foi: "${msg}"
+
+REGRAS:
+(1) Se ele NÃO enviou um nome (saudação, pergunta, número, texto que não parece nome): peça de forma amigável que *digite o nome* para darmos continuidade. Ex.: "Para criarmos sua conta preciso do seu nome. 😊 Digite seu nome para darmos continuidade!"
+(2) Se ele perguntou sobre PREÇO, VALOR, QUANTO CUSTA, PLANOS: responda de forma estratégica (poucos centavos por dia, pode testar grátis) e no final peça o nome para continuar. Ex.: "Os planos são acessíveis — poucos centavos por dia. Você pode começar grátis! 💙 Para continuar, digite seu nome que eu crio sua conta."
+(3) Se ele fez outra pergunta (como funciona, o que é a Plenipay): responda de forma breve e útil e no final peça o nome para continuar.
+Seja breve (2-4 frases). Use *negrito* para ênfase. Emojis: 💙 😊.`
+          let respostaNome: string
+          try {
+            const { getPlenLLMResponse } = await import('@/lib/plen-llm-fallback')
+            const llm = await getPlenLLMResponse({ userMessage: msg, context: ctxNome, productMode: true })
+            respostaNome = (llm && llm.trim()) ? llm.trim() : 'Digite seu nome para darmos continuidade ao cadastro. Ex.: Maria Silva. 💙'
+          } catch (_) {
+            respostaNome = 'Digite seu nome para darmos continuidade. Ex.: Maria Silva. 💙'
+          }
+          await sendTextMessage(phone, respostaNome, { delayTyping: 1 }).catch(() => {})
           markResponded(phone, text ?? '')
+          console.log('📧 [Z-API Webhook] Cadastro WhatsApp — mensagem não é nome, ChatGPT respondeu:', phone)
         }
         return
       }
