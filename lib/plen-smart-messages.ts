@@ -31,6 +31,66 @@ export async function updateLastActivity(supabase: SupabaseClient, accountOwnerI
     )
 }
 
+function normalizePhone(phone: string): string {
+  const limpo = String(phone ?? '').replace(/\D/g, '')
+  return limpo.length >= 10 ? (limpo.startsWith('55') ? limpo : `55${limpo}`) : limpo
+}
+
+/**
+ * Constrói a lista de atividades (account_owner_id + last_message_at) a partir do WhatsApp completo.
+ * Fonte: whatsapp_contatos.last_message_at (atualizado em toda mensagem recebida).
+ * Assim o intervalo é sempre "desde que o lead parou de responder" no WhatsApp.
+ */
+async function getActivitiesFromWhatsApp(supabase: SupabaseClient): Promise<{ account_owner_id: string; last_message_at: string }[]> {
+  const { data: contatos } = await supabase
+    .from('whatsapp_contatos')
+    .select('phone, last_message_at')
+    .not('last_message_at', 'is', null)
+  if (!contatos?.length) return []
+
+  const phones = (contatos as { phone: string; last_message_at: string }[]).map((r) => ({
+    phone: normalizePhone(r.phone),
+    last_message_at: r.last_message_at,
+  }))
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, whatsapp')
+    .not('whatsapp', 'is', null)
+  const ownerByPhoneFromProfile = new Map<string, string>()
+  for (const p of profiles ?? []) {
+    const ph = normalizePhone((p as { whatsapp?: string }).whatsapp ?? '')
+    if (ph.length >= 10) ownerByPhoneFromProfile.set(ph, (p as { id: string }).id)
+  }
+
+  const { data: sessions } = await supabase
+    .from('whatsapp_sessions')
+    .select('user_id, phone_number')
+    .not('phone_number', 'is', null)
+  for (const s of sessions ?? []) {
+    const ph = normalizePhone((s as { phone_number?: string }).phone_number ?? '')
+    if (ph.length >= 10) {
+      const uid = (s as { user_id: string }).user_id
+      if (!ownerByPhoneFromProfile.has(ph)) ownerByPhoneFromProfile.set(ph, uid)
+    }
+  }
+
+  const ownerToLatestMessage = new Map<string, string>()
+  for (const { phone, last_message_at } of phones) {
+    const ownerId = ownerByPhoneFromProfile.get(phone)
+    if (!ownerId) continue
+    const current = ownerToLatestMessage.get(ownerId)
+    if (!current || new Date(last_message_at) > new Date(current)) {
+      ownerToLatestMessage.set(ownerId, last_message_at)
+    }
+  }
+
+  return [...ownerToLatestMessage.entries()].map(([account_owner_id, last_message_at]) => ({
+    account_owner_id,
+    last_message_at,
+  }))
+}
+
 /** Retorna o telefone do usuário (profiles.whatsapp ou whatsapp_sessions.phone_number). */
 export async function getPhoneForUser(supabase: SupabaseClient, accountOwnerId: string): Promise<string | null> {
   const { data: profile } = await supabase
@@ -126,15 +186,28 @@ export type EligibleSmartMessage = {
 /**
  * Retorna usuários elegíveis para exatamente uma mensagem inteligente cada (prioridade: 10min > 1h > 24h > 10_reg > 20_reg > categoria).
  * Respeita intervalo mínimo entre mensagens.
+ * Atividade é construída a partir do WhatsApp (whatsapp_contatos), revisando todos os contatos e usando
+ * last_message_at como "desde que o lead parou de responder".
  */
 export async function getEligibleUsers(supabase: SupabaseClient): Promise<EligibleSmartMessage[]> {
   const now = new Date()
   const nowMs = now.getTime()
 
-  const { data: activities } = await supabase
+  const activities = await getActivitiesFromWhatsApp(supabase)
+  if (!activities.length) return []
+
+  const nowIso = now.toISOString()
+  await supabase
     .from('plen_user_activity')
-    .select('account_owner_id, last_message_at')
-  if (!activities?.length) return []
+    .upsert(
+      activities.map((act) => ({
+        account_owner_id: act.account_owner_id,
+        last_message_at: act.last_message_at,
+        updated_at: nowIso,
+      })),
+      { onConflict: 'account_owner_id' }
+    )
+    .then(() => {})
 
   const { data: sentRows } = await supabase
     .from('plen_smart_messages_sent')
