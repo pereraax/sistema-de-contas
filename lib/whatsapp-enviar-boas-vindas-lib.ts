@@ -22,18 +22,19 @@ export type BoasVindasItem =
   | { type: 'buttons'; body: string; buttons: { id: string; title: string; url?: string }[] }
 
 /** Mensagem única de boas-vindas = intro modo teste (sem botões). */
-const INTRO_SEM_NOME = `Oii 👋✨!!!
+const INTRO_SEM_NOME = `Oiii 👋✨
 
 💙 Eu sou a Plen, sua assistente financeira 😊
 
-✨ Antes de criar sua conta, vamos testar rapidinho.
+Aaah!! Antes de tudo salva meu contato para não dar erro durante os registros! 💙
 
-aaah eu só funciono quando você salva meu contato, então salva pra não ocorrer erro em reconhecer sua conversa! 😊
+✨ Antes de criar sua conta, vamos testar rapidinho.
 
 👉 Me diga algo que você gastou hoje.
 
 Exemplo:
 * 50 mercado
+ou
 * 20 uber`
 
 export const MENSAGENS_BOAS_VINDAS: BoasVindasItem[] = [
