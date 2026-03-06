@@ -96,6 +96,8 @@ function buttonIdToText(buttonId: string, label?: string): string {
   if (id === 'reenviar_codigo' || (lbl && /^reenviar\s*c[oó]digo$/i.test(lbl.replace(/\s+/g, ' ')))) return 'reenviar o email'
   if (id === 'falar_com_humano') return 'Falar com humano'
   if (id === 'voltar_plen') return 'Voltar a falar com a PLEN'
+  if (id === 'ver_planos' || (lbl && /ver\s+planos/i.test(lbl))) return '2 - Ver planos'
+  if (id === 'assinar_plano' || (lbl && /assinar\s+(um\s+)?plano/i.test(lbl))) return '1 - Assinar um plano'
   // Z-API às vezes envia o rótulo do botão como id; reconhecer "JÁ CRIEI" em qualquer campo
   if (lbl && /^j[aá]\s*criei$/i.test(lbl.replace(/\s+/g, ' '))) return 'JÁ CADASTREI'
   if (id && /^j[aá]_?criei$/i.test(id)) return 'JÁ CADASTREI'

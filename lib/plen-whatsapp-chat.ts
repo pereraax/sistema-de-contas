@@ -6,7 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/server'
 import { interpretarMensagem, formatarRespostaRegistro, categoriaInteligente, normalizarNumerosPorExtenso, extrairValor, interpretarComContextoEDescricao } from '@/lib/plen-registro'
-import { getRespostaPlanos, getPlenLLMResponse, RESPOSTA_OPEN_FINANCE } from '@/lib/plen-llm-fallback'
+import { getRespostaPlanos, getMensagemDetalhadaPlanosPersuasiva, getPlenLLMResponse, RESPOSTA_OPEN_FINANCE } from '@/lib/plen-llm-fallback'
 import { checkAndRegisterWhatsAppLimit } from '@/lib/whatsapp-limit-checker'
 
 /** Quando a intenção parece lembrete/gasto/dívida mas não conseguimos interpretar. */
@@ -639,6 +639,30 @@ export async function processPlenWhatsAppMessage(
       }
     }
 
+    // "2 - Ver planos" (clique no botão do upsell) — mensagem persuasiva detalhada + botão "Assinar plano agora"
+    const isVerPlanos =
+      norm === '2 - ver planos' || t === 'ver_planos' ||
+      /^2\s*[-–]\s*ver\s+planos\s*$/i.test(rawMessage.trim()) || /^ver\s+planos\s*$/i.test(rawMessage.trim())
+    if (isVerPlanos) {
+      return {
+        response: getMensagemDetalhadaPlanosPersuasiva(),
+        buttonUrl: PLENIPAY_PLANOS_URL,
+        buttonLabel: 'Assinar plano agora',
+      }
+    }
+
+    // "1 - Assinar um plano" (clique no botão do upsell) — mensagem curta + botão "Assinar plano agora"
+    const isAssinarPlano =
+      norm === '1 - assinar um plano' || t === 'assinar_plano' ||
+      /^1\s*[-–]\s*assinar\s+um\s+plano\s*$/i.test(rawMessage.trim()) || /^assinar\s+um\s+plano\s*$/i.test(rawMessage.trim())
+    if (isAssinarPlano) {
+      return {
+        response: 'Ótima escolha! 💙 Use o botão abaixo para ver os planos e assinar agora — você pode começar com 7 dias grátis. 👇',
+        buttonUrl: PLENIPAY_PLANOS_URL,
+        buttonLabel: 'Assinar plano agora',
+      }
+    }
+
     // Planos / preço / "qual valor?" — resposta curta com emojis, descrição dos planos e botão para /planos
     const isPlanos =
       /\b(plano|planos|pre[cç]o|quanto\s+custa|qual\s+valor|qual\s+o\s+valor|quanto\s+é|valor\s+do\s+plano|assinatura|mensalidade)\b/.test(t) ||
@@ -995,7 +1019,7 @@ export async function processPlenWhatsAppMessage(
       const parcelasTotais = interpretado.parcelas_totais ?? 1
       const valorFinal = Math.round(valor * 100) / 100
 
-      // DÍVIDA: conta gratuita não pode registrar; mostrar upsell com botão "Ver planos"
+      // DÍVIDA: conta gratuita não pode registrar; mostrar upsell com 2 botões (Assinar / Ver planos)
       if (tipo === 'divida') {
         const { data: profilePlano } = await supabase.from('profiles').select('plano').eq('id', userId).single()
         const plano = (profilePlano?.plano ?? 'teste').toString().toLowerCase().trim()
@@ -1008,19 +1032,29 @@ Se quiser *mais funções*, nos planos pagos você tem:
 • Juntar dinheiro (cofre)
 • Empréstimos
 
-Veja valores e detalhes de cada plano no botão abaixo. 👇`
+Escolha uma opção abaixo: 👇`
           return {
             response: msgUpsell,
-            buttonUrl: PLENIPAY_PLANOS_URL,
-            buttonLabel: 'Ver planos',
+            replyButtons: {
+              body: 'O que você prefere?',
+              buttons: [
+                { id: 'assinar_plano', title: '1 - Assinar um plano' },
+                { id: 'ver_planos', title: '2 - Ver planos' },
+              ],
+            },
           }
         }
         const limitDivida = await checkAndRegisterWhatsAppLimit(userId, 'registrar_divida')
         if (!limitDivida.allowed && limitDivida.message) {
           return {
             response: limitDivida.message,
-            buttonUrl: PLENIPAY_PLANOS_URL,
-            buttonLabel: 'Ver planos',
+            replyButtons: {
+              body: 'O que você prefere?',
+              buttons: [
+                { id: 'assinar_plano', title: '1 - Assinar um plano' },
+                { id: 'ver_planos', title: '2 - Ver planos' },
+              ],
+            },
           }
         }
       }

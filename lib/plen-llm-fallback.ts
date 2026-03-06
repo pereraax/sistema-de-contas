@@ -37,6 +37,32 @@ export function getRespostaPlanos(): string {
 _Para ver todos os detalhes e adquirir na plataforma, use o botão abaixo._ 👇`
 }
 
+/** Mensagem persuasiva e detalhada dos planos (quando o usuário escolhe "Ver planos" no upsell). Inclui descrição e CTA para assinar. */
+export function getMensagemDetalhadaPlanosPersuasiva(): string {
+  return `💙 *Conheça os planos Plenipay*
+
+Você merece ter controle total das suas finanças — e por *menos de um real por dia* você tem a Plen cuidando de tudo direto no WhatsApp. 😊
+
+📌 *Plano Grátis* — R$ 0
+Comece agora: registre gastos e entradas, consulte saldo e relatórios. Até 2 pessoas na conta.
+
+📌 *Plano Básico* — R$ 9,90/mês *(7 dias grátis)*
+• Tudo do Grátis + registros *ilimitados*
+• *Dívidas*, Salário, Calendário financeiro
+• Metas (até 3), até 10 usuários
+• Exportação de relatórios
+Ideal para quem quer organizar de vez. ✨
+
+📌 *Plano Premium* — R$ 49,90/mês *(7 dias grátis)*
+• Tudo do Básico
+• *Empréstimos*, Juntar dinheiro (cofre)
+• Metas *ilimitadas*, usuários *ilimitados*
+• Dashboard avançado, suporte 24/7
+Para quem quer o máximo. 👑
+
+*Milhares de pessoas já transformaram suas finanças.* Comece seu teste grátis — use o botão abaixo para assinar agora. 👇`
+}
+
 /**
  * Fallback com LLM (OpenAI) para o assistente PLEN/Plenipay.
  * Usado quando a mensagem não é interpretada como comando: gera resposta natural,
