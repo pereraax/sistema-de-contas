@@ -414,7 +414,7 @@ function getSiteUrlSemPreview(): string {
  * 👤 usuario: ...
  * 💬Descrição: (sempre; valor quando houver)
  * ✨ Seu gasto foi registrado com sucesso 📿!
- * Veja com mais detalhes no seu perfil:
+ * (A frase "Veja com mais detalhes no seu perfil:" é adicionada uma vez pelo layer WhatsApp ao anexar o botão.)
  */
 export function formatarRespostaRegistro(params: {
   nome: string
@@ -457,6 +457,6 @@ export function formatarRespostaRegistro(params: {
     linhas.push(`👤 usuario: ${nomeUsuario.trim()}`)
   }
   linhas.push(observacao != null && observacao.trim() !== '' ? `💬Descrição: ${observacao.trim()}` : '💬Descrição:')
-  linhas.push('', mensagemSucesso, '', 'Veja com mais detalhes no seu perfil:')
+  linhas.push('', mensagemSucesso)
   return linhas.join('\n')
 }
