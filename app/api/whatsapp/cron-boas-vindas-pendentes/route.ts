@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { runBoasVindasPendentes } from '@/lib/whatsapp-cron-boas-vindas'
 import { isBoasVindasConfigured } from '@/lib/whatsapp-enviar-boas-vindas-lib'
 import { runLeadRecoveryFollowUps } from '@/lib/whatsapp-lead-recovery'
+import { runRevisaoVacuo } from '@/lib/whatsapp-revisao-vacuo'
 import { isZapiConfigured } from '@/lib/whatsapp-zapi'
 import { sendTextMessage as zapiSendText } from '@/lib/whatsapp-zapi'
 import { isApifacilConfigured } from '@/lib/whatsapp-apifacil'
@@ -80,8 +81,25 @@ async function runCron(request: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // Revisão de leads no vácuo: quem enviou mensagem e não recebeu resposta (a cada 2 min, responde com PLEN)
+  let revisaoVacuo: { processed: number; errors: string[] } = { processed: 0, errors: [] }
+  if (isZapiConfigured()) {
+    try {
+      const rev = await runRevisaoVacuo(2, 48)
+      revisaoVacuo = { processed: rev.processed, errors: rev.errors ?? [] }
+      if (rev.errors?.length) {
+        (result as { errors?: string[] }).errors = [...((result as { errors?: string[] }).errors ?? []), ...rev.errors]
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error('[Cron boas-vindas] runRevisaoVacuo exceção:', msg)
+      revisaoVacuo = { processed: 0, errors: [msg] }
+    }
+  }
+
   return NextResponse.json({
     ...result,
     leadRecovery,
+    revisaoVacuo,
   })
 }

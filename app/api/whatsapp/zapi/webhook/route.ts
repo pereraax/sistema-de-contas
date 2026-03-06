@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processWhatsAppMessage, registerSentMessage } from '@/lib/whatsapp-plen-handler'
 import { sendTextMessage, sendButtonList, sendButtonActions, isZapiConfigured } from '@/lib/whatsapp-zapi'
-import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage, hasReceivedTestIntro, markTestIntroSent, hasCadastro, markEmailConfirmLinkSent } from '@/lib/whatsapp-contatos-pendentes'
+import { hasReceivedWelcome, markWelcomeSent, recordIncomingMessage, hasReceivedTestIntro, markTestIntroSent, hasCadastro, markEmailConfirmLinkSent, markReplySent } from '@/lib/whatsapp-contatos-pendentes'
 import { sendBoasVindasToNumber, isBoasVindasConfigured } from '@/lib/whatsapp-enviar-boas-vindas-lib'
 import {
   getMensagemInicialModoTeste,
@@ -629,6 +629,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
         console.error('❌ [Z-API Webhook] Intro Plen falhou após 3 tentativas (cron reenviará):', phone, err3 ?? 'unknown')
       }
       markResponded(phone, text ?? '')
+      markReplySent(phone)
       return
     }
 
@@ -663,6 +664,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
           await setSignupStepNome(phone).catch(() => {})
           await markWelcomeSent(phone).catch(() => {})
           markResponded(phone, text ?? '')
+          markReplySent(phone)
           markWelcomeJustSent(phone)
           console.log('✅ [Z-API Webhook] Teste de registro — gasto respondido e nome solicitado:', phone, gastoTeste.valor, gastoTeste.descricao)
         } else {
@@ -671,6 +673,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
           await setSignupStepNome(phone).catch(() => {})
           await markWelcomeSent(phone).catch(() => {})
           markResponded(phone, text ?? '')
+          markReplySent(phone)
           markWelcomeJustSent(phone)
         }
         return
@@ -688,6 +691,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
           { delayTyping: 1 }
         ).catch(() => {})
         markResponded(phone, text ?? '')
+        markReplySent(phone)
         console.log('📧 [Z-API Webhook] Lead adiou cadastro — fluxo limpo, convite a testar:', phone)
         return
       }
@@ -704,6 +708,7 @@ async function processarEmBackground(parsed: ZapiParsed) {
           await initLeadRecovery(phone).catch((e) => console.error('📧 [Z-API Webhook] initLeadRecovery:', e))
           await sendTextMessage(phone, 'Qual seu e-mail?', { delayTyping: 1 }).catch(() => {})
           markResponded(phone, text ?? '')
+          markReplySent(phone)
           console.log('📧 [Z-API Webhook] Cadastro WhatsApp — nome recebido', nomeFinal !== msg ? `(extraído: ${nomeFinal})` : '', 'aguardando e-mail para', phone)
         } else {
           // Lead não enviou nome: responder SEMPRE (nunca deixar no vácuo). Perguntas sobre preço têm fallback fixo.
@@ -733,6 +738,7 @@ REGRAS OBRIGATÓRIAS:
           }
           await sendTextMessage(phone, respostaNome, { delayTyping: 1 }).catch(() => {})
           markResponded(phone, text ?? '')
+          markReplySent(phone)
           console.log('📧 [Z-API Webhook] Cadastro WhatsApp — mensagem não é nome, respondeu (LLM ou fallback):', phone)
         }
         return
@@ -754,6 +760,7 @@ REGRAS OBRIGATÓRIAS:
             await sendTextMessage(phone, emailCheck.hint, { delayTyping: 1 }).catch(() => {})
           }
           markResponded(phone, text ?? '')
+          markReplySent(phone)
           return
         }
         await markLeadRecoveryEmailReceived(phone).catch(() => {})
@@ -775,6 +782,7 @@ REGRAS OBRIGATÓRIAS:
           await markLeadRecoveryCadastroConcluido(phone).catch(() => {})
           await clearSignupPending(phone)
           markResponded(phone, text ?? '')
+          markReplySent(phone)
           console.log('✅ [Z-API Webhook] Conta criada pelo WhatsApp para', phone)
         } else {
           if (result.error) console.error('📧 [Z-API Webhook] Criar conta falhou (não expor ao lead):', result.error)
@@ -784,6 +792,7 @@ REGRAS OBRIGATÓRIAS:
             { delayTyping: 1 }
           ).catch(() => {})
           markResponded(phone, text ?? '')
+          markReplySent(phone)
         }
         return
       }
@@ -796,6 +805,7 @@ REGRAS OBRIGATÓRIAS:
       await markTestIntroSent(phone).catch(() => {})
       await markWelcomeSent(phone).catch(() => {})
       markResponded(phone, text ?? '')
+      markReplySent(phone)
       console.log('📧 [Z-API Webhook] CADASTRAR clicado/digitado — enviado modo teste (depois cadastro) para', phone)
       return
     }
@@ -824,6 +834,7 @@ REGRAS OBRIGATÓRIAS:
         ).catch(() => {})
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
+        markReplySent(phone)
         markWelcomeJustSent(phone)
         console.log('✅ [Z-API Webhook] Modo teste concluído — solicitando nome:', phone)
       return
@@ -855,6 +866,7 @@ REGRAS OBRIGATÓRIAS:
       }
       await sendTextMessage(phone, msgResposta, { delayTyping: 1 }).catch(() => {})
       markResponded(phone, text ?? '')
+      markReplySent(phone)
       return
     }
 
@@ -884,6 +896,7 @@ REGRAS OBRIGATÓRIAS:
         ).catch(() => {})
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
+        markReplySent(phone)
         markWelcomeJustSent(phone)
         console.log('✅ [Z-API Webhook] Modo teste concluído para', phone, '— solicitando nome.')
         return
@@ -906,6 +919,7 @@ REGRAS OBRIGATÓRIAS:
         }
         await sendTextMessage(phone, msgResposta, { delayTyping: 1 }).catch(() => {})
         markResponded(phone, text ?? '')
+        markReplySent(phone)
         return
       }
 
@@ -925,6 +939,7 @@ REGRAS OBRIGATÓRIAS:
       }
       await sendTextMessage(phone, msgOutra, { delayTyping: 1 }).catch(() => {})
       markResponded(phone, text ?? '')
+      markReplySent(phone)
       return
     }
 
@@ -932,6 +947,7 @@ REGRAS OBRIGATÓRIAS:
     if (isQueroUtilizarPlenipayMessage(text) && isBoasVindasConfigured()) {
       if (introSendingNow.has(phone)) {
         markResponded(phone, text ?? '')
+        markReplySent(phone)
         return
       }
       introSendingNow.add(phone)
@@ -946,6 +962,7 @@ REGRAS OBRIGATÓRIAS:
         await markTestIntroSent(phone).catch(() => {})
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
+        markReplySent(phone)
         markWelcomeJustSent(phone)
       } finally {
         introSendingNow.delete(phone)
@@ -977,6 +994,7 @@ REGRAS OBRIGATÓRIAS:
         ).catch(() => {})
         await markWelcomeSent(phone).catch(() => {})
         markResponded(phone, text ?? '')
+        markReplySent(phone)
         markWelcomeJustSent(phone)
         return
       }
@@ -988,6 +1006,7 @@ REGRAS OBRIGATÓRIAS:
     if (result?.skipReply === true) {
       console.log('🛑 [Z-API Webhook] skipReply: aguardando humano — não enviar resposta')
       markResponded(phone, text ?? '')
+      markReplySent(phone)
       return
     }
 
@@ -1052,19 +1071,23 @@ REGRAS OBRIGATÓRIAS:
         if (i < result.messages.length - 1) await delay(280)
       }
       markResponded(phone, text ?? '')
+      markReplySent(phone)
     } else if (result?.message && typeof result.message === 'string' && result.message.trim()) {
       if (isMsgBloqueada(result.message)) {
         console.log('📨 [Z-API Webhook] Resposta bloqueada (não enviar):', result.message.slice(0, 30))
         markResponded(phone, text ?? '')
+        markReplySent(phone)
       } else {
       const send = await sendTextReply(phone, result.message.trim(), { delayTyping: 2 })
       if (send.success) {
         markResponded(phone, text ?? '')
+        markReplySent(phone)
         registerSentMessage(phone, result.message)
         console.log('✅ [Z-API Webhook] Resposta enviada para:', phone)
       } else {
         console.error('❌ [Z-API Webhook] Falha ao enviar resposta:', send.error)
         await sendTextReply(phone, 'Desculpe, tive um problema ao enviar. Tente de novo em um instante. 💙').catch(() => {})
+        markReplySent(phone)
       }
       }
     } else if (result === null || (result && !result.messages?.length && !(typeof result.message === 'string' && result.message.trim()))) {
@@ -1081,6 +1104,7 @@ REGRAS OBRIGATÓRIAS:
           'Agora é só abrir seu *email* (e a pasta de *spam*), clicar no *link* que enviamos e sua conta fica ativa. 💙\n\nDepois volte aqui e me diga um gasto ou receita que eu registro! Ex.: "gastei 200 com roupas" ou "recebi 1500 salário".'
         await sendTextReply(phone, msgFallback, { delayTyping: 1 }).catch(() => {})
         markResponded(phone, text ?? '')
+        markReplySent(phone)
         console.log('📨 [Z-API Webhook] Fallback para cadastro (pós-email): resposta enviada para', phone)
         return
       }
@@ -1093,11 +1117,13 @@ REGRAS OBRIGATÓRIAS:
         const msgTeste = 'Me diga um gasto no formato: *valor* e *o que foi*. Ex.: 50 mercado, 20 uber 😊'
         await sendTextReply(phone, msgTeste, { delayTyping: 1 }).catch(() => {})
         markResponded(phone, text ?? '')
+        markReplySent(phone)
         console.log('📨 [Z-API Webhook] Fallback modo teste (handler sem msg): pedindo gasto para', phone)
       } else {
         const nome = contactName?.trim() ? `, ${contactName.trim().slice(0, 30)}` : ''
         await sendTextReply(phone, `Em que posso ajudar${nome}? 😊`, { delayTyping: 1 }).catch(() => {})
         markResponded(phone, text ?? '')
+        markReplySent(phone)
       }
     } else {
       console.warn('📨 [Z-API Webhook] Resultado inesperado do handler. phone:', phone, 'keys:', result ? Object.keys(result) : 'null')
@@ -1113,6 +1139,7 @@ REGRAS OBRIGATÓRIAS:
         const nome = contactName?.trim() ? `, ${contactName.trim().slice(0, 30)}` : ''
         await sendTextReply(phone, `Em que posso ajudar${nome}? 😊`, { delayTyping: 1 }).catch(() => {})
         markResponded(phone, text ?? '')
+        markReplySent(phone)
       }
     }
   } catch (err) {

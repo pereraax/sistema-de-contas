@@ -31,6 +31,21 @@ export async function recordIncomingMessage(phone: string, message: string): Pro
   )
 }
 
+/** Marcar que enviamos uma resposta para este número (evita marcar como "no vácuo" no cron de revisão). */
+export async function markReplySent(phone: string): Promise<void> {
+  const supabase = createAdminClient()
+  if (!supabase) return
+  const p = normalizarPhone(phone)
+  if (p.length < 10) return
+  const now = new Date().toISOString()
+  await supabase
+    .from(TABLE)
+    .update({ last_reply_at: now, updated_at: now })
+    .eq('phone', p)
+    .then(() => {})
+    .catch(() => {})
+}
+
 /** Marcar que as 3 mensagens de boas-vindas foram enviadas para este número. */
 export async function markWelcomeSent(phone: string): Promise<void> {
   const supabase = createAdminClient()
@@ -265,6 +280,37 @@ export async function listPhonesPendentesParaCron(maxAgeHours: number = 168): Pr
     return []
   }
   return (data || []).map((r) => ({ phone: r.phone as string }))
+}
+
+/**
+ * Lista contatos que ficaram "no vácuo": última mensagem é do lead e não respondemos (ou respondemos antes da última mensagem).
+ * Usado pelo cron de revisão a cada 2 min para responder quem não recebeu resposta.
+ * @param minAgeMinutes só considera mensagens com pelo menos este tempo (ex.: 2 = não responder na hora, dar 2 min de margem)
+ * @param maxAgeHours só considera mensagens dos últimos X horas (ex.: 48 = não pegar conversas antigas)
+ */
+export async function listContatosNoVacuo(
+  minAgeMinutes: number = 2,
+  maxAgeHours: number = 48
+): Promise<{ phone: string; last_message: string | null }[]> {
+  const supabase = createAdminClient()
+  if (!supabase) return []
+  const since = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000).toISOString()
+  const minAgeAt = new Date(Date.now() - minAgeMinutes * 60 * 1000).toISOString()
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('phone, last_message, last_message_at, last_reply_at')
+    .not('last_message_at', 'is', null)
+    .lt('last_message_at', minAgeAt)
+    .gte('last_message_at', since)
+    .order('last_message_at', { ascending: true })
+  if (error) {
+    console.error('[whatsapp-contatos-pendentes] listContatosNoVacuo error:', error)
+    return []
+  }
+  const rows = (data || []) as { phone: string; last_message: string | null; last_message_at: string; last_reply_at: string | null }[]
+  return rows
+    .filter((r) => r.last_reply_at == null || new Date(r.last_message_at) > new Date(r.last_reply_at))
+    .map((r) => ({ phone: r.phone, last_message: r.last_message }))
 }
 
 /** Lista contatos que o sistema identifica como não tendo recebido o fluxo de boas-vindas: mensagem tipo "quero utilizar plenipay" e welcome_sent_at nulo, ou adicionados manualmente. */

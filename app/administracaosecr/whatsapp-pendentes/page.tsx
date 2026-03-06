@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Send, RefreshCw, MessageCircle, Loader2, UserPlus, ExternalLink, List } from 'lucide-react'
+import { Send, RefreshCw, MessageCircle, Loader2, UserPlus, ExternalLink, List, MessageSquarePlus } from 'lucide-react'
 import { createNotification } from '@/components/NotificationBell'
 
 interface Pendente {
@@ -69,6 +69,7 @@ export default function AdminWhatsAppPendentesPage() {
   const [importingWebhook, setImportingWebhook] = useState(false)
   const [jaCarregouUmaVez, setJaCarregouUmaVez] = useState(false)
   const [sendingAll, setSendingAll] = useState(false)
+  const [revisandoVacuo, setRevisandoVacuo] = useState(false)
 
   const fetchPendentes = useCallback(async () => {
     try {
@@ -243,6 +244,29 @@ export default function AdminWhatsAppPendentesPage() {
     }
   }
 
+  /** Dispara revisão de leads no vácuo (quem enviou e não recebeu resposta). Responde cada um com a mesma lógica do assistente. */
+  const revisarVacuo = async () => {
+    if (revisandoVacuo) return
+    setRevisandoVacuo(true)
+    try {
+      const res = await fetch('/api/admin/whatsapp-revisao-vacuo', { method: 'POST' })
+      const data = await res.json()
+      if (data.success !== false) {
+        createNotification(
+          `Revisão concluída: ${data.processed ?? 0} lead(s) respondido(s).${(data.errors?.length ?? 0) > 0 ? ` ${data.errors.length} falha(s).` : ''}`,
+          (data.errors?.length ?? 0) > 0 ? 'warning' : 'success'
+        )
+        carregarContatosCRM(true)
+      } else {
+        createNotification(data.error || 'Falha na revisão', 'error')
+      }
+    } catch (e) {
+      createNotification('Erro ao rodar revisão.', 'error')
+    } finally {
+      setRevisandoVacuo(false)
+    }
+  }
+
   const adicionarNumero = async () => {
     const num = novoNumero.trim().replace(/\D/g, '')
     if (num.length < 10) {
@@ -313,17 +337,29 @@ export default function AdminWhatsAppPendentesPage() {
         <div className="flex rounded-xl border border-white/10 bg-white/5 overflow-hidden min-h-[320px] max-h-[70vh]">
           {/* Coluna esquerda: lista de contatos (recentes no topo, altura reduzida) */}
           <div className="w-72 shrink-0 flex flex-col border-r border-white/10 max-h-[70vh]">
-            <div className="px-2.5 py-1.5 border-b border-white/10 flex items-center justify-between shrink-0">
+            <div className="px-2.5 py-1.5 border-b border-white/10 flex items-center justify-between gap-2 shrink-0">
               <span className="text-white/80 text-xs font-medium">Conversas (atualiza a cada 2 min)</span>
-              <button
-                type="button"
-                onClick={carregarContatosCRM}
-                disabled={loadingCRM}
-                className="p-1 rounded text-white/80 hover:bg-white/10 disabled:opacity-50"
-                title="Atualizar agora"
-              >
-                <RefreshCw size={14} className={loadingCRM ? 'animate-spin' : ''} />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={revisarVacuo}
+                  disabled={revisandoVacuo}
+                  className="flex items-center gap-1 px-2 py-1 rounded text-xs text-white/90 bg-emerald-600/80 hover:bg-emerald-600 disabled:opacity-50"
+                  title="Responder quem ficou no vácuo (última msg foi deles e não respondemos)"
+                >
+                  {revisandoVacuo ? <Loader2 size={12} className="animate-spin" /> : <MessageSquarePlus size={12} />}
+                  Revisar vácuo
+                </button>
+                <button
+                  type="button"
+                  onClick={carregarContatosCRM}
+                  disabled={loadingCRM}
+                  className="p-1 rounded text-white/80 hover:bg-white/10 disabled:opacity-50"
+                  title="Atualizar agora"
+                >
+                  <RefreshCw size={14} className={loadingCRM ? 'animate-spin' : ''} />
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto min-h-0">
               {loadingCRM && contatosCRM.length === 0 ? (
