@@ -122,7 +122,9 @@ async function maybeAppendIncentiveIndication(
 
   const urlPerfil = currentButtonUrl || PERFIL_URL
   const labelPerfil = currentButtonLabel || PERFIL_BUTTON_LABEL
-  const bodyPrimeira = currentButtonBody ? `${currentResponse}\n\n${currentButtonBody}` : currentResponse
+  const bodyPrimeira = currentButtonBody
+    ? (currentResponse.trim().endsWith(currentButtonBody.trim()) ? currentResponse : `${currentResponse}\n\n${currentButtonBody}`)
+    : currentResponse
   return {
     response: currentResponse,
     messages: [
@@ -645,7 +647,7 @@ export async function processPlenWhatsAppMessage(
       return {
         response: getRespostaPlanos(),
         buttonUrl: PLENIPAY_PLANOS_URL,
-        buttonLabel: 'Ver planos e assinar',
+        buttonLabel: 'Ver planos',
       }
     }
 
@@ -752,10 +754,7 @@ export async function processPlenWhatsAppMessage(
               observacao: comDesc.observacao || undefined,
               nomeContatoWhatsApp: contactNameWhatsApp,
             })
-            const dica =
-              '💡 Para adicionar descrição no próximo registro, mande assim:\n*recebi X origem + data + descrição*\nEx.: recebi 100 mãe ontem guardei na caixinha nubank'
-            const respBase = comDesc.observacao ? `${msgBase}\n\n${dica}` : `${msgBase}\n\nQuer adicionar uma descrição? Mande: *recebi X origem + data + descrição*\n\n${dica}`
-            return maybeAppendIncentiveIndication(supabase, userId, respBase, PERFIL_URL, PERFIL_BUTTON_LABEL, PERFIL_BUTTON_BODY)
+            return maybeAppendIncentiveIndication(supabase, userId, msgBase, PERFIL_URL, PERFIL_BUTTON_LABEL, PERFIL_BUTTON_BODY)
           }
         }
       }
@@ -830,7 +829,7 @@ export async function processPlenWhatsAppMessage(
     const multiRegistro = frasesRegistro.length > 1
     const frasesParaProcessar = multiRegistro ? frasesRegistro : [msgForRegistro]
 
-    type InterpretadoT = { tipo: 'saida' | 'entrada'; valor: number; nome: string; data_registro: string; categoria: string }
+    type InterpretadoT = { tipo: 'saida' | 'entrada' | 'divida'; valor: number; nome: string; data_registro: string; categoria: string; parcelas_totais?: number }
     const interpretados: InterpretadoT[] = []
 
     for (const frase of frasesParaProcessar) {
@@ -993,17 +992,51 @@ export async function processPlenWhatsAppMessage(
 
     if (interpretado) {
       const { tipo, valor, nome, data_registro, categoria } = interpretado
+      const parcelasTotais = interpretado.parcelas_totais ?? 1
       const valorFinal = Math.round(valor * 100) / 100
-      const comandoTipoSingle = tipo === 'entrada' ? 'registrar_entrada' : 'registrar_gasto'
-      const limitSingle = await checkAndRegisterWhatsAppLimit(userId, comandoTipoSingle)
-      if (!limitSingle.allowed && limitSingle.message) {
-        return {
-          response: limitSingle.message,
-          buttonUrl: PLENIPAY_PLANOS_URL,
-          buttonLabel: 'Ver planos e mais informações',
+
+      // DÍVIDA: conta gratuita não pode registrar; mostrar upsell com botão "Ver planos"
+      if (tipo === 'divida') {
+        const { data: profilePlano } = await supabase.from('profiles').select('plano').eq('id', userId).single()
+        const plano = (profilePlano?.plano ?? 'teste').toString().toLowerCase().trim()
+        if (plano === 'teste') {
+          const msgUpsell = `💙 No plano gratuito você já pode registrar *gastos* e *entradas* pelo WhatsApp.
+
+Se quiser *mais funções*, nos planos pagos você tem:
+• Lembretes
+• Dívidas
+• Juntar dinheiro (cofre)
+• Empréstimos
+
+Veja valores e detalhes de cada plano no botão abaixo. 👇`
+          return {
+            response: msgUpsell,
+            buttonUrl: PLENIPAY_PLANOS_URL,
+            buttonLabel: 'Ver planos',
+          }
+        }
+        const limitDivida = await checkAndRegisterWhatsAppLimit(userId, 'registrar_divida')
+        if (!limitDivida.allowed && limitDivida.message) {
+          return {
+            response: limitDivida.message,
+            buttonUrl: PLENIPAY_PLANOS_URL,
+            buttonLabel: 'Ver planos',
+          }
         }
       }
-      console.log('[PLEN WhatsApp] Registro interpretado:', { msg: msgForRegistro.slice(0, 100), valor: valorFinal, nome, tipo })
+
+      const comandoTipoSingle = tipo === 'entrada' ? 'registrar_entrada' : tipo === 'divida' ? 'registrar_divida' : 'registrar_gasto'
+      if (tipo !== 'divida') {
+        const limitSingle = await checkAndRegisterWhatsAppLimit(userId, comandoTipoSingle)
+        if (!limitSingle.allowed && limitSingle.message) {
+          return {
+            response: limitSingle.message,
+            buttonUrl: PLENIPAY_PLANOS_URL,
+            buttonLabel: 'Ver planos e mais informações',
+          }
+        }
+      }
+      console.log('[PLEN WhatsApp] Registro interpretado:', { msg: msgForRegistro.slice(0, 100), valor: valorFinal, nome, tipo, parcelasTotais })
 
       // Nome do dono da conta (profile) para preferir essa pessoa quando não houver segunda linha
       let profileNome: string | null = null
@@ -1109,21 +1142,23 @@ export async function processPlenWhatsAppMessage(
         }
       }
 
+      const nParcelas = tipo === 'divida' ? Math.max(1, Math.min(parcelasTotais, 120)) : 1
+      const registrosInserir = Array.from({ length: nParcelas }, () => ({
+        user_id: registroUserId,
+        nome: nParcelas > 1 ? `${nome} (parcela)` : nome,
+        tipo,
+        valor: valorFinal,
+        data_registro,
+        categoria: categoria || null,
+        parcelas_totais: nParcelas,
+        parcelas_pagas: 0,
+        etiquetas: tipo === 'divida' ? ['dívida'] : [],
+      }))
+
       const { data: inserted, error } = await supabase
         .from('registros')
-        .insert({
-          user_id: registroUserId,
-          nome,
-          tipo,
-          valor: valorFinal,
-          data_registro,
-          categoria: categoria || null,
-          parcelas_totais: 1,
-          parcelas_pagas: 0,
-          etiquetas: [],
-        })
+        .insert(registrosInserir)
         .select('id')
-        .single()
 
       if (error) {
         console.error('[PLEN whatsapp-chat] Erro ao inserir:', error)
@@ -1132,8 +1167,14 @@ export async function processPlenWhatsAppMessage(
         }
       }
 
-      const baseResp = {
-        response: formatarRespostaRegistro({
+      let responseText: string
+      if (tipo === 'divida' && nParcelas > 1) {
+        const total = valorFinal * nParcelas
+        const fmtVal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(valorFinal)
+        const fmtTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(total)
+        responseText = `✨ Dívida registrada com sucesso!\n\n📌 ${nome}\n🔴 ${nParcelas} parcelas de ${fmtVal}\n💰 Total: ${fmtTotal}\n📅 ${new Date(data_registro).toLocaleDateString('pt-BR')}\n\nVeja no seu perfil para acompanhar as parcelas. 📿`
+      } else {
+        responseText = formatarRespostaRegistro({
           nome,
           tipo,
           valor: valorFinal,
@@ -1141,7 +1182,11 @@ export async function processPlenWhatsAppMessage(
           categoria,
           nomeUsuario: nomeParaResposta,
           nomeContatoWhatsApp: contactNameWhatsApp,
-        }),
+        })
+      }
+
+      const baseResp = {
+        response: responseText,
         buttonUrl: PERFIL_URL,
         buttonLabel: PERFIL_BUTTON_LABEL,
         buttonBody: PERFIL_BUTTON_BODY,

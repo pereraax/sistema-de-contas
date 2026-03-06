@@ -121,6 +121,8 @@ export type InterpretadoPlen = {
   nome: string
   data_registro: string
   categoria: string
+  /** Para dívidas parceladas (ex.: 3x 166,90). Default 1. */
+  parcelas_totais?: number
 }
 
 /** Interpretado com descrição/observação extraída do contexto (ex.: "guardei na caixinha nubank"). */
@@ -272,6 +274,23 @@ export function interpretarMensagem(texto: string): InterpretadoPlen | null {
 
   let tipo: TipoRegistro
   let nome: string
+
+  // DÍVIDA PARCELADA: "3x 166,90 tenho uma dívida", "fiz uma divida de 3x 166,90", "divida de 3x 166,90 cartão"
+  const parceladaInicio = t.match(/^(\d+)\s*x\s*([\d.,]+)\s*(?:reais?|r\$|r\b)?\s*(?:tenho\s+uma\s+d[ií]vida|fiz\s+uma\s+d[ií]vida|tenho\s+d[ií]vida)\s*(.*)$/i)
+  const parceladaDepois = t.match(/(?:tenho\s+uma\s+d[ií]vida|fiz\s+uma\s+d[ií]vida|d[ií]vida\s+de)\s*(\d+)\s*x\s*([\d.,]+)\s*(?:reais?|r\$|r\b)?\s*(.*)/i)
+  const parcelada = parceladaInicio ?? parceladaDepois
+  if (parcelada) {
+    const n = Math.min(Math.max(1, parseInt(parcelada[1], 10)), 120)
+    const valorStrP = (parcelada[2] || '').replace(',', '.')
+    const valorParcela = extrairValor(valorStrP)
+    const nomeResto = (parcelada[3] || '').trim().replace(/\s*(hoje|ontem|dia\s+\d{1,2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*$/gi, '').trim()
+    nome = nomeResto ? nomeResto.substring(0, 200) : 'Dívida'
+    if (valorParcela != null && valorParcela >= 0.01 && valorParcela <= 500_000) {
+      const data_registro = parseDataDoTexto(t)
+      const categoria = categoriaInteligente(nome, 'divida')
+      return { tipo: 'divida', valor: valorParcela, nome, data_registro, categoria, parcelas_totais: n }
+    }
+  }
 
   // DÍVIDA: "tenho uma dívida de 200", "dívida de 200 no cartão", "devo 200"
   const dividaMatch = t.match(/(?:tenho\s+(?:uma\s+)?d[ií]vida\s+de|d[ií]vida\s+de|devo)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:no|em|no\s+)?\s*(.*)/i)

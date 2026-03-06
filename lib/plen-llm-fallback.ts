@@ -12,19 +12,29 @@ export const RESPOSTA_OPEN_FINANCE = `O Open Finance está em produção e em br
 
 Assim que liberarmos, você poderá conectar seus bancos e ter tudo ainda mais organizado. Fique de olho em plenipay.com para novidades 😊`
 
-/** Mensagem dinâmica sobre planos — com emojis, breve descrição de cada plano e CTA para o botão. */
+/** Mensagem dinâmica sobre planos — com valor, detalhes de cada plano e CTA. */
 export function getRespostaPlanos(): string {
-  return `💙 *Nossos planos*
+  return `💙 *Nossos planos* (valor e o que cada um tem)
 
-📌 *Grátis* — Comece sem pagar nada: registrar gastos e entradas pelo WhatsApp, consultar saldo e relatórios básicos.
+📌 *Grátis* — R$ 0
+• Registrar gastos e entradas pelo WhatsApp
+• Consultar saldo e relatórios básicos
+• Até 2 usuários na conta
 
-📌 *Básico* — Tudo do Grátis + mais categorias, lembretes e controle no dia a dia por poucos centavos por dia.
+📌 *Básico* — R$ 9,90/mês (7 dias grátis)
+• Tudo do Grátis
+• Registros ilimitados
+• Dívidas, Salário, Calendário
+• Metas (até 3), até 10 usuários
+• Exportação de relatórios
 
-📌 *Premium* — Controle completo: múltiplos usuários na conta, relatórios avançados, metas e muito mais.
+📌 *Premium* — R$ 49,90/mês (7 dias grátis)
+• Tudo do Básico
+• Empréstimos, Juntar dinheiro (cofre)
+• Metas ilimitadas, usuários ilimitados
+• Dashboard avançado, suporte 24/7
 
-Por poucos centavos por dia você tem a Plen cuidando das suas finanças direto no WhatsApp. 😊
-
-_Para mais detalhes e assinar, clique no botão abaixo._ 👇`
+_Para ver todos os detalhes e adquirir na plataforma, use o botão abaixo._ 👇`
 }
 
 /**

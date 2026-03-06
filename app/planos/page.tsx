@@ -523,6 +523,17 @@ export default function PlanosPage() {
           </p>
         </div>
 
+        {/* CTA final: mais informações na plataforma para adquirir */}
+        <div className="max-w-2xl mx-auto text-center mb-12 sm:mb-16">
+          <Link
+            href="/checkout"
+            className="inline-flex items-center gap-2 px-8 py-4 text-base sm:text-lg font-semibold rounded-xl bg-gradient-to-r from-[#2c5aa0] via-[#1e4976] to-[#163a5f] text-white shadow-lg hover:shadow-xl hover:shadow-[#1e4976]/40 transition-all duration-300 hover:scale-105 active:scale-100"
+          >
+            Mais informações na plataforma para adquirir
+            <ArrowRight size={20} className="flex-shrink-0" />
+          </Link>
+        </div>
+
         {/* Footer */}
         <footer className="bg-[#0D1B2A] text-white py-12">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
