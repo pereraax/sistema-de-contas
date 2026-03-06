@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Payload inválido' }, { status: 400 })
     }
 
-    if (!parsed.text) {
+    if (parsed.messageType === 'text' && !parsed.text) {
       await safeLog({ status: 'ignored', detail: 'empty text', payload_preview: payloadPreview })
       return NextResponse.json({ ok: true, ignored: 'empty text' })
     }
@@ -62,20 +62,22 @@ export async function POST(request: Request) {
     }
 
     const tipo = parsed.fromMe ? 'saida' : 'entrada'
+    const mensagemTexto = parsed.text || (parsed.mediaUrl ? '[Mídia]' : '')
     const msg = await createMessage({
       contact_id: contact.id,
       conversation_id: conversation.id,
       tipo,
-      mensagem: parsed.text,
+      mensagem: mensagemTexto,
       origem: 'whatsapp',
       status_envio: null,
       zapi_message_id: parsed.messageId ?? undefined,
-      message_type: 'text',
+      message_type: parsed.messageType,
+      media_url: parsed.mediaUrl ?? undefined,
     })
 
     if (msg) {
       await updateConversation(conversation.id, {
-        ultima_mensagem: parsed.text,
+        ultima_mensagem: mensagemTexto,
         status_conversa: 'aberta',
       })
       await touchContactLastInteraction(contact.id)
@@ -83,7 +85,7 @@ export async function POST(request: Request) {
         await logInteraction({
           contact_id: contact.id,
           evento: 'mensagem_recebida',
-          detalhes: { origem: 'whatsapp', preview: parsed.text.slice(0, 100) },
+          detalhes: { origem: 'whatsapp', preview: mensagemTexto.slice(0, 100) },
         })
       }
     }

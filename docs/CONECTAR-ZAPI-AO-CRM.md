@@ -54,20 +54,30 @@ Substitua `SEU_DOMINIO` pela sua URL real (ex.: `app.plenipay.com.br`).
 
 ---
 
-## 3. Variáveis de ambiente (envio de mensagens)
+## 3. Variáveis de ambiente
 
-Para **enviar** mensagens pelo CRM (botão Enviar na conversa), no `.env.local` ou no painel do seu provedor (Railway, etc.):
+Para **enviar** mensagens pelo CRM e **sincronizar** conversas (como no WhatsApp Web):
 
 ```
 Z_API_INSTANCE_ID=SUA_INSTANCIA
 Z_API_TOKEN=SEU_TOKEN
+Z_API_CLIENT_TOKEN=TOKEN_DE_SEGURANCA_DA_CONTA
 ```
 
-Esses valores aparecem no painel da Z-API (instância e token da instância).
+- `Z_API_INSTANCE_ID` e `Z_API_TOKEN`: no painel Z-API (instância e token da instância).
+- `Z_API_CLIENT_TOKEN`: no painel Z-API, em **Segurança** → **Token de segurança da conta**. Necessário para o botão **"Sincronizar WhatsApp"** trazer todas as conversas e mensagens recentes para o CRM.
 
 ---
 
-## 4. Testar se o webhook está sendo chamado
+## 4. Ver todas as conversas (como no WhatsApp Web)
+
+Na página **Conversas** do CRM, use o botão **"Sincronizar WhatsApp"** no topo. Ele chama a Z-API para listar todos os chats e importar as mensagens recentes de cada um. Exige `Z_API_CLIENT_TOKEN` configurado. Depois da sincronização, a lista de conversas e o histórico aparecem no CRM.
+
+O CRM também exibe **imagens**, **áudios**, **vídeos** e **documentos** recebidos: o webhook salva o tipo e a URL da mídia (a Z-API armazena os arquivos por até 30 dias).
+
+---
+
+## 5. Testar se o webhook está sendo chamado
 
 1. **Teste manual (GET)**  
    Abra no navegador (ou `curl`):
@@ -89,7 +99,7 @@ Esses valores aparecem no painel da Z-API (instância e token da instância).
 
 ---
 
-## 5. Se nada aparecer no CRM
+## 6. Se nada aparecer no CRM
 
 - **URL errada ou não salva**  
   Confirme de novo a URL do webhook no painel da Z-API (sem barra no final, com `https://`).
@@ -108,7 +118,7 @@ Esses valores aparecem no painel da Z-API (instância e token da instância).
 
 ---
 
-## 6. Resumo do fluxo
+## 7. Resumo do fluxo
 
 1. Alguém envia mensagem para o número conectado na Z-API.
 2. Z-API envia um POST para `https://SEU_DOMINIO/api/whatsapp/zapi/webhook` com os dados da mensagem.

@@ -14,6 +14,7 @@ export interface CrmMessage {
   status_envio: string | null
   zapi_message_id?: string | null
   message_type?: string | null
+  media_url?: string | null
   created_at: string
 }
 
@@ -26,6 +27,7 @@ export interface CrmMessageInsert {
   status_envio?: string | null
   zapi_message_id?: string | null
   message_type?: string | null
+  media_url?: string | null
 }
 
 export async function findMessageByZapiId(zapiMessageId: string): Promise<CrmMessage | null> {
@@ -58,6 +60,7 @@ export async function createMessage(input: CrmMessageInsert): Promise<CrmMessage
       status_envio: input.status_envio ?? null,
       zapi_message_id: input.zapi_message_id ?? null,
       message_type: input.message_type ?? 'text',
+      media_url: input.media_url ?? null,
     })
     .select()
     .single()

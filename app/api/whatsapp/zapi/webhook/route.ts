@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       await safeLog({ status: 'ignored', detail: 'fromMe', payload_preview: payloadPreview })
       return NextResponse.json({ ok: true, ignored: 'fromMe' })
     }
-    if (!parsed.text) {
+    if (parsed.messageType === 'text' && !parsed.text) {
       await safeLog({ status: 'ignored', detail: 'empty text', payload_preview: payloadPreview })
       return NextResponse.json({ ok: true, ignored: 'empty text' })
     }
@@ -64,17 +64,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Conversa' }, { status: 500 })
     }
 
+    const mensagemTexto = parsed.text || (parsed.mediaUrl ? '[Mídia]' : '')
     await createMessage({
       contact_id: contact.id,
       conversation_id: conversation.id,
       tipo: 'entrada',
-      mensagem: parsed.text,
+      mensagem: mensagemTexto,
       origem: 'whatsapp',
       zapi_message_id: parsed.messageId ?? undefined,
-      message_type: 'text',
+      message_type: parsed.messageType,
+      media_url: parsed.mediaUrl ?? undefined,
     })
     await updateConversation(conversation.id, {
-      ultima_mensagem: parsed.text,
+      ultima_mensagem: mensagemTexto,
       status_conversa: 'aberta',
     })
     const { touchContactLastInteraction } = await import('@/lib/crm/contacts')
@@ -82,7 +84,7 @@ export async function POST(request: Request) {
     await logInteraction({
       contact_id: contact.id,
       evento: 'mensagem_recebida',
-      detalhes: { origem: 'whatsapp', preview: parsed.text.slice(0, 100) },
+      detalhes: { origem: 'whatsapp', preview: mensagemTexto.slice(0, 100) },
     })
 
     await safeLog({
