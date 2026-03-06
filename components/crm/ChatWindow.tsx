@@ -40,14 +40,9 @@ export function ChatWindow({
   onInsertVariable,
   hideHeader = false,
 }: ChatWindowProps) {
-  const endRef = useRef<HTMLDivElement>(null)
   const inputAreaRef = useRef<HTMLDivElement>(null)
   const variablesRef = useRef<HTMLDivElement>(null)
   const [showVariables, setShowVariables] = useState(false)
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
 
   useEffect(() => {
     if (!showVariables) return
@@ -78,14 +73,25 @@ export function ChatWindow({
     setShowVariables(false)
   }
 
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = messagesEndRef.current
+    const container = scrollContainerRef.current
+    if (el && container) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  }, [messages])
+
   return (
-    <div className="flex flex-col h-full bg-zinc-950/30 relative">
+    <div className="flex flex-col h-full min-h-0 bg-zinc-950/30 relative overflow-hidden">
       {!hideHeader && contactName ? (
-        <div className="p-3 border-b border-white/10 bg-zinc-900/50">
-          <p className="font-medium text-white">{contactName}</p>
+        <div className="p-2.5 border-b border-white/10 bg-zinc-900/50 flex-shrink-0">
+          <p className="font-medium text-white truncate">{contactName}</p>
         </div>
       ) : null}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 flex flex-col">
+      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 space-y-2 flex flex-col">
         {disabled && messages.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-zinc-500">
             Selecione um contato para ver a conversa
@@ -95,10 +101,10 @@ export function ChatWindow({
             {messages.map((m) => (
           <div
             key={m.id}
-            className={`flex ${m.tipo === 'saida' ? 'justify-end' : 'justify-start'}`}
+            className={`flex flex-shrink-0 ${m.tipo === 'saida' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
+              className={`max-w-[85%] rounded-xl px-3 py-2 ${
                 m.tipo === 'saida'
                   ? 'bg-[#25D366] text-white rounded-br-md'
                   : 'bg-zinc-800 text-zinc-100 rounded-bl-md border border-white/10'
@@ -139,34 +145,34 @@ export function ChatWindow({
                   <span className="text-sm truncate">{messageText(m) || 'Documento'}</span>
                 </a>
               )}
-              {(m.message_type === 'contact' || m.message_type === 'location' || m.message_type === 'text' || !m.message_type) && messageText(m) ? (
-                <p className="text-sm whitespace-pre-wrap break-words">{messageText(m)}</p>
-              ) : null}
+              {(m.message_type === 'contact' || m.message_type === 'location' || m.message_type === 'text' || !m.message_type) && (
+                <p className="text-sm whitespace-pre-wrap break-words">{messageText(m) || '—'}</p>
+              )}
               {m.message_type === 'image' && messageText(m) && messageText(m) !== '[Imagem]' && (
                 <p className="text-sm whitespace-pre-wrap break-words mt-1 opacity-90">{messageText(m)}</p>
               )}
               {m.message_type === 'video' && messageText(m) && messageText(m) !== '[Vídeo]' && (
                 <p className="text-sm whitespace-pre-wrap break-words mt-1 opacity-90">{messageText(m)}</p>
               )}
-              <p className={`text-xs mt-1 ${m.tipo === 'saida' ? 'text-white/80' : 'text-zinc-500'}`}>
+              <p className={`text-[10px] mt-0.5 ${m.tipo === 'saida' ? 'text-white/80' : 'text-zinc-500'}`}>
                 {formatTime(m.timestamp)}
               </p>
             </div>
           </div>
         ))}
-            <div ref={endRef} />
+            <div ref={messagesEndRef} />
           </>
         )}
       </div>
 
-      <div ref={inputAreaRef} className="relative p-3 border-t border-white/10 bg-zinc-900/30">
-        <div className="flex gap-2">
+      <div ref={inputAreaRef} className="relative px-2 py-1.5 border-t border-white/10 bg-zinc-900/30 flex-shrink-0">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
-            className="p-2 rounded-xl text-zinc-500 hover:bg-white/10 hover:text-zinc-300"
+            className="p-1.5 rounded-lg text-zinc-500 hover:bg-white/10 hover:text-zinc-300"
             title="Anexar"
           >
-            <Paperclip size={20} />
+            <Paperclip size={16} />
           </button>
           {/* Ícone variáveis ao lado do clip; janela abre logo acima dele */}
           {onInsertVariable && DYNAMIC_VARIABLES.length > 0 && (
@@ -195,14 +201,14 @@ export function ChatWindow({
                 type="button"
                 data-variables-toggle
                 onClick={() => setShowVariables((v) => !v)}
-                className={`p-2 rounded-xl transition-colors ${
+                className={`p-1.5 rounded-lg transition-colors ${
                   showVariables
                     ? 'bg-[#25D366]/20 text-[#25D366]'
                     : 'text-zinc-500 hover:bg-white/10 hover:text-zinc-300'
                 }`}
                 title="Variáveis dinâmicas"
               >
-                <Braces size={20} />
+                <Braces size={16} />
               </button>
             </div>
           )}
@@ -212,15 +218,15 @@ export function ChatWindow({
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && onSend()}
             placeholder="Digite sua mensagem..."
-            className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-800 border border-white/10 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/50"
+            className="flex-1 min-w-0 px-3 py-1.5 text-sm rounded-lg bg-zinc-800 border border-white/10 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#25D366]/50"
             disabled={disabled}
           />
           <button
             type="button"
-            className="p-2 rounded-xl text-zinc-500 hover:bg-white/10 hover:text-zinc-300"
+            className="p-1.5 rounded-lg text-zinc-500 hover:bg-white/10 hover:text-zinc-300"
             title="Emoji"
           >
-            <Smile size={20} />
+            <Smile size={16} />
           </button>
           <Button
             size="md"
@@ -228,7 +234,7 @@ export function ChatWindow({
             onClick={onSend}
             disabled={!inputValue.trim() || loading || disabled}
           >
-            <Send size={18} />
+            <Send size={16} />
           </Button>
         </div>
       </div>
