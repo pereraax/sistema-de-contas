@@ -394,6 +394,15 @@ function isQueroUtilizarPlenipayMessage(t: string): boolean {
   return !!(temPlenipay && temIntencao)
 }
 
+/** Primeira mensagem do lead: só cumprimento curto (Olá, Oi, etc.). Usado para enviar intro mesmo quando o payload vem só "Olá" em vez de "Olá! Quero utilizar a Plenipay". */
+function isShortGreetingOnly(t: string): boolean {
+  if (!t || typeof t !== 'string') return false
+  const msg = t.replace(/\u200B|\uFEFF|\u00AD/g, '').trim().toLowerCase().replace(/\s+/g, ' ').trim()
+  if (!msg || msg.length > 50) return false
+  const cumprimentos = ['oi', 'olá', 'ola', 'oii', 'oiii', 'hello', 'hi', 'bom dia', 'boa tarde', 'boa noite', 'e aí', 'e ai', 'fala', 'opa']
+  return cumprimentos.some((c) => msg === c || msg === c + '!' || msg.startsWith(c + ' ') || msg === c + '.')
+}
+
 function shouldIgnoreEventDuringWelcomeCooldown(text: string): boolean {
   const t = (text || '').replace(/\u200B|\uFEFF/g, '').trim()
   if (!t) return true
@@ -592,6 +601,37 @@ async function processarEmBackground(parsed: ZapiParsed) {
     const temCadastro = await hasCadastro(phoneDigits).catch(() => false)
     const signupPending = await getSignupPending(phoneDigits).catch(() => null)
 
+    // PRIORIDADE MÁXIMA — "Olá! Quero utilizar a Plenipay" ou só "Olá"/"Oi" (1º contato): SEMPRE enviar a mensagem da Plen. Não depender da saudação automática do anúncio.
+    const deveEnviarIntroPrimeiroContato =
+      !temCadastro && !signupPending && !jaRecebeuTestIntro &&
+      (isQueroUtilizarPlenipayMessage(text ?? '') || isShortGreetingOnly(text ?? ''))
+    if (deveEnviarIntroPrimeiroContato) {
+      const apresentacao = getMensagemInicialModoTeste(contactName)
+      let sent = await sendTextMessage(phone, apresentacao, { delayTyping: 1 }).catch(() => ({ success: false }))
+      if (!sent?.success) {
+        const err1 = (sent as { error?: string })?.error
+        console.warn('⚠️ [Z-API Webhook] Intro Plen 1ª tentativa falhou, retry em 2s:', err1 ?? 'unknown', '—', phone)
+        await delay(2000)
+        sent = await sendTextMessage(phone, apresentacao, { delayTyping: 1 }).catch(() => ({ success: false }))
+      }
+      if (!sent?.success) {
+        const err2 = (sent as { error?: string })?.error
+        console.warn('⚠️ [Z-API Webhook] Intro Plen 2ª tentativa falhou, retry em 3s:', err2 ?? 'unknown', '—', phone)
+        await delay(3000)
+        sent = await sendTextMessage(phone, apresentacao, { delayTyping: 1 }).catch(() => ({ success: false }))
+      }
+      if (sent?.success) {
+        await markTestIntroSent(phone).catch(() => {})
+        await markWelcomeSent(phone).catch(() => {})
+        console.log('👋 [Z-API Webhook] Intro Plen enviada (Quero utilizar ou 1º cumprimento):', phone)
+      } else {
+        const err3 = (sent as { error?: string })?.error
+        console.error('❌ [Z-API Webhook] Intro Plen falhou após 3 tentativas (cron reenviará):', phone, err3 ?? 'unknown')
+      }
+      markResponded(phone, text ?? '')
+      return
+    }
+
     // CRÍTICO — Teste de registro: lead sem conta enviou gasto (ex.: "50 Uber", "50 mercado"). SEMPRE responder; nunca deixar sem resposta.
     const isCadastrarMessage =
       (text ?? '').trim() === 'CADASTRAR' || /^cadastrar$/i.test((text ?? '').trim()) ||
@@ -635,26 +675,6 @@ async function processarEmBackground(parsed: ZapiParsed) {
         }
         return
       }
-    }
-
-    // PRIORIDADE MÁXIMA: "Olá! Quero utilizar a Plenipay." — SEMPRE enviar saudação para contato novo, sem pular ninguém.
-    if (isQueroUtilizarPlenipayMessage(text) && !temCadastro && !jaRecebeuTestIntro) {
-      const apresentacao = getMensagemInicialModoTeste(contactName)
-      let sent = await sendTextMessage(phone, apresentacao, { delayTyping: 1 }).catch(() => ({ success: false }))
-      if (!sent?.success) {
-        console.warn('⚠️ [Z-API Webhook] Saudação 1ª tentativa falhou, retry em 2s:', sent?.error, '—', phone)
-        await delay(2000)
-        sent = await sendTextMessage(phone, apresentacao, { delayTyping: 1 }).catch(() => ({ success: false }))
-      }
-      if (sent?.success) {
-        await markTestIntroSent(phone).catch(() => {})
-        await markWelcomeSent(phone).catch(() => {})
-        console.log('👋 [Z-API Webhook] "Quero utilizar Plenipay" — saudação enviada para lead:', phone)
-      } else {
-        console.error('❌ [Z-API Webhook] Saudação falhou após retry (cron reenviará):', phone, sent?.error)
-      }
-      markResponded(phone, text ?? '')
-      return
     }
 
     // Fluxo de criação de conta pelo WhatsApp: aguardando nome ou e-mail.
@@ -843,14 +863,11 @@ REGRAS OBRIGATÓRIAS:
     // Só tratar como "modo teste" (intro/gasto/testar antes) quando o lead ainda NÃO tem conta. Quem já tem cadastro (ex.: acabou de criar e está aguardando confirmar email) deve cair no handler principal (processWhatsAppMessage).
     // Mensagens de intro (oi, quero usar, etc.) vão para o handler PLEN para responder com intro + botão CADASTRAR — não interceptar aqui.
     if (!jaRecebeuBoasVindas && isBoasVindasConfigured() && !temCadastro && !isIntroIntentWebhook(text ?? '')) {
-      // 1) Primeira mensagem do lead: intro já foi enviada pelo WhatsApp (saudação). Só marcar e processar a resposta.
-      if (!jaRecebeuTestIntro) {
-        await markTestIntroSent(phone).catch(() => {})
-        console.log('🧪 [Z-API Webhook] Intro enviada pelo WhatsApp (saudação) — processando primeira resposta do lead:', phone)
-        // Não enviar nossa intro; cair no bloco 2) para processar gasto / nada / LLM.
-      }
+      // Não marcar test_intro como enviada aqui: a saudação automática do anúncio (Bem vindo a Plenipay) NÃO substitui nossa mensagem da Plen. Só marcamos quando nós mesmos enviamos (bloco de prioridade máxima acima).
+      // 1) Se o lead já recebeu nossa intro (jaRecebeuTestIntro): processar resposta (gasto, "nada" ou LLM).
+      // 2) Se ainda não recebeu: seguir para processar gasto / nada / LLM abaixo (e não marcar intro sem enviar).
 
-      // 2) Intro já enviada (por nós antes ou pelo WhatsApp) → processar resposta: gasto, "nada" ou LLM
+      // 2) Intro já enviada por nós (ou resposta do lead) → processar: gasto, "nada" ou LLM
       const gasto = parseGastoSimples(text ?? '')
       if (gasto) {
         console.log('🧪 [Z-API Webhook] Modo teste — gasto registrado:', gasto.valor, gasto.categoria, 'para', phone)
