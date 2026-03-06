@@ -371,6 +371,10 @@ export async function runLeadRecoveryFollowUps(sendTextMessage: (phone: string, 
     if (!signup || signup.step !== 'email' || signup.email != null) continue
     if (await hasCadastro(phone).catch(() => true)) continue
 
+    const recoveryAtSend = await getLeadRecovery(phone).catch(() => null)
+    const alreadySentInConv = Array.isArray(recoveryAtSend?.mensagens_followup_enviadas) ? recoveryAtSend!.mensagens_followup_enviadas : []
+    if (alreadySentInConv.includes(message)) continue
+
     try {
       const result = await sendTextMessage(phone, message)
       if (result.success) {

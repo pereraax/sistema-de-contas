@@ -315,12 +315,19 @@ async function obterListaRegistrosSemana(
     .lte('data_registro', fim)
     .order('data_registro', { ascending: false })
   if (error || !rows?.length) return []
-  return rows.map((r) => ({
+  const mapped = rows.map((r) => ({
     nome: String(r.nome || 'Registro'),
     tipo: String(r.tipo || ''),
     valor: Number(r.valor) || 0,
     data_registro: String(r.data_registro || ''),
   }))
+  const seen = new Set<string>()
+  return mapped.filter((r) => {
+    const key = `${r.nome}|${r.tipo}|${r.valor}|${r.data_registro}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 function formatarDataShort(iso: string): string {
@@ -937,9 +944,18 @@ export async function processPlenWhatsAppMessage(
       if (interp) interpretados.push(interp)
     }
 
-    const interpretado: InterpretadoT | null = interpretados.length === 1 ? interpretados[0]! : null
+    const dedupeKey = (i: InterpretadoT) => `${i.tipo}|${i.valor}|${i.nome}|${i.data_registro}`
+    const seenKeys = new Set<string>()
+    const interpretadosUnicos = interpretados.filter((i) => {
+      const key = dedupeKey(i)
+      if (seenKeys.has(key)) return false
+      seenKeys.add(key)
+      return true
+    })
 
-    if (interpretados.length > 1) {
+    const interpretado: InterpretadoT | null = interpretadosUnicos.length === 1 ? interpretadosUnicos[0]! : null
+
+    if (interpretadosUnicos.length > 1) {
       try {
         let profileNome: string | null = null
         try {
@@ -963,7 +979,7 @@ export async function processPlenWhatsAppMessage(
           ? usuarios.find((u) => u.nome?.toLowerCase() === profileNome!.toLowerCase())?.id
           : null) ?? usuarios[0].id
         const partes: string[] = []
-        for (const interp of interpretados) {
+        for (const interp of interpretadosUnicos) {
           const comandoTipoMulti = interp.tipo === 'entrada' ? 'registrar_entrada' : 'registrar_gasto'
           const limitMulti = await checkAndRegisterWhatsAppLimit(userId, comandoTipoMulti)
           if (!limitMulti.allowed && limitMulti.message) {

@@ -304,15 +304,17 @@ export async function getEligibleUsers(supabase: SupabaseClient): Promise<Eligib
   return result
 }
 
-/** Marca mensagem inteligente como enviada. */
+/** Marca mensagem inteligente como enviada. Guarda message_text no payload para nunca repetir a mesma mensagem na conversa. */
 export async function recordSmartMessageSent(
   supabase: SupabaseClient,
   userId: string,
   eventType: string,
-  payload?: Record<string, unknown>
+  payload?: Record<string, unknown>,
+  messageText?: string
 ): Promise<void> {
+  const payloadWithText = { ...(payload ?? {}), ...(messageText != null ? { message_text: messageText } : {}) }
   await supabase.from('plen_smart_messages_sent').upsert(
-    { user_id: userId, event_type: eventType, sent_at: new Date().toISOString(), payload: payload ?? null },
+    { user_id: userId, event_type: eventType, sent_at: new Date().toISOString(), payload: payloadWithText },
     { onConflict: 'user_id,event_type' }
   )
 }
@@ -332,12 +334,26 @@ export async function sendSmartMessage(
   if (!text) {
     return { success: false, error: 'Mensagem vazia' }
   }
+
+  const { data: sentRows } = await supabase
+    .from('plen_smart_messages_sent')
+    .select('payload')
+    .eq('user_id', userId)
+  const alreadySentTexts = new Set<string>()
+  for (const row of sentRows ?? []) {
+    const msgText = (row.payload as { message_text?: string } | null)?.message_text
+    if (typeof msgText === 'string' && msgText.trim()) alreadySentTexts.add(msgText.trim())
+  }
+  if (alreadySentTexts.has(text.trim())) {
+    return { success: true }
+  }
+
   const delayMs = DELAY_BETWEEN_SENDS_MS.min + Math.random() * (DELAY_BETWEEN_SENDS_MS.max - DELAY_BETWEEN_SENDS_MS.min)
   await new Promise((r) => setTimeout(r, delayMs))
   const sendTextMessage = isZapiConfigured() ? sendTextMessageZapi : sendTextMessageApifacil
   const result = await sendTextMessage(phone, text)
   if (result.success) {
-    await recordSmartMessageSent(supabase, userId, eventType, payload as Record<string, unknown>)
+    await recordSmartMessageSent(supabase, userId, eventType, payload as Record<string, unknown>, text)
   }
   return { success: result.success ?? false, error: result.error }
 }
