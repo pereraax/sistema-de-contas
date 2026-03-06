@@ -52,12 +52,26 @@ export const MSG_NADA_VAMOS_TESTAR = `Vamos testar pra você ver como funciona! 
 export type GastoSimples = { valor: number; categoria: string; descricao: string }
 
 /**
- * Tenta extrair um gasto simples do texto: valor + descrição (ex.: "50 mercado", "20 uber", "30 carros", "gastei 20 pão", "30,50 lanche").
+ * Tenta extrair um gasto simples do texto: valor + descrição (ex.: "50 mercado", "20 uber", "50 Uber", "30 carros", "gastei 20 pão", "30,50 lanche").
  * Retorna null se não parecer um gasto.
+ * Crítico: mensagem de teste de registro ("50 Uber", "50 mercado") NUNCA pode falhar — normalização robusta.
  */
 export function parseGastoSimples(texto: string): GastoSimples | null {
-  const t = (texto || '').trim().replace(/\s+/g, ' ')
+  const raw = (texto || '').replace(/\u200B|\uFEFF|\u00AD/g, '').trim()
+  const t = raw.replace(/\s+/g, ' ').trim()
   if (!t || t.length > 500) return null
+
+  // Padrão explícito "N descrição" (ex.: "50 Uber", "50 mercado", "20 uber") — prioridade máxima para não falhar no teste de registro
+  const numeroDescricao = t.match(/^\s*(\d+(?:[.,]\d+)?)\s+([a-záàâãéêíóôõúçA-ZÀ-Ú\w\s]+?)\s*[.,!?]*\s*$/i)
+  if (numeroDescricao) {
+    const v = parseFloat(numeroDescricao[1].replace(',', '.'))
+    const desc = (numeroDescricao[2] || '').trim().replace(/\s+/g, ' ').slice(0, 100)
+    if (!isNaN(v) && v > 0 && v <= 999_999 && desc.length >= 2) {
+      const categoria = categoriaInteligente(desc, 'saida')
+      return { valor: v, categoria, descricao: desc }
+    }
+  }
+
   let valor = extrairValor(t)
   let semValor = t
     .replace(/^[\d.,]+\s*(reais?|r\$|r\b)?\s*/i, '')

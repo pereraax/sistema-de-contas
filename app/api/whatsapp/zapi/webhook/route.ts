@@ -592,6 +592,51 @@ async function processarEmBackground(parsed: ZapiParsed) {
     const temCadastro = await hasCadastro(phoneDigits).catch(() => false)
     const signupPending = await getSignupPending(phoneDigits).catch(() => null)
 
+    // CRÍTICO — Teste de registro: lead sem conta enviou gasto (ex.: "50 Uber", "50 mercado"). SEMPRE responder; nunca deixar sem resposta.
+    const isCadastrarMessage =
+      (text ?? '').trim() === 'CADASTRAR' || /^cadastrar$/i.test((text ?? '').trim()) ||
+      /^(quero|vamos)\s*criar\s*(minha\s*)?conta$/i.test((text ?? '').trim()) || /^quero\s*criar$/i.test((text ?? '').trim().toLowerCase().replace(/\s+/g, ' '))
+    if (!temCadastro && !signupPending && !isQueroUtilizarPlenipayMessage(text ?? '') && !isCadastrarMessage) {
+      const gastoTeste = parseGastoSimples(text ?? '')
+      if (gastoTeste) {
+        const msgRegistro = getMsgGastoRegistradoModoTeste(gastoTeste.categoria, gastoTeste.valor, undefined, contactName)
+        let sent = await sendTextMessage(phone, msgRegistro, { delayTyping: 1 }).catch(() => ({ success: false }))
+        if (!sent?.success) {
+          console.warn('⚠️ [Z-API Webhook] Teste registro 1ª tentativa falhou, retry em 2s:', sent?.error, '—', phone)
+          await delay(2000)
+          sent = await sendTextMessage(phone, msgRegistro, { delayTyping: 1 }).catch(() => ({ success: false }))
+        }
+        if (sent?.success) {
+          await delay(800)
+          let sent2 = await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => ({ success: false }))
+          if (!sent2?.success) {
+            await delay(1500)
+            sent2 = await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => ({ success: false }))
+          }
+          await delay(800)
+          const msgNome = 'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail para ativar, e pronto já vai poder registrar tudo!\n\nÉ bem rápido, prometo 💙'
+          let sent3 = await sendTextMessage(phone, msgNome, { delayTyping: 1 }).catch(() => ({ success: false }))
+          if (!sent3?.success) {
+            await delay(1000)
+            sent3 = await sendTextMessage(phone, msgNome, { delayTyping: 1 }).catch(() => ({ success: false }))
+          }
+          await setSignupStepNome(phone).catch(() => {})
+          await markWelcomeSent(phone).catch(() => {})
+          markResponded(phone, text ?? '')
+          markWelcomeJustSent(phone)
+          console.log('✅ [Z-API Webhook] Teste de registro — gasto respondido e nome solicitado:', phone, gastoTeste.valor, gastoTeste.descricao)
+        } else {
+          console.error('❌ [Z-API Webhook] Teste de registro: falha ao enviar após retry — fallback:', phone)
+          await sendTextMessage(phone, `💙 Gasto de R$ ${gastoTeste.valor.toFixed(2).replace('.', ',')} (${gastoTeste.descricao}) anotado! Viu como é rápido? Vamos criar sua conta? Me diga seu nome (ex.: Maria) que eu crio e envio o código no e-mail. 😊`, { delayTyping: 1 }).catch(() => {})
+          await setSignupStepNome(phone).catch(() => {})
+          await markWelcomeSent(phone).catch(() => {})
+          markResponded(phone, text ?? '')
+          markWelcomeJustSent(phone)
+        }
+        return
+      }
+    }
+
     // PRIORIDADE MÁXIMA: "Olá! Quero utilizar a Plenipay." — SEMPRE enviar saudação para contato novo, sem pular ninguém.
     if (isQueroUtilizarPlenipayMessage(text) && !temCadastro && !jaRecebeuTestIntro) {
       const apresentacao = getMensagemInicialModoTeste(contactName)
@@ -641,25 +686,34 @@ async function processarEmBackground(parsed: ZapiParsed) {
           markResponded(phone, text ?? '')
           console.log('📧 [Z-API Webhook] Cadastro WhatsApp — nome recebido', nomeFinal !== msg ? `(extraído: ${nomeFinal})` : '', 'aguardando e-mail para', phone)
         } else {
-          // Lead não enviou nome: ChatGPT responde (pedir nome para continuidade ou responder dúvida tipo preço/valor)
+          // Lead não enviou nome: responder SEMPRE (nunca deixar no vácuo). Perguntas sobre preço têm fallback fixo.
+          const msgLower = msg.toLowerCase().replace(/\s+/g, ' ')
+          const isPerguntaPreco =
+            /\b(é|e)\s*pago\b|\bpago\s*\?|\bquanto\s+custa|\bvalor\s*\?|\bpre[cç]o|\bplanos?\s*\?|\bgr[aá]tis\b|\bcobram\b|\bpaga\s*\?/i.test(msgLower) ||
+            (msg.includes('?') && (/\b(pago|valor|preco|custa|plano)\b/i.test(msgLower) || msg.trim().length <= 30))
+          const fallbackPreco =
+            'Não é caro não! 💙 Você pode *começar grátis* e testar. Os planos são acessíveis — poucos centavos por dia. Para continuar, digite seu *nome* (ex.: Maria) que eu crio sua conta e envio o código no seu e-mail. 😊'
+          const fallbackGenerico =
+            'Para criarmos sua conta preciso do seu nome. 😊 Digite seu nome (ex.: Maria Silva) para darmos continuidade! 💙'
+
           const ctxNome = `O lead está no fluxo de cadastro pelo WhatsApp. Acabamos de pedir o NOME dele. A mensagem que ele enviou foi: "${msg}"
 
-REGRAS:
-(1) Se ele NÃO enviou um nome (saudação, pergunta, número, texto que não parece nome): peça de forma amigável que *digite o nome* para darmos continuidade. Ex.: "Para criarmos sua conta preciso do seu nome. 😊 Digite seu nome para darmos continuidade!"
-(2) Se ele perguntou sobre PREÇO, VALOR, QUANTO CUSTA, PLANOS: responda de forma estratégica (poucos centavos por dia, pode testar grátis) e no final peça o nome para continuar. Ex.: "Os planos são acessíveis — poucos centavos por dia. Você pode começar grátis! 💙 Para continuar, digite seu nome que eu crio sua conta."
-(3) Se ele fez outra pergunta (como funciona, o que é a Plenipay): responda de forma breve e útil e no final peça o nome para continuar.
-Seja breve (2-4 frases). Use *negrito* para ênfase. Emojis: 💙 😊.`
+REGRAS OBRIGATÓRIAS:
+(1) NUNCA deixe o lead sem resposta. Responda SEMPRE de forma amigável.
+(2) Se ele perguntou sobre PREÇO, VALOR, QUANTO CUSTA, É PAGO, PLANOS: responda que pode começar grátis, que os planos são acessíveis (poucos centavos por dia) e no final peça o nome para continuar.
+(3) Se ele fez outra pergunta (como funciona, o que é): responda de forma breve e útil e no final peça o nome para continuar.
+(4) Se não for pergunta: peça que digite o nome. Seja breve (2-4 frases). Use *negrito* para ênfase. Emojis: 💙 😊.`
           let respostaNome: string
           try {
             const { getPlenLLMResponse } = await import('@/lib/plen-llm-fallback')
             const llm = await getPlenLLMResponse({ userMessage: msg, context: ctxNome, productMode: true })
-            respostaNome = (llm && llm.trim()) ? llm.trim() : 'Digite seu nome para darmos continuidade ao cadastro. Ex.: Maria Silva. 💙'
+            respostaNome = (llm && llm.trim()) ? llm.trim() : (isPerguntaPreco ? fallbackPreco : fallbackGenerico)
           } catch (_) {
-            respostaNome = 'Digite seu nome para darmos continuidade. Ex.: Maria Silva. 💙'
+            respostaNome = isPerguntaPreco ? fallbackPreco : fallbackGenerico
           }
           await sendTextMessage(phone, respostaNome, { delayTyping: 1 }).catch(() => {})
           markResponded(phone, text ?? '')
-          console.log('📧 [Z-API Webhook] Cadastro WhatsApp — mensagem não é nome, ChatGPT respondeu:', phone)
+          console.log('📧 [Z-API Webhook] Cadastro WhatsApp — mensagem não é nome, respondeu (LLM ou fallback):', phone)
         }
         return
       }
@@ -667,7 +721,18 @@ Seja breve (2-4 frases). Use *negrito* para ênfase. Emojis: 💙 😊.`
         const email = (text ?? '').trim().toLowerCase()
         const emailCheck = validateEmailWithHint(email)
         if (!emailCheck.valid) {
-          await sendTextMessage(phone, emailCheck.hint, { delayTyping: 1 }).catch(() => {})
+          const msgEmail = (text ?? '').trim()
+          const msgLowerE = msgEmail.toLowerCase().replace(/\s+/g, ' ')
+          const isPerguntaNoEmail =
+            msgEmail.includes('?') ||
+            /\b(é|e)\s*pago\b|\bquanto\s+custa|\bvalor\b|\bpre[cç]o\b|\bgr[aá]tis\b/i.test(msgLowerE)
+          if (isPerguntaNoEmail) {
+            const respPreco =
+              'Não é caro não! 💙 Você pode começar *grátis*. Os planos são acessíveis. Agora me envia seu *e-mail* que eu crio sua conta e envio o código de confirmação. 😊'
+            await sendTextMessage(phone, respPreco, { delayTyping: 1 }).catch(() => {})
+          } else {
+            await sendTextMessage(phone, emailCheck.hint, { delayTyping: 1 }).catch(() => {})
+          }
           markResponded(phone, text ?? '')
           return
         }
@@ -705,12 +770,6 @@ Seja breve (2-4 frases). Use *negrito* para ênfase. Emojis: 💙 😊.`
     }
 
     // "CADASTRAR" (digitado ou clique no botão) → primeiro MODO TESTE ("Me diga um gasto"), depois cadastro (nome → e-mail).
-    const textNorm = (text ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
-    const isCadastrarMessage =
-      (text ?? '').trim() === 'CADASTRAR' ||
-      /^cadastrar$/i.test((text ?? '').trim()) ||
-      /^(quero|vamos)\s*criar\s*(minha\s*)?conta$/i.test((text ?? '').trim()) ||
-      /^quero\s*criar$/i.test(textNorm)
     if (!temCadastro && !signupPending && isCadastrarMessage) {
       const msgTeste = getMensagemInicialModoTeste(contactName)
       await sendTextMessage(phone, msgTeste, { delayTyping: 1 }).catch(() => {})
@@ -883,6 +942,29 @@ Seja breve (2-4 frases). Use *negrito* para ênfase. Emojis: 💙 😊.`
       return
     }
 
+    // Rede de segurança: lead sem conta que parece ter enviado gasto (ex.: 50 Uber) e não foi tratado acima — nunca deixar sem resposta
+    if (!temCadastro && !signupPending && !isCadastrarMessage && !isQueroUtilizarPlenipayMessage(text ?? '')) {
+      const gastoRede = parseGastoSimples(text ?? '')
+      if (gastoRede) {
+        console.log('🧪 [Z-API Webhook] Rede de segurança: teste de registro tratado antes do handler PLEN:', phone, gastoRede.valor, gastoRede.descricao)
+        const msgRegistro = getMsgGastoRegistradoModoTeste(gastoRede.categoria, gastoRede.valor, undefined, contactName)
+        await sendTextMessage(phone, msgRegistro, { delayTyping: 1 }).catch(() => ({ success: false }))
+        await delay(800)
+        await sendTextMessage(phone, MSG_FOLLOW_UP_CRIAR_CONTA, { delayTyping: 1 }).catch(() => {})
+        await delay(800)
+        await setSignupStepNome(phone).catch(() => {})
+        await sendTextMessage(
+          phone,
+          'Me diga seu nome (ex.: Maria) que eu crio sua conta e envio o código de confirmação no seu e-mail para ativar, e pronto já vai poder registrar tudo!\n\nÉ bem rápido, prometo 💙',
+          { delayTyping: 1 }
+        ).catch(() => {})
+        await markWelcomeSent(phone).catch(() => {})
+        markResponded(phone, text ?? '')
+        markWelcomeJustSent(phone)
+        return
+      }
+    }
+
     const plenMessage = buildPlenMessage(from, text, contactName)
     const result = await processWhatsAppMessage(plenMessage as any)
 
@@ -989,6 +1071,12 @@ Seja breve (2-4 frases). Use *negrito* para ênfase. Emojis: 💙 😊.`
       if (!jaRecebeu && isBoasVindasConfigured()) {
         console.log('🔄 [Z-API Webhook] Contato sem resposta e sem boas-vindas — enviando mensagem mínima.')
         await enviarFallbackContatoNovo()
+      } else if (jaRecebeuTestIntro) {
+        // Lead no modo teste (já recebeu "Me diga um gasto") mas handler não respondeu — SEMPRE dar resposta útil
+        const msgTeste = 'Me diga um gasto no formato: *valor* e *o que foi*. Ex.: 50 mercado, 20 uber 😊'
+        await sendTextReply(phone, msgTeste, { delayTyping: 1 }).catch(() => {})
+        markResponded(phone, text ?? '')
+        console.log('📨 [Z-API Webhook] Fallback modo teste (handler sem msg): pedindo gasto para', phone)
       } else {
         const nome = contactName?.trim() ? `, ${contactName.trim().slice(0, 30)}` : ''
         await sendTextReply(phone, `Em que posso ajudar${nome}? 😊`, { delayTyping: 1 }).catch(() => {})
