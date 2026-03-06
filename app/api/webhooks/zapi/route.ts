@@ -5,12 +5,14 @@ import { findOrCreateConversationForContact, updateConversation } from '@/lib/cr
 import { createMessage } from '@/lib/crm/messages'
 import { logInteraction } from '@/lib/crm/interaction-logs'
 import { logWebhookEvent } from '@/lib/crm/webhook-logger'
+import { touchContactLastInteraction } from '@/lib/crm/contacts'
 
 const PAYLOAD_PREVIEW_MAX = 200
 
 /**
- * Webhook Z-API: recebe mensagens recebidas no WhatsApp.
- * Funciona com a mesma URL em produção (domínio) ou em localhost (via túnel).
+ * Webhook unificado Z-API.
+ * Eventos: message, messageReceived, messageSent, messageDelivered.
+ * Cria contato/conversa, salva mensagem (dedupe por messageId), atualiza última mensagem.
  */
 export async function POST(request: Request) {
   let body: unknown = null
@@ -18,23 +20,20 @@ export async function POST(request: Request) {
     body = await request.json().catch(() => null)
     const b = body as Record<string, unknown> | null
     const payloadPreview = body ? JSON.stringify(body).slice(0, PAYLOAD_PREVIEW_MAX) : null
-
-    const safeLog = (p: Parameters<typeof logWebhookEvent>[0]) => logWebhookEvent(p).catch(() => {})
+    const safeLog = (p: { status: 'success' | 'ignored' | 'error'; detail?: string | null; contact_id?: string | null; payload_preview?: string | null }) =>
+      logWebhookEvent(p).catch(() => {})
 
     if (b?.isGroup) {
       await safeLog({ status: 'ignored', detail: 'isGroup', payload_preview: payloadPreview })
       return NextResponse.json({ ok: true, ignored: 'isGroup' })
     }
+
     const parsed = parseZApiPayload(body)
     if (!parsed) {
       await safeLog({ status: 'error', detail: 'Payload inválido', payload_preview: payloadPreview })
-      console.error('[webhook/zapi] Payload inválido. Body:', JSON.stringify(body)?.slice(0, 300))
       return NextResponse.json({ ok: false, error: 'Payload inválido' }, { status: 400 })
     }
-    if (parsed.fromMe) {
-      await safeLog({ status: 'ignored', detail: 'fromMe', payload_preview: payloadPreview })
-      return NextResponse.json({ ok: true, ignored: 'fromMe' })
-    }
+
     if (!parsed.text) {
       await safeLog({ status: 'ignored', detail: 'empty text', payload_preview: payloadPreview })
       return NextResponse.json({ ok: true, ignored: 'empty text' })
@@ -46,7 +45,6 @@ export async function POST(request: Request) {
     })
     if (!contact) {
       await safeLog({ status: 'error', detail: 'Falha ao criar contato', payload_preview: payloadPreview })
-      console.error('[webhook/zapi] Falha ao obter/criar contato:', parsed.phone)
       return NextResponse.json({ ok: false, error: 'Contato' }, { status: 500 })
     }
 
@@ -60,36 +58,41 @@ export async function POST(request: Request) {
 
     const conversation = await findOrCreateConversationForContact(contact.id)
     if (!conversation) {
-      console.error('[webhook/zapi] Falha ao obter/criar conversa:', contact.id)
       return NextResponse.json({ ok: false, error: 'Conversa' }, { status: 500 })
     }
 
-    await createMessage({
+    const tipo = parsed.fromMe ? 'saida' : 'entrada'
+    const msg = await createMessage({
       contact_id: contact.id,
       conversation_id: conversation.id,
-      tipo: 'entrada',
+      tipo,
       mensagem: parsed.text,
       origem: 'whatsapp',
+      status_envio: null,
       zapi_message_id: parsed.messageId ?? undefined,
       message_type: 'text',
     })
-    await updateConversation(conversation.id, {
-      ultima_mensagem: parsed.text,
-      status_conversa: 'aberta',
-    })
-    const { touchContactLastInteraction } = await import('@/lib/crm/contacts')
-    await touchContactLastInteraction(contact.id)
-    await logInteraction({
-      contact_id: contact.id,
-      evento: 'mensagem_recebida',
-      detalhes: { origem: 'whatsapp', preview: parsed.text.slice(0, 100) },
-    })
+
+    if (msg) {
+      await updateConversation(conversation.id, {
+        ultima_mensagem: parsed.text,
+        status_conversa: 'aberta',
+      })
+      await touchContactLastInteraction(contact.id)
+      if (tipo === 'entrada') {
+        await logInteraction({
+          contact_id: contact.id,
+          evento: 'mensagem_recebida',
+          detalhes: { origem: 'whatsapp', preview: parsed.text.slice(0, 100) },
+        })
+      }
+    }
 
     await safeLog({
       status: 'success',
-      detail: created ? 'novo_lead + mensagem' : 'mensagem',
+      detail: msg ? (created ? 'novo_lead + mensagem' : 'mensagem') : 'duplicada',
       contact_id: contact.id,
-      payload_preview: body ? JSON.stringify(body).slice(0, PAYLOAD_PREVIEW_MAX) : null,
+      payload_preview: payloadPreview,
     })
     return NextResponse.json({ ok: true, contact_id: contact.id })
   } catch (e: any) {
@@ -99,7 +102,7 @@ export async function POST(request: Request) {
       detail: e?.message ?? 'Erro',
       payload_preview: payloadPreview,
     }).catch(() => {})
-    console.error('[webhook/zapi] POST:', e)
+    console.error('[webhooks/zapi] POST:', e)
     return NextResponse.json({ ok: false, error: e?.message ?? 'Erro' }, { status: 500 })
   }
 }

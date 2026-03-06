@@ -3,7 +3,7 @@ import { verifyAdminToken } from '@/lib/admin-middleware'
 import { createMessage } from '@/lib/crm/messages'
 import { findOrCreateConversationForContact, updateConversation } from '@/lib/crm/conversations'
 import { touchContactLastInteraction } from '@/lib/crm/contacts'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/sender'
+import { sendWhatsAppMessageWithResult } from '@/lib/whatsapp/sender'
 
 // Segurança: só enviar mensagem manual após interação do usuário (resposta no CRM).
 // Não permite envio em massa nem automático sem contexto.
@@ -24,9 +24,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
     }
 
-    const sent = await sendWhatsAppMessage(contact_id, message.trim())
+    const result = await sendWhatsAppMessageWithResult(contact_id, message.trim())
     const origem = 'whatsapp' as const
-    const statusEnvio = sent ? 'enviado' : 'falha'
+    const statusEnvio = result.success ? 'enviado' : 'falha'
 
     await createMessage({
       contact_id,
@@ -35,14 +35,16 @@ export async function POST(request: Request) {
       mensagem: message.trim(),
       origem,
       status_envio: statusEnvio,
+      zapi_message_id: result.messageId ?? undefined,
+      message_type: 'text',
     })
     await updateConversation(conv.id, { ultima_mensagem: message.trim(), status_conversa: 'em_atendimento' })
     await touchContactLastInteraction(contact_id)
 
     return NextResponse.json({
-      ok: sent,
+      ok: result.success,
       status_envio: statusEnvio,
-      message: sent ? 'Mensagem enviada e registrada.' : 'Mensagem registrada mas envio pode ter falhado.',
+      message: result.success ? 'Mensagem enviada e registrada.' : 'Mensagem registrada mas envio pode ter falhado.',
     })
   } catch (e: any) {
     console.error('[crm/send] POST:', e)

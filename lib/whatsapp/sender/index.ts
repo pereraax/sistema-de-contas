@@ -33,11 +33,12 @@ async function sendViaZApi(phone: string, message: string): Promise<SendResult> 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: num, message }),
     })
-    const data = await res.json().catch(() => ({}))
+    const data = await res.json().catch(() => ({})) as Record<string, unknown>
     if (!res.ok) {
-      return { success: false, error: (data as any)?.message || res.statusText || 'Erro Z-API' }
+      return { success: false, error: (data?.message as string) || res.statusText || 'Erro Z-API' }
     }
-    return { success: true, messageId: (data as any)?.messageId }
+    const messageId = data?.messageId ?? data?.zaapId ?? data?.id
+    return { success: true, messageId: messageId != null ? String(messageId) : undefined }
   } catch (e: any) {
     return { success: false, error: e?.message ?? 'Erro de rede' }
   }
@@ -45,22 +46,30 @@ async function sendViaZApi(phone: string, message: string): Promise<SendResult> 
 
 /**
  * Envia mensagem de texto para um contato (por contact_id UUID).
- * O telefone é obtido do CRM. Usa Z-API (Z_API_INSTANCE_ID + Z_API_TOKEN).
+ * Retorna resultado com messageId para gravar no CRM (deduplicação).
  */
-export async function sendWhatsAppMessage(
+export async function sendWhatsAppMessageWithResult(
   contactId: string,
   message: string
-): Promise<boolean> {
+): Promise<SendResult> {
   const { createAdminClient } = await import('@/lib/supabase/server')
   const supabase = createAdminClient()
-  if (!supabase) return false
+  if (!supabase) return { success: false, error: 'Supabase indisponível' }
   const { data: contact } = await supabase
     .from('crm_contacts')
     .select('telefone')
     .eq('id', contactId)
     .single()
-  if (!contact?.telefone) return false
-  const result = await sendViaZApi(contact.telefone, message)
+  if (!contact?.telefone) return { success: false, error: 'Contato sem telefone' }
+  return sendViaZApi(contact.telefone, message)
+}
+
+/** @deprecated Use sendWhatsAppMessageWithResult para obter messageId e gravar no CRM. */
+export async function sendWhatsAppMessage(
+  contactId: string,
+  message: string
+): Promise<boolean> {
+  const result = await sendWhatsAppMessageWithResult(contactId, message)
   return result.success
 }
 
