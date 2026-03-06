@@ -147,24 +147,8 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
     if (mostraPerfil && !initialProfileData && !userProfile) {
       carregarPerfil()
     }
-    // Carregar chave WhatsApp apenas se não foi fornecida pelo servidor e não existir
-    if (tab === 'perfil' && !initialProfileData?.whatsappKey && !whatsappKey) {
-      carregarWhatsappKey()
-    }
+    // Chave WhatsApp: API removida (assistente em manutenção)
   }, [searchParams, initialProfileData])
-  
-  // Função para carregar chave WhatsApp
-  const carregarWhatsappKey = async () => {
-    try {
-      const response = await fetch('/api/user/whatsapp-key')
-      const data = await response.json()
-      if (data.success) {
-        setWhatsappKey(data.whatsapp_key)
-      }
-    } catch (error) {
-      console.error('Erro ao carregar chave WhatsApp:', error)
-    }
-  }
 
   // Listener de mudanças de autenticação
   useEffect(() => {
@@ -1280,192 +1264,14 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                           )}
                         </div>
 
-                        {/* Chave WhatsApp para Assistente */}
+                        {/* Assistente WhatsApp: em manutenção (nova arquitetura em breve) */}
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-brand-midnight dark:text-brand-clean/70">Chave WhatsApp (Assistente PLEN):</span>
-                            <MessageCircle size={16} className="text-brand-aqua" />
+                            <span className="text-sm font-medium text-brand-midnight dark:text-brand-clean/70">Assistente PLEN no WhatsApp:</span>
                           </div>
-                          {whatsappKey ? (
-                            <div className="flex flex-col gap-2">
-                              <div className="flex items-center gap-2">
-                                <code className="px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-brand-midnight dark:text-brand-clean font-mono text-sm">
-                                  {showWhatsappKey ? whatsappKey : '•••••-•••••-•••••'}
-                                </code>
-                                <button
-                                  onClick={async () => {
-                                    if (!showWhatsappKey) {
-                                      // Se a chave estiver oculta, mostrar primeiro
-                                      setShowWhatsappKey(true)
-                                      // Aguardar um pouco para o usuário ver a chave
-                                      await new Promise(resolve => setTimeout(resolve, 100))
-                                    }
-                                    // Copiar para o clipboard
-                                    if (whatsappKey) {
-                                      try {
-                                        await navigator.clipboard.writeText(whatsappKey)
-                                        setCopiedKey(true)
-                                        setTimeout(() => setCopiedKey(false), 2000)
-                                      } catch (err) {
-                                        console.error('Erro ao copiar:', err)
-                                        // Fallback para navegadores antigos
-                                        const textArea = document.createElement('textarea')
-                                        textArea.value = whatsappKey
-                                        textArea.style.position = 'fixed'
-                                        textArea.style.opacity = '0'
-                                        document.body.appendChild(textArea)
-                                        textArea.select()
-                                        try {
-                                          document.execCommand('copy')
-                                          setCopiedKey(true)
-                                          setTimeout(() => setCopiedKey(false), 2000)
-                                        } catch (fallbackErr) {
-                                          console.error('Erro ao copiar (fallback):', fallbackErr)
-                                        }
-                                        document.body.removeChild(textArea)
-                                      }
-                                    }
-                                  }}
-                                  className="p-2 text-brand-aqua hover:text-brand-aqua/80 transition-smooth relative"
-                                  title="Copiar chave"
-                                >
-                                  {copiedKey ? (
-                                    <Check size={18} className="text-green-500" />
-                                  ) : (
-                                    <Copy size={18} />
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => setShowWhatsappKey(!showWhatsappKey)}
-                                  className="p-2 text-brand-aqua hover:text-brand-aqua/80 transition-smooth"
-                                  title={showWhatsappKey ? "Ocultar chave" : "Mostrar chave"}
-                                >
-                                  {showWhatsappKey ? <EyeOff size={18} /> : <Eye size={18} />}
-                                </button>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={async () => {
-                                    if (!confirm('Tem certeza que deseja regenerar a chave? A chave atual será invalidada.')) {
-                                      return
-                                    }
-                                    setLoadingWhatsappKey(true)
-                                    try {
-                                      const response = await fetch('/api/user/whatsapp-key', {
-                                        method: 'POST',
-                                      })
-                                      const data = await response.json()
-                                      if (data.success) {
-                                        setWhatsappKey(data.whatsapp_key)
-                                        setShowWhatsappKey(true)
-                                        createNotification('Chave regenerada com sucesso!', 'success')
-                                        carregarPerfil()
-                                      } else {
-                                        createNotification('Erro ao regenerar chave: ' + (data.error || 'Erro desconhecido'), 'warning')
-                                      }
-                                    } catch (error: any) {
-                                      createNotification('Erro ao regenerar chave', 'warning')
-                                    } finally {
-                                      setLoadingWhatsappKey(false)
-                                    }
-                                  }}
-                                  disabled={loadingWhatsappKey}
-                                  className="px-4 py-2 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                                >
-                                  <RotateCcw size={16} />
-                                  {loadingWhatsappKey ? 'Regenerando...' : 'Regenerar Chave'}
-                                </button>
-                                <button
-                                  onClick={async () => {
-                                    if (!confirm('Desvincular WhatsApp?\n\nSerá removida a chave e a sessão. Para reconectar: gere uma nova chave aqui e envie no WhatsApp seu email + a chave (o assistente pedirá).')) {
-                                      return
-                                    }
-                                    setLoadingWhatsappKey(true)
-                                    try {
-                                      const response = await fetch('/api/user/whatsapp-key', {
-                                        method: 'DELETE',
-                                      })
-                                      const data = await response.json()
-                                      if (data.success) {
-                                        setWhatsappKey(null)
-                                        setShowWhatsappKey(false)
-                                        createNotification('WhatsApp desvinculado. Gere uma nova chave e envie (email + chave) no WhatsApp para reconectar.', 'success')
-                                        carregarPerfil()
-                                      } else {
-                                        createNotification('Erro ao desvincular: ' + (data.error || 'Erro desconhecido'), 'warning')
-                                      }
-                                    } catch (error: any) {
-                                      createNotification('Erro ao desvincular', 'warning')
-                                    } finally {
-                                      setLoadingWhatsappKey(false)
-                                    }
-                                  }}
-                                  disabled={loadingWhatsappKey}
-                                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-smooth font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                  title="Desvincula a chave e a sessão WhatsApp para você reconectar e o sistema reconhecer de novo"
-                                >
-                                  Desvincular WhatsApp
-                                </button>
-                              </div>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                Use esta chave junto com seu email para autenticar no assistente PLEN via WhatsApp.
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col gap-2">
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
-                                Gere uma chave para usar o assistente PLEN via WhatsApp.
-                              </p>
-                              <button
-                                onClick={async () => {
-                                  setLoadingWhatsappKey(true)
-                                  try {
-                                    const response = await fetch('/api/user/whatsapp-key', {
-                                      method: 'POST',
-                                    })
-                                    const data = await response.json()
-                                    if (data.success) {
-                                      setWhatsappKey(data.whatsapp_key)
-                                      setShowWhatsappKey(true)
-                                      createNotification('Chave gerada com sucesso!', 'success')
-                                      carregarPerfil()
-                                    } else {
-                                      createNotification('Erro ao gerar chave: ' + (data.error || 'Erro desconhecido'), 'warning')
-                                    }
-                                  } catch (error: any) {
-                                    createNotification('Erro ao gerar chave', 'warning')
-                                  } finally {
-                                    setLoadingWhatsappKey(false)
-                                  }
-                                }}
-                                disabled={loadingWhatsappKey}
-                                className="px-4 py-2 bg-brand-aqua text-white rounded-lg hover:bg-brand-aqua/90 transition-smooth font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 w-fit"
-                              >
-                                <Key size={16} />
-                                {loadingWhatsappKey ? 'Gerando...' : 'Gerar Chave'}
-                              </button>
-                              <a
-                                href="https://wa.me/553173403036"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center justify-center gap-2 w-full max-w-xs mt-3 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200 border-2 border-green-400/50"
-                              >
-                                <MessageCircle size={20} />
-                                Iniciar chat com a Assistente PLEN no WhatsApp
-                              </a>
-                            </div>
-                          )}
-                          {whatsappKey && (
-                            <a
-                              href="https://wa.me/553173403036"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center justify-center gap-2 w-full max-w-xs mt-3 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200 border-2 border-green-400/50"
-                            >
-                              <MessageCircle size={20} />
-                              Iniciar chat com a Assistente PLEN no WhatsApp
-                            </a>
-                          )}
+                          <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                            Em manutenção. Nova versão do assistente em breve.
+                          </p>
                         </div>
                         {userProfile.profile?.plano && (
                           <>

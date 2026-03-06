@@ -1,7 +1,6 @@
 'use client'
 
-import { Lightbulb, HelpCircle, TrendingUp, AlertCircle, MessageCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Lightbulb, HelpCircle, TrendingUp } from 'lucide-react'
 
 const tips = [
   {
@@ -25,33 +24,7 @@ const tips = [
 ]
 
 export default function SupportPanel() {
-  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null)
-  const [stats, setStats] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    // Buscar estatísticas e status do WhatsApp
-    async function carregar() {
-      try {
-        // Verificar WhatsApp
-        const whatsappResponse = await fetch('/api/whatsapp/setup')
-        const whatsappData = await whatsappResponse.json()
-        
-        if (whatsappData.configured && whatsappData.whatsappUrl) {
-          setWhatsappUrl(whatsappData.whatsappUrl)
-        } else {
-          // Usar número do .env se disponível (só funciona no servidor, então vamos usar uma variável pública)
-          // Por enquanto, vamos deixar null e o botão só aparece se configurado
-        }
-      } catch (error) {
-        console.error('Erro ao carregar dados:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-    
-    carregar()
-  }, [])
+  // Assistente WhatsApp em manutenção; botão removido até nova arquitetura
 
   // Por enquanto, não vamos mostrar alertas de dívidas (precisa de server action)
   // Se precisar, podemos criar uma API route
@@ -101,19 +74,6 @@ export default function SupportPanel() {
           Acesso Rápido
         </h3>
         <div className="space-y-1.5 sm:space-y-2 lg:space-y-1.5">
-          {/* Botão Assistente PLEN no WhatsApp */}
-          {whatsappUrl && (
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 p-2 sm:p-2.5 lg:p-1.5 text-xs font-medium text-white bg-green-500 hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 rounded-lg transition-smooth shadow-md hover:shadow-lg"
-            >
-              <MessageCircle size={14} className="lg:w-3.5 lg:h-3.5" />
-              <span className="lg:text-[11px]">Assistente PLEN</span>
-            </a>
-          )}
-          
           <a
             href="/registros"
             className="block p-2 sm:p-2.5 lg:p-1.5 text-xs lg:text-[11px] text-brand-aqua dark:text-cyan-300 hover:bg-brand-aqua/10 dark:hover:bg-cyan-400/20 rounded-lg transition-smooth font-medium dark:font-semibold"

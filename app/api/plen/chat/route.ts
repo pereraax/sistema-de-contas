@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { plenLog } from '@/lib/plen-logs'
-import { interpretarMensagem, formatarRespostaRegistro } from '@/lib/plen-registro'
+import { interpretarMensagem, formatarRespostaRegistro, extrairUsuarioNaMensagem } from '@/lib/plen-registro'
 import { getPlenLLMResponse } from '@/lib/plen-llm-fallback'
-import { extrairUsuarioNaMensagem } from '@/lib/plen-whatsapp-chat'
 
 export const dynamic = 'force-dynamic'
 

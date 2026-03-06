@@ -38,6 +38,8 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '2mb',
     },
+    // Evitar bundle de resend/svix no servidor (evita "Cannot find module './vendor-chunks/svix.js'" no webhook ao enviar email)
+    serverComponentsExternalPackages: ['resend', 'svix'],
   },
   
   // Redirecionamentos - TEMPORARIAMENTE DESABILITADO para evitar erro DEPLOYMENT_NOT_FOUND
@@ -81,15 +83,6 @@ const nextConfig = {
     // Em desenvolvimento, não aplicar headers restritivos que podem causar problemas
     if (process.env.NODE_ENV === 'production') {
       return [
-        // CORS para a extensão CRM (WhatsApp Web → plenipay.com): evita bloqueio mesmo com Cloudflare
-        {
-          source: '/api/whatsapp/send-welcome-extension',
-          headers: [
-            { key: 'Access-Control-Allow-Origin', value: '*' },
-            { key: 'Access-Control-Allow-Methods', value: 'POST, OPTIONS' },
-            { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, X-API-Key' },
-          ],
-        },
         {
           source: '/:path*',
           headers: [
@@ -281,6 +274,10 @@ const nextConfig = {
       config.externals.push(({ request }, callback) => {
         // Se for whatsapp-web.js ou qualquer módulo dentro dele, marcar como externo
         if (request === 'whatsapp-web.js' || request?.includes('whatsapp-web.js')) {
+          return callback(null, `commonjs ${request}`)
+        }
+        // Resend e svix: evitar "Cannot find module './vendor-chunks/svix.js'" no webhook ao criar conta/enviar email
+        if (request === 'resend' || request === 'svix' || request?.startsWith('resend/') || request?.startsWith('svix/')) {
           return callback(null, `commonjs ${request}`)
         }
         callback()

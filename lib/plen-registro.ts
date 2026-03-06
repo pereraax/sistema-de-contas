@@ -66,6 +66,26 @@ export function extrairValor(texto: string): number | null {
 }
 
 /**
+ * Extrai "usuário NOME" da mensagem para registro em nome de outra pessoa (chat in-app).
+ * Ex: "gastei 50 reais usuario julia" → { msgForRegistro: "gastei 50 reais", targetUserName: "julia" }.
+ */
+export function extrairUsuarioNaMensagem(raw: string): { msgForRegistro: string; targetUserName: string | null } {
+  const t = raw.trim()
+  const match = t.match(
+    /^(gastei|gasteu|gastou|paguei|pagou|recebi|recebeu|ganhei|ganhou|ganhamos)\s+([\d.,]+)\s*(reais?|r\$|r\b)?\s*usu[aá]rio\s+(.+)$/i
+  )
+  if (!match) return { msgForRegistro: t, targetUserName: null }
+  const valorPart = (match[2] || '').trim()
+  const reaisPart = (match[3] || '').trim()
+  const nomeCompleto = (match[4] || '').trim()
+    .replace(/\s*(hoje|ontem|dia\s+\d{1,2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*$/gi, '')
+    .trim()
+  if (!nomeCompleto) return { msgForRegistro: t, targetUserName: null }
+  const msgLimpa = `${match[1]} ${valorPart}${reaisPart ? ' ' + reaisPart : ''}`.trim()
+  return { msgForRegistro: msgLimpa, targetUserName: nomeCompleto }
+}
+
+/**
  * Data (só dia) para ISO às 12:00 UTC — usado quando o usuário informa só a data (ontem, dia 15, 05/02).
  * Assim o dia exibe correto em qualquer fuso.
  */

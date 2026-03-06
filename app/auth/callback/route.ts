@@ -1,8 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
-import { createAdminClient } from '@/lib/supabase/server'
-import { sendTextMessage } from '@/lib/whatsapp-zapi'
 
 export const dynamic = 'force-dynamic'
 
@@ -687,28 +685,6 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
       console.log('📧 [Callback] Email:', data.user.email)
       console.log('🔑 [Callback] Sessão criada:', !!data.session)
 
-      // Notificar no WhatsApp quando o usuário confirmar o email (conta criada pelo assistente) — aguardar envio antes de redirecionar
-      const admin = createAdminClient()
-      if (admin) {
-        try {
-          const { data: ws } = await admin
-            .from('whatsapp_sessions')
-            .select('phone_number')
-            .eq('user_id', data.user.id)
-            .maybeSingle()
-          if (ws?.phone_number) {
-            await sendTextMessage(
-              ws.phone_number,
-              'Sua conta foi confirmada! ✅ Agora você já pode me pedir para registrar seus gastos e receitas. Por exemplo: "gastei 200 com roupas", "recebi 1500 salário", "extra de 300".',
-              { delayTyping: 1 }
-            )
-            console.log('✅ [Callback] WhatsApp pós-confirmação enviado para', ws.phone_number)
-          }
-        } catch (err: any) {
-          console.warn('⚠️ [Callback] WhatsApp pós-confirmação:', err?.message)
-        }
-      }
-      
       // Se há sessão, redirecionar (para /login ou /home conforme link do email)
       if (data.session) {
         const isLoginPage = next === 'login' || next === '/login'
