@@ -209,7 +209,10 @@ export async function resendCodeForPlen(email: string): Promise<{ success: boole
         .upsert({ email: emailNorm, code, user_id: userId, expires_at: expiresAt }, { onConflict: 'email' })
       if (upsertError) return { success: false, error: 'Erro ao gerar novo código.' }
       const sendResult = await sendOtpEmail(emailNorm, code)
-      if (!sendResult.success) return { success: false, error: sendResult.error ?? 'Falha ao reenviar email.' }
+      if (!sendResult.success) {
+        console.warn('[plen/email] Falha ao reenviar código SMTP:', emailNorm, sendResult.error)
+        return { success: false, error: sendResult.error ?? 'Falha ao reenviar email.' }
+      }
       if (process.env.NODE_ENV === 'development') console.log('[plen/email] Código reenviado via SMTP para', emailNorm)
       return { success: true }
     }
@@ -217,7 +220,10 @@ export async function resendCodeForPlen(email: string): Promise<{ success: boole
 
   const supabase = createPublicClient()
   const { error } = await supabase.auth.resend({ type: 'signup', email: emailNorm })
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    console.warn('[plen/email] Falha resend Supabase:', emailNorm, error.message)
+    return { success: false, error: error.message }
+  }
   if (process.env.NODE_ENV === 'development') {
     console.log('[plen/email] resend (Supabase) ok para', emailNorm)
   }

@@ -25,20 +25,28 @@ function normalizePhone(raw: string): string {
  * Ordem de prioridade: conversation → extendedTextMessage.text → imageMessage.caption → videoMessage.caption → formato plano Z-API.
  * Se não houver texto, retorna "[Mídia]" para mídia ou "" para vazio.
  */
-/** Extrai texto de resposta de botão (Z-API / formatos similares). */
+/** Extrai texto de resposta de botão. Z-API usa buttonsResponseMessage.message (e buttonId). */
 function extractButtonResponseText(m: Record<string, unknown>): string {
+  const getFromBr = (br: Record<string, unknown>) => {
+    const t =
+      br.message ?? // Z-API: buttonsResponseMessage.message
+      br.selectedButtonText ??
+      br.text ??
+      (typeof br.selectedButtonId === 'string' ? br.selectedButtonId : null)
+    return t != null && typeof t === 'string' ? t.trim() : ''
+  }
   const msgData = m.messageData ?? m.data
   if (msgData != null && typeof msgData === 'object') {
     const br = (msgData as Record<string, unknown>).buttonsResponseMessage ?? (msgData as Record<string, unknown>).buttonResponseMessage
     if (br != null && typeof br === 'object') {
-      const t = (br as Record<string, unknown>).selectedButtonText ?? (br as Record<string, unknown>).selectedButtonId ?? (br as Record<string, unknown>).text
-      if (t != null && typeof t === 'string') return t.trim()
+      const t = getFromBr(br as Record<string, unknown>)
+      if (t) return t
     }
   }
   const br = m.buttonsResponseMessage ?? m.buttonResponseMessage
   if (br != null && typeof br === 'object') {
-    const t = (br as Record<string, unknown>).selectedButtonText ?? (br as Record<string, unknown>).text
-    if (t != null && typeof t === 'string') return t.trim()
+    const t = getFromBr(br as Record<string, unknown>)
+    if (t) return t
   }
   return ''
 }
@@ -176,7 +184,12 @@ export function parseZApiPayload(body: unknown): IncomingWebhookMessage | null {
   const messageId = b.messageId ?? b.id ?? (b as any).message_id
   const ts = b.momment ?? b.timestamp ?? b.createdAt ?? b.date
   const { messageType, mediaUrl, label } = detectTypeAndMedia(b)
-  const content = extractMessageContent(b)
+  let content = extractMessageContent(b)
+  if (!content.trim() && body && typeof body === 'object') {
+    const root = body as Record<string, unknown>
+    content = extractButtonResponseText(root)
+    if (!content.trim() && root.data && typeof root.data === 'object') content = extractButtonResponseText(root.data as Record<string, unknown>)
+  }
   const text = content.trim() || label.trim() || (mediaUrl ? '[Mídia]' : '')
   return {
     phone: normalizePhone(String(phone)),
