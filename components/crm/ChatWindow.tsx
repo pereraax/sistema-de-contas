@@ -14,7 +14,7 @@ export interface ChatMessage {
   timestamp: string
   message_type?: ChatMessageType | string | null
   media_url?: string | null
-  /** Status Evolution: sent, delivered, read */
+  /** Status envio: sent, delivered, read (Z-API) */
   status_envio?: string | null
 }
 
@@ -158,7 +158,7 @@ export function ChatWindow({
               )}
               <div className={`text-[10px] mt-0.5 flex items-center gap-1 ${m.tipo === 'saida' ? 'justify-end text-white/80' : 'text-zinc-500'}`}>
                 <span>{formatTime(m.timestamp)}</span>
-                {m.tipo === 'saida' && m.status_envio && (
+                {m.tipo === 'saida' && m.status_envio && m.status_envio !== 'falha' && (
                   <span className="inline-flex" title={m.status_envio === 'read' ? 'Lido' : m.status_envio === 'delivered' ? 'Entregue' : 'Enviado'}>
                     {m.status_envio === 'read' ? (
                       <span className="text-blue-200">✓✓</span>

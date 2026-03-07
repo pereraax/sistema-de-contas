@@ -6,7 +6,7 @@ import { ConversationList } from '@/components/crm/ConversationList'
 import { ChatWindow } from '@/components/crm/ChatWindow'
 import { ContactProfile } from '@/components/crm/ContactProfile'
 import { Avatar } from '@/components/crm/ui/Avatar'
-import { User, X, RefreshCw } from 'lucide-react'
+import { User, X, RefreshCw, Wrench } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { ConversationItem } from '@/components/crm/ConversationList'
 import type { ChatMessage } from '@/components/crm/ChatWindow'
@@ -27,6 +27,9 @@ export default function CrmConversasPage() {
   const [showContactInfo, setShowContactInfo] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
+  const [repairing, setRepairing] = useState(false)
+  const [repairResult, setRepairResult] = useState<string | null>(null)
+  const [sendError, setSendError] = useState<string | null>(null)
 
   const loadInbox = () => {
     fetch('/api/admin/crm/inbox')
@@ -37,7 +40,7 @@ export default function CrmConversasPage() {
 
   useEffect(() => {
     loadInbox()
-    const t = setInterval(loadInbox, 5000)
+    const t = setInterval(loadInbox, 60000)
     return () => clearInterval(t)
   }, [])
 
@@ -49,7 +52,26 @@ export default function CrmConversasPage() {
   const selectedContactIdRef = useRef(selectedContactId)
   selectedContactIdRef.current = selectedContactId
 
+  const loadInboxRef = useRef<() => void>(() => {})
+  const loadMessagesRef = useRef<(contactId: string) => void>(() => {})
+
   useEffect(() => {
+    let inboxDebounce: ReturnType<typeof setTimeout> | null = null
+    let messagesDebounce: ReturnType<typeof setTimeout> | null = null
+    const debouncedInbox = () => {
+      if (inboxDebounce) clearTimeout(inboxDebounce)
+      inboxDebounce = setTimeout(() => {
+        inboxDebounce = null
+        loadInboxRef.current()
+      }, 300)
+    }
+    const debouncedMessages = (contactId: string) => {
+      if (messagesDebounce) clearTimeout(messagesDebounce)
+      messagesDebounce = setTimeout(() => {
+        messagesDebounce = null
+        loadMessagesRef.current(contactId)
+      }, 200)
+    }
     const supabase = createClient()
     const channel = supabase
       .channel('crm_realtime')
@@ -58,49 +80,55 @@ export default function CrmConversasPage() {
         { event: 'INSERT', schema: 'public', table: 'crm_messages' },
         (payload: { new?: { contact_id?: string } }) => {
           const contactId = payload.new?.contact_id
-          loadInbox()
-          if (contactId && contactId === selectedContactIdRef.current) loadMessages(contactId)
+          debouncedInbox()
+          if (contactId && contactId === selectedContactIdRef.current) debouncedMessages(contactId)
         }
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'crm_messages' },
         () => {
-          if (selectedContactIdRef.current) loadMessages(selectedContactIdRef.current)
+          const cid = selectedContactIdRef.current
+          if (cid) debouncedMessages(cid)
         }
       )
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'crm_contacts' },
-        () => loadInbox()
+        debouncedInbox
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'crm_contacts' },
-        () => loadInbox()
+        debouncedInbox
       )
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'crm_conversations' },
-        () => loadInbox()
+        debouncedInbox
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'crm_conversations' },
-        () => loadInbox()
+        debouncedInbox
       )
       .subscribe()
     return () => {
+      if (inboxDebounce) clearTimeout(inboxDebounce)
+      if (messagesDebounce) clearTimeout(messagesDebounce)
       supabase.removeChannel(channel)
     }
   }, [])
 
   const loadMessages = (contactId: string) => {
-    fetch(`/api/admin/crm/messages?contact_id=${contactId}`)
+    fetch(`/api/admin/crm/messages?contact_id=${contactId}&limit=5000`)
       .then((res) => res.json())
       .then((data) => setMessages(data.messages ?? []))
       .catch(console.error)
   }
+
+  loadInboxRef.current = loadInbox
+  loadMessagesRef.current = loadMessages
 
   useEffect(() => {
     if (!selectedContactId) {
@@ -111,7 +139,7 @@ export default function CrmConversasPage() {
     }
     setShowContactInfo(false)
     loadMessages(selectedContactId)
-    const t = setInterval(() => loadMessages(selectedContactId), 5000)
+    const t = setInterval(() => loadMessages(selectedContactId), 30000)
     return () => clearInterval(t)
   }, [selectedContactId])
 
@@ -140,21 +168,45 @@ export default function CrmConversasPage() {
 
   const handleSend = () => {
     if (!selectedContactId || !inputMessage.trim()) return
+    const text = inputMessage.trim()
+    const tempId = `temp-${Date.now()}`
+    setInputMessage('')
+    setSendError(null)
     setLoading(true)
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        tipo: 'saida' as const,
+        mensagem: text,
+        timestamp: new Date().toISOString(),
+        status_envio: 'sent',
+      },
+    ])
     fetch('/api/admin/crm/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact_id: selectedContactId, message: inputMessage.trim() }),
+      body: JSON.stringify({ contact_id: selectedContactId, message: text }),
     })
-      .then((res) => res.json())
-      .then((data) => {
-        if (res.ok && data.ok !== false) {
-          setInputMessage('')
-          fetch(`/api/admin/crm/messages?contact_id=${selectedContactId}`)
-            .then((r) => r.json())
-            .then((d) => setMessages(d.messages ?? []))
-          loadInbox()
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({} as Record<string, unknown>))
+        const errMsg = (data?.error as string) || (res.status === 400 ? 'Dados inválidos' : res.statusText) || 'Erro ao enviar'
+        const removeTemp = () => setMessages((prev) => prev.filter((m) => m.id !== tempId))
+        if (!res.ok || data?.ok === false) {
+          setSendError(errMsg)
+          setInputMessage(text)
+          removeTemp()
+          loadMessages(selectedContactId)
+          return
         }
+        removeTemp()
+        loadMessages(selectedContactId)
+        loadInbox()
+      })
+      .catch(() => {
+        setSendError('Erro de conexão')
+        setInputMessage(text)
+        setMessages((prev) => prev.filter((m) => m.id !== tempId))
       })
       .finally(() => setLoading(false))
   }
@@ -179,6 +231,40 @@ export default function CrmConversasPage() {
       })
   }
 
+  const handleRepairPhones = () => {
+    setRepairing(true)
+    setRepairResult(null)
+    setSendError(null) // Limpa erro de envio antigo para não parecer que o reparo causou
+    fetch('/api/admin/crm/repair-phones', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.ok) {
+          const repaired = data.repaired ?? 0
+          const msg = repaired > 0
+            ? (data.message ?? `${repaired} número(s) corrigido(s).`)
+            : 'Nenhum contato corrigido automaticamente (nome sem match único no WhatsApp). Contatos com número inválido: abra Info e use "Corrigir número".'
+          setRepairResult(msg)
+          loadInbox()
+          if (selectedContactId) {
+            fetch(`/api/admin/crm/contacts/${selectedContactId}`)
+              .then((r) => r.json())
+              .then((d) => {
+                const c = d.contact
+                if (c) setContactDetail({ id: c.id, nome: c.nome, telefone: c.telefone, email: c.email, status: c.status, data_primeiro_contato: c.data_primeiro_contato, ultima_interacao: c.ultima_interacao, observacoes: c.observacoes, origem: c.origem })
+              })
+              .catch(console.error)
+          }
+        } else {
+          setRepairResult(data.error ?? 'Erro ao reparar')
+        }
+      })
+      .catch(() => setRepairResult('Erro de conexão'))
+      .finally(() => {
+        setRepairing(false)
+        setTimeout(() => setRepairResult(null), 8000)
+      })
+  }
+
   const handleStatusChange = (contactId: string, status: ContactStatus) => {
     fetch(`/api/admin/crm/contacts/${contactId}`, {
       method: 'PATCH',
@@ -197,19 +283,29 @@ export default function CrmConversasPage() {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-sm font-bold text-white">Conversas</h1>
-            <p className="text-[10px] text-zinc-500">Evolution ou Z-API</p>
+            <p className="text-[10px] text-zinc-500">Z-API</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {syncResult && (
-            <span className="text-[10px] text-zinc-400 max-w-[100px] truncate" title={syncResult}>
-              {syncResult}
+          {(syncResult || repairResult) && (
+            <span className="text-[10px] text-zinc-400 max-w-[140px] truncate" title={syncResult || repairResult || ''}>
+              {syncResult || repairResult}
             </span>
           )}
           <button
             type="button"
+            onClick={handleRepairPhones}
+            disabled={repairing || syncing}
+            className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 disabled:opacity-50 text-[11px]"
+            title="Corrigir números inválidos dos contatos (match por nome com WhatsApp)"
+          >
+            <Wrench size={16} className={repairing ? 'animate-spin' : ''} />
+            {repairing ? 'Reparando...' : 'Reparar números'}
+          </button>
+          <button
+            type="button"
             onClick={handleSyncWhatsApp}
-            disabled={syncing}
+            disabled={syncing || repairing}
             className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/10 text-zinc-300 hover:bg-white/15 hover:text-white disabled:opacity-50 text-[11px]"
             title="Sincronizar conversas do WhatsApp"
           >
@@ -276,6 +372,13 @@ export default function CrmConversasPage() {
             )}
           </div>
 
+          {/* Erro de envio */}
+          {sendError && (
+            <div className="px-3 py-2 bg-red-500/20 border-b border-red-500/30 text-red-200 text-sm flex items-center justify-between gap-2 flex-shrink-0">
+              <span>{sendError}</span>
+              <button type="button" onClick={() => setSendError(null)} className="text-red-300 hover:text-white">×</button>
+            </div>
+          )}
           {/* Área toda para a conversa */}
           <ChatWindow
             messages={messages}
@@ -315,6 +418,16 @@ export default function CrmConversasPage() {
                 contact={contactDetail}
                 onStatusChange={(id, status) => {
                   handleStatusChange(id, status)
+                }}
+                onPhoneChange={async (id, telefone) => {
+                  const res = await fetch(`/api/admin/crm/contacts/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ telefone }),
+                  })
+                  if (res.ok && contactDetail?.id === id)
+                    setContactDetail((prev) => (prev ? { ...prev, telefone } : null))
+                  loadInbox()
                 }}
                 onAddNote={async (id, note) => {
                   await fetch(`/api/admin/crm/contacts/${id}`, {

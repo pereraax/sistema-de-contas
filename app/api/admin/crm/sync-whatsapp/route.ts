@@ -1,59 +1,19 @@
 import { NextResponse } from 'next/server'
 import { verifyAdminToken } from '@/lib/admin-middleware'
-import { evolutionSyncChats } from '@/lib/whatsapp/evolution-sync'
-import { whatsappFullSync } from '@/lib/whatsapp/zapi-sync'
-
-const hasEvolution = () =>
-  !!(process.env.EVOLUTION_API_URL && process.env.EVOLUTION_INSTANCE && process.env.EVOLUTION_API_KEY)
 
 /**
- * Sincronização: com Evolution API busca todos os chats (findChats); com Z-API busca chats + histórico.
- * Assim o CRM mostra todas as conversas do WhatsApp.
+ * Sincronização WhatsApp: com Z-API as mensagens chegam apenas via webhook.
+ * Não há API de histórico como na Evolution; use o webhook configurado na Z-API.
  */
 export async function POST(request: Request) {
   try {
     const admin = await verifyAdminToken()
     if (!admin) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-    if (hasEvolution()) {
-      const result = await evolutionSyncChats({ importMessages: true, maxMessagesPerChat: 100 })
-      if (!result.ok) {
-        return NextResponse.json({ ok: false, error: result.error }, { status: 400 })
-      }
-      return NextResponse.json({
-        ok: true,
-        chatsFetched: result.chatsFetched,
-        chatsSynced: result.chatsSynced,
-        messagesSynced: result.messagesSynced,
-        message: `Sincronizadas ${result.chatsSynced ?? 0} conversas e ${result.messagesSynced ?? 0} mensagens (Evolution API).`,
-      })
-    }
-
-    const body = await request.json().catch(() => ({}))
-    const maxPages = typeof body.maxPages === 'number' ? body.maxPages : 20
-    const pageSize = typeof body.pageSize === 'number' ? body.pageSize : 100
-    const messagesPerChat = typeof body.messagesPerChat === 'number' ? body.messagesPerChat : 100
-
-    const result = await whatsappFullSync({
-      maxPages: Math.min(maxPages, 50),
-      pageSize: Math.min(pageSize, 100),
-      messagesPerChat: Math.min(messagesPerChat, 100),
-    })
-
-    if (!result.ok) {
-      return NextResponse.json(
-        { ok: false, error: result.error },
-        { status: 400 }
-      )
-    }
-
     return NextResponse.json({
-      ok: true,
-      chatsFetched: result.chatsFetched,
-      chatsSynced: result.chatsSynced,
-      messagesSynced: result.messagesSynced,
-      message: `Sincronizadas ${result.chatsSynced ?? 0} conversas e ${result.messagesSynced ?? 0} mensagens (Z-API).`,
-    })
+      ok: false,
+      error: 'Com Z-API as conversas e mensagens são registradas automaticamente pelo webhook. Não há sincronização de histórico. Configure o webhook na Z-API: Ao receber → https://SEU_DOMINIO/api/whatsapp/zapi/webhook',
+    }, { status: 400 })
   } catch (e: unknown) {
     const err = e as Error
     console.error('[crm/sync-whatsapp] POST:', err)
@@ -63,8 +23,6 @@ export async function POST(request: Request) {
 
 export async function GET() {
   return NextResponse.json({
-    message: hasEvolution()
-      ? 'Use POST para sincronizar. Com Evolution API: busca todos os chats (findChats). Com Z-API: configure Z_API_* e Z_API_CLIENT_TOKEN.'
-      : 'Use POST para sincronização. Configure EVOLUTION_* ou Z_API_* no .env.',
+    message: 'WhatsApp está integrado via Z-API. Mensagens entram pelo webhook. Use POST para ver instruções.',
   })
 }

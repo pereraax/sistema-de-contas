@@ -28,7 +28,7 @@ export interface CrmMessageInsert {
   zapi_message_id?: string | null
   message_type?: string | null
   media_url?: string | null
-  /** Quando da mensagem (importação Evolution); se omitido usa NOW() */
+  /** Quando da mensagem (importação); se omitido usa NOW() */
   timestamp?: string | null
 }
 
@@ -76,9 +76,57 @@ export async function createMessage(input: CrmMessageInsert): Promise<CrmMessage
   return data as CrmMessage
 }
 
+/** Retorna Set dos zapi_message_id já existentes para um contato (sync em lote). */
+export async function getExistingZapiMessageIdsByContact(contactId: string): Promise<Set<string>> {
+  const supabase = createAdminClient()
+  if (!supabase) return new Set()
+  const { data, error } = await supabase
+    .from('crm_messages')
+    .select('zapi_message_id')
+    .eq('contact_id', contactId)
+    .not('zapi_message_id', 'is', null)
+  if (error) return new Set()
+  const set = new Set<string>()
+  for (const row of data ?? []) {
+    const id = (row as { zapi_message_id?: string }).zapi_message_id
+    if (id) set.add(id)
+  }
+  return set
+}
+
+const BATCH_INSERT_SIZE = 100
+
+/** Insere várias mensagens de uma vez (sync otimizado). Retorna quantidade inserida. */
+export async function createMessagesBatch(rows: CrmMessageInsert[]): Promise<number> {
+  const supabase = createAdminClient()
+  if (!supabase || !rows.length) return 0
+  let inserted = 0
+  for (let i = 0; i < rows.length; i += BATCH_INSERT_SIZE) {
+    const chunk = rows.slice(i, i + BATCH_INSERT_SIZE)
+    const payload = chunk.map((input) => {
+      const row: Record<string, unknown> = {
+        contact_id: input.contact_id,
+        conversation_id: input.conversation_id ?? null,
+        tipo: input.tipo,
+        mensagem: input.mensagem,
+        origem: input.origem ?? 'whatsapp',
+        status_envio: input.status_envio ?? null,
+        zapi_message_id: input.zapi_message_id ?? null,
+        message_type: input.message_type ?? 'text',
+        media_url: input.media_url ?? null,
+      }
+      if (input.timestamp) row.timestamp = input.timestamp
+      return row
+    })
+    const { data, error } = await supabase.from('crm_messages').insert(payload).select('id')
+    if (!error && data?.length) inserted += data.length
+  }
+  return inserted
+}
+
 export async function getMessagesByContactId(
   contactId: string,
-  limit = 200
+  limit = 2000
 ): Promise<CrmMessage[]> {
   const supabase = createAdminClient()
   if (!supabase) return []
@@ -94,7 +142,7 @@ export async function getMessagesByContactId(
 
 export async function getMessagesByConversationId(
   conversationId: string,
-  limit = 200
+  limit = 2000
 ): Promise<CrmMessage[]> {
   const supabase = createAdminClient()
   if (!supabase) return []
@@ -136,7 +184,7 @@ export async function updateMessageStatus(
   return !error
 }
 
-/** Atualiza status por zapi_message_id (Evolution envia id externo) */
+/** Atualiza status por zapi_message_id (ID externo Z-API) */
 export async function updateMessageStatusByExternalId(
   externalMessageId: string,
   status: 'sent' | 'delivered' | 'read'

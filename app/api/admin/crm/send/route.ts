@@ -11,43 +11,64 @@ import { sendWhatsAppMessageWithResult } from '@/lib/whatsapp/sender'
 export async function POST(request: Request) {
   try {
     const admin = await verifyAdminToken()
-    if (!admin) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    if (!admin) return NextResponse.json({ ok: false, error: 'Não autorizado' }, { status: 401 })
 
-    const body = await request.json()
-    const { contact_id, message } = body as { contact_id?: string; message?: string }
-    if (!contact_id || !message?.trim()) {
-      return NextResponse.json({ error: 'contact_id e message são obrigatórios' }, { status: 400 })
+    let body: { contact_id?: string; contactId?: string; message?: string }
+    try {
+      const raw = await request.text()
+      if (!raw?.trim()) {
+        return NextResponse.json({ ok: false, error: 'Envie JSON com contact_id e message' })
+      }
+      body = JSON.parse(raw) as { contact_id?: string; contactId?: string; message?: string }
+    } catch {
+      return NextResponse.json({ ok: false, error: 'Corpo inválido. Envie JSON: { "contact_id": "...", "message": "..." }' })
+    }
+    const contact_id = body?.contact_id ?? body?.contactId
+    const message = typeof body?.message === 'string' ? body.message.trim() : ''
+    if (!contact_id || typeof contact_id !== 'string') {
+      return NextResponse.json({ ok: false, error: 'contact_id é obrigatório' })
+    }
+    if (!message) {
+      return NextResponse.json({ ok: false, error: 'message é obrigatório' })
     }
 
     const conv = await findOrCreateConversationForContact(contact_id)
     if (!conv) {
-      return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
+      return NextResponse.json({ ok: false, error: 'Conversa não encontrada para este contato' })
     }
 
-    const result = await sendWhatsAppMessageWithResult(contact_id, message.trim())
+    const result = await sendWhatsAppMessageWithResult(contact_id, message)
     const origem = 'whatsapp' as const
-    const statusEnvio = result.success ? 'enviado' : 'falha'
+    const statusEnvio = result.success ? 'sent' : 'falha'
 
     await createMessage({
       contact_id,
       conversation_id: conv.id,
       tipo: 'saida',
-      mensagem: message.trim(),
+      mensagem: message,
       origem,
       status_envio: statusEnvio,
       zapi_message_id: result.messageId ?? undefined,
       message_type: 'text',
     })
-    await updateConversation(conv.id, { ultima_mensagem: message.trim(), status_conversa: 'em_atendimento' })
+    await updateConversation(conv.id, { ultima_mensagem: message, status_conversa: 'em_atendimento' })
     await touchContactLastInteraction(contact_id)
 
+    if (!result.success) {
+      const err = result.error || 'Falha ao enviar. Verifique Z-API (ZAPI_INSTANCE_ID, ZAPI_TOKEN) e número com DDI (ex: 5511999999999).'
+      return NextResponse.json(
+        { ok: false, error: err },
+        { status: 200 }
+      )
+    }
     return NextResponse.json({
-      ok: result.success,
+      ok: true,
       status_envio: statusEnvio,
-      message: result.success ? 'Mensagem enviada e registrada.' : 'Mensagem registrada mas envio pode ter falhado.',
+      message: 'Mensagem enviada e registrada.',
     })
-  } catch (e: any) {
-    console.error('[crm/send] POST:', e)
-    return NextResponse.json({ error: e?.message ?? 'Erro' }, { status: 500 })
+  } catch (e: unknown) {
+    const err = e as Error
+    console.error('[crm/send] POST:', err)
+    return NextResponse.json({ ok: false, error: err?.message ?? 'Erro interno' }, { status: 500 })
   }
 }

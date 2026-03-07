@@ -12,12 +12,14 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
+    const order = searchParams.get('order') || 'ultima'
     const limit = Math.min(Number(searchParams.get('limit')) || 100, 500)
 
+    const orderBy = order === 'chegada' ? 'data_primeiro_contato' : 'ultima_interacao'
     let query = supabase
       .from('crm_contacts')
       .select('*')
-      .order('ultima_interacao', { ascending: false })
+      .order(orderBy, { ascending: false })
       .limit(limit)
     if (status) query = query.eq('status', status)
     const { data, error } = await query
