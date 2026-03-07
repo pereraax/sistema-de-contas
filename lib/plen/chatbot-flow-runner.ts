@@ -327,15 +327,26 @@ async function advanceFromNode(
       if (chosen) {
         const chosenNode = getNodeById(flow, chosen)
         const condValor = String(condConfig?.condicaoValor ?? '').trim()
-        const isEmailValidBranch = condValor.includes('@') && chosenNode?.data?.nodeType === 'mensagem'
+        const msgPareceEmail = /^.+\@.+\..+$/.test((messageText || '').trim()) || (messageText || '').trim().includes('@')
+        const isEmailValidBranch =
+          (condValor.includes('@') || msgPareceEmail) && chosenNode?.data?.nodeType === 'mensagem'
         if (isEmailValidBranch) {
           const email = messageText.trim().toLowerCase()
           if (email && email.includes('@')) {
             const result = await createUserAndSendCode(email, nome)
-            await updateContact(contactId, { email, status: 'aguardando_codigo' })
-            if (!result.success && process.env.NODE_ENV === 'development') {
-              console.warn('[chatbot-flow-runner] createUserAndSendCode:', result.error)
+            if (!result.success) {
+              console.warn('[chatbot-flow-runner] createUserAndSendCode falhou:', result.error)
+              await updateContact(contactId, { email })
+              await enqueuePlenMessage(
+                contactId,
+                result.error ?? 'Não foi possível enviar o código agora. Verifique o email e tente novamente.',
+                new Date()
+              )
+              const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+              await processPlenQueue(2).catch(() => {})
+              return { replied: true, nextNodeId: currentId }
             }
+            await updateContact(contactId, { email, status: 'aguardando_codigo' })
           }
         }
         if (chosenNode?.data?.nodeType === 'mensagem') {
@@ -379,6 +390,29 @@ async function advanceFromNode(
     const chosen = ok ? sim : nao
     if (!chosen) return { replied: false, nextNodeId: nao ?? sim }
     const chosenNode = getNodeById(flow, chosen)
+    const condValor = String(condConfig?.condicaoValor ?? '').trim()
+    const msgPareceEmail = /^.+\@.+\..+$/.test((messageText || '').trim()) || (messageText || '').trim().includes('@')
+    const isEmailValidBranch =
+      (condValor.includes('@') || msgPareceEmail) && chosenNode?.data?.nodeType === 'mensagem'
+    if (isEmailValidBranch) {
+      const email = messageText.trim().toLowerCase()
+      if (email && email.includes('@')) {
+        const result = await createUserAndSendCode(email, nome)
+        if (!result.success) {
+          console.warn('[chatbot-flow-runner] createUserAndSendCode (nó condição) falhou:', result.error)
+          await updateContact(contactId, { email })
+          await enqueuePlenMessage(
+            contactId,
+            result.error ?? 'Não foi possível enviar o código agora. Verifique o email e tente novamente.',
+            new Date()
+          )
+          const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+          await processPlenQueue(2).catch(() => {})
+          return { replied: true, nextNodeId: currentId }
+        }
+        await updateContact(contactId, { email, status: 'aguardando_codigo' })
+      }
+    }
     if (chosenNode?.data?.nodeType === 'mensagem') {
       const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, chosen, contactId, nome)
       return { replied: sent, nextNodeId: nextNodeId ?? chosen }
