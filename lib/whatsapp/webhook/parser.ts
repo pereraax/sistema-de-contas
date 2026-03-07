@@ -26,15 +26,16 @@ function normalizePhone(raw: string): string {
  * Se não houver texto, retorna "[Mídia]" para mídia ou "" para vazio.
  */
 /** Extrai texto de resposta de botão. Z-API usa buttonsResponseMessage.message (e buttonId). */
+function getFromBr(br: Record<string, unknown>): string {
+  const t =
+    br.message ?? // Z-API: buttonsResponseMessage.message
+    br.selectedButtonText ??
+    br.text ??
+    (typeof br.selectedButtonId === 'string' ? br.selectedButtonId : null)
+  return t != null && typeof t === 'string' ? t.trim() : ''
+}
+
 function extractButtonResponseText(m: Record<string, unknown>): string {
-  const getFromBr = (br: Record<string, unknown>) => {
-    const t =
-      br.message ?? // Z-API: buttonsResponseMessage.message
-      br.selectedButtonText ??
-      br.text ??
-      (typeof br.selectedButtonId === 'string' ? br.selectedButtonId : null)
-    return t != null && typeof t === 'string' ? t.trim() : ''
-  }
   const msgData = m.messageData ?? m.data
   if (msgData != null && typeof msgData === 'object') {
     const br = (msgData as Record<string, unknown>).buttonsResponseMessage ?? (msgData as Record<string, unknown>).buttonResponseMessage
@@ -47,6 +48,32 @@ function extractButtonResponseText(m: Record<string, unknown>): string {
   if (br != null && typeof br === 'object') {
     const t = getFromBr(br as Record<string, unknown>)
     if (t) return t
+  }
+  return ''
+}
+
+/** Busca recursiva no payload por qualquer objeto tipo buttonsResponseMessage (Z-API pode aninhar em data/payload). */
+export function extractButtonTextDeep(payload: unknown): string {
+  if (payload == null) return ''
+  if (typeof payload === 'string') return ''
+  if (Array.isArray(payload)) {
+    for (let i = 0; i < payload.length; i++) {
+      const t = extractButtonTextDeep(payload[i])
+      if (t) return t
+    }
+    return ''
+  }
+  if (typeof payload === 'object') {
+    const o = payload as Record<string, unknown>
+    const br = o.buttonsResponseMessage ?? o.buttonResponseMessage
+    if (br != null && typeof br === 'object') {
+      const t = getFromBr(br as Record<string, unknown>)
+      if (t) return t
+    }
+    for (const key of Object.keys(o)) {
+      const t = extractButtonTextDeep(o[key])
+      if (t) return t
+    }
   }
   return ''
 }
@@ -185,10 +212,11 @@ export function parseZApiPayload(body: unknown): IncomingWebhookMessage | null {
   const ts = b.momment ?? b.timestamp ?? b.createdAt ?? b.date
   const { messageType, mediaUrl, label } = detectTypeAndMedia(b)
   let content = extractMessageContent(b)
-  if (!content.trim() && body && typeof body === 'object') {
+  if (!content.trim() && body != null) {
     const root = body as Record<string, unknown>
     content = extractButtonResponseText(root)
     if (!content.trim() && root.data && typeof root.data === 'object') content = extractButtonResponseText(root.data as Record<string, unknown>)
+    if (!content.trim()) content = extractButtonTextDeep(body)
   }
   const text = content.trim() || label.trim() || (mediaUrl ? '[Mídia]' : '')
   return {

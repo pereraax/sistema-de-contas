@@ -7,11 +7,12 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { parseZApiPayload } from '@/lib/whatsapp/webhook/parser'
+import { parseZApiPayload, extractButtonTextDeep } from '@/lib/whatsapp/webhook/parser'
 import {
   getOrCreateContactByPhoneWithFlag,
   findContactByPhone,
   touchContactLastInteraction,
+  updateContact,
 } from '@/lib/crm/contacts'
 import { isPlausiblePhone } from '@/lib/crm/phone'
 import {
@@ -22,7 +23,8 @@ import {
 import { createMessage, findMessageByZapiId } from '@/lib/crm/messages'
 import { logInteraction } from '@/lib/crm/interaction-logs'
 import { logWebhookEvent } from '@/lib/crm/webhook-logger'
-import { runChatbotFlow } from '@/lib/plen/chatbot-flow-runner'
+import { runChatbotFlow, clearChatbotFlowState } from '@/lib/plen/chatbot-flow-runner'
+import { enqueuePlenMessage } from '@/lib/plen/queue/message-queue'
 import { processPlenQueue } from '@/lib/plen/queue/queue-worker'
 
 const PAYLOAD_PREVIEW_MAX = 200
@@ -75,8 +77,13 @@ export async function POST(request: Request) {
       }
     }
 
-    const hasText = parsed.messageType === 'text' ? !!parsed.text?.trim() : true
-    if (!hasText && !parsed.mediaUrl) {
+    let effectiveText = (parsed.text ?? '').trim()
+    if (!effectiveText && !parsed.mediaUrl) {
+      const buttonText = extractButtonTextDeep(body)
+      if (buttonText) effectiveText = buttonText
+    }
+    const hasText = !!effectiveText || !!parsed.mediaUrl
+    if (!hasText) {
       await safeLog({ status: 'ignored', detail: 'Sem texto nem mídia', payload_preview: payloadPreview })
       return NextResponse.json({ ok: true })
     }
@@ -93,7 +100,7 @@ export async function POST(request: Request) {
     let contact = await findContactByPhone(parsed.phone)
     let created = false
     let origem: 'whatsapp' | 'anuncio' = 'whatsapp'
-    const primeiroTexto = (parsed.text || '').trim()
+    const primeiroTexto = effectiveText
 
     if (!contact && plausible) {
       if (detectOrigemAnuncio(primeiroTexto)) origem = 'anuncio'
@@ -116,6 +123,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true })
     }
 
+    // Sempre manter o nome do contato = nome do perfil WhatsApp (para {nome} no Chatbot e no CRM)
+    const senderName = (parsed.senderName ?? '').trim()
+    if (senderName.length >= 2 && senderName !== (contact.nome ?? '').trim()) {
+      await updateContact(contact.id, { nome: senderName })
+      contact.nome = senderName
+    }
+
     if (created) {
       await logInteraction({
         contact_id: contact.id,
@@ -129,12 +143,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Conversa' }, { status: 500 })
     }
 
-    const mensagemTexto =
-      parsed.messageType === 'text'
-        ? (parsed.text || '').trim()
-        : parsed.mediaUrl
-          ? '[Mídia]'
-          : (parsed.text || '').trim() || '[Mídia]'
+    const mensagemTexto = effectiveText || (parsed.mediaUrl ? '[Mídia]' : '[Mídia]')
 
     const msg = await createMessage({
       contact_id: contact.id,
@@ -160,13 +169,26 @@ export async function POST(request: Request) {
     })
     await touchContactLastInteraction(contact.id)
 
-    const textForPlen = parsed.messageType === 'text' ? (parsed.text || '').trim() : (parsed.text || '').trim() || '[Mídia]'
+    const textForPlen = effectiveText || (parsed.mediaUrl ? '[Mídia]' : '[Mídia]')
+    const cmdReset = textForPlen && /^(reset|resetar)$/i.test(textForPlen.trim())
+
+    if (cmdReset) {
+      await clearChatbotFlowState(contact.id)
+      await enqueuePlenMessage(contact.id, 'Conversa resetada. Envie qualquer mensagem para começar do zero.', new Date())
+      await processPlenQueue(5).catch((err) => console.error('[webhooks/zapi] Fila após reset:', (err as Error)?.message ?? err))
+      await safeLog({ status: 'success', detail: 'comando reset', contact_id: contact.id, payload_preview: payloadPreview })
+      return NextResponse.json({ ok: true, contact_id: contact.id, reset: true })
+    }
+
     if (textForPlen || parsed.mediaUrl) {
       if (process.env.NODE_ENV === 'development') {
         console.log('[webhooks/zapi] Chatbot Builder: processando', { contact_id: contact.id, isNewLead: created, text: textForPlen.slice(0, 50) })
       }
-      runChatbotFlow(contact.id, textForPlen || '[Mídia]', created)
+      runChatbotFlow(contact.id, textForPlen || '[Mídia]', created, parsed.senderName ?? undefined)
         .then((r) => {
+          if (!r.replied && r.reason) {
+            console.warn('[webhooks/zapi] Plen não respondeu:', { contact_id: contact.id, reason: r.reason })
+          }
           if (process.env.NODE_ENV === 'development') {
             console.log('[webhooks/zapi] Chatbot Builder: resultado', { replied: r.replied, reason: r.reason })
             if (r.replied) {

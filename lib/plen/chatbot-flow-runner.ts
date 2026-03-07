@@ -500,7 +500,8 @@ export async function runChatbotFlow(
       /^reenviar\s*e?-?mail$/i.test(textLower.trim()) ||
       /^reenviar\s*c[oó]digo$/i.test(textLower.trim()) ||
       textLower.trim() === 'reenviar email' ||
-      textLower.trim() === 'reenviar e-mail'
+      textLower.trim() === 'reenviar e-mail' ||
+      /^[12]$/.test(text.trim()) // Z-API às vezes envia só o buttonId (ex.: "1")
     if (clicouReenviar) {
       const result = await resendCodeForPlen(contactEmail)
       const msgConfirmacao = result.success
