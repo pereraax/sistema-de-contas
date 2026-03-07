@@ -344,6 +344,33 @@ async function advanceFromNode(
     return { replied: sent, nextNodeId: nextNodeId ?? nextId }
   }
 
+  // Nó atual é Condição: avaliar com a mensagem do usuário e seguir ramo sim/não
+  if (nodeType === 'condicao') {
+    const condConfig = node.data?.config as Record<string, unknown> | undefined
+    const ok = evaluateCondition(condConfig, messageText)
+    const { sim, nao } = getConditionTargets(flow, currentId)
+    const chosen = ok ? sim : nao
+    if (!chosen) return { replied: false, nextNodeId: nao ?? sim }
+    const chosenNode = getNodeById(flow, chosen)
+    if (chosenNode?.data?.nodeType === 'mensagem') {
+      const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, chosen, contactId, nome)
+      return { replied: sent, nextNodeId: nextNodeId ?? chosen }
+    }
+    if (chosenNode?.data?.nodeType === 'registrar_gasto' || chosenNode?.data?.nodeType === 'registrar_receita') {
+      const regTargets = getOutgoingTargets(flow, chosen)
+      const nextAfterReg = regTargets[0]
+      if (nextAfterReg) {
+        const nextNode = getNodeById(flow, nextAfterReg)
+        if (nextNode?.data?.nodeType === 'mensagem') {
+          const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, nextAfterReg, contactId, nome)
+          return { replied: sent, nextNodeId: nextNodeId ?? nextAfterReg }
+        }
+      }
+      return { replied: true, nextNodeId: nextAfterReg ?? chosen }
+    }
+    return { replied: false, nextNodeId: chosen }
+  }
+
   if (!nextId) return { replied: false, nextNodeId: null }
   const nextNode = getNodeById(flow, nextId)
   const nextType = nextNode?.data?.nodeType
