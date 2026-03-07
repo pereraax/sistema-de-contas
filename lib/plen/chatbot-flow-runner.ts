@@ -8,7 +8,7 @@ import { getContactById, updateContact } from '@/lib/crm/contacts'
 import { enqueuePlenMessage } from '@/lib/plen/queue/message-queue'
 import { getAssistenteGlobalPausada } from '@/lib/assistente-global-pausada'
 import { getPlenLLMResponse } from '@/lib/plen-llm-fallback'
-import { createUserAndSendCode, resendCodeForPlen } from '@/lib/plen/auth/email-verification'
+import { createUserAndSendCode, resendCodeForPlen, verifyCodeForPlen } from '@/lib/plen/auth/email-verification'
 import { sendWhatsAppButtonReply } from '@/lib/whatsapp/sender'
 
 type EdgeRow = { source: string; target: string; sourceHandle?: string | null }
@@ -496,6 +496,30 @@ export async function runChatbotFlow(
   const textLower = text.toLowerCase()
 
   if (isAguardandoCodigo) {
+    const apenasDigitos = text.replace(/\D/g, '')
+    const codigo6Digitos = apenasDigitos.length === 6 && /^\d{6}$/.test(apenasDigitos)
+    if (codigo6Digitos) {
+      const result = await verifyCodeForPlen(text, contactEmail)
+      if (result.success) {
+        await updateContact(contactId, { status: 'usuario_ativo', usuario_cadastrado: true, data_cadastro: new Date().toISOString() })
+        await enqueuePlenMessage(
+          contactId,
+          'Email confirmado! A partir daqui você pode usar "menu" ou registrar gastos e receitas a qualquer momento.',
+          new Date()
+        )
+        const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+        await processPlenQueue(3).catch(() => {})
+        return { replied: true, reason: 'email_confirmado' }
+      }
+      await enqueuePlenMessage(
+        contactId,
+        result.error ?? 'Código inválido ou expirado. Verifique e tente novamente.',
+        new Date()
+      )
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'codigo_invalido' }
+    }
     const clicouReenviar =
       /^reenviar\s*e?-?mail$/i.test(textLower.trim()) ||
       /^reenviar\s*c[oó]digo$/i.test(textLower.trim()) ||
@@ -522,6 +546,14 @@ export async function runChatbotFlow(
       )
       return { replied: sent.success, reason: sent.success ? undefined : 'botao_reenviar_falhou' }
     }
+    await enqueuePlenMessage(
+      contactId,
+      'Digite o código de 6 dígitos que enviamos para seu email para finalizar o cadastro.',
+      new Date()
+    )
+    const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+    await processPlenQueue(2).catch(() => {})
+    return { replied: true, reason: 'aguardando_codigo_outro' }
   }
 
   const state = await getChatbotFlowState(contactId)
