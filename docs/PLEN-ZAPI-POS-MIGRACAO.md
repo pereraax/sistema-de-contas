@@ -70,8 +70,8 @@ Recomendado: cron a cada 1 minuto.
 
 ## Pendente (próximos passos)
 
-- **Plano gratuito:** limite de 10 registros e mensagem para plano R$ 9,90
-- **Lembretes:** detectar “preciso pagar dia” / “preciso receber dia” e enviar no dia
-- **Reengajamento:** mensagens para conversas paradas (intervalos aleatórios)
+- **Plano gratuito (implementado):** limite de 10 registros; após isso mensagem R$ 9,90.
+- **Lembretes (implementado):** detectar “preciso pagar dia” / “preciso receber dia” e enviar no dia
+- **Reengajamento (implementado):** cron `/api/plen/reengagement-cron` (24h inatividade, 72h entre envios).
 - **Painel Assistente Plen:** página no Admin com builder visual (blocos editáveis)
 - **Multimídia:** interpretar áudio (transcrição), imagem e comprovante (OCR) para registrar gastos

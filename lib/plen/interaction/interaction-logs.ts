@@ -25,3 +25,16 @@ export async function logPlenInteraction(input: PlenInteractionLogInsert): Promi
     resposta_enviada: input.resposta_enviada ?? null,
   })
 }
+
+/** Conta quantos registros de gasto/receita o contato já fez (teste + USER_ACTIVE). Usado para limite do plano gratuito (10). */
+export async function getPlenRegistroCount(contactId: string): Promise<number> {
+  const supabase = createAdminClient()
+  if (!supabase) return 0
+  const { count, error } = await supabase
+    .from('plen_interaction_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('contact_id', contactId)
+    .in('acao_executada', ['test_expense_ok', 'registro_gasto_ativo'])
+  if (error || count == null) return 0
+  return count
+}

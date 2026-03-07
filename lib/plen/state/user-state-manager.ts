@@ -21,6 +21,7 @@ export interface PlenUserStateRow {
   consecutive_bot_replies: number
   last_user_message_at: string | null
   blocked_until: string | null
+  reengagement_sent_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -145,3 +146,17 @@ export function isBlocked(row: PlenUserStateRow | null): boolean {
 
 /** Deve bloquear por anti-loop? (3 ou mais respostas seguidas do bot). */
 export const CONSECUTIVE_BOT_REPLIES_LIMIT = 3
+
+/** Marca que enviamos mensagem de reengajamento (conversa parada). */
+export async function setReengagementSentAt(contactId: string): Promise<boolean> {
+  const supabase = createAdminClient()
+  if (!supabase) return false
+  const { error } = await supabase
+    .from('plen_user_state')
+    .update({
+      reengagement_sent_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('contact_id', contactId)
+  return !error
+}

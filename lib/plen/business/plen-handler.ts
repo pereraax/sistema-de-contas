@@ -16,7 +16,8 @@ import {
 import { enqueuePlenMessage } from '../queue/message-queue'
 import { routeIntent } from '../ai/intent-router'
 import { getQuestionReply } from '../ai/question-handler'
-import { logPlenInteraction } from '../interaction/interaction-logs'
+import { logPlenInteraction, getPlenRegistroCount } from '../interaction/interaction-logs'
+import { createPlenLembrete } from '../lembretes/plen-lembretes'
 import { updateContact, getContactById } from '@/lib/crm/contacts'
 import { createUserAndSendCode, verifyCodeForPlen } from '../auth/email-verification'
 import { getAssistenteGlobalPausada } from '@/lib/assistente-global-pausada'
@@ -90,6 +91,20 @@ Você também pode enviar:
 📄 comprovante
 
 Eu consigo registrar tudo para você.`
+
+const LIMITE_REGISTROS_GRATUITOS = 10
+
+const MENSAGEM_PLANO_GRATUITO_LIMITE = (nome: string) =>
+  `${nome}, você está usando o plano gratuito 💙
+
+Já registrou ${LIMITE_REGISTROS_GRATUITOS} gastos!
+
+Tenho um presente para você 🎁
+
+Plano básico que custa R$49,90 está disponível para você por apenas R$9,90.`
+
+const MENSAGEM_LEMBRETE_SALVO = (dataFmt: string, descricao: string) =>
+  `Lembrete salvo! 📅 Te aviso no dia ${dataFmt}: ${descricao}`
 
 const MENSAGEM_PEDIR_NOME = `Por favor, me diga seu nome (pelo menos 2 letras, sem números).`
 
@@ -271,9 +286,29 @@ export async function handlePlenIncomingMessage(
 
     case 'USER_ACTIVE':
       if (intentResult.intent === 'registrar_despesa' || intentResult.intent === 'registrar_receita') {
-        acao = 'registro_gasto_ativo'
-        const frase = FRASES_GASTO_REGISTRADO[Math.floor(Math.random() * FRASES_GASTO_REGISTRADO.length)](nome)
-        reply = `💙 Gasto registrado!\n\n${frase}\n\n📂 Categoria: ${intentResult.categoria ?? 'Outros'}\n💰 Valor: R$${(intentResult.valor ?? 0).toFixed(2)}\n📅 Hoje\n\nVer meus registros: ${dashboardUrl}`
+        const count = await getPlenRegistroCount(contactId)
+        if (count >= LIMITE_REGISTROS_GRATUITOS) {
+          reply = MENSAGEM_PLANO_GRATUITO_LIMITE(nome)
+          acao = 'limite_plano_gratuito'
+        } else {
+          acao = 'registro_gasto_ativo'
+          const frase = FRASES_GASTO_REGISTRADO[Math.floor(Math.random() * FRASES_GASTO_REGISTRADO.length)](nome)
+          reply = `💙 Gasto registrado!\n\n${frase}\n\n📂 Categoria: ${intentResult.categoria ?? 'Outros'}\n💰 Valor: R$${(intentResult.valor ?? 0).toFixed(2)}\n📅 Hoje\n\nVer meus registros: ${dashboardUrl}`
+        }
+      } else if (intentResult.intent === 'lembrete_pagar' || intentResult.intent === 'lembrete_receber') {
+        const tipo = intentResult.intent === 'lembrete_pagar' ? 'pagar' : 'receber'
+        const dataLembrete = intentResult.dataLembrete ?? ''
+        const descricao = intentResult.descricaoLembrete ?? (tipo === 'pagar' ? 'Pagamento' : 'Recebimento')
+        const id = await createPlenLembrete(contactId, tipo, dataLembrete, descricao)
+        if (id) {
+          const [y, m, d] = dataLembrete.split('-')
+          const dataFmt = d && m && y ? `${d}/${m}/${y}` : dataLembrete
+          reply = MENSAGEM_LEMBRETE_SALVO(dataFmt, descricao)
+          acao = 'lembrete_criado'
+        } else {
+          reply = `Não consegui salvar o lembrete, ${nome}. Tente de novo.`
+          acao = 'lembrete_erro'
+        }
       } else if (intentResult.intent === 'consultar_saldo' || intentResult.intent === 'consultar_mes') {
         reply = `${nome}, você pode ver seu total e saldo no painel: ${dashboardUrl}`
         acao = 'consulta_saldo'
