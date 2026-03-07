@@ -497,24 +497,16 @@ export async function runChatbotFlow(
 
   if (isAguardandoCodigo) {
     const clicouReenviar =
-      textLower === 'reenviar email' ||
-      /^reenviar\s*email$/i.test(textLower) ||
-      /^reenviar\s*c[oó]digo$/i.test(textLower)
+      /^reenviar\s*e?-?mail$/i.test(textLower.trim()) ||
+      /^reenviar\s*c[oó]digo$/i.test(textLower.trim()) ||
+      textLower.trim() === 'reenviar email' ||
+      textLower.trim() === 'reenviar e-mail'
     if (clicouReenviar) {
       const result = await resendCodeForPlen(contactEmail)
-      if (result.success) {
-        await enqueuePlenMessage(
-          contactId,
-          'Reenviei o código para seu email. Confira a caixa de entrada e o spam. Digite o código aqui para finalizar.',
-          new Date()
-        )
-      } else {
-        await enqueuePlenMessage(
-          contactId,
-          'Não foi possível reenviar agora. Tente novamente em alguns minutos ou confira se o email está correto.',
-          new Date()
-        )
-      }
+      const msgConfirmacao = result.success
+        ? 'Reenviei o código para seu email. Confira a caixa de entrada e o spam. Digite o código aqui para finalizar.'
+        : 'Não foi possível reenviar agora. Tente novamente em alguns minutos ou confira se o email está correto.'
+      await enqueuePlenMessage(contactId, msgConfirmacao, new Date())
       const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
       await processPlenQueue(3).catch(() => {})
       return { replied: true, reason: 'codigo_reenviado' }

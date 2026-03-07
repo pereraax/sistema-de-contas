@@ -25,9 +25,30 @@ function normalizePhone(raw: string): string {
  * Ordem de prioridade: conversation → extendedTextMessage.text → imageMessage.caption → videoMessage.caption → formato plano Z-API.
  * Se não houver texto, retorna "[Mídia]" para mídia ou "" para vazio.
  */
+/** Extrai texto de resposta de botão (Z-API / formatos similares). */
+function extractButtonResponseText(m: Record<string, unknown>): string {
+  const msgData = m.messageData ?? m.data
+  if (msgData != null && typeof msgData === 'object') {
+    const br = (msgData as Record<string, unknown>).buttonsResponseMessage ?? (msgData as Record<string, unknown>).buttonResponseMessage
+    if (br != null && typeof br === 'object') {
+      const t = (br as Record<string, unknown>).selectedButtonText ?? (br as Record<string, unknown>).selectedButtonId ?? (br as Record<string, unknown>).text
+      if (t != null && typeof t === 'string') return t.trim()
+    }
+  }
+  const br = m.buttonsResponseMessage ?? m.buttonResponseMessage
+  if (br != null && typeof br === 'object') {
+    const t = (br as Record<string, unknown>).selectedButtonText ?? (br as Record<string, unknown>).text
+    if (t != null && typeof t === 'string') return t.trim()
+  }
+  return ''
+}
+
 export function extractMessageContent(message: unknown): string {
   if (message == null || typeof message !== 'object') return ''
   const m = message as Record<string, unknown>
+
+  const buttonText = extractButtonResponseText(m)
+  if (buttonText) return buttonText
 
   const msg = m.message != null && typeof m.message === 'object' ? (m.message as Record<string, unknown>) : null
   if (msg) {
