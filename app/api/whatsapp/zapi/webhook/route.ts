@@ -77,33 +77,14 @@ export async function POST(request: Request) {
       }
     }
 
-    let effectiveText = (parsed.text ?? '').trim()
-    if (!effectiveText && !parsed.mediaUrl) {
-      const buttonText = extractButtonTextDeep(body)
-      if (buttonText) effectiveText = buttonText
-    }
-    const hasText = !!effectiveText || !!parsed.mediaUrl
-    if (!hasText) {
-      await safeLog({ status: 'ignored', detail: 'Sem texto nem mídia', payload_preview: payloadPreview })
-      return NextResponse.json({ ok: true })
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[webhooks/zapi] MENSAGEM RECEBIDA', {
-        phone: parsed.phone?.slice(-4),
-        text: (parsed.text || '').slice(0, 40),
-        messageType: parsed.messageType,
-      })
-    }
-
     const plausible = isPlausiblePhone(parsed.phone)
     let contact = await findContactByPhone(parsed.phone)
     let created = false
     let origem: 'whatsapp' | 'anuncio' = 'whatsapp'
-    const primeiroTexto = effectiveText
+    const primeiroTextoRaw = (parsed.text ?? '').trim()
 
     if (!contact && plausible) {
-      if (detectOrigemAnuncio(primeiroTexto)) origem = 'anuncio'
+      if (detectOrigemAnuncio(primeiroTextoRaw)) origem = 'anuncio'
       const jid = `${parsed.phone}@s.whatsapp.net`
       const result = await getOrCreateContactByPhoneWithFlag(parsed.phone, {
         nome: parsed.senderName ?? undefined,
@@ -121,6 +102,30 @@ export async function POST(request: Request) {
         payload_preview: payloadPreview,
       })
       return NextResponse.json({ ok: true })
+    }
+
+    let effectiveText = primeiroTextoRaw
+    if (!effectiveText && !parsed.mediaUrl) {
+      const buttonText = extractButtonTextDeep(body)
+      if (buttonText) effectiveText = buttonText
+    }
+    if (!effectiveText && !parsed.mediaUrl && contact.status === 'aguardando_codigo' && (contact.email ?? '').includes('@')) {
+      effectiveText = 'Reenviar email'
+    }
+    const hasText = !!effectiveText || !!parsed.mediaUrl
+    if (!hasText) {
+      await safeLog({ status: 'ignored', detail: 'Sem texto nem mídia', payload_preview: payloadPreview })
+      return NextResponse.json({ ok: true })
+    }
+
+    const primeiroTexto = effectiveText
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[webhooks/zapi] MENSAGEM RECEBIDA', {
+        phone: parsed.phone?.slice(-4),
+        text: effectiveText.slice(0, 40),
+        messageType: parsed.messageType,
+      })
     }
 
     // Sempre manter o nome do contato = nome do perfil WhatsApp (para {nome} no Chatbot e no CRM)
