@@ -1,58 +1,146 @@
 /**
  * PLEN — Criação de usuário e envio de código por email (cadastro via WhatsApp)
- * Usa Supabase Auth: signUp envia email com código (template Magic Link com {{ .Token }}).
+ *
+ * Dois modos:
+ * 1) SMTP do app configurado (SMTP_HOST, etc.): criamos o usuário com admin (sem enviar email),
+ *    geramos código, guardamos em plen_email_otp e enviamos pelo nosso mailer. Na verificação
+ *    confirmamos o email via admin.updateUserById.
+ * 2) SMTP do app não configurado: usamos signUp/resend do Supabase (o email é enviado pelo
+ *    Supabase — só funciona para qualquer destinatário se o SMTP estiver configurado no
+ *    Dashboard do Supabase: Authentication → SMTP). Ver docs/CONFIGURAR-EMAIL-CODIGO-SUPABASE.md
  */
 
-import { createPublicClient } from '@/lib/supabase/server'
+import { createPublicClient, createAdminClient } from '@/lib/supabase/server'
+import { isSmtpConfigured, sendMail } from '@/lib/mailer'
+
+const OTP_EXPIRY_MINUTES = 15
+const OTP_LENGTH = 6
 
 function randomPassword(): string {
   return `Plen${Date.now()}${Math.random().toString(36).slice(2, 14)}!`
 }
 
+function generateOtpCode(): string {
+  const digits = '0123456789'
+  let code = ''
+  for (let i = 0; i < OTP_LENGTH; i++) {
+    code += digits[Math.floor(Math.random() * digits.length)]
+  }
+  return code
+}
+
+function otpExpiresAt(): Date {
+  const d = new Date()
+  d.setMinutes(d.getMinutes() + OTP_EXPIRY_MINUTES)
+  return d
+}
+
+/** Envia o código por email usando o SMTP do app. */
+async function sendOtpEmail(email: string, code: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    await sendMail({
+      to: email.trim().toLowerCase(),
+      subject: 'Seu código de confirmação Plenipay',
+      html: `
+        <h2>Seu código de confirmação Plenipay</h2>
+        <p>Use o código abaixo para confirmar seu e-mail no cadastro feito pelo WhatsApp:</p>
+        <p style="font-size: 24px; letter-spacing: 4px;"><strong>${code}</strong></p>
+        <p>Digite esse código na conversa do WhatsApp para a Plen confirmar sua conta.</p>
+        <p>Este código expira em ${OTP_EXPIRY_MINUTES} minutos.</p>
+      `.trim(),
+    })
+    return { success: true }
+  } catch (e) {
+    const err = e instanceof Error ? e.message : String(e)
+    return { success: false, error: err }
+  }
+}
+
 /**
- * Cria usuário no Supabase Auth com email e envia código por email.
- * Supabase envia o email (template Magic Link com {{ .Token }} = 6 dígitos).
- * Retorna { success: true } ou { success: false, error: string }.
+ * Cria usuário no Supabase Auth e envia código por email.
+ * Se o app tiver SMTP configurado, o email é enviado pelo app (garantido). Caso contrário, usa Supabase (requer SMTP no Dashboard).
  */
 export async function createUserAndSendCode(
   email: string,
   nome: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createPublicClient()
+  const emailNorm = email.trim().toLowerCase()
   const password = randomPassword()
 
+  if (isSmtpConfigured()) {
+    const admin = createAdminClient()
+    if (admin) {
+      const { data: userData, error: createError } = await admin.auth.admin.createUser({
+        email: emailNorm,
+        password,
+        email_confirm: false,
+        user_metadata: { nome: nome.trim(), origem: 'whatsapp_plen' },
+      })
+      if (createError) {
+        const msg = createError.message.toLowerCase()
+        if (msg.includes('already') || msg.includes('registered') || msg.includes('duplicate') || msg.includes('já está')) {
+          return { success: false, error: 'Este email já está cadastrado. Faça login ou use outro email.' }
+        }
+        return { success: false, error: createError.message }
+      }
+      const userId = userData?.user?.id
+      if (!userId) return { success: false, error: 'Não foi possível criar a conta.' }
+
+      const code = generateOtpCode()
+      const expiresAt = otpExpiresAt().toISOString()
+      const { error: insertError } = await admin
+        .from('plen_email_otp')
+        .upsert({ email: emailNorm, code, user_id: userId, expires_at: expiresAt }, { onConflict: 'email' })
+      if (insertError) {
+        console.error('[plen/email] Erro ao salvar OTP:', insertError.message)
+        return { success: false, error: 'Erro ao gerar código. Tente novamente.' }
+      }
+
+      const sendResult = await sendOtpEmail(emailNorm, code)
+      if (!sendResult.success) {
+        return { success: false, error: sendResult.error ?? 'Falha ao enviar email.' }
+      }
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[plen/email] Código enviado via SMTP do app para', emailNorm)
+      }
+      return { success: true }
+    }
+  }
+
+  const supabase = createPublicClient()
+  const redirectTo =
+    typeof process.env.NEXT_PUBLIC_SITE_URL === 'string' && process.env.NEXT_PUBLIC_SITE_URL.trim()
+      ? process.env.NEXT_PUBLIC_SITE_URL.trim()
+      : typeof process.env.NEXT_PUBLIC_APP_URL === 'string' && process.env.NEXT_PUBLIC_APP_URL.trim()
+        ? process.env.NEXT_PUBLIC_APP_URL.trim()
+        : undefined
+
   const { data, error } = await supabase.auth.signUp({
-    email: email.trim().toLowerCase(),
+    email: emailNorm,
     password,
     options: {
       data: { nome: nome.trim(), origem: 'whatsapp_plen' },
-      emailRedirectTo: undefined,
+      emailRedirectTo: redirectTo,
     },
   })
 
   if (error) {
     const msg = error.message.toLowerCase()
-    if (
-      msg.includes('already') ||
-      msg.includes('already registered') ||
-      msg.includes('duplicate') ||
-      msg.includes('já está')
-    ) {
+    if (msg.includes('already') || msg.includes('already registered') || msg.includes('duplicate') || msg.includes('já está')) {
       return { success: false, error: 'Este email já está cadastrado. Faça login ou use outro email.' }
     }
     return { success: false, error: error.message }
   }
-
-  if (!data?.user) {
-    return { success: false, error: 'Não foi possível criar a conta.' }
+  if (!data?.user) return { success: false, error: 'Não foi possível criar a conta.' }
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[plen/email] signUp ok para', emailNorm, '— Se o lead NÃO receber, configure SMTP no Supabase ou no app (SMTP_*).')
   }
-
   return { success: true }
 }
 
 /**
  * Verifica código OTP (6 dígitos) para o email.
- * Retorna { success: true } ou { success: false, error: string }.
+ * Primeiro tenta o código enviado pelo app (plen_email_otp); depois Supabase verifyOtp.
  */
 export async function verifyCodeForPlen(
   code: string,
@@ -62,18 +150,76 @@ export async function verifyCodeForPlen(
   if (cleaned.length !== 6) {
     return { success: false, error: 'Código deve ter 6 dígitos.' }
   }
+  const emailNorm = email.trim().toLowerCase()
+
+  const admin = createAdminClient()
+  if (admin) {
+    const { data: row, error: fetchError } = await admin
+      .from('plen_email_otp')
+      .select('user_id')
+      .eq('email', emailNorm)
+      .eq('code', cleaned)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle()
+    if (!fetchError && row?.user_id) {
+      const { error: updateError } = await admin.auth.admin.updateUserById(row.user_id, { email_confirm: true })
+      if (updateError) return { success: false, error: updateError.message }
+      await admin.from('plen_email_otp').delete().eq('email', emailNorm)
+      return { success: true }
+    }
+  }
 
   const supabase = createPublicClient()
-
   const types: ('signup' | 'email')[] = ['signup', 'email']
   for (const type of types) {
     const { data, error } = await supabase.auth.verifyOtp({
-      email: email.trim().toLowerCase(),
+      email: emailNorm,
       token: cleaned,
       type,
     })
     if (!error && data?.user) return { success: true }
   }
-
   return { success: false, error: 'Código inválido ou expirado. Verifique e tente novamente.' }
+}
+
+/**
+ * Reenvia o email com código.
+ * Se o app tiver SMTP: atualiza/cria registro em plen_email_otp e envia pelo mailer. Caso contrário, usa Supabase resend.
+ */
+export async function resendCodeForPlen(email: string): Promise<{ success: boolean; error?: string }> {
+  const emailNorm = email.trim().toLowerCase()
+
+  if (isSmtpConfigured()) {
+    const admin = createAdminClient()
+    if (admin) {
+      const { data: existing } = await admin.from('plen_email_otp').select('user_id').eq('email', emailNorm).maybeSingle()
+      let userId: string | null = existing?.user_id ?? null
+      if (!userId) {
+        const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 })
+        const user = list?.users?.find((u) => (u.email ?? '').toLowerCase() === emailNorm)
+        userId = user?.id ?? null
+      }
+      if (!userId) {
+        return { success: false, error: 'Email não encontrado. Informe o mesmo email usado no cadastro.' }
+      }
+      const code = generateOtpCode()
+      const expiresAt = otpExpiresAt().toISOString()
+      const { error: upsertError } = await admin
+        .from('plen_email_otp')
+        .upsert({ email: emailNorm, code, user_id: userId, expires_at: expiresAt }, { onConflict: 'email' })
+      if (upsertError) return { success: false, error: 'Erro ao gerar novo código.' }
+      const sendResult = await sendOtpEmail(emailNorm, code)
+      if (!sendResult.success) return { success: false, error: sendResult.error ?? 'Falha ao reenviar email.' }
+      if (process.env.NODE_ENV === 'development') console.log('[plen/email] Código reenviado via SMTP para', emailNorm)
+      return { success: true }
+    }
+  }
+
+  const supabase = createPublicClient()
+  const { error } = await supabase.auth.resend({ type: 'signup', email: emailNorm })
+  if (error) return { success: false, error: error.message }
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[plen/email] resend (Supabase) ok para', emailNorm)
+  }
+  return { success: true }
 }
