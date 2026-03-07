@@ -1,15 +1,16 @@
 /**
  * Webhook Z-API: recebe mensagens do WhatsApp (e de anúncios).
- * Fluxo: Z-API → Webhook → CRM (contato/conversa/mensagem) → User State → Intent Router → Business Logic → Message Queue → Sender Z-API
- * IMPORTANTE: Primeira mensagem recebida é sempre tratada como novo lead (incluindo "Olá! Quero utilizar a Plenipay." de anúncios).
+ * Fluxo: Z-API → Webhook → CRM (contato/conversa/mensagem) → Chatbot Builder (fluxo ativo) → Message Queue → Sender Z-API
+ * Toda automação Plen vem apenas do Chatbot Builder (fluxo salvo com ativo = true).
  */
+
+export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { parseZApiPayload } from '@/lib/whatsapp/webhook/parser'
 import {
   getOrCreateContactByPhoneWithFlag,
   findContactByPhone,
-  updateContact,
   touchContactLastInteraction,
 } from '@/lib/crm/contacts'
 import { isPlausiblePhone } from '@/lib/crm/phone'
@@ -18,10 +19,11 @@ import {
   updateConversation,
   incrementConversationUnread,
 } from '@/lib/crm/conversations'
-import { createMessage } from '@/lib/crm/messages'
+import { createMessage, findMessageByZapiId } from '@/lib/crm/messages'
 import { logInteraction } from '@/lib/crm/interaction-logs'
 import { logWebhookEvent } from '@/lib/crm/webhook-logger'
-import { handlePlenIncomingMessage } from '@/lib/plen/business/plen-handler'
+import { runChatbotFlow } from '@/lib/plen/chatbot-flow-runner'
+import { processPlenQueue } from '@/lib/plen/queue/queue-worker'
 
 const PAYLOAD_PREVIEW_MAX = 200
 
@@ -63,6 +65,14 @@ export async function POST(request: Request) {
     if (parsed.fromMe) {
       await safeLog({ status: 'ignored', detail: 'Mensagem enviada por nós', payload_preview: payloadPreview })
       return NextResponse.json({ ok: true })
+    }
+
+    if (parsed.messageId) {
+      const jaProcessada = await findMessageByZapiId(parsed.messageId)
+      if (jaProcessada) {
+        await safeLog({ status: 'ignored', detail: 'Mensagem já processada (idempotência)', payload_preview: payloadPreview })
+        return NextResponse.json({ ok: true })
+      }
     }
 
     const hasText = parsed.messageType === 'text' ? !!parsed.text?.trim() : true
@@ -153,16 +163,25 @@ export async function POST(request: Request) {
     const textForPlen = parsed.messageType === 'text' ? (parsed.text || '').trim() : (parsed.text || '').trim() || '[Mídia]'
     if (textForPlen || parsed.mediaUrl) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('[webhooks/zapi] PLEN: processando', { contact_id: contact.id, text: textForPlen.slice(0, 50) })
+        console.log('[webhooks/zapi] Chatbot Builder: processando', { contact_id: contact.id, isNewLead: created, text: textForPlen.slice(0, 50) })
       }
-      handlePlenIncomingMessage(contact.id, textForPlen || '[Mídia]')
+      runChatbotFlow(contact.id, textForPlen || '[Mídia]', created)
         .then((r) => {
           if (process.env.NODE_ENV === 'development') {
-            console.log('[webhooks/zapi] PLEN: resultado', { replied: r.replied, reason: r.reason })
+            console.log('[webhooks/zapi] Chatbot Builder: resultado', { replied: r.replied, reason: r.reason })
+            if (r.replied) {
+              setTimeout(() => {
+                processPlenQueue(5).then(({ sent, failed }) => {
+                  console.log('[webhooks/zapi] PLEN fila (dev):', { sent, failed })
+                }).catch((err) => {
+                  console.error('[webhooks/zapi] PLEN fila (dev) ERRO:', (err as Error)?.message ?? err)
+                })
+              }, 6000)
+            }
           }
         })
         .catch((err) => {
-          console.error('[webhooks/zapi] PLEN handler ERRO:', (err as Error)?.message ?? err)
+          console.error('[webhooks/zapi] Chatbot Builder ERRO:', (err as Error)?.message ?? err)
         })
     }
 
