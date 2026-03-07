@@ -4,10 +4,12 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/server'
-import { getContactById } from '@/lib/crm/contacts'
+import { getContactById, updateContact } from '@/lib/crm/contacts'
 import { enqueuePlenMessage } from '@/lib/plen/queue/message-queue'
 import { getAssistenteGlobalPausada } from '@/lib/assistente-global-pausada'
 import { getPlenLLMResponse } from '@/lib/plen-llm-fallback'
+import { createUserAndSendCode, resendCodeForPlen } from '@/lib/plen/auth/email-verification'
+import { sendWhatsAppButtonReply } from '@/lib/whatsapp/sender'
 
 type EdgeRow = { source: string; target: string; sourceHandle?: string | null }
 type ChatbotFlowRow = { id: string; nome: string; estrutura_json: { nodes: unknown[]; edges: EdgeRow[] } }
@@ -102,7 +104,8 @@ export async function setChatbotFlowState(
   return !error
 }
 
-async function clearChatbotFlowState(contactId: string): Promise<boolean> {
+/** Remove o estado do fluxo do contato (para comando reset/resetar). */
+export async function clearChatbotFlowState(contactId: string): Promise<boolean> {
   const supabase = createAdminClient()
   if (!supabase) return false
   const { error } = await supabase.from('chatbot_flow_state').delete().eq('contact_id', contactId)
@@ -167,6 +170,16 @@ function applyReplacements(text: string, vars: { nome?: string; valor?: string; 
   return out
 }
 
+/** Extrai valor e categoria da mensagem (ex.: "219 carro" -> { valor: "219", categoria: "Carro" }; "cafe 12" -> { valor: "12", categoria: "Cafe" }). */
+function parseGastoOuReceita(messageText: string): { valor: string; categoria: string } {
+  const t = (messageText || '').trim()
+  const numMatch = t.match(/\d+(?:[.,]\d+)?/)
+  const valor = numMatch ? numMatch[0].replace(',', '.') : ''
+  const resto = t.replace(/\d+(?:[.,]\d+)?/g, '').replace(/\s+/g, ' ').trim()
+  const categoria = resto ? resto.charAt(0).toUpperCase() + resto.slice(1).toLowerCase() : 'Outros'
+  return { valor, categoria }
+}
+
 /** Envia o texto do nó Mensagem e retorna o nodeId para ser o novo current. */
 async function sendMessageNodeAndReturnNext(
   flow: ChatbotFlowRow,
@@ -221,7 +234,7 @@ async function sendMenuAndGetTargets(
   return { sent: true, targets }
 }
 
-/** Avalia condição do bloco (mensagem_contem, mensagem_igual, eh_numero). */
+/** Avalia condição do bloco (mensagem_contem, mensagem_igual, eh_numero, tem_valor). */
 function evaluateCondition(
   config: Record<string, unknown> | undefined,
   messageText: string
@@ -232,6 +245,8 @@ function evaluateCondition(
   if (campo === 'mensagem_contem') return valor ? text.includes(valor) : false
   if (campo === 'mensagem_igual') return text === valor
   if (campo === 'eh_numero') return /^\d+([.,]\d+)?$/.test(messageText.trim().replace(',', '.'))
+  // Parece gasto ou receita: tem pelo menos um dígito (ex.: "cafe 67", "cafe67", "almoço 30", "recebi 2000")
+  if (campo === 'tem_valor') return /\d/.test(messageText.trim())
   return false
 }
 
@@ -311,6 +326,18 @@ async function advanceFromNode(
       const chosen = ok ? sim : nao
       if (chosen) {
         const chosenNode = getNodeById(flow, chosen)
+        const condValor = String(condConfig?.condicaoValor ?? '').trim()
+        const isEmailValidBranch = condValor.includes('@') && chosenNode?.data?.nodeType === 'mensagem'
+        if (isEmailValidBranch) {
+          const email = messageText.trim().toLowerCase()
+          if (email && email.includes('@')) {
+            const result = await createUserAndSendCode(email, nome)
+            await updateContact(contactId, { email, status: 'aguardando_codigo' })
+            if (!result.success && process.env.NODE_ENV === 'development') {
+              console.warn('[chatbot-flow-runner] createUserAndSendCode:', result.error)
+            }
+          }
+        }
         if (chosenNode?.data?.nodeType === 'mensagem') {
           const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, chosen, contactId, nome)
           return { replied: sent, nextNodeId: nextNodeId ?? chosen }
@@ -358,17 +385,63 @@ async function advanceFromNode(
     }
     if (chosenNode?.data?.nodeType === 'registrar_gasto' || chosenNode?.data?.nodeType === 'registrar_receita') {
       const regTargets = getOutgoingTargets(flow, chosen)
-      const nextAfterReg = regTargets[0]
-      if (nextAfterReg) {
-        const nextNode = getNodeById(flow, nextAfterReg)
-        if (nextNode?.data?.nodeType === 'mensagem') {
-          const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, nextAfterReg, contactId, nome)
-          return { replied: sent, nextNodeId: nextNodeId ?? nextAfterReg }
-        }
+      let currentId = regTargets[0]
+      if (!currentId) return { replied: true, nextNodeId: chosen }
+      const { valor, categoria } = parseGastoOuReceita(messageText)
+      let sent = false
+      let lastNextId: string | null = currentId
+      while (currentId) {
+        const node = getNodeById(flow, currentId)
+        if (node?.data?.nodeType !== 'mensagem') break
+        const vars = lastNextId === regTargets[0] ? { valor, categoria } : undefined
+        const { sent: ok, nextNodeId } = await sendMessageNodeAndReturnNext(flow, currentId, contactId, nome, vars)
+        if (ok) sent = true
+        lastNextId = nextNodeId ?? currentId
+        const nextNode = lastNextId ? getNodeById(flow, lastNextId) : null
+        if (!lastNextId || nextNode?.data?.nodeType !== 'mensagem') break
+        currentId = lastNextId
       }
-      return { replied: true, nextNodeId: nextAfterReg ?? chosen }
+      return { replied: sent, nextNodeId: lastNextId }
     }
     return { replied: false, nextNodeId: chosen }
+  }
+
+  // Nó atual é IA: executar com a mensagem do usuário, enviar resposta e avançar
+  if (nodeType === 'ia') {
+    const iaConfig = node.data?.config as Record<string, unknown> | undefined
+    const iaPrompt = (iaConfig?.iaPrompt as string)?.trim() || ''
+    const reply = await getPlenLLMResponse({
+      userMessage: messageText,
+      context: iaPrompt || undefined,
+    })
+    if (reply) await enqueuePlenMessage(contactId, reply)
+    const iaTargets = getOutgoingTargets(flow, currentId)
+    const nextAfterIa = iaTargets[0]
+    return { replied: !!reply, nextNodeId: nextAfterIa ?? null }
+  }
+
+  // Nó atual é Delay: agendar a próxima mensagem com o delay configurado e avançar
+  if (nodeType === 'delay') {
+    const dconfig = node.data?.config as Record<string, unknown> | undefined
+    const min = Number(dconfig?.delayMin ?? 0) * 1000
+    const max = Math.max(Number(dconfig?.delayMax ?? 5) * 1000, min)
+    const delayMs = min + Math.random() * (max - min || 0)
+    const afterDelayId = targets[0]
+    if (afterDelayId) {
+      const afterNode = getNodeById(flow, afterDelayId)
+      if (afterNode?.data?.nodeType === 'mensagem') {
+        const cfg = afterNode.data?.config as Record<string, unknown> | undefined
+        const texto = (cfg?.texto as string)?.trim() || ''
+        if (texto) {
+          const msg = applyReplacements(texto, { nome })
+          await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs))
+        }
+        const afterTargets = getOutgoingTargets(flow, afterDelayId)
+        return { replied: false, nextNodeId: afterTargets[0] ?? afterDelayId }
+      }
+      return { replied: false, nextNodeId: afterDelayId }
+    }
+    return { replied: false, nextNodeId: null }
   }
 
   if (!nextId) return { replied: false, nextNodeId: null }
@@ -390,11 +463,13 @@ type RunChatbotFlowResult = {
 /**
  * Processa a mensagem do contato: ou inicia o fluxo (se bater no Início) ou avança no fluxo atual.
  * Única entrada de automação Plen (substitui o painel Assistente Plen).
+ * @param whatsappContactName Nome do perfil do WhatsApp do contato (prioridade para {nome} nas mensagens).
  */
 export async function runChatbotFlow(
   contactId: string,
   messageText: string,
-  isNewLead: boolean
+  isNewLead: boolean,
+  whatsappContactName?: string
 ): Promise<RunChatbotFlowResult> {
   const text = (messageText || '').trim()
   if (!text) return { replied: false, reason: 'empty' }
@@ -406,7 +481,55 @@ export async function runChatbotFlow(
   if (!flow) return { replied: false, reason: 'no_active_flow' }
 
   const contact = await getContactById(contactId)
-  const nome = (contact?.nome?.trim() && contact.nome.length >= 2) ? contact.nome.trim() : 'amigo'
+  const nomeWhatsApp = (whatsappContactName ?? '').trim()
+  const nomeCadastro = (contact?.nome ?? '').trim()
+  const nome =
+    nomeWhatsApp.length >= 2
+      ? nomeWhatsApp
+      : nomeCadastro.length >= 2
+        ? nomeCadastro
+        : 'amigo'
+
+  const status = (contact?.status ?? '').toString()
+  const contactEmail = (contact?.email ?? '').trim().toLowerCase()
+  const isAguardandoCodigo = status === 'aguardando_codigo' && contactEmail.includes('@')
+  const textLower = text.toLowerCase()
+
+  if (isAguardandoCodigo) {
+    const clicouReenviar =
+      textLower === 'reenviar email' ||
+      /^reenviar\s*email$/i.test(textLower) ||
+      /^reenviar\s*c[oó]digo$/i.test(textLower)
+    if (clicouReenviar) {
+      const result = await resendCodeForPlen(contactEmail)
+      if (result.success) {
+        await enqueuePlenMessage(
+          contactId,
+          'Reenviei o código para seu email. Confira a caixa de entrada e o spam. Digite o código aqui para finalizar.',
+          new Date()
+        )
+      } else {
+        await enqueuePlenMessage(
+          contactId,
+          'Não foi possível reenviar agora. Tente novamente em alguns minutos ou confira se o email está correto.',
+          new Date()
+        )
+      }
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'codigo_reenviado' }
+    }
+    const reclamouQueNaoChegou =
+      /email\s*n[aã]o\s*chegou|n[aã]o\s*recebi\s*(o\s*)?email|n[aã]o\s*chegou\s*(o\s*)?email/.test(textLower)
+    if (reclamouQueNaoChegou) {
+      const sent = await sendWhatsAppButtonReply(
+        contactId,
+        'Não recebeu o email? Toque no botão abaixo para reenviar o código.',
+        'Reenviar email'
+      )
+      return { replied: sent.success, reason: sent.success ? undefined : 'botao_reenviar_falhou' }
+    }
+  }
 
   const state = await getChatbotFlowState(contactId)
 
@@ -504,6 +627,32 @@ export async function runChatbotFlow(
           const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, targetId, contactId, nome)
           await setChatbotFlowState(contactId, flow.id, nextNodeId ?? targetId)
           return { replied: sent, reason: sent ? undefined : 'menu_opcao_sem_mensagem' }
+        }
+        if (targetNode?.data?.nodeType === 'delay') {
+          const dconfig = targetNode.data?.config as Record<string, unknown> | undefined
+          const min = Number(dconfig?.delayMin ?? 0) * 1000
+          const max = Math.max(Number(dconfig?.delayMax ?? 5) * 1000, min)
+          const delayMs = min + Math.random() * (max - min || 0)
+          const afterDelayTargets = getOutgoingTargets(flow, targetId)
+          const afterDelayId = afterDelayTargets[0]
+          if (afterDelayId) {
+            const afterNode = getNodeById(flow, afterDelayId)
+            if (afterNode?.data?.nodeType === 'mensagem') {
+              const cfg = afterNode.data?.config as Record<string, unknown> | undefined
+              const texto = (cfg?.texto as string)?.trim() || ''
+              if (texto) {
+                const msg = applyReplacements(texto, { nome })
+                await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs))
+              }
+              const afterTargets = getOutgoingTargets(flow, afterDelayId)
+              await setChatbotFlowState(contactId, flow.id, afterTargets[0] ?? afterDelayId)
+            } else {
+              await setChatbotFlowState(contactId, flow.id, afterDelayId)
+            }
+          } else {
+            await setChatbotFlowState(contactId, flow.id, targetId)
+          }
+          return { replied: false, reason: 'menu_opcao_delay_agendado' }
         }
         await setChatbotFlowState(contactId, flow.id, targetId)
         return { replied: false, reason: 'menu_opcao_nao_e_mensagem' }
