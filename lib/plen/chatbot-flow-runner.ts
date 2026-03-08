@@ -297,14 +297,78 @@ function evaluateCondition(
   return false
 }
 
+/** Responde à mensagem como se fosse clique em opção do 1º menu do fluxo (fallback quando não há estado). */
+async function tryRespondAsMenuOption(
+  flow: ChatbotFlowRow,
+  contactId: string,
+  nome: string,
+  messageText: string
+): Promise<boolean> {
+  const menuNodeId = getFirstMenuNodeId(flow)
+  if (!menuNodeId) return false
+  const menuNode = getNodeById(flow, menuNodeId)
+  const config = menuNode?.data?.config as Record<string, unknown> | undefined
+  const opcoesStr = (config?.menuOpcoes as string)?.trim() || ''
+  const linhas = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
+  const labels = linhas.map((l) => l.replace(/^\d+\s*/, '').trim().slice(0, MENU_BUTTON_LABEL_MAX)).filter(Boolean)
+  const targets = getOutgoingTargets(flow, menuNodeId)
+  if (!labels.length || !targets.length) return false
+  const idx = matchMenuOption(messageText, labels)
+  if (idx < 0 || !targets[idx]) return false
+  const targetId = targets[idx]
+  const targetNode = getNodeById(flow, targetId)
+  if (targetNode?.data?.nodeType === 'mensagem') {
+    const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, targetId, contactId, nome)
+    await setChatbotFlowState(contactId, flow.id, nextNodeId ?? targetId)
+    if (sent) {
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(5).catch(() => {})
+    }
+    return true
+  }
+  if (targetNode?.data?.nodeType === 'delay') {
+    const dconfig = targetNode.data?.config as Record<string, unknown> | undefined
+    const min = Number(dconfig?.delayMin ?? 0) * 1000
+    const max = Math.max(Number(dconfig?.delayMax ?? 5) * 1000, min)
+    const delayMs = min + Math.random() * (max - min || 0)
+    const afterDelayId = getOutgoingTargets(flow, targetId)[0]
+    if (afterDelayId) {
+      const afterNode = getNodeById(flow, afterDelayId)
+      if (afterNode?.data?.nodeType === 'mensagem') {
+        const cfg = afterNode.data?.config as Record<string, unknown> | undefined
+        const texto = (cfg?.texto as string)?.trim() || ''
+        if (texto) await enqueuePlenMessage(contactId, applyReplacements(texto, { nome }), new Date(Date.now() + delayMs))
+      }
+      await setChatbotFlowState(contactId, flow.id, getOutgoingTargets(flow, afterDelayId)[0] ?? afterDelayId)
+    } else {
+      await setChatbotFlowState(contactId, flow.id, targetId)
+    }
+    const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+    await processPlenQueue(5).catch(() => {})
+    return true
+  }
+  await setChatbotFlowState(contactId, flow.id, targetId)
+  return true
+}
+
+/** Normaliza texto para comparação (espaços, barras). */
+function normalizeForMenuMatch(s: string): string {
+  return (s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[/\u2013\u2014]/g, '/')
+    .trim()
+}
+
 /** Índice da opção do menu (1, 2, 3... ou texto do botão; aceita label truncado pela Z-API em 20 chars). */
 function matchMenuOption(messageText: string, options: string[]): number {
-  const t = (messageText || '').trim().toLowerCase()
+  const t = normalizeForMenuMatch(messageText)
   if (!t) return -1
   const n = parseInt(t, 10)
   if (!Number.isNaN(n) && n >= 1 && n <= options.length) return n - 1
   for (let i = 0; i < options.length; i++) {
-    const raw = (options[i] || '').trim().toLowerCase()
+    const raw = normalizeForMenuMatch(options[i] || '')
     const optSemNumero = raw.replace(/^\d+\s*/, '')
     if (!optSemNumero) continue
     if (t === optSemNumero || t === raw) return i
@@ -812,6 +876,10 @@ export async function runChatbotFlow(
   }
 
   const state = await getChatbotFlowState(contactId)
+
+  // Sempre tentar responder como opção do menu (1º nó menu do fluxo) — funciona com ou sem estado.
+  const menuRespondedAny = await tryRespondAsMenuOption(flow, contactId, nome, messageText)
+  if (menuRespondedAny) return { replied: true, reason: undefined }
 
   if (!state) {
     const texto = (messageText || '').trim().toLowerCase()

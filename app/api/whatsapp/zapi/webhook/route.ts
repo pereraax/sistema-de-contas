@@ -186,29 +186,24 @@ export async function POST(request: Request) {
 
     if (textForPlen || parsed.mediaUrl) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('[webhooks/zapi] Chatbot Builder: processando', { contact_id: contact.id, isNewLead: created, text: textForPlen.slice(0, 50) })
+        console.log('[webhooks/zapi] Chatbot Builder: processando', { contact_id: contact.id, isNewLead: created, text: textForPlen?.slice(0, 50) })
       }
-      runChatbotFlow(contact.id, textForPlen || '[Mídia]', created, parsed.senderName ?? undefined)
-        .then((r) => {
-          if (!r.replied && r.reason) {
-            console.warn('[webhooks/zapi] Plen não respondeu:', { contact_id: contact.id, reason: r.reason })
+      try {
+        const r = await runChatbotFlow(contact.id, textForPlen || '[Mídia]', created, parsed.senderName ?? undefined)
+        if (!r.replied && r.reason) {
+          console.warn('[webhooks/zapi] Plen não respondeu:', { contact_id: contact.id, reason: r.reason })
+        }
+        if (r.replied) {
+          const delayMs = process.env.NODE_ENV === 'development' ? 6000 : 1500
+          await new Promise((resolve) => setTimeout(resolve, delayMs))
+          const { sent, failed } = await processPlenQueue(5)
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[webhooks/zapi] PLEN fila:', { sent, failed })
           }
-          if (r.replied) {
-            const delayMs = process.env.NODE_ENV === 'development' ? 6000 : 1500
-            setTimeout(() => {
-              processPlenQueue(5).then(({ sent, failed }) => {
-                if (process.env.NODE_ENV === 'development') {
-                  console.log('[webhooks/zapi] PLEN fila:', { sent, failed })
-                }
-              }).catch((err) => {
-                console.error('[webhooks/zapi] PLEN fila ERRO:', (err as Error)?.message ?? err)
-              })
-            }, delayMs)
-          }
-        })
-        .catch((err) => {
-          console.error('[webhooks/zapi] Chatbot Builder ERRO:', (err as Error)?.message ?? err)
-        })
+        }
+      } catch (err) {
+        console.error('[webhooks/zapi] Chatbot Builder ERRO:', (err as Error)?.message ?? err)
+      }
     }
 
     await safeLog({
