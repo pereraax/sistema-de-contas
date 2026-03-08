@@ -34,6 +34,12 @@ function getNodeById(flow: ChatbotFlowRow, nodeId: string) {
   return getNodes(flow).find((n) => n.id === nodeId)
 }
 
+/** Retorna o primeiro nó do tipo menu no fluxo (para enviar menu com botões quando o lead digita "menu" no nó IA). */
+function getFirstMenuNodeId(flow: ChatbotFlowRow): string | null {
+  const node = getNodes(flow).find((n) => n.data?.nodeType === 'menu')
+  return node?.id ?? null
+}
+
 function getOutgoingTargets(flow: ChatbotFlowRow, sourceId: string): string[] {
   return getEdges(flow)
     .filter((e) => e.source === sourceId)
@@ -512,8 +518,24 @@ async function advanceFromNode(
     return { replied: false, nextNodeId: chosen }
   }
 
-  // Nó atual é IA: executar com a mensagem do usuário, enviar resposta e avançar
+  // Nó atual é IA: se a mensagem for "menu", enviar o menu com botões em vez de resposta da IA
   if (nodeType === 'ia') {
+    const texto = (messageText || '').trim().toLowerCase()
+    if (texto === 'menu') {
+      const menuNodeId = getFirstMenuNodeId(flow)
+      if (menuNodeId) {
+        const { sent, targets: menuTargets } = await sendMenuAsButtonsAndGetTargets(flow, menuNodeId, contactId, nome)
+        const menuNode = getNodeById(flow, menuNodeId)
+        const config = menuNode?.data?.config as Record<string, unknown> | undefined
+        const opcoesStr = (config?.menuOpcoes as string) || ''
+        const menuOptions = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
+        return {
+          replied: sent,
+          nextNodeId: menuNodeId,
+          newContext: { waitingMenu: true, menuOptions, menuTargets },
+        }
+      }
+    }
     const iaConfig = node.data?.config as Record<string, unknown> | undefined
     const iaPrompt = (iaConfig?.iaPrompt as string)?.trim() || ''
     const reply = await getPlenLLMResponse({
@@ -767,6 +789,19 @@ export async function runChatbotFlow(
       return { replied: sent, reason: sent ? undefined : 'menu_sem_opcoes' }
     }
     if (firstType === 'ia') {
+      const texto = (messageText || '').trim().toLowerCase()
+      if (texto === 'menu') {
+        const menuNodeId = getFirstMenuNodeId(flow)
+        if (menuNodeId) {
+          const { sent, targets } = await sendMenuAsButtonsAndGetTargets(flow, menuNodeId, contactId, nome)
+          const menuNode = getNodeById(flow, menuNodeId)
+          const config = menuNode?.data?.config as Record<string, unknown> | undefined
+          const opcoesStr = (config?.menuOpcoes as string) || ''
+          const menuOptions = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
+          await setChatbotFlowState(contactId, flow.id, menuNodeId, { waitingMenu: true, menuOptions, menuTargets: targets })
+          return { replied: sent, reason: sent ? undefined : 'menu_sem_opcoes' }
+        }
+      }
       const iaConfig = firstNode?.data?.config as Record<string, unknown> | undefined
       const iaPrompt = (iaConfig?.iaPrompt as string)?.trim() || ''
       const reply = await getPlenLLMResponse({
