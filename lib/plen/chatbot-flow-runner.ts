@@ -20,7 +20,22 @@ import {
 type EdgeRow = { source: string; target: string; sourceHandle?: string | null }
 type ChatbotFlowRow = { id: string; nome: string; estrutura_json: { nodes: unknown[]; edges: EdgeRow[] } }
 
-type FlowStateRow = { contact_id: string; flow_id: string; current_node_id: string; context: Record<string, unknown>; updated_at: string }
+type FlowStateRow = { contact_id: string; flow_id: string; current_node_id: string; context: Record<string, unknown> | string; updated_at: string }
+
+/** Garante context como objeto (Supabase às vezes devolve JSONB como string). */
+function normalizeContext(ctx: Record<string, unknown> | string | null | undefined): Record<string, unknown> {
+  if (ctx == null) return {}
+  if (typeof ctx === 'object' && !Array.isArray(ctx)) return ctx
+  if (typeof ctx === 'string') {
+    try {
+      const parsed = JSON.parse(ctx) as unknown
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {}
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
 
 function getNodes(flow: ChatbotFlowRow): Array<{ id: string; data?: { nodeType?: string; config?: Record<string, unknown> } }> {
   const j = flow?.estrutura_json
@@ -893,15 +908,22 @@ export async function runChatbotFlow(
     return { replied: false, reason: 'flow_changed_primeiro_nao_mensagem' }
   }
 
-  if (state.context?.waitingMenu && state.current_node_id) {
+  const ctx = normalizeContext(state.context)
+  if (state.current_node_id) {
     const menuNode = getNodeById(flow, state.current_node_id)
     const isMenuNode =
       menuNode?.data?.nodeType === 'menu' ||
       (typeof (menuNode?.data?.config as Record<string, unknown>)?.menuOpcoes === 'string' &&
         ((menuNode?.data?.config as Record<string, unknown>).menuOpcoes as string).trim().length > 0)
     if (isMenuNode) {
-      const menuTargets = (state.context.menuTargets as string[]) || []
-      const menuOptions = (state.context.menuOptions as string[]) || []
+      let menuTargets = (ctx.menuTargets as string[]) || []
+      let menuOptions = (ctx.menuOptions as string[]) || []
+      if (!menuTargets.length || !menuOptions.length) {
+        menuTargets = getOutgoingTargets(flow, state.current_node_id)
+        const opcoesStr = ((menuNode?.data?.config as Record<string, unknown>)?.menuOpcoes as string)?.trim() || ''
+        const linhas = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
+        menuOptions = linhas.map((l) => l.replace(/^\d+\s*/, '').trim().slice(0, MENU_BUTTON_LABEL_MAX))
+      }
       const texto = (messageText || '').trim().toLowerCase()
       if (texto === 'menu') {
         const { sent } = await sendMenuAsButtonsAndGetTargets(flow, state.current_node_id, contactId, nome)

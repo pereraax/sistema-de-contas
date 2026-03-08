@@ -123,6 +123,7 @@ export async function POST(request: Request) {
         phone: parsed.phone?.slice(-4),
         text: effectiveText.slice(0, 40),
         messageType: parsed.messageType,
+        fromButton: !!buttonText,
       })
     }
 

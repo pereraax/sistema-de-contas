@@ -25,13 +25,15 @@ function normalizePhone(raw: string): string {
  * Ordem de prioridade: conversation → extendedTextMessage.text → imageMessage.caption → videoMessage.caption → formato plano Z-API.
  * Se não houver texto, retorna "[Mídia]" para mídia ou "" para vazio.
  */
-/** Extrai texto de resposta de botão. Z-API usa buttonsResponseMessage.message (e buttonId). */
+/** Extrai texto de resposta de botão. Z-API: message ou selectedButtonText; fallback buttonId (índice). */
 function getFromBr(br: Record<string, unknown>): string {
   const t =
+    br.selectedButtonText ?? // preferência para texto exato do botão
     br.message ?? // Z-API: buttonsResponseMessage.message
-    br.selectedButtonText ??
     br.text ??
-    (typeof br.selectedButtonId === 'string' ? br.selectedButtonId : null)
+    (typeof br.selectedButtonId === 'string' ? br.selectedButtonId : null) ??
+    (typeof br.buttonId === 'string' ? br.buttonId : null) ??
+    (br.buttonId != null && typeof br.buttonId === 'number' ? String(br.buttonId) : null)
   return t != null && typeof t === 'string' ? t.trim() : ''
 }
 
@@ -229,12 +231,16 @@ export function parseZApiPayload(body: unknown): IncomingWebhookMessage | null {
   if (b.data && typeof b.data === 'object') b = b.data as Record<string, unknown>
   if (b.payload && typeof b.payload === 'object') b = b.payload as Record<string, unknown>
   let phone = b.phone ?? b.from ?? b.telefone ?? b.sender ?? b.participant
-  if (phone && typeof phone === 'string' && phone.includes('@s.whatsapp.net')) {
-    phone = phone.replace('@s.whatsapp.net', '').trim()
+  if (!phone && b.senderData && typeof b.senderData === 'object') {
+    const sd = b.senderData as Record<string, unknown>
+    phone = sd.chatId ?? sd.sender ?? sd.participant
+  }
+  if (phone && typeof phone === 'string') {
+    phone = phone.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '').trim()
   }
   if (!phone) return null
   const fromMe = Boolean(b.fromMe ?? b.from_me)
-  const messageId = b.messageId ?? b.id ?? (b as any).message_id
+  const messageId = b.messageId ?? b.idMessage ?? b.id ?? (b as any).message_id
   const ts = b.momment ?? b.timestamp ?? b.createdAt ?? b.date
   const { messageType, mediaUrl, label } = detectTypeAndMedia(b)
   let content = extractMessageContent(b)
@@ -249,7 +255,14 @@ export function parseZApiPayload(body: unknown): IncomingWebhookMessage | null {
     phone: normalizePhone(String(phone)),
     text: String(text).trim() || (mediaUrl ? '[Mídia]' : ''),
     fromMe,
-    senderName: b.senderName != null ? String(b.senderName) : (b.participantName != null ? String(b.participantName) : undefined),
+    senderName:
+      b.senderName != null
+        ? String(b.senderName)
+        : (b.senderData && typeof b.senderData === 'object' && (b.senderData as Record<string, unknown>).senderName != null
+            ? String((b.senderData as Record<string, unknown>).senderName)
+            : b.participantName != null
+              ? String(b.participantName)
+              : undefined),
     messageId: messageId != null ? String(messageId) : undefined,
     timestamp: ts != null ? (typeof ts === 'number' ? new Date(ts).toISOString() : String(ts)) : undefined,
     messageType,
