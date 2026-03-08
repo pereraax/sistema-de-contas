@@ -13,7 +13,6 @@ import { getPlenLLMResponse } from '@/lib/plen-llm-fallback'
 import { createUserAndSendCode, resendCodeForPlen, verifyCodeForPlen } from '@/lib/plen/auth/email-verification'
 import {
   sendWhatsAppButtonReply,
-  sendWhatsAppMenuAsList,
   sendWhatsAppMenuButtons,
   sendWhatsAppMessageWithResult,
 } from '@/lib/whatsapp/sender'
@@ -237,33 +236,34 @@ async function sendMessageNodeAndReturnNext(
   return { sent: true, nextNodeId: targets[0] ?? null }
 }
 
-/** Monta e envia menu em uma única mensagem (lista interativa). Mensagem amigável explicando que pode enviar MENU a qualquer momento. */
+const MENU_BUTTON_LABEL_MAX = 20
+
+/** Envia menu em uma (ou duas) bolhas: texto no topo + botões empilhados. Retorna targets e as labels como enviadas (20 chars) para o estado. */
 async function sendMenuAsButtonsAndGetTargets(
   flow: ChatbotFlowRow,
   nodeId: string,
   contactId: string,
   nome: string
-): Promise<{ sent: boolean; targets: string[] }> {
+): Promise<{ sent: boolean; targets: string[]; sentLabels: string[] }> {
   const node = getNodeById(flow, nodeId)
-  if (!node) return { sent: false, targets: [] }
+  if (!node) return { sent: false, targets: [], sentLabels: [] }
   const config = node.data?.config as Record<string, unknown> | undefined
   const customIntro = (config?.menuIntro as string)?.trim()
   const opcoesStr = (config?.menuOpcoes as string)?.trim() || ''
   const linhas = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
   const targets = getOutgoingTargets(flow, nodeId)
-  const friendlyIntro =
-    customIntro ||
-    `Olá, {nome}! Você pode enviar MENU a qualquer momento para acessar estas opções. Toque no botão abaixo para escolher.`
-  const introMsg = applyReplacements(friendlyIntro, { nome })
-  let result = await sendWhatsAppMenuAsList(contactId, introMsg, linhas)
-  if (!result.success) result = await sendWhatsAppMenuButtons(contactId, introMsg, linhas)
-  if (!result.success && linhas.length > 0) {
-    const textoOpcoes = linhas.map((l, i) => `${i + 1}. ${l.replace(/^\d+\s*/, '').trim()}`).join('\n')
+  const introPadrao =
+    'Olá, {nome}! Sempre que precisar, envie MENU para ver as opções. Escolha uma opção:'
+  const introMsg = applyReplacements(customIntro || introPadrao, { nome })
+  const labels = linhas.map((l) => l.replace(/^\d+\s*/, '').trim()).filter(Boolean)
+  const sentLabels = labels.map((l) => l.trim().slice(0, MENU_BUTTON_LABEL_MAX))
+  let result = await sendWhatsAppMenuButtons(contactId, introMsg, labels)
+  if (!result.success && labels.length > 0) {
+    const textoOpcoes = labels.map((l, i) => `${i + 1}. ${l}`).join('\n')
     const fallback = `${introMsg}\n\n${textoOpcoes}\n\nDigite o número ou o nome da opção.`
-    const sent = (await sendWhatsAppMessageWithResult(contactId, fallback)).success
-    return { sent, targets }
+    result = await sendWhatsAppMessageWithResult(contactId, fallback)
   }
-  return { sent: result.success, targets }
+  return { sent: result.success, targets, sentLabels }
 }
 
 /** Avalia condição do bloco (mensagem_contem, mensagem_igual, eh_numero, tem_valor). */
@@ -282,15 +282,19 @@ function evaluateCondition(
   return false
 }
 
-/** Índice da opção do menu (1, 2, 3... ou texto do botão, ex.: "Falar com humano"). */
+/** Índice da opção do menu (1, 2, 3... ou texto do botão; aceita label truncado pela Z-API em 20 chars). */
 function matchMenuOption(messageText: string, options: string[]): number {
   const t = (messageText || '').trim().toLowerCase()
+  if (!t) return -1
   const n = parseInt(t, 10)
   if (!Number.isNaN(n) && n >= 1 && n <= options.length) return n - 1
   for (let i = 0; i < options.length; i++) {
     const raw = (options[i] || '').trim().toLowerCase()
     const optSemNumero = raw.replace(/^\d+\s*/, '')
-    if (raw && (t.includes(raw) || t.includes(optSemNumero) || optSemNumero && t === optSemNumero)) return i
+    if (!optSemNumero) continue
+    if (t === optSemNumero || t === raw) return i
+    if (t.includes(optSemNumero) || optSemNumero.includes(t)) return i
+    if (raw && t.includes(raw)) return i
   }
   return -1
 }
@@ -338,14 +342,11 @@ async function advanceFromNode(
         await processPlenQueue(2).catch(() => {})
         return { replied: true, nextNodeId: currentId }
       }
-      const { sent, targets: menuTargets } = await sendMenuAsButtonsAndGetTargets(flow, nextId, contactId, effectiveNome)
-      const config = nextNode?.data?.config as Record<string, unknown> | undefined
-      const opcoesStr = (config?.menuOpcoes as string) || ''
-      const menuOptions = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
+      const { sent, targets: menuTargets, sentLabels } = await sendMenuAsButtonsAndGetTargets(flow, nextId, contactId, effectiveNome)
       return {
         replied: sent,
         nextNodeId: nextId,
-        newContext: { waitingMenu: true, menuOptions, menuTargets },
+        newContext: { waitingMenu: true, menuOptions: sentLabels, menuTargets },
       }
     }
     if (nextType === 'delay') {
@@ -546,15 +547,11 @@ async function advanceFromNode(
     if (texto === 'menu') {
       const menuNodeId = getFirstMenuNodeId(flow)
       if (menuNodeId) {
-        const { sent, targets: menuTargets } = await sendMenuAsButtonsAndGetTargets(flow, menuNodeId, contactId, nome)
-        const menuNode = getNodeById(flow, menuNodeId)
-        const config = menuNode?.data?.config as Record<string, unknown> | undefined
-        const opcoesStr = (config?.menuOpcoes as string) || ''
-        const menuOptions = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
+        const { sent, targets: menuTargets, sentLabels } = await sendMenuAsButtonsAndGetTargets(flow, menuNodeId, contactId, nome)
         return {
           replied: sent,
           nextNodeId: menuNodeId,
-          newContext: { waitingMenu: true, menuOptions, menuTargets },
+          newContext: { waitingMenu: true, menuOptions: sentLabels, menuTargets },
         }
       }
     }
@@ -648,12 +645,8 @@ export async function runChatbotFlow(
   if (textLower === 'menu') {
     const menuNodeId = getFirstMenuNodeId(flow)
     if (menuNodeId) {
-      const { sent, targets } = await sendMenuAsButtonsAndGetTargets(flow, menuNodeId, contactId, nome)
-      const menuNode = getNodeById(flow, menuNodeId)
-      const config = menuNode?.data?.config as Record<string, unknown> | undefined
-      const opcoesStr = (config?.menuOpcoes as string) || ''
-      const menuOptions = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
-      await setChatbotFlowState(contactId, flow.id, menuNodeId, { waitingMenu: true, menuOptions, menuTargets: targets })
+      const { sent, targets, sentLabels } = await sendMenuAsButtonsAndGetTargets(flow, menuNodeId, contactId, nome)
+      await setChatbotFlowState(contactId, flow.id, menuNodeId, { waitingMenu: true, menuOptions: sentLabels, menuTargets: targets })
       return { replied: sent, reason: sent ? undefined : 'menu_envio_falhou' }
     }
     const fallbackMsg = applyReplacements(
@@ -810,12 +803,8 @@ export async function runChatbotFlow(
     if (texto === 'menu') {
       const menuNodeId = getFirstMenuNodeId(flow)
       if (menuNodeId) {
-        const { sent, targets } = await sendMenuAsButtonsAndGetTargets(flow, menuNodeId, contactId, nome)
-        const menuNode = getNodeById(flow, menuNodeId)
-        const config = menuNode?.data?.config as Record<string, unknown> | undefined
-        const opcoesStr = (config?.menuOpcoes as string) || ''
-        const menuOptions = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
-        await setChatbotFlowState(contactId, flow.id, menuNodeId, { waitingMenu: true, menuOptions, menuTargets: targets })
+        const { sent, targets, sentLabels } = await sendMenuAsButtonsAndGetTargets(flow, menuNodeId, contactId, nome)
+        await setChatbotFlowState(contactId, flow.id, menuNodeId, { waitingMenu: true, menuOptions: sentLabels, menuTargets: targets })
         return { replied: sent, reason: sent ? undefined : 'menu_sem_opcoes' }
       }
     }
@@ -835,12 +824,8 @@ export async function runChatbotFlow(
       return { replied: sent, reason: sent ? undefined : 'mensagem_vazia_ou_sem_proximo' }
     }
     if (firstType === 'menu') {
-      const { sent, targets } = await sendMenuAsButtonsAndGetTargets(flow, firstId, contactId, nome)
-      const firstNode = getNodeById(flow, firstId)
-      const config = firstNode?.data?.config as Record<string, unknown> | undefined
-      const opcoesStr = (config?.menuOpcoes as string) || ''
-      const menuOptions = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
-      await setChatbotFlowState(contactId, flow.id, firstId, { waitingMenu: true, menuOptions, menuTargets: targets })
+      const { sent, targets, sentLabels } = await sendMenuAsButtonsAndGetTargets(flow, firstId, contactId, nome)
+      await setChatbotFlowState(contactId, flow.id, firstId, { waitingMenu: true, menuOptions: sentLabels, menuTargets: targets })
       return { replied: sent, reason: sent ? undefined : 'menu_sem_opcoes' }
     }
     if (firstType === 'ia') {
@@ -848,12 +833,8 @@ export async function runChatbotFlow(
       if (texto === 'menu') {
         const menuNodeId = getFirstMenuNodeId(flow)
         if (menuNodeId) {
-          const { sent, targets } = await sendMenuAsButtonsAndGetTargets(flow, menuNodeId, contactId, nome)
-          const menuNode = getNodeById(flow, menuNodeId)
-          const config = menuNode?.data?.config as Record<string, unknown> | undefined
-          const opcoesStr = (config?.menuOpcoes as string) || ''
-          const menuOptions = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
-          await setChatbotFlowState(contactId, flow.id, menuNodeId, { waitingMenu: true, menuOptions, menuTargets: targets })
+          const { sent, targets, sentLabels } = await sendMenuAsButtonsAndGetTargets(flow, menuNodeId, contactId, nome)
+          await setChatbotFlowState(contactId, flow.id, menuNodeId, { waitingMenu: true, menuOptions: sentLabels, menuTargets: targets })
           return { replied: sent, reason: sent ? undefined : 'menu_sem_opcoes' }
         }
       }
