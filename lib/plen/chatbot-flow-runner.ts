@@ -39,9 +39,16 @@ function getNodeById(flow: ChatbotFlowRow, nodeId: string) {
   return getNodes(flow).find((n) => n.id === nodeId)
 }
 
-/** Retorna o primeiro nó do tipo menu no fluxo (para enviar menu com botões quando o lead digita "menu" no nó IA). */
+/** Retorna o primeiro nó do tipo menu no fluxo. Aceita nodeType === 'menu' ou config.menuOpcoes (fluxo salvo pode variar). */
 function getFirstMenuNodeId(flow: ChatbotFlowRow): string | null {
-  const node = getNodes(flow).find((n) => n.data?.nodeType === 'menu')
+  const nodes = getNodes(flow)
+  let node = nodes.find((n) => n.data?.nodeType === 'menu')
+  if (!node) {
+    node = nodes.find((n) => {
+      const cfg = n.data?.config as Record<string, unknown> | undefined
+      return cfg && typeof cfg.menuOpcoes === 'string' && (cfg.menuOpcoes as string).trim().length > 0
+    })
+  }
   return node?.id ?? null
 }
 
@@ -636,6 +643,26 @@ export async function runChatbotFlow(
   const status = (contact?.status ?? '').toString()
   const contactEmail = (contact?.email ?? '').trim().toLowerCase()
   const textLower = text.toLowerCase()
+
+  // Prioridade: mensagem "menu" sempre mostra o menu, em qualquer estado (exceto assistente pausada / sem fluxo).
+  if (textLower === 'menu') {
+    const menuNodeId = getFirstMenuNodeId(flow)
+    if (menuNodeId) {
+      const { sent, targets } = await sendMenuAsButtonsAndGetTargets(flow, menuNodeId, contactId, nome)
+      const menuNode = getNodeById(flow, menuNodeId)
+      const config = menuNode?.data?.config as Record<string, unknown> | undefined
+      const opcoesStr = (config?.menuOpcoes as string) || ''
+      const menuOptions = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
+      await setChatbotFlowState(contactId, flow.id, menuNodeId, { waitingMenu: true, menuOptions, menuTargets: targets })
+      return { replied: sent, reason: sent ? undefined : 'menu_envio_falhou' }
+    }
+    const fallbackMsg = applyReplacements(
+      'Olá, {nome}! Não consegui carregar o menu agora. Tente novamente em instantes ou verifique com o suporte.',
+      { nome }
+    )
+    const sentFallback = (await sendWhatsAppMessageWithResult(contactId, fallbackMsg)).success
+    return { replied: sentFallback, reason: sentFallback ? undefined : 'menu_sem_no_e_envio_falhou' }
+  }
 
   // Quando o usuário diz que quer utilizar/cadastrar: verificar se já tem conta; se não, reiniciar fluxo (teste + cadastro).
   const intentQueroUtilizar =
