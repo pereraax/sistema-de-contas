@@ -35,12 +35,28 @@ function getFromBr(br: Record<string, unknown>): string {
   return t != null && typeof t === 'string' ? t.trim() : ''
 }
 
+/** Extrai opção escolhida em lista (Z-API listResponseMessage). Retorna title ou selectedRowId para o fluxo. */
+function getFromListResponse(lr: Record<string, unknown>): string {
+  const title = lr.title
+  if (title != null && typeof title === 'string' && title.trim()) return title.trim()
+  const id = lr.selectedRowId
+  if (id != null && typeof id === 'string') return id.trim()
+  const msg = lr.message
+  return msg != null && typeof msg === 'string' ? msg.trim() : ''
+}
+
 function extractButtonResponseText(m: Record<string, unknown>): string {
   const msgData = m.messageData ?? m.data
   if (msgData != null && typeof msgData === 'object') {
-    const br = (msgData as Record<string, unknown>).buttonsResponseMessage ?? (msgData as Record<string, unknown>).buttonResponseMessage
+    const md = msgData as Record<string, unknown>
+    const br = md.buttonsResponseMessage ?? md.buttonResponseMessage
     if (br != null && typeof br === 'object') {
       const t = getFromBr(br as Record<string, unknown>)
+      if (t) return t
+    }
+    const lr = md.listResponseMessage
+    if (lr != null && typeof lr === 'object') {
+      const t = getFromListResponse(lr as Record<string, unknown>)
       if (t) return t
     }
   }
@@ -49,10 +65,15 @@ function extractButtonResponseText(m: Record<string, unknown>): string {
     const t = getFromBr(br as Record<string, unknown>)
     if (t) return t
   }
+  const lr = m.listResponseMessage
+  if (lr != null && typeof lr === 'object') {
+    const t = getFromListResponse(lr as Record<string, unknown>)
+    if (t) return t
+  }
   return ''
 }
 
-/** Busca recursiva no payload por qualquer objeto tipo buttonsResponseMessage (Z-API pode aninhar em data/payload). */
+/** Busca recursiva no payload por buttonsResponseMessage ou listResponseMessage (Z-API pode aninhar). */
 export function extractButtonTextDeep(payload: unknown): string {
   if (payload == null) return ''
   if (typeof payload === 'string') return ''
@@ -68,6 +89,11 @@ export function extractButtonTextDeep(payload: unknown): string {
     const br = o.buttonsResponseMessage ?? o.buttonResponseMessage
     if (br != null && typeof br === 'object') {
       const t = getFromBr(br as Record<string, unknown>)
+      if (t) return t
+    }
+    const lr = o.listResponseMessage
+    if (lr != null && typeof lr === 'object') {
+      const t = getFromListResponse(lr as Record<string, unknown>)
       if (t) return t
     }
     for (const key of Object.keys(o)) {

@@ -254,7 +254,7 @@ export function ConfigPanel({
                 placeholder={'1 Falar com humano\n2 Como funciona\n3 Assinatura R$9,90'}
               />
               <p className="text-xs text-zinc-500 mt-1">A 1ª conexão = opção 1, 2ª = opção 2, etc.</p>
-              <p className="text-xs text-emerald-400/90 mt-2">No WhatsApp as opções são enviadas como <strong>botões</strong> logo abaixo da mensagem, para o lead clicar.</p>
+              <p className="text-xs text-emerald-400/90 mt-2">No WhatsApp tudo vai em <strong>uma única mensagem</strong>: texto + botão &quot;Ver opções&quot; que abre a lista para o lead escolher.</p>
             </div>
           </>
         )}

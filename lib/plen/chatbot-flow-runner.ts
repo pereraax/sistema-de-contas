@@ -11,7 +11,7 @@ import { enqueuePlenMessage } from '@/lib/plen/queue/message-queue'
 import { getAssistenteGlobalPausada } from '@/lib/assistente-global-pausada'
 import { getPlenLLMResponse } from '@/lib/plen-llm-fallback'
 import { createUserAndSendCode, resendCodeForPlen, verifyCodeForPlen } from '@/lib/plen/auth/email-verification'
-import { sendWhatsAppButtonReply, sendWhatsAppMenuButtons } from '@/lib/whatsapp/sender'
+import { sendWhatsAppButtonReply, sendWhatsAppMenuAsList, sendWhatsAppMenuButtons } from '@/lib/whatsapp/sender'
 
 type EdgeRow = { source: string; target: string; sourceHandle?: string | null }
 type ChatbotFlowRow = { id: string; nome: string; estrutura_json: { nodes: unknown[]; edges: EdgeRow[] } }
@@ -225,7 +225,7 @@ async function sendMessageNodeAndReturnNext(
   return { sent: true, nextNodeId: targets[0] ?? null }
 }
 
-/** Monta e envia menu com botões (até 6 opções em 2 mensagens de 3 botões); retorna targets em ordem. */
+/** Monta e envia menu em uma única mensagem (lista interativa). Mensagem amigável explicando que pode enviar MENU a qualquer momento. */
 async function sendMenuAsButtonsAndGetTargets(
   flow: ChatbotFlowRow,
   nodeId: string,
@@ -235,12 +235,16 @@ async function sendMenuAsButtonsAndGetTargets(
   const node = getNodeById(flow, nodeId)
   if (!node) return { sent: false, targets: [] }
   const config = node.data?.config as Record<string, unknown> | undefined
-  const intro = (config?.menuIntro as string)?.trim() || 'Escolha uma opção:'
+  const customIntro = (config?.menuIntro as string)?.trim()
   const opcoesStr = (config?.menuOpcoes as string)?.trim() || ''
   const linhas = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
   const targets = getOutgoingTargets(flow, nodeId)
-  const introMsg = applyReplacements(intro, { nome })
-  const result = await sendWhatsAppMenuButtons(contactId, introMsg, linhas)
+  const friendlyIntro =
+    customIntro ||
+    `Olá, {nome}! Você pode enviar MENU a qualquer momento para acessar estas opções. Toque no botão abaixo para escolher.`
+  const introMsg = applyReplacements(friendlyIntro, { nome })
+  let result = await sendWhatsAppMenuAsList(contactId, introMsg, linhas)
+  if (!result.success) result = await sendWhatsAppMenuButtons(contactId, introMsg, linhas)
   return { sent: result.success, targets }
 }
 
