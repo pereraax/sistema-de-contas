@@ -105,10 +105,8 @@ export async function POST(request: Request) {
     }
 
     let effectiveText = primeiroTextoRaw
-    if (!effectiveText && !parsed.mediaUrl) {
-      const buttonText = extractButtonTextDeep(body)
-      if (buttonText) effectiveText = buttonText
-    }
+    const buttonText = extractButtonTextDeep(body)
+    if (buttonText) effectiveText = buttonText
     if (!effectiveText && !parsed.mediaUrl && contact.status === 'aguardando_codigo' && (contact.email ?? '').includes('@')) {
       effectiveText = 'Reenviar email'
     }
@@ -194,17 +192,17 @@ export async function POST(request: Request) {
           if (!r.replied && r.reason) {
             console.warn('[webhooks/zapi] Plen não respondeu:', { contact_id: contact.id, reason: r.reason })
           }
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[webhooks/zapi] Chatbot Builder: resultado', { replied: r.replied, reason: r.reason })
-            if (r.replied) {
-              setTimeout(() => {
-                processPlenQueue(5).then(({ sent, failed }) => {
-                  console.log('[webhooks/zapi] PLEN fila (dev):', { sent, failed })
-                }).catch((err) => {
-                  console.error('[webhooks/zapi] PLEN fila (dev) ERRO:', (err as Error)?.message ?? err)
-                })
-              }, 6000)
-            }
+          if (r.replied) {
+            const delayMs = process.env.NODE_ENV === 'development' ? 6000 : 1500
+            setTimeout(() => {
+              processPlenQueue(5).then(({ sent, failed }) => {
+                if (process.env.NODE_ENV === 'development') {
+                  console.log('[webhooks/zapi] PLEN fila:', { sent, failed })
+                }
+              }).catch((err) => {
+                console.error('[webhooks/zapi] PLEN fila ERRO:', (err as Error)?.message ?? err)
+              })
+            }, delayMs)
           }
         })
         .catch((err) => {

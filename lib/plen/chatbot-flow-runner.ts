@@ -895,7 +895,11 @@ export async function runChatbotFlow(
 
   if (state.context?.waitingMenu && state.current_node_id) {
     const menuNode = getNodeById(flow, state.current_node_id)
-    if (menuNode?.data?.nodeType === 'menu') {
+    const isMenuNode =
+      menuNode?.data?.nodeType === 'menu' ||
+      (typeof (menuNode?.data?.config as Record<string, unknown>)?.menuOpcoes === 'string' &&
+        ((menuNode?.data?.config as Record<string, unknown>).menuOpcoes as string).trim().length > 0)
+    if (isMenuNode) {
       const menuTargets = (state.context.menuTargets as string[]) || []
       const menuOptions = (state.context.menuOptions as string[]) || []
       const texto = (messageText || '').trim().toLowerCase()
@@ -912,6 +916,10 @@ export async function runChatbotFlow(
         if (targetNode?.data?.nodeType === 'mensagem') {
           const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, targetId, contactId, nome)
           await setChatbotFlowState(contactId, flow.id, nextNodeId ?? targetId)
+          if (sent) {
+            const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+            await processPlenQueue(5).catch(() => {})
+          }
           return { replied: sent, reason: sent ? undefined : 'menu_opcao_sem_mensagem' }
         }
         if (targetNode?.data?.nodeType === 'delay') {
