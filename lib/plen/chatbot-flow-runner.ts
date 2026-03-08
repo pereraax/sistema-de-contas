@@ -314,16 +314,31 @@ async function tryRespondAsMenuOption(
   const targets = getOutgoingTargets(flow, menuNodeId)
   if (!labels.length || !targets.length) return false
   const idx = matchMenuOption(messageText, labels)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[plen/menu] tryRespondAsMenuOption', {
+      messageText: messageText?.slice(0, 40),
+      labels: labels.slice(0, 6),
+      idx,
+      hasTarget: idx >= 0 && !!targets[idx],
+    })
+  }
   if (idx < 0 || !targets[idx]) return false
   const targetId = targets[idx]
   const targetNode = getNodeById(flow, targetId)
   if (targetNode?.data?.nodeType === 'mensagem') {
-    const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, targetId, contactId, nome)
-    await setChatbotFlowState(contactId, flow.id, nextNodeId ?? targetId)
-    if (sent) {
-      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
-      await processPlenQueue(5).catch(() => {})
+    const cfg = targetNode.data?.config as Record<string, unknown> | undefined
+    const texto = (cfg?.texto as string)?.trim() || ''
+    if (texto) {
+      const msg = applyReplacements(texto, { nome })
+      const sent = (await sendWhatsAppMessageWithResult(contactId, msg)).success
+      if (!sent) await enqueuePlenMessage(contactId, msg)
+    } else {
+      await enqueuePlenMessage(contactId, applyReplacements('Opção em configuração.', { nome }))
     }
+    const nextNodeId = getOutgoingTargets(flow, targetId)[0] ?? null
+    await setChatbotFlowState(contactId, flow.id, nextNodeId ?? targetId)
+    const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+    await processPlenQueue(5).catch(() => {})
     return true
   }
   if (targetNode?.data?.nodeType === 'delay') {
@@ -1004,13 +1019,21 @@ export async function runChatbotFlow(
         const targetId = menuTargets[idx]
         const targetNode = getNodeById(flow, targetId)
         if (targetNode?.data?.nodeType === 'mensagem') {
-          const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, targetId, contactId, nome)
-          await setChatbotFlowState(contactId, flow.id, nextNodeId ?? targetId)
-          if (sent) {
-            const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
-            await processPlenQueue(5).catch(() => {})
+          const cfg = targetNode.data?.config as Record<string, unknown> | undefined
+          const textoMsg = (cfg?.texto as string)?.trim() || ''
+          let sent = false
+          if (textoMsg) {
+            const msg = applyReplacements(textoMsg, { nome })
+            sent = (await sendWhatsAppMessageWithResult(contactId, msg)).success
+            if (!sent) await enqueuePlenMessage(contactId, msg)
+          } else {
+            await enqueuePlenMessage(contactId, applyReplacements('Opção em configuração.', { nome }))
           }
-          return { replied: sent, reason: sent ? undefined : 'menu_opcao_sem_mensagem' }
+          const nextNodeId = getOutgoingTargets(flow, targetId)[0] ?? null
+          await setChatbotFlowState(contactId, flow.id, nextNodeId ?? targetId)
+          const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+          await processPlenQueue(5).catch(() => {})
+          return { replied: true, reason: sent ? undefined : 'menu_opcao_enfileirada' }
         }
         if (targetNode?.data?.nodeType === 'delay') {
           const dconfig = targetNode.data?.config as Record<string, unknown> | undefined
