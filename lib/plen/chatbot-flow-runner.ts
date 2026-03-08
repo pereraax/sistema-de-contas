@@ -11,7 +11,12 @@ import { enqueuePlenMessage } from '@/lib/plen/queue/message-queue'
 import { getAssistenteGlobalPausada } from '@/lib/assistente-global-pausada'
 import { getPlenLLMResponse } from '@/lib/plen-llm-fallback'
 import { createUserAndSendCode, resendCodeForPlen, verifyCodeForPlen } from '@/lib/plen/auth/email-verification'
-import { sendWhatsAppButtonReply, sendWhatsAppMenuAsList, sendWhatsAppMenuButtons } from '@/lib/whatsapp/sender'
+import {
+  sendWhatsAppButtonReply,
+  sendWhatsAppMenuAsList,
+  sendWhatsAppMenuButtons,
+  sendWhatsAppMessageWithResult,
+} from '@/lib/whatsapp/sender'
 
 type EdgeRow = { source: string; target: string; sourceHandle?: string | null }
 type ChatbotFlowRow = { id: string; nome: string; estrutura_json: { nodes: unknown[]; edges: EdgeRow[] } }
@@ -245,6 +250,12 @@ async function sendMenuAsButtonsAndGetTargets(
   const introMsg = applyReplacements(friendlyIntro, { nome })
   let result = await sendWhatsAppMenuAsList(contactId, introMsg, linhas)
   if (!result.success) result = await sendWhatsAppMenuButtons(contactId, introMsg, linhas)
+  if (!result.success && linhas.length > 0) {
+    const textoOpcoes = linhas.map((l, i) => `${i + 1}. ${l.replace(/^\d+\s*/, '').trim()}`).join('\n')
+    const fallback = `${introMsg}\n\n${textoOpcoes}\n\nDigite o número ou o nome da opção.`
+    const sent = (await sendWhatsAppMessageWithResult(contactId, fallback)).success
+    return { sent, targets }
+  }
   return { sent: result.success, targets }
 }
 
@@ -768,6 +779,19 @@ export async function runChatbotFlow(
   const state = await getChatbotFlowState(contactId)
 
   if (!state) {
+    const texto = (messageText || '').trim().toLowerCase()
+    if (texto === 'menu') {
+      const menuNodeId = getFirstMenuNodeId(flow)
+      if (menuNodeId) {
+        const { sent, targets } = await sendMenuAsButtonsAndGetTargets(flow, menuNodeId, contactId, nome)
+        const menuNode = getNodeById(flow, menuNodeId)
+        const config = menuNode?.data?.config as Record<string, unknown> | undefined
+        const opcoesStr = (config?.menuOpcoes as string) || ''
+        const menuOptions = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
+        await setChatbotFlowState(contactId, flow.id, menuNodeId, { waitingMenu: true, menuOptions, menuTargets: targets })
+        return { replied: sent, reason: sent ? undefined : 'menu_sem_opcoes' }
+      }
+    }
     const inicioMatch = matchInicio(flow, messageText, isNewLead)
     if (!inicioMatch) return { replied: false, reason: 'inicio_not_matched' }
 
