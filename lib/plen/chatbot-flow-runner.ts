@@ -376,6 +376,27 @@ function normalizeForMenuMatch(s: string): string {
     .trim()
 }
 
+/** Opções de menu comuns — usadas como fallback quando o fluxo não responde ao clique. */
+const KNOWN_MENU_OPTIONS = [
+  'falar com humano',
+  'como funciona',
+  'assinatura r$9,90',
+  'funções premium',
+  'indique e ganhe',
+  'total / saldo',
+]
+
+function isKnownMenuOption(messageText: string): boolean {
+  const t = normalizeForMenuMatch(messageText)
+  if (!t) return false
+  return KNOWN_MENU_OPTIONS.some((opt) => t === opt || t.includes(opt) || opt.includes(t))
+}
+
+function getMenuOptionFallbackMessage(messageText: string, nome: string): string {
+  const opcao = (messageText || '').trim() || 'sua escolha'
+  return `Olá, ${nome}! Recebemos sua escolha (${opcao}). Em instantes te enviamos as informações. Se precisar de mais algo, digite MENU. 💙`
+}
+
 /** Índice da opção do menu (1, 2, 3... ou texto do botão; aceita label truncado pela Z-API em 20 chars). */
 function matchMenuOption(messageText: string, options: string[]): number {
   const t = normalizeForMenuMatch(messageText)
@@ -895,6 +916,16 @@ export async function runChatbotFlow(
   // Sempre tentar responder como opção do menu (1º nó menu do fluxo) — funciona com ou sem estado.
   const menuRespondedAny = await tryRespondAsMenuOption(flow, contactId, nome, messageText)
   if (menuRespondedAny) return { replied: true, reason: undefined }
+
+  // Fallback: mensagem é uma opção conhecida do menu mas o fluxo não respondeu — enviar confirmação para o lead sempre receber algo.
+  if (isKnownMenuOption(messageText)) {
+    const fallbackMsg = getMenuOptionFallbackMessage(messageText, nome)
+    const fallbackSent = (await sendWhatsAppMessageWithResult(contactId, fallbackMsg)).success
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[plen/menu] fallback enviado (fluxo não respondeu)', { text: messageText?.slice(0, 30), sent: fallbackSent })
+    }
+    return { replied: fallbackSent, reason: fallbackSent ? undefined : 'menu_fallback_envio_falhou' }
+  }
 
   if (!state) {
     const texto = (messageText || '').trim().toLowerCase()
