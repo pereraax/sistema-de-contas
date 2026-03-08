@@ -1,15 +1,17 @@
 /**
  * Motor de execução dos fluxos do Chatbot Builder.
  * Única fonte de mensagens/automação Plen: fluxo ativo em chatbot_flows.
+ * Se não houver fluxo ativo, usa o fluxo padrão em memória para a Plen responder.
  */
 
 import { createAdminClient } from '@/lib/supabase/server'
+import { getDefaultPlenFlow } from '@/lib/plen/chatbot-default-flow'
 import { getContactById, updateContact } from '@/lib/crm/contacts'
 import { enqueuePlenMessage } from '@/lib/plen/queue/message-queue'
 import { getAssistenteGlobalPausada } from '@/lib/assistente-global-pausada'
 import { getPlenLLMResponse } from '@/lib/plen-llm-fallback'
 import { createUserAndSendCode, resendCodeForPlen, verifyCodeForPlen } from '@/lib/plen/auth/email-verification'
-import { sendWhatsAppButtonReply } from '@/lib/whatsapp/sender'
+import { sendWhatsAppButtonReply, sendWhatsAppMenuButtons } from '@/lib/whatsapp/sender'
 
 type EdgeRow = { source: string; target: string; sourceHandle?: string | null }
 type ChatbotFlowRow = { id: string; nome: string; estrutura_json: { nodes: unknown[]; edges: EdgeRow[] } }
@@ -52,21 +54,24 @@ function getConditionTargets(flow: ChatbotFlowRow, sourceId: string): { sim: str
   return { sim, nao }
 }
 
-/** Retorna o fluxo ativo (ativo = true; o mais recente se houver vários). */
+/** Retorna o fluxo ativo (ativo = true; o mais recente se houver vários). Se não houver, retorna o fluxo padrão. */
 async function getActiveFlow(): Promise<ChatbotFlowRow | null> {
   const supabase = createAdminClient()
-  if (!supabase) return null
-  const { data, error } = await supabase
-    .from('chatbot_flows')
-    .select('id, nome, estrutura_json')
-    .eq('ativo', true)
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (error || !data) return null
-  const est = (data as { estrutura_json?: unknown }).estrutura_json
-  if (!est || typeof est !== 'object' || !('nodes' in est)) return null
-  return data as ChatbotFlowRow
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('chatbot_flows')
+      .select('id, nome, estrutura_json')
+      .eq('ativo', true)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (!error && data) {
+      const est = (data as { estrutura_json?: unknown }).estrutura_json
+      if (est && typeof est === 'object' && 'nodes' in est) return data as ChatbotFlowRow
+    }
+  }
+  const { nodes, edges } = getDefaultPlenFlow()
+  return { id: 'default', nome: 'Fluxo principal Plen', estrutura_json: { nodes, edges } }
 }
 
 async function getChatbotFlowState(contactId: string): Promise<FlowStateRow | null> {
@@ -214,8 +219,8 @@ async function sendMessageNodeAndReturnNext(
   return { sent: true, nextNodeId: targets[0] ?? null }
 }
 
-/** Monta e envia mensagem do bloco Menu; retorna targets em ordem para contexto. */
-async function sendMenuAndGetTargets(
+/** Monta e envia menu com botões (até 6 opções em 2 mensagens de 3 botões); retorna targets em ordem. */
+async function sendMenuAsButtonsAndGetTargets(
   flow: ChatbotFlowRow,
   nodeId: string,
   contactId: string,
@@ -228,10 +233,9 @@ async function sendMenuAndGetTargets(
   const opcoesStr = (config?.menuOpcoes as string)?.trim() || ''
   const linhas = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
   const targets = getOutgoingTargets(flow, nodeId)
-  const numeradas = linhas.map((l, i) => `${i + 1} ${l}`).join('\n')
-  const msg = applyReplacements(intro + '\n\n' + numeradas, { nome })
-  await enqueuePlenMessage(contactId, msg)
-  return { sent: true, targets }
+  const introMsg = applyReplacements(intro, { nome })
+  const result = await sendWhatsAppMenuButtons(contactId, introMsg, linhas)
+  return { sent: result.success, targets }
 }
 
 /** Avalia condição do bloco (mensagem_contem, mensagem_igual, eh_numero, tem_valor). */
@@ -250,14 +254,15 @@ function evaluateCondition(
   return false
 }
 
-/** Índice da opção do menu (1, 2, 3... ou texto). */
+/** Índice da opção do menu (1, 2, 3... ou texto do botão, ex.: "Falar com humano"). */
 function matchMenuOption(messageText: string, options: string[]): number {
   const t = (messageText || '').trim().toLowerCase()
   const n = parseInt(t, 10)
   if (!Number.isNaN(n) && n >= 1 && n <= options.length) return n - 1
   for (let i = 0; i < options.length; i++) {
-    const opt = (options[i] || '').trim().toLowerCase()
-    if (opt && t.includes(opt)) return i
+    const raw = (options[i] || '').trim().toLowerCase()
+    const optSemNumero = raw.replace(/^\d+\s*/, '')
+    if (raw && (t.includes(raw) || t.includes(optSemNumero) || optSemNumero && t === optSemNumero)) return i
   }
   return -1
 }
@@ -275,6 +280,18 @@ async function advanceFromNode(
   const node = getNodeById(flow, currentId)
   if (!node) return { replied: false, nextNodeId: null }
   const nodeType = node.data?.nodeType
+  let effectiveNome = nome
+  if (nodeType === 'mensagem') {
+    const label = String(node.data?.label ?? '').toLowerCase()
+    const id = String(currentId ?? '')
+    if (id.includes('pedir-nome') || label.includes('pedir nome')) {
+      const newNome = messageText.trim()
+      if (newNome.length >= 2) {
+        await updateContact(contactId, { nome: newNome })
+        effectiveNome = newNome
+      }
+    }
+  }
 
   const targets = getOutgoingTargets(flow, currentId)
   const nextId = targets[0]
@@ -285,7 +302,15 @@ async function advanceFromNode(
     const nextNode = getNodeById(flow, nextId)
     const nextType = nextNode?.data?.nodeType
     if (nextType === 'menu') {
-      const { sent, targets: menuTargets } = await sendMenuAndGetTargets(flow, nextId, contactId, nome)
+      const isContaConfirmada =
+        (String(currentId).includes('conta-confirmada') || String(node.data?.label ?? '').toLowerCase().includes('conta confirmada'))
+      if (isContaConfirmada && messageText.trim().toLowerCase() !== 'menu') {
+        await enqueuePlenMessage(contactId, applyReplacements('Digite MENU para acessar as opções.', { nome: effectiveNome }), new Date())
+        const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+        await processPlenQueue(2).catch(() => {})
+        return { replied: true, nextNodeId: currentId }
+      }
+      const { sent, targets: menuTargets } = await sendMenuAsButtonsAndGetTargets(flow, nextId, contactId, effectiveNome)
       const config = nextNode?.data?.config as Record<string, unknown> | undefined
       const opcoesStr = (config?.menuOpcoes as string) || ''
       const menuOptions = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
@@ -309,7 +334,7 @@ async function advanceFromNode(
           const cfg = afterNode.data?.config as Record<string, unknown> | undefined
           const texto = (cfg?.texto as string)?.trim() || ''
           if (texto) {
-            const msg = applyReplacements(texto, { nome })
+            const msg = applyReplacements(texto, { nome: effectiveNome })
             await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs))
           }
           const afterTargets = getOutgoingTargets(flow, afterDelayId)
@@ -333,7 +358,7 @@ async function advanceFromNode(
         if (isEmailValidBranch) {
           const email = messageText.trim().toLowerCase()
           if (email && email.includes('@')) {
-            const result = await createUserAndSendCode(email, nome)
+            const result = await createUserAndSendCode(email, effectiveNome)
             if (!result.success) {
               console.warn('[chatbot-flow-runner] createUserAndSendCode falhou:', result.error)
               await updateContact(contactId, { email })
@@ -350,7 +375,17 @@ async function advanceFromNode(
           }
         }
         if (chosenNode?.data?.nodeType === 'mensagem') {
-          const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, chosen, contactId, nome)
+          const isPedirCodigo =
+            (String(chosen).includes('pedir-codigo') || String(chosenNode?.data?.label ?? '').toLowerCase().includes('pedir código')) &&
+            isEmailValidBranch
+          if (isPedirCodigo) {
+            const cfg = chosenNode.data?.config as Record<string, unknown> | undefined
+            const texto = applyReplacements((cfg?.texto as string)?.trim() || '', { nome: effectiveNome })
+            const fullText = texto + '\n\nSe o email não chegar, clique no botão abaixo para reenviar.'
+            const sent = await sendWhatsAppButtonReply(contactId, fullText, 'REENVIAR CÓDIGO')
+            return { replied: sent.success, nextNodeId: chosen }
+          }
+          const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, chosen, contactId, effectiveNome)
           return { replied: sent, nextNodeId: nextNodeId ?? chosen }
         }
         return { replied: false, nextNodeId: chosen }
@@ -358,7 +393,20 @@ async function advanceFromNode(
       return { replied: false, nextNodeId: nao ?? sim }
     }
     if (nextType === 'mensagem') {
-      const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, nextId, contactId, nome)
+      const isResultadoTeste =
+        (String(currentId).includes('resultado') || String(node.data?.label ?? '').toLowerCase().includes('resultado')) &&
+        (String(nextId).includes('copy-cadastro') || String(nextNode?.data?.label ?? '').toLowerCase().includes('copy cadastro'))
+      if (isResultadoTeste) {
+        const { sent: sent1 } = await sendMessageNodeAndReturnNext(flow, nextId, contactId, effectiveNome)
+        const nextOfCopy = getOutgoingTargets(flow, nextId)[0]
+        const nodePedirNome = nextOfCopy ? getNodeById(flow, nextOfCopy) : null
+        if (nodePedirNome?.data?.nodeType === 'mensagem') {
+          const { sent: sent2 } = await sendMessageNodeAndReturnNext(flow, nextOfCopy!, contactId, effectiveNome)
+          return { replied: sent1 || sent2, nextNodeId: nextOfCopy }
+        }
+        return { replied: sent1, nextNodeId: nextOfCopy ?? nextId }
+      }
+      const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, nextId, contactId, effectiveNome)
       return { replied: sent, nextNodeId: nextNodeId ?? nextId }
     }
     if (nextType === 'ia') {
@@ -378,7 +426,7 @@ async function advanceFromNode(
 
   if (nodeType === 'inicio') {
     if (!nextId) return { replied: false, nextNodeId: null }
-    const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, nextId, contactId, nome)
+    const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, nextId, contactId, effectiveNome)
     return { replied: sent, nextNodeId: nextNodeId ?? nextId }
   }
 
@@ -397,7 +445,7 @@ async function advanceFromNode(
     if (isEmailValidBranch) {
       const email = messageText.trim().toLowerCase()
       if (email && email.includes('@')) {
-        const result = await createUserAndSendCode(email, nome)
+        const result = await createUserAndSendCode(email, effectiveNome)
         if (!result.success) {
           console.warn('[chatbot-flow-runner] createUserAndSendCode (nó condição) falhou:', result.error)
           await updateContact(contactId, { email })
@@ -414,28 +462,52 @@ async function advanceFromNode(
       }
     }
     if (chosenNode?.data?.nodeType === 'mensagem') {
-      const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, chosen, contactId, nome)
+      const isPedirCodigo =
+        (String(chosen).includes('pedir-codigo') || String(chosenNode?.data?.label ?? '').toLowerCase().includes('pedir código')) &&
+        isEmailValidBranch
+      if (isPedirCodigo) {
+        const cfg = chosenNode.data?.config as Record<string, unknown> | undefined
+        const texto = applyReplacements((cfg?.texto as string)?.trim() || '', { nome: effectiveNome })
+        const fullText = texto + '\n\nSe o email não chegar, clique no botão abaixo para reenviar.'
+        const sent = await sendWhatsAppButtonReply(contactId, fullText, 'REENVIAR CÓDIGO')
+        return { replied: sent.success, nextNodeId: chosen }
+      }
+      const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, chosen, contactId, effectiveNome)
       return { replied: sent, nextNodeId: nextNodeId ?? chosen }
     }
     if (chosenNode?.data?.nodeType === 'registrar_gasto' || chosenNode?.data?.nodeType === 'registrar_receita') {
       const regTargets = getOutgoingTargets(flow, chosen)
-      let currentId = regTargets[0]
-      if (!currentId) return { replied: true, nextNodeId: chosen }
+      const firstId = regTargets[0]
+      if (!firstId) return { replied: true, nextNodeId: chosen }
       const { valor, categoria } = parseGastoOuReceita(messageText)
-      let sent = false
-      let lastNextId: string | null = currentId
-      while (currentId) {
-        const node = getNodeById(flow, currentId)
-        if (node?.data?.nodeType !== 'mensagem') break
-        const vars = lastNextId === regTargets[0] ? { valor, categoria } : undefined
-        const { sent: ok, nextNodeId } = await sendMessageNodeAndReturnNext(flow, currentId, contactId, nome, vars)
-        if (ok) sent = true
-        lastNextId = nextNodeId ?? currentId
-        const nextNode = lastNextId ? getNodeById(flow, lastNextId) : null
-        if (!lastNextId || nextNode?.data?.nodeType !== 'mensagem') break
-        currentId = lastNextId
+      const firstNode = getNodeById(flow, firstId)
+      if (firstNode?.data?.nodeType !== 'mensagem') return { replied: false, nextNodeId: firstId }
+      const { sent: sent1 } = await sendMessageNodeAndReturnNext(flow, firstId, contactId, effectiveNome, { valor, categoria })
+      const nextId = getOutgoingTargets(flow, firstId)[0]
+      const nextNode = nextId ? getNodeById(flow, nextId) : null
+      const nextNextId = nextId ? getOutgoingTargets(flow, nextId)[0] : null
+      const nextNextNode = nextNextId ? getNodeById(flow, nextNextId) : null
+      const isCopyNode = nextId && (String(nextId).includes('copy') || String(nextNode?.data?.label ?? '').toLowerCase().includes('copy'))
+      let stateAposCadastro = nextId ?? firstId
+      if (nextNode?.data?.nodeType === 'mensagem') {
+        const cfg2 = nextNode.data?.config as Record<string, unknown> | undefined
+        const texto2 = (cfg2?.texto as string)?.trim() || ''
+        if (texto2) {
+          const msg2 = applyReplacements(texto2, { nome: effectiveNome })
+          await enqueuePlenMessage(contactId, msg2, new Date(Date.now() + 600))
+        }
+        stateAposCadastro = nextId
+        if (isCopyNode && nextNextNode?.data?.nodeType === 'mensagem') {
+          const cfg3 = nextNextNode.data?.config as Record<string, unknown> | undefined
+          const texto3 = (cfg3?.texto as string)?.trim() || ''
+          if (texto3) {
+            const msg3 = applyReplacements(texto3, { nome: effectiveNome })
+            await enqueuePlenMessage(contactId, msg3, new Date(Date.now() + 1200))
+          }
+          stateAposCadastro = nextNextId!
+        }
       }
-      return { replied: sent, nextNodeId: lastNextId }
+      return { replied: true, nextNodeId: stateAposCadastro }
     }
     return { replied: false, nextNodeId: chosen }
   }
@@ -467,7 +539,7 @@ async function advanceFromNode(
         const cfg = afterNode.data?.config as Record<string, unknown> | undefined
         const texto = (cfg?.texto as string)?.trim() || ''
         if (texto) {
-          const msg = applyReplacements(texto, { nome })
+          const msg = applyReplacements(texto, { nome: effectiveNome })
           await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs))
         }
         const afterTargets = getOutgoingTargets(flow, afterDelayId)
@@ -482,7 +554,7 @@ async function advanceFromNode(
   const nextNode = getNodeById(flow, nextId)
   const nextType = nextNode?.data?.nodeType
   if (nextType === 'mensagem') {
-    const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, nextId, contactId, nome)
+    const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, nextId, contactId, effectiveNome)
     return { replied: sent, nextNodeId: nextNodeId ?? nextId }
   }
   if (nextType === 'fim') return { replied: false, nextNodeId: null }
@@ -526,23 +598,83 @@ export async function runChatbotFlow(
 
   const status = (contact?.status ?? '').toString()
   const contactEmail = (contact?.email ?? '').trim().toLowerCase()
-  const isAguardandoCodigo = status === 'aguardando_codigo' && contactEmail.includes('@')
   const textLower = text.toLowerCase()
 
+  // Quando o usuário diz que quer utilizar/cadastrar: verificar se já tem conta; se não, reiniciar fluxo (teste + cadastro).
+  const intentQueroUtilizar =
+    /quero\s+utilizar|plenipay|quero\s+usar|quero\s+cadastr|ol[aá].*quero/i.test(text) ||
+    (textLower.includes('quero') && (textLower.includes('utilizar') || textLower.includes('plenipay') || textLower.includes('cadastr')))
+  if (intentQueroUtilizar) {
+    const jaTemConta = status === 'usuario_ativo' || contact?.usuario_cadastrado === true
+    if (jaTemConta) {
+      await enqueuePlenMessage(
+        contactId,
+        'Você já está cadastrado! Use o app ou envie "menu" para ver opções.',
+        new Date()
+      )
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'ja_cadastrado' }
+    }
+    // Sem conta: reiniciar do zero — fluxo de teste (boas-vindas + gasto) e depois cadastro (nome, email, código).
+    await clearChatbotFlowState(contactId)
+    await updateContact(contactId, { status: 'novo_lead' })
+    // Segue abaixo: sem state, matchInicio vai bater e inicia no primeiro nó (boas-vindas → teste → cadastro).
+  }
+
+  // Cancelar cadastro em qualquer etapa do fluxo (pedir nome, pedir email, aguardando código, etc.)
+  const querCancelarCadastro =
+    /cancelar(\s*cadastro)?|desistir|n[aã]o\s*quero\s*(mais|continuar)|quero\s*cancelar/i.test(textLower) ||
+    textLower.trim() === 'cancelar'
+  if (querCancelarCadastro) {
+    const jaCadastrado = status === 'usuario_ativo' || contact?.usuario_cadastrado === true
+    if (!jaCadastrado) {
+      await clearChatbotFlowState(contactId)
+      await updateContact(contactId, { status: 'novo_lead' })
+      await enqueuePlenMessage(
+        contactId,
+        'Cadastro cancelado. Quando quiser, é só mandar "Olá" ou "Quero utilizar a Plenipay" para começar de novo. 💙',
+        new Date()
+      )
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'cadastro_cancelado' }
+    }
+  }
+
+  const isAguardandoCodigo = status === 'aguardando_codigo' && contactEmail.includes('@')
   if (isAguardandoCodigo) {
     const apenasDigitos = text.replace(/\D/g, '')
     const codigo6Digitos = apenasDigitos.length === 6 && /^\d{6}$/.test(apenasDigitos)
     if (codigo6Digitos) {
-      const result = await verifyCodeForPlen(text, contactEmail)
+      const result = await verifyCodeForPlen(apenasDigitos, contactEmail)
       if (result.success) {
         await updateContact(contactId, { status: 'usuario_ativo', usuario_cadastrado: true, data_cadastro: new Date().toISOString() })
-        await enqueuePlenMessage(
-          contactId,
-          'Email confirmado! A partir daqui você pode usar "menu" ou registrar gastos e receitas a qualquer momento.',
-          new Date()
+        const nodes = getNodes(flow)
+        const contaConfirmadaNode = nodes.find(
+          (n) =>
+            (n.id && n.id.includes('conta-confirmada')) ||
+            (n.data?.label && String(n.data.label).toLowerCase().includes('conta confirmada'))
         )
+        let stateAposConfirmada: string | null = null
+        if (contaConfirmadaNode?.id && contaConfirmadaNode?.data?.config) {
+          const cfg = contaConfirmadaNode.data.config as Record<string, unknown>
+          const texto = (cfg?.texto as string)?.trim() || ''
+          if (texto) {
+            const msg = applyReplacements(texto, { nome })
+            await enqueuePlenMessage(contactId, msg, new Date())
+          }
+          stateAposConfirmada = contaConfirmadaNode.id
+        } else {
+          await enqueuePlenMessage(
+            contactId,
+            'Conta confirmada ' + nome + '! 🎉 Agora você já pode registrar seus gastos. Digite MENU a qualquer momento para as opções.',
+            new Date()
+          )
+        }
+        if (stateAposConfirmada) await setChatbotFlowState(contactId, flow.id, stateAposConfirmada)
         const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
-        await processPlenQueue(3).catch(() => {})
+        await processPlenQueue(5).catch(() => {})
         return { replied: true, reason: 'email_confirmado' }
       }
       await enqueuePlenMessage(
@@ -554,12 +686,29 @@ export async function runChatbotFlow(
       await processPlenQueue(3).catch(() => {})
       return { replied: true, reason: 'codigo_invalido' }
     }
+    const querCancelar =
+      /cancelar(\s*cadastro)?|desistir|n[aã]o\s*quero\s*(mais|continuar)|quero\s*cancelar/i.test(textLower) ||
+      textLower.trim() === 'cancelar'
+    if (querCancelar) {
+      await clearChatbotFlowState(contactId)
+      await updateContact(contactId, { status: 'novo_lead' })
+      await enqueuePlenMessage(
+        contactId,
+        'Cadastro cancelado. Quando quiser, é só mandar "Olá" ou "Quero utilizar a Plenipay" para começar de novo. 💙',
+        new Date()
+      )
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'cadastro_cancelado' }
+    }
     const clicouReenviar =
       /^reenviar\s*e?-?mail$/i.test(textLower.trim()) ||
       /^reenviar\s*c[oó]digo$/i.test(textLower.trim()) ||
       textLower.trim() === 'reenviar email' ||
       textLower.trim() === 'reenviar e-mail' ||
-      /^[12]$/.test(text.trim()) // Z-API às vezes envia só o buttonId (ex.: "1")
+      textLower.trim() === 'reenviar código' ||
+      textLower.trim() === 'reenviar codigo' ||
+      (text.trim().length === 1 && /^[12]$/.test(text.trim())) // botão envia "1" ou "2" só quando é 1 caractere
     if (clicouReenviar) {
       const result = await resendCodeForPlen(contactEmail)
       const msgConfirmacao = result.success
@@ -571,12 +720,12 @@ export async function runChatbotFlow(
       return { replied: true, reason: 'codigo_reenviado' }
     }
     const reclamouQueNaoChegou =
-      /email\s*n[aã]o\s*chegou|n[aã]o\s*recebi\s*(o\s*)?email|n[aã]o\s*chegou\s*(o\s*)?email/.test(textLower)
+      /email\s*n[aã]o\s*chegou|n[aã]o\s*recebi\s*(o\s*)?(email|c[oó]digo)|c[oó]digo\s*n[aã]o\s*chegou|n[aã]o\s*chegou\s*(o\s*)?email/.test(textLower)
     if (reclamouQueNaoChegou) {
       const sent = await sendWhatsAppButtonReply(
         contactId,
-        'Não recebeu o email? Toque no botão abaixo para reenviar o código.',
-        'Reenviar email'
+        'Parece que o email não chegou ainda. Clique abaixo para reenviar.',
+        'Reenviar código'
       )
       return { replied: sent.success, reason: sent.success ? undefined : 'botao_reenviar_falhou' }
     }
@@ -609,7 +758,7 @@ export async function runChatbotFlow(
       return { replied: sent, reason: sent ? undefined : 'mensagem_vazia_ou_sem_proximo' }
     }
     if (firstType === 'menu') {
-      const { sent, targets } = await sendMenuAndGetTargets(flow, firstId, contactId, nome)
+      const { sent, targets } = await sendMenuAsButtonsAndGetTargets(flow, firstId, contactId, nome)
       const firstNode = getNodeById(flow, firstId)
       const config = firstNode?.data?.config as Record<string, unknown> | undefined
       const opcoesStr = (config?.menuOpcoes as string) || ''
@@ -678,6 +827,13 @@ export async function runChatbotFlow(
     if (menuNode?.data?.nodeType === 'menu') {
       const menuTargets = (state.context.menuTargets as string[]) || []
       const menuOptions = (state.context.menuOptions as string[]) || []
+      const texto = (messageText || '').trim().toLowerCase()
+      if (texto === 'menu') {
+        const { sent } = await sendMenuAsButtonsAndGetTargets(flow, state.current_node_id, contactId, nome)
+        const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+        if (sent) await processPlenQueue(3).catch(() => {})
+        return { replied: sent, reason: sent ? undefined : 'menu_reenvio_falhou' }
+      }
       const idx = matchMenuOption(messageText, menuOptions)
       if (idx >= 0 && menuTargets[idx]) {
         const targetId = menuTargets[idx]
@@ -716,6 +872,14 @@ export async function runChatbotFlow(
         await setChatbotFlowState(contactId, flow.id, targetId)
         return { replied: false, reason: 'menu_opcao_nao_e_mensagem' }
       }
+      await enqueuePlenMessage(
+        contactId,
+        applyReplacements('Opção não reconhecida. Digite MENU para ver as opções.', { nome }),
+        new Date()
+      )
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(2).catch(() => {})
+      return { replied: true, reason: 'menu_opcao_invalida' }
     }
   }
 
