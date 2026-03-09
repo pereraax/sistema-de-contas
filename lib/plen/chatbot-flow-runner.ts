@@ -15,6 +15,7 @@ import {
   sendWhatsAppButtonReply,
   sendWhatsAppMenuButtons,
   sendWhatsAppMessageWithResult,
+  sendWhatsAppMessageWithButtons,
 } from '@/lib/whatsapp/sender'
 
 type EdgeRow = { source: string; target: string; sourceHandle?: string | null }
@@ -239,7 +240,18 @@ async function sendMessageNodeAndReturnNext(
     return { sent: false, nextNodeId: targets[0] ?? null }
   }
   const msg = applyReplacements(texto, { nome, ...vars })
-  await enqueuePlenMessage(contactId, msg)
+  const botoesRaw = config?.botoes as Array<{ titulo?: string; link?: string }> | undefined
+  const botoes = Array.isArray(botoesRaw)
+    ? botoesRaw
+        .filter((b) => (b?.titulo ?? '').trim().length > 0)
+        .map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined }))
+    : []
+  if (botoes.length > 0) {
+    const result = await sendWhatsAppMessageWithButtons(contactId, msg, botoes)
+    if (!result.success) await enqueuePlenMessage(contactId, msg)
+  } else {
+    await enqueuePlenMessage(contactId, msg)
+  }
   const comandos = config?.comandosAoEnviar
   const urls = Array.isArray(comandos)
     ? (comandos as string[]).map((s) => (s || '').trim()).filter((s) => s.startsWith('http'))
