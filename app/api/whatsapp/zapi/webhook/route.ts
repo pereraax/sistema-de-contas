@@ -29,6 +29,47 @@ import { processPlenQueue } from '@/lib/plen/queue/queue-worker'
 
 const PAYLOAD_PREVIEW_MAX = 200
 
+/** Opções de menu conhecidas (normalizadas) para buscar no payload quando o parser não achar o botão. */
+const MENU_OPTIONS_NORMALIZED = [
+  'falar com humano',
+  'como funciona',
+  'assinatura r$9,90',
+  'funções premium',
+  'indique e ganhe',
+  'total / saldo',
+]
+function normalize(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[/\u2013\u2014]/g, '/')
+}
+/** Busca recursiva no payload por qualquer string que seja uma opção do menu (último recurso). */
+function findMenuOptionInPayload(payload: unknown): string | null {
+  if (payload == null) return null
+  if (typeof payload === 'string') {
+    const t = normalize(payload)
+    if (!t) return null
+    const found = MENU_OPTIONS_NORMALIZED.some((opt) => t === opt || t.includes(opt) || opt.includes(t))
+    return found ? payload.trim() : null
+  }
+  if (Array.isArray(payload)) {
+    for (let i = 0; i < payload.length; i++) {
+      const v = findMenuOptionInPayload(payload[i])
+      if (v) return v
+    }
+    return null
+  }
+  if (typeof payload === 'object') {
+    for (const key of Object.keys(payload)) {
+      const v = findMenuOptionInPayload((payload as Record<string, unknown>)[key])
+      if (v) return v
+    }
+  }
+  return null
+}
+
 /** Detecta se a primeira mensagem parece vir de anúncio (ex.: "Olá! Quero utilizar a Plenipay."). */
 function detectOrigemAnuncio(text: string): boolean {
   const t = text.trim().toLowerCase()
@@ -107,6 +148,10 @@ export async function POST(request: Request) {
     let effectiveText = primeiroTextoRaw
     const buttonText = extractButtonTextDeep(body)
     if (buttonText) effectiveText = buttonText
+    if (!effectiveText) {
+      const menuFromPayload = findMenuOptionInPayload(body)
+      if (menuFromPayload) effectiveText = menuFromPayload
+    }
     if (!effectiveText && !parsed.mediaUrl && contact.status === 'aguardando_codigo' && (contact.email ?? '').includes('@')) {
       effectiveText = 'Reenviar email'
     }
@@ -184,6 +229,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, contact_id: contact.id, reset: true })
     }
 
+    let plenReason: string | null = null
     if (textForPlen || parsed.mediaUrl) {
       if (process.env.NODE_ENV === 'development') {
         console.log('[webhooks/zapi] Chatbot Builder: processando', { contact_id: contact.id, isNewLead: created, text: textForPlen?.slice(0, 50) })
@@ -191,6 +237,7 @@ export async function POST(request: Request) {
       try {
         const r = await runChatbotFlow(contact.id, textForPlen || '[Mídia]', created, parsed.senderName ?? undefined)
         if (!r.replied && r.reason) {
+          plenReason = r.reason
           console.warn('[webhooks/zapi] Plen não respondeu:', { contact_id: contact.id, reason: r.reason })
         }
         if (r.replied) {
@@ -202,13 +249,22 @@ export async function POST(request: Request) {
           }
         }
       } catch (err) {
-        console.error('[webhooks/zapi] Chatbot Builder ERRO:', (err as Error)?.message ?? err)
+        const errMsg = (err as Error)?.message ?? 'Erro'
+        plenReason = `erro: ${errMsg}`
+        console.error('[webhooks/zapi] Chatbot Builder ERRO:', errMsg)
       }
     }
 
+    const detailForLog = [
+      msg ? (created ? 'novo_lead + mensagem' : 'mensagem') : 'duplicada',
+      textForPlen ? `texto: ${(textForPlen as string).slice(0, 35)}` : '',
+      plenReason ? `plen: ${plenReason}` : '',
+    ]
+      .filter(Boolean)
+      .join(' | ')
     await safeLog({
       status: 'success',
-      detail: msg ? (created ? 'novo_lead + mensagem' : 'mensagem') : 'duplicada',
+      detail: detailForLog || undefined,
       contact_id: contact.id,
       payload_preview: payloadPreview,
     })

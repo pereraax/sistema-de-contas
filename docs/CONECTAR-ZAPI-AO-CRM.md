@@ -20,6 +20,8 @@ Duas URLs aceitas (use **uma** delas na Z-API):
 
 **Importante:** use sempre **HTTPS**. Método **POST**.
 
+**Clique em botão do menu:** a Z-API deve enviar o clique para o **mesmo** webhook “mensagens recebidas”. Se a Plen não responder ao clicar em “Indique e ganhe”, etc., confira em **CRM → Configurações → Últimos eventos do webhook**: se aparecer evento com `texto: Indique e ganhe` e `plen: ...`, o problema é no envio; se não aparecer nenhum evento ao clicar, a Z-API pode não estar enviando o clique para essa URL.
+
 ---
 
 ## 2. Configurar na Z-API
@@ -52,6 +54,19 @@ Se a Z-API exigir configuração via API:
 
 Substitua `SEU_DOMINIO` pela sua URL real (ex.: `app.plenipay.com.br`).
 
+### Webhook “Ao conectar” (opcional, recomendado)
+
+Para que **todas as conversas e o histórico** sejam importados automaticamente quando o WhatsApp conectar (igual ao WhatsApp Web), configure também o webhook **“Ao conectar”** na Z-API:
+
+- **URL:** `https://SEU_DOMINIO/api/webhooks/zapi/connected`
+- **Método:** POST
+
+Quando a instância conectar (QR lido ou reconexão), a Z-API chama essa URL e o CRM dispara a sincronização completa (`whatsappFullSync`): busca todos os chats, cria contatos e conversas e importa o histórico de mensagens.
+
+Via API da Z-API:  
+`PUT https://api.z-api.io/instances/SUA_INSTANCIA/token/SEU_TOKEN/update-webhook-connected`  
+Body: `{ "value": "https://SEU_DOMINIO/api/webhooks/zapi/connected" }`
+
 ---
 
 ## 3. Variáveis de ambiente
@@ -69,11 +84,13 @@ Z_API_CLIENT_TOKEN=TOKEN_DE_SEGURANCA_DA_CONTA
 
 ---
 
-## 4. Ver todas as conversas (como no WhatsApp Web)
+## 4. Comportamento igual ao WhatsApp Web
 
-Na página **Conversas** do CRM, use o botão **"Sincronizar WhatsApp"** no topo. Ele chama a Z-API para listar todos os chats e importar as mensagens recentes de cada um. Exige `Z_API_CLIENT_TOKEN` configurado. Depois da sincronização, a lista de conversas e o histórico aparecem no CRM.
-
-O CRM também exibe **imagens**, **áudios**, **vídeos** e **documentos** recebidos: o webhook salva o tipo e a URL da mídia (a Z-API armazena os arquivos por até 30 dias).
+- **Sincronização inicial:** Com o webhook “Ao conectar” configurado, ao conectar o WhatsApp (ler QR ou reconectar) o CRM importa automaticamente todas as conversas e o histórico. Sem esse webhook, use o botão **“Sincronizar WhatsApp”** na página **Conversas** (exige `Z_API_CLIENT_TOKEN`).
+- **Lista de conversas:** `GET /api/admin/crm/inbox` (ou use a página Conversas).
+- **Mensagens de uma conversa:** `GET /api/admin/crm/messages?contact_id=UUID` ou `?conversation_id=UUID`.
+- **Novas mensagens em tempo real:** O frontend inscreve-se no Supabase Realtime na tabela `crm_messages`; quando chega uma nova mensagem (webhook → backend grava no banco), a lista e o chat atualizam sem recarregar.
+- **Mídia:** O CRM exibe **imagens**, **áudios**, **vídeos** e **documentos** (a Z-API armazena por até 30 dias).
 
 ---
 
@@ -120,9 +137,9 @@ O CRM também exibe **imagens**, **áudios**, **vídeos** e **documentos** receb
 
 ## 7. Resumo do fluxo
 
-1. Alguém envia mensagem para o número conectado na Z-API.
-2. Z-API envia um POST para `https://SEU_DOMINIO/api/whatsapp/zapi/webhook` com os dados da mensagem.
-3. O CRM cria ou atualiza o contato, salva a mensagem e registra a atividade.
-4. No painel admin, você vê o contato em **Conversas**, **Inbox** e **Leads**.
+1. **Ao conectar o WhatsApp:** Z-API envia POST para `/api/webhooks/zapi/connected` → o CRM roda `whatsappFullSync()` e importa todas as conversas e histórico.
+2. **Mensagens novas:** Z-API envia POST para `/api/webhooks/zapi` (ou `/api/whatsapp/zapi/webhook`) → o CRM cria/atualiza contato e conversa, salva a mensagem e atualiza a última mensagem.
+3. **Frontend:** A página Conversas carrega a lista (`/api/admin/crm/inbox`) e as mensagens (`/api/admin/crm/messages`), assina o Realtime em `crm_messages` e atualiza a lista e o chat quando chega INSERT.
+4. **Resultado:** Comportamento igual ao WhatsApp Web: todas as conversas, histórico e novas mensagens em tempo real.
 
-Se após isso ainda não aparecer nada, verifique os logs do servidor (Railway, Vercel, etc.) na hora em que você envia a mensagem de teste.
+Se nada aparecer, confira as URLs dos webhooks, as variáveis de ambiente e os logs do servidor.
