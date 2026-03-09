@@ -37,6 +37,8 @@ export function ConfigPanel({
   const [lembreteDias, setLembreteDias] = useState('')
   const [registrarMsgConfirmacao, setRegistrarMsgConfirmacao] = useState('')
   const [comandosAoEnviar, setComandosAoEnviar] = useState('')
+  type BotaoConfig = { titulo: string; link: string }
+  const [botoes, setBotoes] = useState<BotaoConfig[]>([])
 
   useEffect(() => {
     if (!node?.data) return
@@ -60,6 +62,14 @@ export function ConfigPanel({
     setRegistrarMsgConfirmacao((node.data.config?.registrarMsgConfirmacao as string) || 'Registrado com sucesso!')
     const cmd = node.data.config?.comandosAoEnviar
     setComandosAoEnviar(Array.isArray(cmd) ? cmd.join('\n') : (typeof cmd === 'string' ? cmd : ''))
+    const bt = node.data.config?.botoes
+    const botoesArr = Array.isArray(bt)
+      ? (bt as Array<{ titulo?: string; link?: string }>).map((b) => ({
+          titulo: (b?.titulo ?? '').trim() || '',
+          link: (b?.link ?? '').trim() || '',
+        }))
+      : []
+    setBotoes(botoesArr)
   }, [node?.id, node?.data])
 
   if (!node) {
@@ -77,6 +87,8 @@ export function ConfigPanel({
       config.texto = texto
       const cmds = comandosAoEnviar.split('\n').map((s) => s.trim()).filter(Boolean)
       config.comandosAoEnviar = cmds.length > 0 ? cmds : undefined
+      const botoesValidos = botoes.filter((b) => (b.titulo ?? '').trim().length > 0)
+      config.botoes = botoesValidos.length > 0 ? botoesValidos.map((b) => ({ titulo: b.titulo.trim(), link: (b.link ?? '').trim() || undefined })) : undefined
       config.preview = texto.slice(0, 50)
     }
     if (nodeType === 'delay') {
@@ -189,6 +201,61 @@ export function ConfigPanel({
               <p className="text-xs text-zinc-500 mt-1">Variáveis: {VARIABLES.join(', ')}. Use R$&#123;valor&#125; para valor em reais. Categoria e valor vêm do que o usuário escreveu (ex.: &quot;212 carro&quot;).</p>
             </div>
             <div>
+              <label className="block text-xs text-zinc-500 mb-1">Botões (opcional)</label>
+              <p className="text-xs text-zinc-500 mb-2">Título obrigatório. Link opcional — se preenchido, o botão abre o link; senão, é botão de resposta.</p>
+              {botoes.map((b, i) => (
+                <div key={i} className="flex gap-2 mb-2 items-start">
+                  <input
+                    type="text"
+                    value={b.titulo}
+                    onChange={(e) => {
+                      const next = [...botoes]
+                      next[i] = { ...next[i], titulo: e.target.value }
+                      setBotoes(next)
+                    }}
+                    onBlur={handleSave}
+                    className="flex-1 min-w-0 rounded-lg bg-black/30 border border-white/10 text-white px-3 py-2 text-sm"
+                    placeholder="Título do botão"
+                  />
+                  <input
+                    type="text"
+                    value={b.link}
+                    onChange={(e) => {
+                      const next = [...botoes]
+                      next[i] = { ...next[i], link: e.target.value }
+                      setBotoes(next)
+                    }}
+                    onBlur={handleSave}
+                    className="flex-1 min-w-0 rounded-lg bg-black/30 border border-white/10 text-white px-3 py-2 text-sm font-mono"
+                    placeholder="Link (opcional)"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBotoes((prev) => prev.filter((_, j) => j !== i))
+                      setTimeout(handleSave, 0)
+                    }}
+                    className="shrink-0 rounded-lg bg-red-500/20 text-red-400 px-2 py-2 text-sm hover:bg-red-500/30"
+                    title="Remover botão"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {botoes.length < 3 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBotoes((prev) => [...prev, { titulo: '', link: '' }])
+                  }}
+                  className="text-sm text-emerald-400 hover:text-emerald-300"
+                >
+                  + Adicionar botão
+                </button>
+              )}
+              <p className="text-xs text-zinc-500 mt-1">Máx. 3 botões. Com link = abre URL; sem link = ao clicar envia o título como mensagem.</p>
+            </div>
+            <div>
               <label className="block text-xs text-zinc-500 mb-1">Comandos ao enviar (opcional)</label>
               <textarea
                 value={comandosAoEnviar}
@@ -234,6 +301,9 @@ export function ConfigPanel({
 
         {nodeType === 'menu' && (
           <>
+            <p className="text-xs text-zinc-400 mb-2 rounded bg-white/5 px-2 py-1.5">
+              <strong>Como editar o menu:</strong> preencha o texto acima das opções e liste cada opção em uma linha. Conecte as saídas do nó na ordem (1ª conexão = 1ª opção). No WhatsApp saem como botões na mesma bolha.
+            </p>
             <div>
               <label className="block text-xs text-zinc-500 mb-1">Texto antes das opções</label>
               <textarea
@@ -241,20 +311,21 @@ export function ConfigPanel({
                 onChange={(e) => setMenuIntro(e.target.value)}
                 onBlur={handleSave}
                 className="w-full min-h-[60px] rounded-lg bg-black/30 border border-white/10 text-white px-3 py-2 text-sm resize-y"
-                placeholder="Escolha uma opção:"
+                placeholder="Olá! Sempre que precisar, envie MENU. Escolha uma opção:"
               />
+              <p className="text-xs text-zinc-500 mt-1">Use {'{nome}'} para o nome do lead. Se vazio, aparece texto padrão explicando que pode enviar MENU.</p>
             </div>
             <div>
-              <label className="block text-xs text-zinc-500 mb-1">Opções (uma por linha — conecte cada saída na ordem)</label>
+              <label className="block text-xs text-zinc-500 mb-1">Botões / opções (uma por linha)</label>
               <textarea
                 value={menuOpcoes}
                 onChange={(e) => setMenuOpcoes(e.target.value)}
                 onBlur={handleSave}
                 className="w-full min-h-[140px] rounded-lg bg-black/30 border border-white/10 text-white px-3 py-2 text-sm resize-y font-mono"
-                placeholder={'1 Falar com humano\n2 Como funciona\n3 Assinatura R$9,90'}
+                placeholder={'Falar com humano\nComo funciona\nAssinatura R$9,90\nFunções premium\nIndique e ganhe\nTotal / saldo'}
               />
-              <p className="text-xs text-zinc-500 mt-1">A 1ª conexão = opção 1, 2ª = opção 2, etc.</p>
-              <p className="text-xs text-emerald-400/90 mt-2">No WhatsApp tudo vai em <strong>uma única mensagem</strong>: texto + botão &quot;Ver opções&quot; que abre a lista para o lead escolher.</p>
+              <p className="text-xs text-zinc-500 mt-1">A 1ª conexão saindo do nó = 1ª opção, 2ª = 2ª opção, etc. (até 6).</p>
+              <p className="text-xs text-emerald-400/90 mt-2">No WhatsApp: uma bolha com seu texto + até 3 botões; se tiver mais opções, segunda bolha com mais 3 botões.</p>
             </div>
           </>
         )}
