@@ -96,9 +96,10 @@ export async function sendWhatsAppMessageWithResult(
 }
 
 /**
- * Envia mensagem com botões (título + link opcional) para um contato.
- * Até 3 botões. Com link = botão URL; sem link = botão de resposta (REPLY).
- * Z-API envia REPLY em mensagem separada se houver URL na mesma solicitação.
+ * Envia mensagem com botões em duas etapas para maior compatibilidade com Z-API/WhatsApp:
+ * 1) Envia o texto completo como mensagem normal.
+ * 2) Envia uma segunda mensagem curta com os botões (REPLY ou URL).
+ * Assim o usuário sempre vê o texto e, em seguida, uma bolha com botões.
  */
 export async function sendWhatsAppMessageWithButtons(
   contactId: string,
@@ -117,27 +118,51 @@ export async function sendWhatsAppMessageWithButtons(
   const phone =
     (contact as { jid?: string | null }).jid?.trim()?.replace('@s.whatsapp.net', '') ||
     (contact as { telefone: string }).telefone
+
+  // Etapa 1: enviar o texto completo (sempre funciona)
+  const textResult = await sendViaZApi(phone, message)
+  if (!textResult.success) return textResult
+
   const urlBotoes = botoes.filter((b) => (b.link ?? '').trim().length > 0).slice(0, 3)
   const replyBotoes = botoes.filter((b) => !(b.link ?? '').trim()).slice(0, MAX_REPLY_BUTTONS_PER_MESSAGE)
+
+  // Etapa 2: enviar botões em mensagem separada (texto curto + botões)
+  const shortMessage = 'Escolha uma opção abaixo:'
   if (urlBotoes.length > 0) {
     const actions: ButtonActionZApi[] = urlBotoes.map((b) => ({
       type: 'URL',
       label: (b.titulo || 'Link').trim().slice(0, 20),
       url: (b.link ?? '').trim().startsWith('http') ? (b.link ?? '').trim() : `https://${(b.link ?? '').trim()}`,
     }))
-    const r = await sendButtonActionsViaZApi(phone, message, actions)
-    if (!r.success) return r
-    if (replyBotoes.length === 0) return r
-    return sendButtonActionsViaZApi(phone, 'Ou escolha:', replyBotoes.map((b) => ({ type: 'REPLY' as const, label: (b.titulo || '').trim().slice(0, 20) })))
+    const r = await sendButtonActionsViaZApi(phone, shortMessage, actions)
+    if (!r.success) {
+      console.warn('[whatsapp/sender] botões URL não enviados:', r.error)
+      return { success: true, messageId: textResult.messageId }
+    }
+    if (replyBotoes.length > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 600))
+      const r2 = await sendButtonActionsViaZApi(
+        phone,
+        'Ou escolha:',
+        replyBotoes.map((b) => ({ type: 'REPLY' as const, label: (b.titulo || '').trim().slice(0, 20) }))
+      )
+      if (!r2.success) console.warn('[whatsapp/sender] botões REPLY não enviados:', r2.error)
+    }
+    return { success: true, messageId: textResult.messageId }
   }
   if (replyBotoes.length > 0) {
-    return sendButtonActionsViaZApi(
+    await new Promise((resolve) => setTimeout(resolve, 600))
+    const r = await sendButtonActionsViaZApi(
       phone,
-      message,
+      shortMessage,
       replyBotoes.map((b) => ({ type: 'REPLY' as const, label: (b.titulo || '').trim().slice(0, 20) }))
     )
+    if (!r.success) {
+      console.warn('[whatsapp/sender] botões REPLY não enviados:', r.error)
+      return { success: true, messageId: textResult.messageId }
+    }
   }
-  return sendViaZApi(phone, message)
+  return { success: true, messageId: textResult.messageId }
 }
 
 /** @deprecated Use sendWhatsAppMessageWithResult para obter messageId e gravar no CRM. */
@@ -204,11 +229,13 @@ async function sendButtonActionsViaZApi(
   const url = `${ZAPI_BASE}/instances/${instanceId}/token/${token}/send-button-actions`
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (clientToken) headers['Client-Token'] = clientToken
-  const payload = buttonActions.map((a) => {
+  const payload = buttonActions.map((a, i) => {
+    const id = String(i + 1)
     if (a.type === 'REPLY') {
-      return { type: 'REPLY' as const, label: a.label.trim().slice(0, 20) }
+      return { id, type: 'REPLY' as const, label: a.label.trim().slice(0, 20) }
     }
     return {
+      id,
       type: 'URL' as const,
       label: a.label.trim().slice(0, 20),
       url: a.url.trim().startsWith('http') ? a.url.trim() : `https://${a.url.trim()}`,
