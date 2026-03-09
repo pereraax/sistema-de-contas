@@ -95,6 +95,51 @@ export async function sendWhatsAppMessageWithResult(
   return sendViaZApi(phone, message)
 }
 
+/**
+ * Envia mensagem com botões (título + link opcional) para um contato.
+ * Até 3 botões. Com link = botão URL; sem link = botão de resposta (REPLY).
+ * Z-API envia REPLY em mensagem separada se houver URL na mesma solicitação.
+ */
+export async function sendWhatsAppMessageWithButtons(
+  contactId: string,
+  message: string,
+  botoes: Array<{ titulo: string; link?: string }>
+): Promise<SendResult> {
+  const { createAdminClient } = await import('@/lib/supabase/server')
+  const supabase = createAdminClient()
+  if (!supabase) return { success: false, error: 'Supabase indisponível' }
+  const { data: contact } = await supabase
+    .from('crm_contacts')
+    .select('telefone, jid')
+    .eq('id', contactId)
+    .single()
+  if (!contact?.telefone) return { success: false, error: 'Contato sem telefone' }
+  const phone =
+    (contact as { jid?: string | null }).jid?.trim()?.replace('@s.whatsapp.net', '') ||
+    (contact as { telefone: string }).telefone
+  const urlBotoes = botoes.filter((b) => (b.link ?? '').trim().length > 0).slice(0, 3)
+  const replyBotoes = botoes.filter((b) => !(b.link ?? '').trim()).slice(0, MAX_REPLY_BUTTONS_PER_MESSAGE)
+  if (urlBotoes.length > 0) {
+    const actions: ButtonActionZApi[] = urlBotoes.map((b) => ({
+      type: 'URL',
+      label: (b.titulo || 'Link').trim().slice(0, 20),
+      url: (b.link ?? '').trim().startsWith('http') ? (b.link ?? '').trim() : `https://${(b.link ?? '').trim()}`,
+    }))
+    const r = await sendButtonActionsViaZApi(phone, message, actions)
+    if (!r.success) return r
+    if (replyBotoes.length === 0) return r
+    return sendButtonActionsViaZApi(phone, 'Ou escolha:', replyBotoes.map((b) => ({ type: 'REPLY' as const, label: (b.titulo || '').trim().slice(0, 20) })))
+  }
+  if (replyBotoes.length > 0) {
+    return sendButtonActionsViaZApi(
+      phone,
+      message,
+      replyBotoes.map((b) => ({ type: 'REPLY' as const, label: (b.titulo || '').trim().slice(0, 20) }))
+    )
+  }
+  return sendViaZApi(phone, message)
+}
+
 /** @deprecated Use sendWhatsAppMessageWithResult para obter messageId e gravar no CRM. */
 export async function sendWhatsAppMessage(contactId: string, message: string): Promise<boolean> {
   const result = await sendWhatsAppMessageWithResult(contactId, message)
@@ -142,10 +187,12 @@ async function sendButtonReplyViaZApi(
   return sendButtonsViaZApi(phone, message, [buttonLabel])
 }
 
-async function sendButtonsViaZApi(
+type ButtonActionZApi = { type: 'REPLY'; label: string } | { type: 'URL'; label: string; url: string }
+
+async function sendButtonActionsViaZApi(
   phone: string,
   message: string,
-  labels: string[]
+  buttonActions: ButtonActionZApi[]
 ): Promise<SendResult> {
   const instanceId = process.env.ZAPI_INSTANCE_ID ?? process.env.Z_API_INSTANCE_ID
   const token = process.env.ZAPI_TOKEN ?? process.env.Z_API_TOKEN
@@ -157,21 +204,22 @@ async function sendButtonsViaZApi(
   const url = `${ZAPI_BASE}/instances/${instanceId}/token/${token}/send-button-actions`
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (clientToken) headers['Client-Token'] = clientToken
-  const buttonActions = labels
-    .slice(0, MAX_REPLY_BUTTONS_PER_MESSAGE)
-    .map((label) => ({ type: 'REPLY' as const, label: label.trim().slice(0, 20) }))
-  if (buttonActions.length === 0) {
-    return { success: false, error: 'Nenhum botão' }
-  }
+  const payload = buttonActions.map((a) => {
+    if (a.type === 'REPLY') {
+      return { type: 'REPLY' as const, label: a.label.trim().slice(0, 20) }
+    }
+    return {
+      type: 'URL' as const,
+      label: a.label.trim().slice(0, 20),
+      url: a.url.trim().startsWith('http') ? a.url.trim() : `https://${a.url.trim()}`,
+    }
+  })
+  if (payload.length === 0) return { success: false, error: 'Nenhum botão' }
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        phone: num,
-        message,
-        buttonActions,
-      }),
+      body: JSON.stringify({ phone: num, message, buttonActions: payload }),
     })
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
     if (res.ok) {
@@ -181,10 +229,24 @@ async function sendButtonsViaZApi(
     }
     const errMsg =
       (data?.message as string) || (data?.error as string) || res.statusText || 'Erro Z-API'
+    console.warn('[whatsapp/sender] send-button-actions falhou:', errMsg, 'status:', res.status)
     return { success: false, error: String(errMsg) }
   } catch (e: unknown) {
-    return { success: false, error: (e as Error)?.message ?? 'Erro de rede' }
+    const err = (e as Error)?.message ?? 'Erro de rede'
+    console.warn('[whatsapp/sender] send-button-actions exceção:', err)
+    return { success: false, error: err }
   }
+}
+
+async function sendButtonsViaZApi(
+  phone: string,
+  message: string,
+  labels: string[]
+): Promise<SendResult> {
+  const buttonActions: ButtonActionZApi[] = labels
+    .slice(0, MAX_REPLY_BUTTONS_PER_MESSAGE)
+    .map((label) => ({ type: 'REPLY' as const, label: label.trim().slice(0, 20) }))
+  return sendButtonActionsViaZApi(phone, message, buttonActions)
 }
 
 /**

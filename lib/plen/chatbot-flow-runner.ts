@@ -233,7 +233,8 @@ async function sendMessageNodeAndReturnNext(
     const targets = getOutgoingTargets(flow, nodeId)
     return { sent: false, nextNodeId: targets[0] ?? null }
   }
-  const config = node.data?.config as Record<string, unknown> | undefined
+  const rawConfig = (node.data?.config ?? node.data) as Record<string, unknown> | undefined
+  const config = rawConfig && typeof rawConfig === 'object' ? rawConfig : undefined
   const texto = (config?.texto as string)?.trim() || ''
   if (!texto) {
     const targets = getOutgoingTargets(flow, nodeId)
@@ -248,7 +249,14 @@ async function sendMessageNodeAndReturnNext(
     : []
   if (botoes.length > 0) {
     const result = await sendWhatsAppMessageWithButtons(contactId, msg, botoes)
-    if (!result.success) await enqueuePlenMessage(contactId, msg)
+    if (!result.success) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[chatbot-flow-runner] envio com botões falhou, enviando só texto:', result.error)
+      } else {
+        console.warn('[chatbot-flow-runner] envio com botões falhou:', result.error)
+      }
+      await enqueuePlenMessage(contactId, msg)
+    }
   } else {
     await enqueuePlenMessage(contactId, msg)
   }

@@ -73,7 +73,7 @@ Café 12 ☕`,
         },
       },
     },
-    // 3. Condição: mensagem parece gasto? (contém espaço, ex.: "café 12") — sim -> registrar, não -> pedir de novo
+    // 3. Condição: mensagem parece gasto/receita? (tem valor = dígito) — sim -> registrar, não -> pedir de novo
     {
       id: 'plen-cond-gasto',
       type: 'flowNode',
@@ -82,9 +82,9 @@ Café 12 ☕`,
         label: 'É um gasto?',
         nodeType: 'condicao',
         config: {
-          condicaoCampo: 'mensagem_contem',
-          condicaoValor: ' ', // mensagem com espaço (ex.: "café 12") = provável gasto
-          preview: 'mensagem contém espaço (gasto)',
+          condicaoCampo: 'tem_valor',
+          condicaoValor: '',
+          preview: 'mensagem tem valor (gasto/receita)',
         },
       },
     },
@@ -116,7 +116,7 @@ Café 12 ☕`,
         },
       },
     },
-    // 6. Mensagem resultado teste
+    // 6. Mensagem resultado teste (sem pedir nome aqui)
     {
       id: 'plen-msg-resultado',
       type: 'flowNode',
@@ -127,20 +127,20 @@ Café 12 ☕`,
         config: {
           texto: `💙 Gasto registrado!
 
-📂 Categoria: Comida
-💰 Valor: R${'{valor}'}
+📂 Categoria: {categoria}
+💰 Valor: R\${valor}
 📅 Hoje
 
 ✨ Continue assim {nome}! ✨
 
-Agora vamos criar sua conta para salvar seus registros.
+Ta vendo como é rápido registrar? Posso registrar todos seus gastos e entradas…
 
-Qual é o seu nome?`,
-          preview: 'Gasto registrado! Qual é o seu nome?',
+Vamos criar sua conta? É bem rápido, prometo!`,
+          preview: 'Gasto registrado! Vamos criar sua conta?',
         },
       },
     },
-    // 7. Cadastro nome — mensagem pedindo nome
+    // 7. Cadastro nome — mensagem separada pedindo o nome
     {
       id: 'plen-msg-pede-nome',
       type: 'flowNode',
@@ -339,6 +339,7 @@ Ver saldo`,
         config: {
           texto: 'Em breve um atendente vai te responder. Enquanto isso, posso te ajudar com gastos e receitas! 💙',
           preview: 'Em breve um atendente...',
+          botoes: [{ titulo: 'Falar com suporte', link: '' }],
         },
       },
     },
