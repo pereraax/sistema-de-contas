@@ -73,6 +73,41 @@ function getOutgoingTargets(flow: ChatbotFlowRow, sourceId: string): string[] {
     .map((e) => e.target)
 }
 
+/** Aliases para opções de menu (ex.: botão "Total / saldo" vs nó "Ver saldo"). */
+const MENU_LABEL_ALIASES: [string, string][] = [
+  ['total / saldo', 'ver saldo'],
+  ['total/saldo', 'ver saldo'],
+  ['saldo', 'ver saldo'],
+]
+function menuLabelsMatch(msg: string, label: string): boolean {
+  const t = (msg || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  const l = (label || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  if (!t) return false
+  if (t === l || t.includes(l) || l.includes(t)) return true
+  if (t.includes('saldo') && l.includes('saldo')) return true
+  for (const [a, b] of MENU_LABEL_ALIASES) {
+    if ((t === a || t.includes(a)) && (l === b || l.includes(b))) return true
+    if ((t === b || t.includes(b)) && (l === a || l.includes(a))) return true
+  }
+  return false
+}
+
+/** Retorna o targetId da opção do menu que corresponde à mensagem (match pelo label do nó de destino; não depende da ordem das edges). */
+function getMenuTargetByMessage(flow: ChatbotFlowRow, menuNodeId: string, messageText: string): string | null {
+  const targets = getOutgoingTargets(flow, menuNodeId)
+  const t = (messageText || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  if (!t) return null
+  for (const targetId of targets) {
+    const node = getNodeById(flow, targetId)
+    const label = (node?.data?.label ?? (node?.data?.config as Record<string, unknown>)?.preview ?? '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
+    if (!label) continue
+    if (menuLabelsMatch(messageText.trim(), label)) return targetId
+    const labelSemNum = label.replace(/^\d+\s*/, '')
+    if (labelSemNum && menuLabelsMatch(messageText.trim(), labelSemNum)) return targetId
+  }
+  return null
+}
+
 /** Para Condição: 1ª saída = sim (sourceHandle "sim"), 2ª = nao. */
 function getConditionTargets(flow: ChatbotFlowRow, sourceId: string): { sim: string | null; nao: string | null } {
   const edges = getEdges(flow).filter((e) => e.source === sourceId)
@@ -317,7 +352,7 @@ function evaluateCondition(
   return false
 }
 
-/** Responde à mensagem como se fosse clique em opção do 1º menu do fluxo (fallback quando não há estado). */
+/** Responde à mensagem como se fosse clique em opção do 1º menu do fluxo (fallback quando não há estado). Match pelo label do nó de destino. */
 async function tryRespondAsMenuOption(
   flow: ChatbotFlowRow,
   contactId: string,
@@ -326,24 +361,16 @@ async function tryRespondAsMenuOption(
 ): Promise<boolean> {
   const menuNodeId = getFirstMenuNodeId(flow)
   if (!menuNodeId) return false
-  const menuNode = getNodeById(flow, menuNodeId)
-  const config = menuNode?.data?.config as Record<string, unknown> | undefined
-  const opcoesStr = (config?.menuOpcoes as string)?.trim() || ''
-  const linhas = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
-  const labels = linhas.map((l) => l.replace(/^\d+\s*/, '').trim().slice(0, MENU_BUTTON_LABEL_MAX)).filter(Boolean)
   const targets = getOutgoingTargets(flow, menuNodeId)
-  if (!labels.length || !targets.length) return false
-  const idx = matchMenuOption(messageText, labels)
+  if (!targets.length) return false
+  const targetId = getMenuTargetByMessage(flow, menuNodeId, messageText)
   if (process.env.NODE_ENV === 'development') {
     console.log('[plen/menu] tryRespondAsMenuOption', {
       messageText: messageText?.slice(0, 40),
-      labels: labels.slice(0, 6),
-      idx,
-      hasTarget: idx >= 0 && !!targets[idx],
+      targetId: targetId ?? null,
     })
   }
-  if (idx < 0 || !targets[idx]) return false
-  const targetId = targets[idx]
+  if (!targetId) return false
   const targetNode = getNodeById(flow, targetId)
   if (targetNode?.data?.nodeType === 'mensagem') {
     const cfg = targetNode.data?.config as Record<string, unknown> | undefined
@@ -1089,14 +1116,6 @@ export async function runChatbotFlow(
       (typeof (menuNode?.data?.config as Record<string, unknown>)?.menuOpcoes === 'string' &&
         ((menuNode?.data?.config as Record<string, unknown>).menuOpcoes as string).trim().length > 0)
     if (isMenuNode) {
-      let menuTargets = (ctx.menuTargets as string[]) || []
-      let menuOptions = (ctx.menuOptions as string[]) || []
-      if (!menuTargets.length || !menuOptions.length) {
-        menuTargets = getOutgoingTargets(flow, state.current_node_id)
-        const opcoesStr = ((menuNode?.data?.config as Record<string, unknown>)?.menuOpcoes as string)?.trim() || ''
-        const linhas = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
-        menuOptions = linhas.map((l) => l.replace(/^\d+\s*/, '').trim().slice(0, MENU_BUTTON_LABEL_MAX))
-      }
       const texto = (messageText || '').trim().toLowerCase()
       if (texto === 'menu') {
         const { sent } = await sendMenuAsButtonsAndGetTargets(flow, state.current_node_id, contactId, nome)
@@ -1104,9 +1123,8 @@ export async function runChatbotFlow(
         if (sent) await processPlenQueue(3).catch(() => {})
         return { replied: sent, reason: sent ? undefined : 'menu_reenvio_falhou' }
       }
-      const idx = matchMenuOption(messageText, menuOptions)
-      if (idx >= 0 && menuTargets[idx]) {
-        const targetId = menuTargets[idx]
+      const targetId = getMenuTargetByMessage(flow, state.current_node_id, messageText)
+      if (targetId) {
         const targetNode = getNodeById(flow, targetId)
         if (targetNode?.data?.nodeType === 'mensagem') {
           const cfg = targetNode.data?.config as Record<string, unknown> | undefined
@@ -1159,11 +1177,13 @@ export async function runChatbotFlow(
         await setChatbotFlowState(contactId, flow.id, targetId)
         return { replied: false, reason: 'menu_opcao_nao_e_mensagem' }
       }
-      await enqueuePlenMessage(
-        contactId,
-        applyReplacements('Opção não reconhecida. Digite MENU para ver as opções.', { nome }),
-        new Date()
-      )
+      const ehSaudacao =
+        /^(oi|ol[aá]|ola|hey|bom\s*dia|boa\s*tarde|boa\s*noite)[\s!.]*$/i.test(texto) ||
+        texto === 'oi' || texto === 'olá' || texto === 'ola'
+      const msgNaoReconhecida = ehSaudacao
+        ? applyReplacements('Olá, {nome}! 💙 Escolha uma das opções acima ou digite MENU para ver o menu.', { nome })
+        : applyReplacements('Opção não reconhecida. Digite MENU para ver as opções.', { nome })
+      await enqueuePlenMessage(contactId, msgNaoReconhecida, new Date())
       const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
       await processPlenQueue(2).catch(() => {})
       return { replied: true, reason: 'menu_opcao_invalida' }
