@@ -1,4 +1,5 @@
 import { createClient, createAdminClient, createPublicClient } from '@/lib/supabase/server'
+import { findContactByEmail } from '@/lib/crm/contacts'
 import crypto from 'crypto'
 
 // Interface para admin
@@ -145,19 +146,35 @@ export async function obterTodosUsuarios() {
       }
       if (allProfiles.length >= 0) {
         let lastSignInMap = new Map<string, string | null>()
+        const authEmailMap = new Map<string, string>()
         try {
           const { data: authUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
           if (authUsers?.users && !authError) {
             (authUsers.users as any[]).forEach((user: any) => {
               lastSignInMap.set(user.id, user.last_sign_in_at || null)
+              if (user.email) authEmailMap.set(user.id, user.email)
             })
           }
         } catch (authErr) {
           console.warn('⚠️ [obterTodosUsuarios] Não foi possível buscar auth.users para last_sign_in_at:', authErr)
         }
-        const data = allProfiles.map((profile: any) => ({
-          ...profile,
-          last_sign_in_at: lastSignInMap.get(profile.id) || null
+        const data = await Promise.all(allProfiles.map(async (profile: any) => {
+          let row = { ...profile, last_sign_in_at: lastSignInMap.get(profile.id) || null }
+          const needsEnrich = (!row.email || !row.telefone) && authEmailMap.get(profile.id)
+          if (needsEnrich) {
+            const emailFromAuth = authEmailMap.get(profile.id)
+            const contact = emailFromAuth ? await findContactByEmail(emailFromAuth) : null
+            if (contact) {
+              row = {
+                ...row,
+                email: row.email || contact.email || emailFromAuth || null,
+                nome: row.nome || contact.nome || null,
+                telefone: row.telefone || contact.telefone || null,
+                whatsapp: row.whatsapp || contact.telefone || null,
+              }
+            }
+          }
+          return row
         }))
         console.log(`✅ [obterTodosUsuarios] Retornando ${data.length} usuários via cliente admin`)
         return { data, error: null }

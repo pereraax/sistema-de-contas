@@ -68,6 +68,22 @@ export async function getContactById(id: string): Promise<CrmContact | null> {
   return data as CrmContact
 }
 
+/** Busca contato por email (case-insensitive). Usado para enriquecer lista admin. */
+export async function findContactByEmail(email: string): Promise<CrmContact | null> {
+  const supabase = createAdminClient()
+  if (!supabase) return null
+  const norm = email.trim().toLowerCase()
+  if (!norm || !norm.includes('@')) return null
+  const { data, error } = await supabase
+    .from('crm_contacts')
+    .select('*')
+    .ilike('email', norm)
+    .limit(1)
+    .maybeSingle()
+  if (error || !data) return null
+  return data as CrmContact
+}
+
 /** Lista todos os contatos (id, nome, telefone). Para reparo de números. */
 export async function listContactsForRepair(): Promise<Pick<CrmContact, 'id' | 'nome' | 'telefone'>[]> {
   const supabase = createAdminClient()

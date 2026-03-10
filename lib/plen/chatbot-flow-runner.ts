@@ -10,7 +10,7 @@ import { getContactById, updateContact } from '@/lib/crm/contacts'
 import { enqueuePlenMessage } from '@/lib/plen/queue/message-queue'
 import { getAssistenteGlobalPausada } from '@/lib/assistente-global-pausada'
 import { getPlenLLMResponse } from '@/lib/plen-llm-fallback'
-import { createUserAndSendCode, resendCodeForPlen, verifyCodeForPlen } from '@/lib/plen/auth/email-verification'
+import { createUserAndSendCode, resendCodeForPlen, verifyCodeForPlen, upsertProfileFromPlenContact } from '@/lib/plen/auth/email-verification'
 import {
   sendWhatsAppButtonReply,
   sendWhatsAppMenuButtons,
@@ -370,9 +370,17 @@ async function tryRespondAsMenuOption(
     if (afterDelayId) {
       const afterNode = getNodeById(flow, afterDelayId)
       if (afterNode?.data?.nodeType === 'mensagem') {
-        const cfg = afterNode.data?.config as Record<string, unknown> | undefined
+        const rawCfg = (afterNode.data?.config ?? afterNode.data) as Record<string, unknown> | undefined
+        const cfg = rawCfg && typeof rawCfg === 'object' ? rawCfg : undefined
         const texto = (cfg?.texto as string)?.trim() || ''
-        if (texto) await enqueuePlenMessage(contactId, applyReplacements(texto, { nome }), new Date(Date.now() + delayMs))
+        if (texto) {
+          const msg = applyReplacements(texto, { nome })
+          let br = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
+          let botoes = Array.isArray(br) ? br.filter((b) => (b?.titulo ?? '').trim().length > 0).map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined })) : []
+          const label = String(afterNode?.data?.label ?? '')
+          if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Falar com suporte', link: undefined }]
+          await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs), botoes.length > 0 ? botoes : undefined)
+        }
       }
       await setChatbotFlowState(contactId, flow.id, getOutgoingTargets(flow, afterDelayId)[0] ?? afterDelayId)
     } else {
@@ -495,11 +503,16 @@ async function advanceFromNode(
       if (afterDelayId) {
         const afterNode = getNodeById(flow, afterDelayId)
         if (afterNode?.data?.nodeType === 'mensagem') {
-          const cfg = afterNode.data?.config as Record<string, unknown> | undefined
+          const rawCfg = (afterNode.data?.config ?? afterNode.data) as Record<string, unknown> | undefined
+          const cfg = rawCfg && typeof rawCfg === 'object' ? rawCfg : undefined
           const texto = (cfg?.texto as string)?.trim() || ''
           if (texto) {
             const msg = applyReplacements(texto, { nome: effectiveNome })
-            await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs))
+            let br = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
+            let botoes = Array.isArray(br) ? br.filter((b) => (b?.titulo ?? '').trim().length > 0).map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined })) : []
+            const label = String(afterNode?.data?.label ?? '')
+            if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Falar com suporte', link: undefined }]
+            await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs), botoes.length > 0 ? botoes : undefined)
           }
           const afterTargets = getOutgoingTargets(flow, afterDelayId)
           return { replied: false, nextNodeId: afterTargets[0] ?? afterDelayId }
@@ -702,7 +715,7 @@ async function advanceFromNode(
     return { replied: !!reply, nextNodeId: nextAfterIa ?? null }
   }
 
-  // Nó atual é Delay: agendar a próxima mensagem com o delay configurado e avançar
+  // Nó atual é Delay: agendar a próxima mensagem (com botões se houver) e avançar
   if (nodeType === 'delay') {
     const dconfig = node.data?.config as Record<string, unknown> | undefined
     const min = Number(dconfig?.delayMin ?? 0) * 1000
@@ -712,11 +725,22 @@ async function advanceFromNode(
     if (afterDelayId) {
       const afterNode = getNodeById(flow, afterDelayId)
       if (afterNode?.data?.nodeType === 'mensagem') {
-        const cfg = afterNode.data?.config as Record<string, unknown> | undefined
+        const rawConfig = (afterNode.data?.config ?? afterNode.data) as Record<string, unknown> | undefined
+        const cfg = rawConfig && typeof rawConfig === 'object' ? rawConfig : undefined
         const texto = (cfg?.texto as string)?.trim() || ''
         if (texto) {
           const msg = applyReplacements(texto, { nome: effectiveNome })
-          await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs))
+          let botoesRaw = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
+          let botoes = Array.isArray(botoesRaw)
+            ? botoesRaw
+                .filter((b) => (b?.titulo ?? '').trim().length > 0)
+                .map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined }))
+            : []
+          const label = String(afterNode?.data?.label ?? '')
+          if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) {
+            botoes = [{ titulo: 'Falar com suporte', link: undefined }]
+          }
+          await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs), botoes.length > 0 ? botoes : undefined)
         }
         const afterTargets = getOutgoingTargets(flow, afterDelayId)
         return { replied: false, nextNodeId: afterTargets[0] ?? afterDelayId }
@@ -842,6 +866,13 @@ export async function runChatbotFlow(
       const result = await verifyCodeForPlen(apenasDigitos, contactEmail)
       if (result.success) {
         await updateContact(contactId, { status: 'usuario_ativo', usuario_cadastrado: true, data_cadastro: new Date().toISOString() })
+        if (result.user_id && contact) {
+          await upsertProfileFromPlenContact(result.user_id, {
+            email: contactEmail,
+            nome: contact.nome ?? null,
+            telefone: contact.telefone ?? '',
+          }).catch((err) => console.warn('[chatbot-flow] upsert profile após código:', (err as Error)?.message))
+        }
         const nodes = getNodes(flow)
         const contaConfirmadaNode = nodes.find(
           (n) =>
@@ -1009,9 +1040,17 @@ export async function runChatbotFlow(
       if (afterId) {
         const afterNode = getNodeById(flow, afterId)
         if (afterNode?.data?.nodeType === 'mensagem') {
-          const cfg = afterNode.data?.config as Record<string, unknown> | undefined
+          const rawCfg = (afterNode.data?.config ?? afterNode.data) as Record<string, unknown> | undefined
+          const cfg = rawCfg && typeof rawCfg === 'object' ? rawCfg : undefined
           const texto = (cfg?.texto as string)?.trim() || ''
-          if (texto) await enqueuePlenMessage(contactId, applyReplacements(texto, { nome }), new Date(Date.now() + delayMs))
+          if (texto) {
+            const msg = applyReplacements(texto, { nome })
+            let br = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
+            let botoes = Array.isArray(br) ? br.filter((b) => (b?.titulo ?? '').trim().length > 0).map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined })) : []
+            const label = String(afterNode?.data?.label ?? '')
+            if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Falar com suporte', link: undefined }]
+            await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs), botoes.length > 0 ? botoes : undefined)
+          }
         }
         await setChatbotFlowState(contactId, flow.id, afterId)
       } else {
@@ -1096,11 +1135,16 @@ export async function runChatbotFlow(
           if (afterDelayId) {
             const afterNode = getNodeById(flow, afterDelayId)
             if (afterNode?.data?.nodeType === 'mensagem') {
-              const cfg = afterNode.data?.config as Record<string, unknown> | undefined
+              const rawCfg = (afterNode.data?.config ?? afterNode.data) as Record<string, unknown> | undefined
+              const cfg = rawCfg && typeof rawCfg === 'object' ? rawCfg : undefined
               const texto = (cfg?.texto as string)?.trim() || ''
               if (texto) {
                 const msg = applyReplacements(texto, { nome })
-                await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs))
+                let br = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
+                let botoes = Array.isArray(br) ? br.filter((b) => (b?.titulo ?? '').trim().length > 0).map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined })) : []
+                const label = String(afterNode?.data?.label ?? '')
+                if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Falar com suporte', link: undefined }]
+                await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs), botoes.length > 0 ? botoes : undefined)
               }
               const afterTargets = getOutgoingTargets(flow, afterDelayId)
               await setChatbotFlowState(contactId, flow.id, afterTargets[0] ?? afterDelayId)

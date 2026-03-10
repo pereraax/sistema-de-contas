@@ -70,6 +70,20 @@ export async function createUserAndSendCode(
   if (isSmtpConfigured()) {
     const admin = createAdminClient()
     if (admin) {
+      const now = new Date().toISOString()
+      const { data: existingOtp } = await admin
+        .from('plen_email_otp')
+        .select('expires_at')
+        .eq('email', emailNorm)
+        .gt('expires_at', now)
+        .maybeSingle()
+      if (existingOtp) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[plen/email] Já existe código válido para', emailNorm, '— não envia outro email.')
+        }
+        return { success: true }
+      }
+
       const { data: userData, error: createError } = await admin.auth.admin.createUser({
         email: emailNorm,
         password,
@@ -79,6 +93,15 @@ export async function createUserAndSendCode(
       if (createError) {
         const msg = createError.message.toLowerCase()
         if (msg.includes('already') || msg.includes('registered') || msg.includes('duplicate') || msg.includes('já está')) {
+          const { data: existingOtpRow } = await admin
+            .from('plen_email_otp')
+            .select('expires_at')
+            .eq('email', emailNorm)
+            .gt('expires_at', new Date().toISOString())
+            .maybeSingle()
+          if (existingOtpRow) {
+            return { success: true }
+          }
           return { success: false, error: 'Este email já está cadastrado. Faça login ou use outro email.' }
         }
         return { success: false, error: createError.message }
@@ -141,11 +164,12 @@ export async function createUserAndSendCode(
 /**
  * Verifica código OTP (6 dígitos) para o email.
  * Primeiro tenta o código enviado pelo app (plen_email_otp); depois Supabase verifyOtp.
+ * Em caso de sucesso, retorna user_id para permitir upsert do profile (email, nome, telefone) no painel admin.
  */
 export async function verifyCodeForPlen(
   code: string,
   email: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; user_id?: string }> {
   const cleaned = code.replace(/\D/g, '').trim().slice(0, 6)
   if (cleaned.length !== 6) {
     return { success: false, error: 'Código deve ter 6 dígitos.' }
@@ -165,7 +189,7 @@ export async function verifyCodeForPlen(
       const { error: updateError } = await admin.auth.admin.updateUserById(row.user_id, { email_confirm: true })
       if (updateError) return { success: false, error: updateError.message }
       await admin.from('plen_email_otp').delete().eq('email', emailNorm)
-      return { success: true }
+      return { success: true, user_id: row.user_id }
     }
   }
 
@@ -177,9 +201,39 @@ export async function verifyCodeForPlen(
       token: cleaned,
       type,
     })
-    if (!error && data?.user) return { success: true }
+    if (!error && data?.user) return { success: true, user_id: data.user.id }
   }
   return { success: false, error: 'Código inválido ou expirado. Verifique e tente novamente.' }
+}
+
+/**
+ * Atualiza o profile do usuário (auth) com email, nome e telefone do contato CRM.
+ * Assim o painel admin mostra email e contato para quem se cadastrou via WhatsApp.
+ */
+export async function upsertProfileFromPlenContact(
+  userId: string,
+  data: { email: string; nome: string | null; telefone: string }
+): Promise<{ error?: string }> {
+  const admin = createAdminClient()
+  if (!admin) return { error: 'Admin client indisponível' }
+  const email = data.email.trim().toLowerCase()
+  const nome = (data.nome ?? '').trim() || null
+  const telefone = (data.telefone ?? '').replace(/\D/g, '').trim() || null
+  const { error } = await admin
+    .from('profiles')
+    .upsert(
+      {
+        id: userId,
+        email: email || null,
+        nome: nome || null,
+        telefone: telefone || null,
+        whatsapp: telefone || null,
+        plano: 'teste',
+      },
+      { onConflict: 'id' }
+    )
+  if (error) return { error: error.message }
+  return {}
 }
 
 /**
