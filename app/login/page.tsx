@@ -38,6 +38,7 @@ function LoginContent() {
   const sectionRef = useRef<HTMLDivElement>(null)
   const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | null>(null)
   const [oauthError, setOauthError] = useState<string | null>(null)
+  /** email = só email + Continuar; password = email + senha (já criou senha); first_access = aviso + botão Criar senha */
   type LoginStep = 'email' | 'password' | 'first_access'
   const [loginStep, setLoginStep] = useState<LoginStep>('email')
   const [mostrarFormCriarSenha, setMostrarFormCriarSenha] = useState(false)
@@ -284,7 +285,25 @@ function LoginContent() {
       return
     }
 
+    // Se a senha está vazia, pode ser primeiro acesso (usuário ainda não criou senha) — verificar antes de pedir senha
     if (!formData.senha.trim()) {
+      try {
+        const res = await fetch('/api/auth/check-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: formData.email.trim() }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (data.precisaDefinirSenha) {
+          setLoginStep('first_access')
+          setErrorMessage(null)
+          createNotification('Este é seu primeiro acesso. Crie uma senha para entrar.', 'info')
+          setLoading(false)
+          return
+        }
+      } catch {
+        // ignore
+      }
       const msg = 'Informe sua senha'
       setErrorMessage(msg)
       createNotification(msg, 'warning')
@@ -710,7 +729,7 @@ function LoginContent() {
               ) : (
                 <>
                   <p className="text-sm text-gray-700 dark:text-gray-300">
-                    Este é o primeiro acesso. Crie uma nova senha antes de acessar.
+                    Este é seu primeiro acesso. Vamos criar sua nova senha para você acessar a plataforma.
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     E-mail: <strong>{formData.email}</strong>
@@ -758,6 +777,11 @@ function LoginContent() {
                 placeholder="seu@email.com"
                 style={{ fontSize: '16px' }}
               />
+              {loginStep === 'email' && (
+                <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  Informe seu e-mail e clique em Continuar. A senha só será pedida se você já tiver criado uma.
+                </p>
+              )}
             </div>
 
             {loginStep === 'password' && (

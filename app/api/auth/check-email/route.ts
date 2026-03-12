@@ -35,18 +35,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ precisaDefinirSenha: false })
     }
 
+    // Conta criada pelo fluxo WhatsApp/Plen: primeiro acesso = definir senha (mesmo que a flag no profile não exista)
+    const metadata = (user as { user_metadata?: Record<string, unknown> }).user_metadata
+    if (metadata?.origem === 'whatsapp_plen') {
+      return NextResponse.json({ precisaDefinirSenha: true })
+    }
+
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('precisa_definir_senha')
       .eq('id', user.id)
       .maybeSingle()
 
+    // Se não existe perfil ou deu erro, tratar como primeiro acesso (ex.: conta criada pelo WhatsApp e upsert do profile falhou).
+    if (error || !profile) {
+      return NextResponse.json({ precisaDefinirSenha: true })
+    }
+
     const flagSenha = (profile as { precisa_definir_senha?: boolean } | null)?.precisa_definir_senha === true
     if (flagSenha) {
       return NextResponse.json({ precisaDefinirSenha: true })
     }
 
-    // Fallback: conta criada pelo WhatsApp pode não ter a flag no profile (perfil não existia na hora do update ou conta antiga). Se tem whatsapp_sessions, tratar como primeiro acesso.
+    // Fallback: conta criada pelo WhatsApp pode não ter a flag no profile (perfil antigo). Se tem whatsapp_sessions, tratar como primeiro acesso.
     const { data: ws } = await supabase
       .from('whatsapp_sessions')
       .select('user_id')
