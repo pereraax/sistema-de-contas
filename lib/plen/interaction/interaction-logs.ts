@@ -26,15 +26,23 @@ export async function logPlenInteraction(input: PlenInteractionLogInsert): Promi
   })
 }
 
-/** Conta quantos registros de gasto/receita o contato já fez (teste + USER_ACTIVE). Usado para limite do plano gratuito (10). */
-export async function getPlenRegistroCount(contactId: string): Promise<number> {
+/**
+ * Conta quantos registros de gasto/receita o contato já fez para o limite do plano gratuito (10).
+ * Se sinceDate (ex.: data_cadastro do contato) for informada, só conta logs a partir dessa data,
+ * para que contas novas tenham 0 e possam usar os 10 registros; evita contar testes/uso anterior ao cadastro.
+ */
+export async function getPlenRegistroCount(contactId: string, sinceDate?: string | null): Promise<number> {
   const supabase = createAdminClient()
   if (!supabase) return 0
-  const { count, error } = await supabase
+  let query = supabase
     .from('plen_interaction_logs')
     .select('*', { count: 'exact', head: true })
     .eq('contact_id', contactId)
     .in('acao_executada', ['test_expense_ok', 'registro_gasto_ativo'])
+  if (sinceDate && sinceDate.trim()) {
+    query = query.gte('timestamp', sinceDate.trim())
+  }
+  const { count, error } = await query
   if (error || count == null) return 0
   return count
 }

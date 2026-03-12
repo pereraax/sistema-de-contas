@@ -60,6 +60,11 @@ const GoogleIndexPing = dynamicImport(() => import('@/components/GoogleIndexPing
   loading: () => null,
 })
 
+const PresencePing = dynamicImport(() => import('@/components/PresencePing'), {
+  ssr: false,
+  loading: () => null,
+})
+
 // Forçar renderização dinâmica no layout para evitar prerendering
 // Isso ajuda a evitar erros de Context durante o build
 export const dynamic = 'force-dynamic'
@@ -216,6 +221,7 @@ export default async function RootLayout({
           <MenuProvider>
             {/* Componentes não críticos - carregar após interação */}
             <VisitorTrackingWrapper />
+            <PresencePing />
             <GoogleIndexPing />
             {/* Conteúdo principal - no app usa container clean (app-shell); no site igual a sempre */}
             <AppLayoutWrapper>

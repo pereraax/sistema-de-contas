@@ -20,14 +20,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Serviço indisponível' }, { status: 503 })
     }
 
-    // 1) Status por sessão WhatsApp (qualquer sessão com esse user_id e plen_activated)
-    const { data: session } = await supabase
+    // 1) Status por sessão WhatsApp (qualquer sessão com esse user_id e plen_activated = true)
+    const { data: sessions } = await supabase
       .from('whatsapp_sessions')
       .select('plen_activated')
       .eq('user_id', userId)
-      .maybeSingle()
 
-    if (session?.plen_activated === true) {
+    const algumaAtiva = Array.isArray(sessions) && sessions.some((s: { plen_activated?: boolean }) => s?.plen_activated === true)
+    if (algumaAtiva) {
       const { data: profilePause } = await supabase
         .from('profiles')
         .select('assistente_pausada')

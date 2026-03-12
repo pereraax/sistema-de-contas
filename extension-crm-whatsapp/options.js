@@ -3,9 +3,6 @@ const STORAGE_KEYS = {
   apiKey: 'plenipay_crm_api_key',
   messages: 'plenipay_crm_messages',
   funnels: 'plenipay_crm_funnels',
-  zapiInstanceId: 'plenipay_zapi_instance',
-  zapiToken: 'plenipay_zapi_token',
-  zapiClientToken: 'plenipay_zapi_client_token',
 };
 
 // ——— Tabs ———
@@ -21,12 +18,9 @@ document.querySelectorAll('.tab').forEach((tab) => {
 });
 
 // ——— API ———
-chrome.storage.sync.get([STORAGE_KEYS.baseUrl, STORAGE_KEYS.apiKey, STORAGE_KEYS.zapiInstanceId, STORAGE_KEYS.zapiToken, STORAGE_KEYS.zapiClientToken], (r) => {
+chrome.storage.sync.get([STORAGE_KEYS.baseUrl, STORAGE_KEYS.apiKey], (r) => {
   document.getElementById('baseUrl').value = r[STORAGE_KEYS.baseUrl] || 'https://plenipay.com';
   document.getElementById('apiKey').value = r[STORAGE_KEYS.apiKey] || '';
-  document.getElementById('zapiInstanceId').value = r[STORAGE_KEYS.zapiInstanceId] || '';
-  document.getElementById('zapiToken').value = r[STORAGE_KEYS.zapiToken] || '';
-  document.getElementById('zapiClientToken').value = r[STORAGE_KEYS.zapiClientToken] || '';
 });
 
 document.getElementById('saveApi').addEventListener('click', () => {
@@ -34,27 +28,6 @@ document.getElementById('saveApi').addEventListener('click', () => {
   const apiKey = document.getElementById('apiKey').value.trim();
   chrome.storage.sync.set({ [STORAGE_KEYS.baseUrl]: baseUrl, [STORAGE_KEYS.apiKey]: apiKey }, () => {
     showFeedback('savedApi', 'Configuração salva.');
-  });
-});
-
-function parseZapiUrl(input) {
-  if (!input || typeof input !== 'string') return null;
-  const match = input.trim().match(/instances\/([^/]+)\/token\/([^/]+)/i);
-  if (match) return { instanceId: match[1], token: match[2] };
-  return null;
-}
-
-document.getElementById('saveZapi').addEventListener('click', () => {
-  let instanceId = document.getElementById('zapiInstanceId').value.trim();
-  let token = document.getElementById('zapiToken').value.trim();
-  const clientToken = document.getElementById('zapiClientToken').value.trim();
-  const parsed = parseZapiUrl(instanceId);
-  if (parsed) {
-    instanceId = parsed.instanceId;
-    if (!token) token = parsed.token;
-  }
-  chrome.storage.sync.set({ [STORAGE_KEYS.zapiInstanceId]: instanceId, [STORAGE_KEYS.zapiToken]: token, [STORAGE_KEYS.zapiClientToken]: clientToken }, () => {
-    showFeedback('savedZapi', 'Salvo. Envio direto ativado.');
   });
 });
 
@@ -71,9 +44,28 @@ let editingId = null;
 
 function loadMessages() {
   chrome.storage.sync.get([STORAGE_KEYS.messages], (r) => {
-    messages = Array.isArray(r[STORAGE_KEYS.messages]) ? r[STORAGE_KEYS.messages] : [];
-    renderMessageList();
-    updateFunnelSelect();
+    const raw = Array.isArray(r[STORAGE_KEYS.messages]) ? r[STORAGE_KEYS.messages] : [];
+    let hadMissingId = false;
+    messages = raw.map((m, i) => {
+      if (!m || typeof m !== 'object') {
+        hadMissingId = true;
+        return { id: 'msg' + Date.now() + '_' + i, label: '', text: '', buttons: [] };
+      }
+      if (!m.id) {
+        hadMissingId = true;
+        return { ...m, id: 'msg' + Date.now() + '_' + i };
+      }
+      return m;
+    });
+    if (hadMissingId) {
+      chrome.storage.sync.set({ [STORAGE_KEYS.messages]: messages }, () => {
+        renderMessageList();
+        updateFunnelSelect();
+      });
+    } else {
+      renderMessageList();
+      updateFunnelSelect();
+    }
   });
 }
 
@@ -120,16 +112,18 @@ function escapeHtml(s) {
 }
 
 function openMessageForm(msg = null) {
-  editingId = msg ? msg.id : null;
+  editingId = msg ? (msg.id || null) : null;
   document.getElementById('formTitle').textContent = msg ? 'Editar mensagem' : 'Nova mensagem';
-  document.getElementById('msgLabel').value = msg ? msg.label || '' : '';
-  document.getElementById('msgText').value = msg ? msg.text || '' : '';
+  document.getElementById('msgLabel').value = msg ? (msg.label || '') : '';
+  document.getElementById('msgText').value = msg ? (msg.text || '') : '';
   const container = document.getElementById('buttonsContainer');
   container.innerHTML = '';
   if (msg && Array.isArray(msg.buttons) && msg.buttons.length > 0) {
-    msg.buttons.forEach((b) => addButtonRow(b.title, b.url));
+    msg.buttons.forEach((b) => addButtonRow(b.title || '', b.url || ''));
   }
-  document.getElementById('formPanel').style.display = 'block';
+  const formPanel = document.getElementById('formPanel');
+  formPanel.style.display = 'block';
+  formPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function addButtonRow(title = '', url = '') {
@@ -184,7 +178,12 @@ document.getElementById('saveMsg').addEventListener('click', () => {
   const buttons = getButtonsFromForm();
   if (editingId) {
     const idx = messages.findIndex((m) => m.id === editingId);
-    if (idx >= 0) messages[idx] = { ...messages[idx], label, text, buttons };
+    if (idx >= 0) {
+      messages[idx] = { ...messages[idx], label, text, buttons };
+    } else {
+      // Mensagem não encontrada (ex.: lista desatualizada); salvar como nova
+      messages.push({ id: 'msg' + Date.now(), label, text, buttons });
+    }
   } else {
     messages.push({ id: 'msg' + Date.now(), label, text, buttons });
   }

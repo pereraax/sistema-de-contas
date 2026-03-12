@@ -45,10 +45,14 @@ export async function PATCH(
 
     const { id } = await params
     const body = await request.json()
-    const allowed = ['nome', 'email', 'status', 'observacoes', 'usuario_cadastrado']
+    const allowed = ['nome', 'email', 'status', 'observacoes', 'usuario_cadastrado', 'telefone']
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
     for (const key of allowed) {
       if (body[key] !== undefined) updates[key] = body[key]
+    }
+    if (typeof updates.telefone === 'string') {
+      updates.telefone = updates.telefone.replace(/\D/g, '').trim()
+      updates.jid = `${updates.telefone}@s.whatsapp.net`
     }
     if (Object.keys(updates).length <= 1) {
       return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 })

@@ -15,7 +15,6 @@
 
     <nav class="tabs" role="tablist">
       <button type="button" class="tab active" data-tab="api" aria-selected="true">API do site</button>
-      <button type="button" class="tab" data-tab="zapi">Z-API</button>
       <button type="button" class="tab" data-tab="mensagens">Mensagens</button>
       <button type="button" class="tab" data-tab="funis">Funis</button>
     </nav>
@@ -25,7 +24,7 @@
       <section id="panel-api" class="panel active" role="tabpanel">
         <div class="card">
           <h2>API do site (URL e token)</h2>
-          <p class="hint">Usada para enviar mensagens pelo servidor quando a Z-API não está configurada ou para mensagens com botão.</p>
+          <p class="hint">Usada para enviar mensagens pelo servidor (Evolution API no backend).</p>
           <label for="baseUrl">URL do site</label>
           <input type="url" id="baseUrl" placeholder="https://plenipay.com" />
           <label for="apiKey">Token (EXTENSION_CRM_API_KEY)</label>
@@ -33,22 +32,6 @@
           <p class="hint">Mesmo valor da variável EXTENSION_CRM_API_KEY no servidor.</p>
           <button type="button" id="saveApi" class="btn-primary">Salvar API</button>
           <p id="savedApi" class="feedback success" style="display:none;">Configuração salva.</p>
-        </div>
-      </section>
-
-      <!-- Painel Z-API -->
-      <section id="panel-zapi" class="panel" role="tabpanel">
-        <div class="card">
-          <h2>Z-API (envio direto)</h2>
-          <p class="hint">Para a mensagem aparecer no chat no mesmo instante: preencha abaixo. A extensão envia direto para a Z-API (sem passar pelo servidor).</p>
-          <label for="zapiInstanceId">Instance ID (ou URL completa)</label>
-          <input type="text" id="zapiInstanceId" placeholder="Ex: 3EEA62CB... ou https://api.z-api.io/instances/XXX/token/YYY" />
-          <label for="zapiToken">Token</label>
-          <input type="password" id="zapiToken" placeholder="Token da instância" />
-          <label for="zapiClientToken">Client Token (se pedir "client-token is not configured")</label>
-          <input type="password" id="zapiClientToken" placeholder="Opcional: painel Z-API → Segurança" />
-          <button type="button" id="saveZapi" class="btn-primary">Salvar Z-API</button>
-          <p id="savedZapi" class="feedback success" style="display:none;">Salvo. Envio direto ativado.</p>
         </div>
       </section>
 

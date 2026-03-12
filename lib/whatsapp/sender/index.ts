@@ -152,14 +152,25 @@ export async function sendWhatsAppMessageWithButtons(
   }
   if (replyBotoes.length > 0) {
     await new Promise((resolve) => setTimeout(resolve, 600))
-    const r = await sendButtonActionsViaZApi(
-      phone,
-      shortMessage,
-      replyBotoes.map((b) => ({ type: 'REPLY' as const, label: (b.titulo || '').trim().slice(0, 20) }))
-    )
+    const actions: ButtonActionZApi[] = replyBotoes.map((b) => ({
+      type: 'REPLY' as const,
+      label: (b.titulo || '').trim().slice(0, 20),
+    }))
+    const r = await sendButtonActionsViaZApi(phone, shortMessage, actions)
     if (!r.success) {
-      console.warn('[whatsapp/sender] botões REPLY não enviados:', r.error)
-      return { success: true, messageId: textResult.messageId }
+      console.warn('[whatsapp/sender] send-button-actions falhou, tentando lista de opções:', r.error)
+      const optionListResult = await sendOptionListViaZApi(
+        phone,
+        shortMessage,
+        replyBotoes.map((b, i) => ({
+          id: String(i + 1),
+          title: (b.titulo || '').trim().slice(0, 24),
+          description: (b.titulo || '').trim().slice(0, 72),
+        }))
+      )
+      if (!optionListResult.success) {
+        console.warn('[whatsapp/sender] lista de opções também falhou:', optionListResult.error)
+      }
     }
   }
   return { success: true, messageId: textResult.messageId }

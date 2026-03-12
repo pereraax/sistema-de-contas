@@ -52,6 +52,11 @@ APIFACIL_TOKEN=seu_token
 ZAPI_INSTANCE_ID=seu_instance_id
 ZAPI_TOKEN=seu_token
 ZAPI_CONNECTED_PHONE=5511999999999
+
+# Em localhost com túnel (ngrok/cloudflared): URL pública do túnel para o webhook funcionar.
+# O painel admin mostrará essa URL para você colar no provedor (Z-API/API Fácil).
+# Ex.: depois de rodar "ngrok http 3000", cole aqui a URL HTTPS que o ngrok mostrar.
+# WEBHOOK_PUBLIC_URL=https://abc123.ngrok-free.app
 ```
 
 Use os valores reais do seu painel (Supabase → Settings → API; API Fácil ou Z-API → configurações da instância).  
@@ -237,7 +242,7 @@ Quando estiver tudo certo em localhost:
 | 1 | No terminal: `npm run dev` (deixar rodando). |
 | 2 | Criar `.env.local` com Supabase + APIFACIL_* ou ZAPI_*. |
 | 3 | Em outro terminal: `ngrok http 3000` ou `cloudflared tunnel --url http://localhost:3000` e anotar a URL HTTPS. |
-| 4 | No painel do provedor: webhook = `https://SUA-URL-TUNEL/api/whatsapp/apifacil/webhook` ou `.../zapi/webhook`. |
+| 4 | No `.env.local`: `WEBHOOK_PUBLIC_URL=https://SUA-URL-TUNEL`. No painel do provedor: webhook = essa mesma base + `/api/whatsapp/apifacil/webhook` ou `.../zapi/webhook`. |
 | 5 | Enviar mensagem no WhatsApp para o número da instância e ver a resposta e os logs no terminal. |
 | 6 | Para produção: fazer deploy e trocar a URL do webhook para a URL do app em produção. |
 

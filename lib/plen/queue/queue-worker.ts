@@ -10,7 +10,7 @@ import {
   markQueueItemFailed,
   QUEUE_DELAY_SECONDS,
 } from './message-queue'
-import { sendWhatsAppMessageWithResult } from '@/lib/whatsapp/sender'
+import { sendWhatsAppMessageWithResult, sendWhatsAppMessageWithButtons } from '@/lib/whatsapp/sender'
 
 const DELAY_MS = QUEUE_DELAY_SECONDS * 1000
 
@@ -30,14 +30,31 @@ export async function processPlenQueue(maxMessages = 5): Promise<{ sent: number;
     const ok = await markQueueItemSending(item.id)
     if (!ok) continue
 
-    const result = await sendWhatsAppMessageWithResult(item.contact_id, item.mensagem)
+    let botoesRaw = item.botoes
+    if (typeof botoesRaw === 'string') {
+      try {
+        botoesRaw = JSON.parse(botoesRaw) as typeof item.botoes
+      } catch {
+        botoesRaw = null
+      }
+    }
+    const botoes = Array.isArray(botoesRaw)
+      ? (botoesRaw as Array<{ titulo?: string; link?: string }>).filter((b) => (b?.titulo ?? '').trim().length > 0)
+      : []
+    const result = botoes.length > 0
+      ? await sendWhatsAppMessageWithButtons(item.contact_id, item.mensagem, botoes)
+      : await sendWhatsAppMessageWithResult(item.contact_id, item.mensagem)
 
     if (result.success) {
       await markQueueItemSent(item.id)
       sent++
     } else {
-      await markQueueItemFailed(item.id, result.error ?? 'Erro desconhecido')
+      const errMsg = result.error ?? 'Erro desconhecido'
+      await markQueueItemFailed(item.id, errMsg)
       failed++
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[plen/queue-worker] envio falhou:', errMsg)
+      }
     }
 
     if (i < maxMessages - 1) {

@@ -1,6 +1,7 @@
 import { obterEstatisticasUsuarios } from '@/lib/admin-auth'
 import { Users, CreditCard, UserCheck, TrendingUp, Loader2, AlertCircle, DollarSign, Wallet } from 'lucide-react'
 import VisitorStats from '@/components/VisitorStats'
+import OnlineStatsLive from '@/components/admin/OnlineStatsLive'
 
 function formatBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -114,6 +115,9 @@ export default async function AdminDashboardPage() {
           )
         })}
       </div>
+
+      {/* Usuários ao vivo (online / logados / offline) — atualizado a cada 1s */}
+      <OnlineStatsLive />
 
       {/* Saldo de vendas / Dashboard de vendas */}
       <div className="mb-6 lg:mb-8">

@@ -211,6 +211,36 @@ export default function ChatbotBuilderPage() {
     showToast('Fluxo padrão carregado. Edite e salve para ativar.')
   }, [setNodes, setEdges, showToast])
 
+  const handleLoadOfficialFlow = useCallback(async () => {
+    if (!confirm('Criar/carregar o Fluxo oficial Plen no servidor e abrir no canvas? O fluxo ativo será substituído.')) return
+    setLoading(true)
+    try {
+      const seedRes = await fetch('/api/admin/plen/chatbot-flows/seed-official', { method: 'POST' })
+      const seedData = await seedRes.json()
+      if (!seedData?.ok) {
+        showToast(seedData?.error || 'Erro ao criar fluxo oficial.', 'error')
+        return
+      }
+      const loadRes = await fetch('/api/admin/plen/chatbot-flows?ativo=true')
+      const loadData = await loadRes.json()
+      const flow = loadData?.flow
+      if (flow?.estrutura_json?.nodes?.length) {
+        setFlowId(flow.id)
+        setFlowName(flow.nome || 'Fluxo oficial Plen')
+        setNodes(flow.estrutura_json.nodes)
+        setEdges(flow.estrutura_json.edges || [])
+        setSelectedNode(null)
+        showToast('Fluxo oficial Plen carregado. Todas as mensagens são editáveis.')
+      } else {
+        showToast('Fluxo criado, mas falha ao carregar nós.', 'error')
+      }
+    } catch {
+      showToast('Erro ao carregar fluxo oficial.', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [setNodes, setEdges, showToast])
+
   const handleLoadList = useCallback(() => {
     setLoading(true)
     fetch('/api/admin/plen/chatbot-flows')
@@ -272,6 +302,15 @@ export default function ChatbotBuilderPage() {
           </button>
           <button
             type="button"
+            onClick={handleLoadOfficialFlow}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 text-sm font-medium disabled:opacity-50"
+          >
+            <FileStack size={18} />
+            Fluxo oficial
+          </button>
+          <button
+            type="button"
             onClick={handleLoadList}
             disabled={loading}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/15 text-sm font-medium"
@@ -290,6 +329,13 @@ export default function ChatbotBuilderPage() {
           </button>
         </div>
       </header>
+
+      {flowId == null && (
+        <div className="shrink-0 bg-amber-500/20 border-b border-amber-400/40 px-6 py-2.5 flex items-center gap-2 text-amber-200 text-sm">
+          <span className="font-medium">Fluxo não salvo.</span>
+          <span>Clique em <strong>Salvar fluxo</strong> para ativar a assistente no WhatsApp. Enquanto não salvar, a Plen não responderá às mensagens.</span>
+        </div>
+      )}
 
       <div className="flex-1 flex min-h-0">
         <Sidebar onDragStart={() => {}} />

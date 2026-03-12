@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') as ContactStatus | null
-    const limit = Math.min(Number(searchParams.get('limit')) || 100, 500)
+    const limit = Math.min(Number(searchParams.get('limit')) || 500, 1000)
 
     const list = await getInboxList({
       ...(status && { status }),

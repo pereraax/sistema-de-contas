@@ -60,10 +60,17 @@ async function sendOtpEmail(email: string, code: string): Promise<{ success: boo
  * Cria usuário no Supabase Auth e envia código por email.
  * Se o app tiver SMTP configurado, o email é enviado pelo app (garantido). Caso contrário, usa Supabase (requer SMTP no Dashboard).
  */
+export type CreateUserAndSendCodeResult = {
+  success: boolean
+  error?: string
+  /** true quando o email já existe mas não estava confirmado; reenviamos o código e o fluxo deve pedir o código. */
+  alreadyRegisteredNotConfirmed?: boolean
+}
+
 export async function createUserAndSendCode(
   email: string,
   nome: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<CreateUserAndSendCodeResult> {
   const emailNorm = email.trim().toLowerCase()
   const password = randomPassword()
 
@@ -102,6 +109,29 @@ export async function createUserAndSendCode(
           if (existingOtpRow) {
             return { success: true }
           }
+          // Email já cadastrado: verificar se foi confirmado; se não, reenviar código e informar
+          const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 })
+          const existingUser = list?.users?.find((u) => (u.email ?? '').toLowerCase() === emailNorm)
+          if (existingUser && !existingUser.email_confirmed_at) {
+            const userId = existingUser.id
+            const code = generateOtpCode()
+            const expiresAt = otpExpiresAt().toISOString()
+            const { error: upsertErr } = await admin
+              .from('plen_email_otp')
+              .upsert({ email: emailNorm, code, user_id: userId, expires_at: expiresAt }, { onConflict: 'email' })
+            if (upsertErr) {
+              console.error('[plen/email] Erro ao salvar OTP (cadastrado não confirmado):', upsertErr.message)
+              return { success: false, error: 'Erro ao gerar código. Tente novamente.' }
+            }
+            const sendResult = await sendOtpEmail(emailNorm, code)
+            if (!sendResult.success) {
+              return { success: false, error: sendResult.error ?? 'Falha ao enviar email.' }
+            }
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[plen/email] Email já cadastrado mas não confirmado — código reenviado para', emailNorm)
+            }
+            return { success: true, alreadyRegisteredNotConfirmed: true }
+          }
           return { success: false, error: 'Este email já está cadastrado. Faça login ou use outro email.' }
         }
         return { success: false, error: createError.message }
@@ -117,6 +147,19 @@ export async function createUserAndSendCode(
       if (insertError) {
         console.error('[plen/email] Erro ao salvar OTP:', insertError.message)
         return { success: false, error: 'Erro ao gerar código. Tente novamente.' }
+      }
+
+      // Evitar enviar 2+ emails em requisições concorrentes: só envia se o código no DB ainda for o nosso
+      const { data: rowAposUpsert } = await admin
+        .from('plen_email_otp')
+        .select('code')
+        .eq('email', emailNorm)
+        .maybeSingle()
+      if (rowAposUpsert && String(rowAposUpsert.code).trim() !== String(code).trim()) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[plen/email] Outra requisição já enviou código para', emailNorm, '— não envia outro.')
+        }
+        return { success: true }
       }
 
       const sendResult = await sendOtpEmail(emailNorm, code)
@@ -229,6 +272,7 @@ export async function upsertProfileFromPlenContact(
         telefone: telefone || null,
         whatsapp: telefone || null,
         plano: 'teste',
+        precisa_definir_senha: true,
       },
       { onConflict: 'id' }
     )

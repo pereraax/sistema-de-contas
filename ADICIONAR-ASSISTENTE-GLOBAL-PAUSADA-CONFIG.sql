@@ -13,5 +13,6 @@ VALUES (
   'Se true, a assistente PLEN não responde para ninguém no WhatsApp. Controle pelo painel admin.'
 )
 ON CONFLICT (key) DO UPDATE SET
+  value = EXCLUDED.value,
   description = EXCLUDED.description,
   updated_at = NOW();

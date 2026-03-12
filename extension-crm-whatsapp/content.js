@@ -2,63 +2,71 @@
   'use strict';
 
   const SIDEBAR_ID = 'plenipay-crm-sidebar';
+  const ACTION_BAR_WIDTH = 52;
+  const SIDEBAR_WIDTH = 320 + ACTION_BAR_WIDTH;
   const STORAGE_KEYS = {
     baseUrl: 'plenipay_crm_base_url',
     apiKey: 'plenipay_crm_api_key',
     messages: 'plenipay_crm_messages',
     funnels: 'plenipay_crm_funnels',
-    zapiInstanceId: 'plenipay_zapi_instance',
-    zapiToken: 'plenipay_zapi_token',
-    zapiClientToken: 'plenipay_zapi_client_token',
+    contacts: 'plenipay_crm_contacts',
+    tags: 'plenipay_crm_tags',
   };
-  var cachedApi = { baseUrl: '', apiKey: '', at: 0 };
-  var cachedZapi = { instanceId: '', token: '', clientToken: '', at: 0 };
-  var CACHE_TTL = 60000;
+  const DEFAULT_TAGS = ['Cliente', 'Lead', 'Teste', 'Premium', 'Inativo'];
+  const TABS = [
+    { id: 'inbox', label: 'Inbox', icon: '📥' },
+    { id: 'leads', label: 'Contatos leads', icon: '📋' },
+    { id: 'contatos', label: 'Contatos', icon: '👥' },
+    { id: 'mensagens', label: 'Mensagens', icon: '⚡' },
+    { id: 'fluxos', label: 'Fluxos', icon: '🔄' },
+    { id: 'tags', label: 'Tags', icon: '🏷️' },
+    { id: 'config', label: 'Config', icon: '⚙️' },
+  ];
 
-  function getStored() {
+  var cachedApi = { baseUrl: '', apiKey: '', at: 0 };
+  var CACHE_TTL = 60000;
+  var lastPhone = null;
+  var inboxConversations = [];
+  var inboxListObserver = null;
+
+  function getStored(keys) {
+    const k = keys || [STORAGE_KEYS.baseUrl, STORAGE_KEYS.apiKey];
     return new Promise((resolve) => {
-      chrome.storage.sync.get([STORAGE_KEYS.baseUrl, STORAGE_KEYS.apiKey, STORAGE_KEYS.zapiInstanceId, STORAGE_KEYS.zapiToken, STORAGE_KEYS.zapiClientToken], (r) => {
-        resolve({
-          baseUrl: (r[STORAGE_KEYS.baseUrl] || 'https://plenipay.com').replace(/\/+$/, ''),
-          apiKey: r[STORAGE_KEYS.apiKey] || '',
-          zapiInstanceId: (r[STORAGE_KEYS.zapiInstanceId] || '').trim(),
-          zapiToken: (r[STORAGE_KEYS.zapiToken] || '').trim(),
-          zapiClientToken: (r[STORAGE_KEYS.zapiClientToken] || '').trim(),
-        });
-      });
+      chrome.storage.sync.get(k, (r) => resolve(r));
     });
   }
-  // Pré-carrega API/Z-API ao abrir a página para envio instantâneo no primeiro clique
-  getStored().then(function (r) {
-    cachedApi.baseUrl = r.baseUrl;
-    cachedApi.apiKey = r.apiKey;
-    cachedApi.at = r.baseUrl && r.apiKey ? Date.now() : 0;
-    if (r.zapiInstanceId && r.zapiToken) {
-      cachedZapi.instanceId = r.zapiInstanceId;
-      cachedZapi.token = r.zapiToken;
-      cachedZapi.clientToken = r.zapiClientToken || '';
-      cachedZapi.at = Date.now();
-    }
-  });
 
   function getStoredMessages() {
-    return new Promise((resolve) => {
-      chrome.storage.sync.get([STORAGE_KEYS.messages], (r) => {
-        const list = r[STORAGE_KEYS.messages];
-        resolve(Array.isArray(list) ? list : []);
-      });
-    });
+    return getStored([STORAGE_KEYS.messages]).then((r) =>
+      Array.isArray(r[STORAGE_KEYS.messages]) ? r[STORAGE_KEYS.messages] : []
+    );
   }
+
   function getStoredFunnels() {
-    return new Promise((resolve) => {
-      chrome.storage.sync.get([STORAGE_KEYS.funnels], (r) => {
-        const list = r[STORAGE_KEYS.funnels];
-        resolve(Array.isArray(list) ? list : []);
-      });
+    return getStored([STORAGE_KEYS.funnels]).then((r) =>
+      Array.isArray(r[STORAGE_KEYS.funnels]) ? r[STORAGE_KEYS.funnels] : []
+    );
+  }
+
+  function getStoredContacts() {
+    return getStored([STORAGE_KEYS.contacts]).then((r) =>
+      Array.isArray(r[STORAGE_KEYS.contacts]) ? r[STORAGE_KEYS.contacts] : []
+    );
+  }
+
+  function getStoredTags() {
+    return getStored([STORAGE_KEYS.tags]).then((r) => {
+      const t = r[STORAGE_KEYS.tags];
+      return Array.isArray(t) && t.length ? t : DEFAULT_TAGS.slice();
     });
   }
 
-  /** Extrai número BR de um texto (10-13 dígitos). */
+  function setStored(key, value) {
+    return new Promise((resolve) => {
+      chrome.storage.sync.set({ [key]: value }, resolve);
+    });
+  }
+
   function extractPhoneFromText(text) {
     if (!text || typeof text !== 'string') return null;
     const d = text.replace(/\D/g, '');
@@ -68,9 +76,15 @@
     return null;
   }
 
-  /** Tenta obter o número do chat atual no WhatsApp Web (DOM ou URL). */
+  function normalizePhone(p) {
+    const d = (p || '').replace(/\D/g, '');
+    if (d.length === 10 || d.length === 11) return '55' + d;
+    return d.startsWith('55') ? d : '55' + d;
+  }
+
   function getCurrentChatPhone() {
-    // 1) URL: ?phone= ou &ph=
+    const listRightEdge = Math.min(320, Math.floor(window.innerWidth * 0.28));
+
     const u = new URL(window.location.href);
     const fromUrl = u.searchParams.get('phone') || u.searchParams.get('ph');
     if (fromUrl) {
@@ -78,30 +92,11 @@
       if (digits.length >= 10) return digits.startsWith('55') ? digits : '55' + digits;
     }
 
-    const listRightEdge = Math.min(280, Math.floor(window.innerWidth * 0.26));
-    function isPlenSelfChat() {
-      var headers = document.querySelectorAll('header');
-      for (var i = 0; i < headers.length; i++) {
-        var h = headers[i];
-        if (h.getBoundingClientRect().left < listRightEdge) continue;
-        var t = (h.textContent || '').toLowerCase();
-        // Header com número = conversa com contato, não considerar como self
-        if (/\d{10,}/.test(t)) continue;
-        // Só tratar como chat "eu mesmo" se for o título exato (evita falso positivo em "assistente financeira")
-        if (t.indexOf('mensagens para mim') !== -1) return true;
-        if (t.indexOf('assistente plen') !== -1 && t.indexOf('(você)') !== -1) return true;
-      }
-      return false;
-    }
-    if (isPlenSelfChat()) return null;
-
-    // Lista de chats = só a faixa à esquerda (~320–380px); painel da conversa começa depois.
     function isInConversationPanel(el) {
       if (!el || !el.getBoundingClientRect) return false;
       return el.getBoundingClientRect().left >= listRightEdge;
     }
 
-    // 2) data-id / data-jid no painel da CONVERSA (direita), não na lista à esquerda
     const dataIdCandidates = document.querySelectorAll('[data-id][data-id*="55"]');
     for (let i = 0; i < dataIdCandidates.length; i++) {
       const el = dataIdCandidates[i];
@@ -109,11 +104,7 @@
       const raw = (el.getAttribute('data-id') || '').replace(/@.*$/, '').replace(/\D/g, '');
       if (raw.length >= 12 && raw.length <= 13 && raw.startsWith('55')) return raw;
     }
-    const byDataId = document.querySelector('[data-id][data-id*="55"]');
-    if (byDataId) {
-      const raw = (byDataId.getAttribute('data-id') || '').replace(/@.*$/, '').replace(/\D/g, '');
-      if (raw.length >= 12 && raw.length <= 13 && raw.startsWith('55')) return raw;
-    }
+
     const jidCandidates = document.querySelectorAll('[data-jid]');
     for (let j = 0; j < jidCandidates.length; j++) {
       const el = jidCandidates[j];
@@ -121,13 +112,7 @@
       const jid = (el.getAttribute('data-jid') || '').replace(/@.*$/, '').replace(/\D/g, '');
       if (jid.length >= 12 && jid.length <= 13) return jid.startsWith('55') ? jid : '55' + jid;
     }
-    const byJid = document.querySelector('[data-jid]');
-    if (byJid) {
-      const jid = (byJid.getAttribute('data-jid') || '').replace(/@.*$/, '').replace(/\D/g, '');
-      if (jid.length >= 12 && jid.length <= 13) return jid.startsWith('55') ? jid : '55' + jid;
-    }
 
-    // 3) Painel da conversa (centro): header com número — está à direita da lista, não no meio da tela
     const headers = document.querySelectorAll('header');
     for (let i = 0; i < headers.length; i++) {
       const h = headers[i];
@@ -135,21 +120,17 @@
       const fullText = (h.textContent || '').trim();
       const digits = extractPhoneFromText(fullText);
       if (digits) return digits;
-      const title = (h.getAttribute('title') || '').trim();
-      const fromTitle = extractPhoneFromText(title);
-      if (fromTitle) return fromTitle;
     }
 
-    // 4) Lista da esquerda: linha selecionada (aria-selected ou fundo destacado)
-    const listItems = document.querySelectorAll('[role="listitem"], [data-testid="cell-frame-container"], [role="gridcell"]');
+    const listItems = document.querySelectorAll('[role="listitem"], [data-testid="cell-frame-container"]');
     for (let i = 0; i < listItems.length; i++) {
       const el = listItems[i];
       const rect = el.getBoundingClientRect();
       if (rect.left > listRightEdge || rect.width < 50) continue;
-      const isAriaSelected = el.getAttribute('aria-selected') === 'true';
+      const isSelected = el.getAttribute('aria-selected') === 'true' || el.classList.contains('selected');
       const bg = window.getComputedStyle(el).backgroundColor;
       const looksSelected = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
-      if (!isAriaSelected && !looksSelected) continue;
+      if (!isSelected && !looksSelected) continue;
       const text = (el.textContent || el.getAttribute('title') || '').trim();
       const digits = extractPhoneFromText(text);
       if (digits) return digits;
@@ -158,59 +139,14 @@
         const m = (link.getAttribute('href') || '').match(/phone=(\d{10,13})/);
         if (m && m[1]) return m[1].startsWith('55') ? m[1] : '55' + m[1];
       }
-      const anyLink = el.querySelector('a[href]');
-      if (anyLink) {
-        const href = anyLink.getAttribute('href') || '';
-        const fromHref = href.replace(/\D/g, '');
-        if (fromHref.length >= 12 && fromHref.length <= 13 && fromHref.startsWith('55')) return fromHref;
-      }
     }
 
-    // 5) Qualquer span com title no painel da conversa (à direita da lista)
-    const allSpans = document.querySelectorAll('header span[title], [role="main"] span[title]');
-    for (let i = 0; i < Math.min(allSpans.length, 50); i++) {
-      const span = allSpans[i];
-      if (span.getBoundingClientRect().left < listRightEdge) continue;
-      const digits = extractPhoneFromText(span.getAttribute('title') || '');
-      if (digits) return digits;
-    }
-
-    // 5b) Painel da conversa: qualquer elemento com atributo contendo número (title, data-*, aria-*)
-    const rightPanel = document.querySelector('[role="main"]') || document.body;
-    const walker = document.createTreeWalker(rightPanel, NodeFilter.SHOW_ELEMENT, null, false);
-    let node;
-    let count = 0;
-    while ((node = walker.nextNode()) && count < 100) {
-      count++;
-      if (node.getBoundingClientRect && node.getBoundingClientRect().left < listRightEdge) continue;
-      const el = node;
-      const title = el.getAttribute('title');
-      if (title) {
-        const d = extractPhoneFromText(title);
-        if (d) return d;
-      }
-      for (let j = 0; j < el.attributes.length; j++) {
-        const a = el.attributes[j];
-        if (a.name.startsWith('data-') || a.name.startsWith('aria-')) {
-          const d = extractPhoneFromText(a.value);
-          if (d) return d;
-        }
-      }
-    }
-
-    // 6) data-testid do header da conversa
     const convHeader = document.querySelector('[data-testid="conversation-info-header-chat-title"]');
     if (convHeader) {
       const raw = (convHeader.getAttribute('title') || convHeader.textContent || '').replace(/\D/g, '');
       if (raw.length >= 10) return raw.startsWith('55') ? raw : '55' + raw;
     }
-    const convInfo = document.querySelector('[data-testid="conversation-info-header"]');
-    if (convInfo && convInfo.getBoundingClientRect().left >= listRightEdge) {
-      const raw = (convInfo.getAttribute('title') || convInfo.textContent || '').replace(/\D/g, '');
-      if (raw.length >= 10) return raw.startsWith('55') ? raw : '55' + raw;
-    }
 
-    // 7) Título da página
     const pageTitle = document.title || '';
     const titleMatch = pageTitle.match(/(\d{10,13})/);
     if (titleMatch && titleMatch[1]) {
@@ -218,33 +154,291 @@
       return n.startsWith('55') ? n : '55' + n;
     }
 
+    var main = document.querySelector('[role="main"]') || document.body;
+    var walker = document.createTreeWalker(main, NodeFilter.SHOW_ELEMENT, null, false);
+    var node;
+    var count = 0;
+    while ((node = walker.nextNode()) && count < 300) {
+      count++;
+      var el = node;
+      if (el.getBoundingClientRect && el.getBoundingClientRect().left < listRightEdge) continue;
+      var text = (el.textContent || '').trim();
+      if (text.length > 8 && text.length < 25) {
+        var digits = extractPhoneFromText(text);
+        if (digits) return digits;
+      }
+      var title = el.getAttribute('title');
+      if (title) {
+        var fromTitle = extractPhoneFromText(title);
+        if (fromTitle) return fromTitle;
+      }
+    }
     return null;
   }
 
   function formatPhone(p) {
-    const d = p.replace(/\D/g, '');
-    // Brasil: 55 + DDD 2 dígitos + 9 dígitos (celular) = 13
-    if (d.length === 13 && d.startsWith('55')) return '+' + d.slice(0, 2) + ' ' + d.slice(2, 4) + ' ' + d.slice(4, 9) + '-' + d.slice(9);
+    const d = (p || '').replace(/\D/g, '');
+    if (d.length === 13 && d.startsWith('55'))
+      return '+' + d.slice(0, 2) + ' ' + d.slice(2, 4) + ' ' + d.slice(4, 9) + '-' + d.slice(9);
     if (d.length === 12 && d.startsWith('55')) return '+' + d.slice(0, 2) + ' ' + d.slice(2, 4) + ' ' + d.slice(4);
-    return p;
+    return p || '—';
   }
 
-  function showStatus(el, type, text, html) {
-    if (!el) return;
-    el.classList.remove('crm-status-loading');
-    var spinner = el.querySelector('.crm-status-spinner');
-    if (spinner) spinner.style.display = 'none';
-    var textNode = el.querySelector('.crm-status-text');
-    if (textNode) textNode.textContent = text; else el.textContent = text;
-    el.className = 'crm-status ' + type;
-    if (html) {
-      el.innerHTML = html;
-      el.style.display = 'block';
-      var btn = el.querySelector('[data-open-options]');
-      if (btn) btn.addEventListener('click', function () { chrome.runtime.sendMessage({ action: 'openOptions' }).catch(function () { try { chrome.runtime.openOptionsPage(); } catch (_) {} }); });
-      return;
+  function escapeVCard(str) {
+    if (!str) return '';
+    return String(str).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+  }
+
+  function formatPhoneForVCard(phone) {
+    var tel = (phone || '').replace(/\D/g, '');
+    if (tel.length === 11) return '+55' + tel;
+    if (tel.length === 12 || tel.length === 13) return '+' + tel;
+    return phone;
+  }
+
+  function downloadContactVCard(name, phone) {
+    var tel = formatPhoneForVCard(phone);
+    var fn = escapeVCard(name);
+    var vcard = 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:' + fn + '\r\nN:' + fn + ';;;;\r\nTEL;TYPE=CELL:' + tel + '\r\nEND:VCARD\r\n';
+    var blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = (name || 'contato').replace(/[^\w\s-]/g, '').trim().slice(0, 30) + '.vcf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadAllContactsVCard(contacts) {
+    if (!contacts || !contacts.length) return;
+    var parts = [];
+    for (var i = 0; i < contacts.length; i++) {
+      var c = contacts[i];
+      var name = (c.name || formatPhone(c.phone) || 'Contato').trim();
+      var tel = formatPhoneForVCard(c.phone);
+      var fn = escapeVCard(name);
+      parts.push('BEGIN:VCARD\r\nVERSION:3.0\r\nFN:' + fn + '\r\nN:' + fn + ';;;;\r\nTEL;TYPE=CELL:' + tel + '\r\nEND:VCARD\r\n');
     }
-    el.style.display = 'block';
+    var vcard = parts.join('');
+    var blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'contatos-leads-plenipay.vcf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function clickWhatsAppAddContact() {
+    var listRightEdge = Math.min(380, Math.floor(window.innerWidth * 0.35));
+    var addTexts = ['adicionar aos contatos', 'adicionar contato', 'add to contacts', 'add contact', 'salvar contato', 'save contact'];
+    var byAria = document.querySelectorAll('[aria-label], [data-testid]');
+    for (var i = 0; i < byAria.length; i++) {
+      var el = byAria[i];
+      var rect = el.getBoundingClientRect();
+      if (rect.left < listRightEdge || rect.width < 20) continue;
+      var label = ((el.getAttribute('aria-label') || el.getAttribute('data-testid') || '') + ' ' + (el.textContent || '')).toLowerCase();
+      for (var j = 0; j < addTexts.length; j++) {
+        if (label.indexOf(addTexts[j]) !== -1) {
+          el.click();
+          return true;
+        }
+      }
+    }
+    var clickables = document.querySelectorAll('button, [role="button"], [role="menuitem"]');
+    for (i = 0; i < clickables.length; i++) {
+      el = clickables[i];
+      rect = el.getBoundingClientRect();
+      if (rect.left < listRightEdge || rect.width < 60) continue;
+      var text = (el.textContent || '').trim().toLowerCase();
+      if (text.length > 2 && text.length < 60) {
+        for (j = 0; j < addTexts.length; j++) {
+          if (text.indexOf(addTexts[j]) !== -1) {
+            el.click();
+            return true;
+          }
+        }
+        if (text === 'adicionar' || text === 'add') {
+          el.click();
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function getContactFromDOM() {
+    var phone = getCurrentChatPhone();
+    if (!phone && lastPhone) phone = lastPhone;
+    if (!phone) return null;
+    const listRightEdge = Math.min(380, Math.floor(window.innerWidth * 0.35));
+    let name = '';
+    let photo = '';
+
+    var header = document.querySelector('header');
+    if (header && header.getBoundingClientRect().left >= listRightEdge) {
+      var titleEl = header.querySelector('[data-testid="conversation-info-header-chat-title"]') || header.querySelector('span[title]') || header;
+      name = (titleEl && (titleEl.getAttribute('title') || titleEl.textContent || '').trim()) || '';
+      var img = header.querySelector('img[src]');
+      if (img && img.src) photo = img.src;
+    }
+    if (!name) {
+      titleEl = document.querySelector('[data-testid="conversation-info-header-chat-title"]');
+      if (titleEl) name = (titleEl.getAttribute('title') || titleEl.textContent || '').trim();
+    }
+    if (!photo || !name) {
+      var main = document.querySelector('[role="main"]');
+      if (main) {
+        var imgs = main.querySelectorAll('img[src]');
+        for (var i = 0; i < imgs.length; i++) {
+          var r = imgs[i].getBoundingClientRect();
+          if (r.left >= listRightEdge && r.width >= 40 && r.width <= 200 && r.height >= 40) {
+            photo = imgs[i].src;
+            break;
+          }
+        }
+      }
+    }
+    return { phone: normalizePhone(phone), name: name || formatPhone(phone), photo: photo || '' };
+  }
+
+  function upsertContact(contact) {
+    return getStoredContacts().then((list) => {
+      const id = contact.phone || 'c' + Date.now();
+      const existing = list.find((c) => normalizePhone(c.phone) === normalizePhone(contact.phone));
+      const now = new Date().toISOString();
+      const entry = {
+        id: existing ? existing.id : id,
+        phone: normalizePhone(contact.phone),
+        name: contact.name || existing?.name || formatPhone(contact.phone),
+        photo: contact.photo || existing?.photo || '',
+        lastInteraction: now,
+        tags: existing ? (existing.tags || []) : [],
+        isFavorite: existing ? !!existing.isFavorite : false,
+        isArchived: existing ? !!existing.isArchived : false,
+      };
+      const next = list.filter((c) => normalizePhone(c.phone) !== entry.phone);
+      next.push(entry);
+      return setStored(STORAGE_KEYS.contacts, next).then(() => entry);
+    });
+  }
+
+  function sendContactToApi(contact) {
+    getStored().then((r) => {
+      const baseUrl = (r[STORAGE_KEYS.baseUrl] || '').replace(/\/+$/, '');
+      const apiKey = r[STORAGE_KEYS.apiKey] || '';
+      if (!baseUrl || !apiKey) return;
+      const url = baseUrl + '/api/whatsapp/sync-contact-extension';
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey, 'X-API-Key': apiKey },
+        body: JSON.stringify({ phone: contact.phone, name: contact.name, photo: contact.photo }),
+      }).catch(() => {});
+    });
+  }
+
+  function collectInboxFromDOM() {
+    const listRightEdge = Math.min(420, Math.floor(window.innerWidth * 0.35));
+    const out = [];
+    const items = document.querySelectorAll('[role="listitem"], [data-testid="cell-frame-container"], [role="gridcell"]');
+    for (let i = 0; i < items.length; i++) {
+      const el = items[i];
+      const rect = el.getBoundingClientRect();
+      if (rect.left > listRightEdge || rect.width < 80 || rect.height < 40) continue;
+      const img = el.querySelector('img[src]');
+      const spans = el.querySelectorAll('span');
+      let name = '';
+      let preview = '';
+      let time = '';
+      let unread = false;
+      for (let s = 0; s < spans.length; s++) {
+        const t = (spans[s].textContent || '').trim();
+        if (t.length > 0 && t.length < 30 && !time && /^[\d:]+$/.test(t)) time = t;
+        else if (t.length > 2 && t.length < 80 && !preview) preview = t;
+        else if (t.length > 0 && t.length < 50 && !name && !/\d{10,}/.test(t)) name = t;
+      }
+      const title = el.getAttribute('title') || el.querySelector('[title]');
+      if (title && typeof title === 'object') name = (title.getAttribute && title.getAttribute('title')) || name;
+      else if (typeof title === 'string') name = title || name;
+      var phone = extractPhoneFromText(el.textContent || '') || extractPhoneFromText(name || '');
+      if (!phone) {
+        var dataIdEl = el.querySelector('[data-id]') || el.closest('[data-id]');
+        if (dataIdEl) {
+          var raw = (dataIdEl.getAttribute('data-id') || '').replace(/@.*$/, '').replace(/\D/g, '');
+          if (raw.length >= 12 && raw.length <= 13) phone = raw.startsWith('55') ? raw : '55' + raw;
+        }
+        if (!phone) {
+          var dataJidEl = el.querySelector('[data-jid]') || el.closest('[data-jid]');
+          if (dataJidEl) {
+            raw = (dataJidEl.getAttribute('data-jid') || '').replace(/@.*$/, '').replace(/\D/g, '');
+            if (raw.length >= 12 && raw.length <= 13) phone = raw.startsWith('55') ? raw : '55' + raw;
+          }
+        }
+        if (!phone) {
+          var link = el.querySelector('a[href*="phone="]');
+          if (link) {
+            var m = (link.getAttribute('href') || '').match(/phone=(\d{10,13})/);
+            if (m && m[1]) phone = m[1].startsWith('55') ? m[1] : '55' + m[1];
+          }
+        }
+      }
+      if (!name && !phone) continue;
+      const unreadEl = el.querySelector('[data-testid="icon-unread-count"], .unread, [aria-label*="não lida"], [data-testid="unread"]');
+      const unreadBadge = el.querySelector('[data-testid="icon-unread-count"]');
+      unread = !!(unreadEl || (unreadBadge && (unreadBadge.textContent || '').trim() !== ''));
+      var photo = (img && img.src) ? img.src : '';
+      out.push({
+        el,
+        name: name || (phone ? formatPhone(phone) : 'Contato'),
+        preview: preview || '—',
+        time: time || '—',
+        unread,
+        phone: phone || null,
+        photo: photo,
+      });
+    }
+    return out;
+  }
+
+  function syncAllContactsFromList() {
+    var list = collectInboxFromDOM();
+    var byPhone = {};
+    for (var i = 0; i < list.length; i++) {
+      var item = list[i];
+      var phone = item.phone ? normalizePhone(item.phone) : null;
+      if (!phone) continue;
+      if (byPhone[phone]) continue;
+      byPhone[phone] = true;
+      var contact = {
+        phone: phone,
+        name: (item.name || '').trim() || formatPhone(phone),
+        photo: item.photo || '',
+      };
+      upsertContact(contact).then(function (c) { if (c) sendContactToApi(c); }).catch(function () {});
+    }
+  }
+
+  function showStatus(container, type, text) {
+    if (!container) return;
+    let statusEl = container.querySelector('.crm-status-msg');
+    if (!statusEl) {
+      statusEl = document.createElement('div');
+      statusEl.className = 'crm-status-msg';
+      container.appendChild(statusEl);
+    }
+    statusEl.textContent = text;
+    statusEl.className = 'crm-status-msg ' + type;
+    statusEl.style.display = 'block';
+    setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+  }
+
+  function openOptions() {
+    chrome.runtime.sendMessage({ action: 'openOptions' }).catch(() => {});
+    try { chrome.runtime.openOptionsPage(); } catch (_) {}
   }
 
   function createSidebar() {
@@ -254,41 +448,41 @@
     wrap.id = SIDEBAR_ID;
     wrap.innerHTML = `
       <div class="crm-header-zap">
-        <button type="button" class="crm-header-menu" id="plenipay-crm-header-menu" aria-label="Menu">&#9776;</button>
         <div class="crm-header-brand">
           <span class="crm-brand-main">PleniPay</span>
           <span class="crm-brand-sub">CRM</span>
         </div>
-        <a href="#" class="crm-header-config" id="plenipay-crm-open-options">Config</a>
+        <a href="#" class="crm-header-config" id="plenipay-crm-open-options" title="Abrir configuração completa">⚙️</a>
       </div>
-      <div class="crm-search-row">
-        <input type="text" class="crm-search-input" id="plenipay-crm-search" placeholder="Buscar..." />
-        <label class="crm-toggle-wrap">
-          <input type="checkbox" class="crm-toggle-input" id="plenipay-crm-favoritos" />
-          <span class="crm-toggle-track"></span>
-          <span class="crm-toggle-label">Apenas favoritos</span>
-        </label>
-      </div>
-      <div class="crm-actions-row">
-        <button type="button" class="crm-btn-main" id="plenipay-crm-refresh">Atualizar número</button>
-        <div class="crm-actions-icons">
-          <button type="button" class="crm-icon-btn crm-icon-config" id="plenipay-crm-open-panel" title="Configuração">&#9881;</button>
-          <button type="button" class="crm-icon-btn crm-icon-test" id="plenipay-crm-btn-test" title="Testar conexão">&#9658;</button>
-        </div>
-      </div>
-      <div class="crm-phone-bar" title="Número detectado da conversa aberta no WhatsApp">
+      <nav class="crm-tabs" role="tablist">
+        ${TABS.map((t) => `<button type="button" class="crm-tab" data-tab="${t.id}" role="tab" title="${t.label}"><span class="crm-tab-icon">${t.icon}</span><span class="crm-tab-label">${t.label}</span></button>`).join('')}
+      </nav>
+      <div class="crm-phone-bar" title="Conversa atual no WhatsApp">
         <span class="crm-phone-label">Conversa:</span>
         <span class="crm-phone-value" id="plenipay-crm-phone-display">—</span>
       </div>
-      <div class="crm-body">
-        <div class="crm-section-title">Mensagens</div>
-        <div class="crm-msg-list" id="plenipay-crm-msg-list"></div>
-        <p class="crm-empty-hint" id="plenipay-crm-msg-empty" style="display:none;">Nenhuma mensagem. Configure no painel.</p>
-        <div class="crm-section-title crm-funnel-title">Funis</div>
-        <div class="crm-funnel-list" id="plenipay-crm-funnel-list"></div>
-        <p class="crm-empty-hint" id="plenipay-crm-funnel-empty">Nenhum funil. Crie na aba Funis.</p>
+      <div class="crm-body-with-actions">
+        <div class="crm-vertical-action-bar" role="toolbar">
+          <button type="button" class="crm-action-bar-btn" id="crm-btn-save-lead" title="Salvar contato como Lead PleniPay + data do dia">
+            <span class="crm-action-bar-icon">👤</span>
+            <span class="crm-action-bar-label">Salvar lead</span>
+          </button>
+          <button type="button" class="crm-action-bar-btn" id="crm-btn-add-tag" title="Adicionar tag ao contato atual">
+            <span class="crm-action-bar-icon">🏷️</span>
+            <span class="crm-action-bar-label">Tag...</span>
+          </button>
+        </div>
+        <div class="crm-views">
+        <div id="view-inbox" class="crm-view" data-view="inbox"></div>
+        <div id="view-leads" class="crm-view" data-view="leads"></div>
+        <div id="view-contatos" class="crm-view" data-view="contatos"></div>
+        <div id="view-mensagens" class="crm-view" data-view="mensagens"></div>
+        <div id="view-fluxos" class="crm-view" data-view="fluxos"></div>
+        <div id="view-tags" class="crm-view" data-view="tags"></div>
+        <div id="view-config" class="crm-view" data-view="config"></div>
+        </div>
       </div>
-      <div id="plenipay-crm-status" class="crm-status">
+      <div id="plenipay-crm-status" class="crm-status" style="display:none;">
         <span class="crm-status-spinner"></span>
         <span class="crm-status-text"></span>
       </div>
@@ -302,570 +496,683 @@
     document.body.appendChild(wrap);
     document.body.appendChild(toggle);
 
+    const views = wrap.querySelectorAll('.crm-view');
+    const tabBtns = wrap.querySelectorAll('.crm-tab');
     const phoneDisplay = document.getElementById('plenipay-crm-phone-display');
-    const msgListEl = document.getElementById('plenipay-crm-msg-list');
-    const msgEmptyEl = document.getElementById('plenipay-crm-msg-empty');
-    const funnelListEl = document.getElementById('plenipay-crm-funnel-list');
-    const funnelEmptyEl = document.getElementById('plenipay-crm-funnel-empty');
     const statusEl = document.getElementById('plenipay-crm-status');
-    const statusTextEl = statusEl ? statusEl.querySelector('.crm-status-text') : null;
-    const FUNNEL_DELAY_MS = 600;
-    var lockedSendPhone = null;
 
-    function getPhoneForSend() {
-      if (lockedSendPhone) return lockedSendPhone;
-      var phone = getCurrentChatPhone();
-      if (!phone || phone.length < 10) return null;
-      if (!phone.startsWith('55')) phone = '55' + phone;
-      return phone;
+    function showTab(tabId) {
+      tabBtns.forEach((b) => b.classList.toggle('active', b.getAttribute('data-tab') === tabId));
+      views.forEach((v) => v.classList.toggle('active', v.getAttribute('data-view') === tabId));
+      if (tabId === 'inbox') renderInbox();
+      else if (tabId === 'leads') renderLeads();
+      else if (tabId === 'contatos') renderContatos();
+      else if (tabId === 'mensagens') renderMensagens();
+      else if (tabId === 'fluxos') renderFluxos();
+      else if (tabId === 'tags') renderTags();
+      else if (tabId === 'config') renderConfig();
     }
+
+    tabBtns.forEach((btn) => {
+      btn.addEventListener('click', () => showTab(btn.getAttribute('data-tab')));
+    });
+
+    document.getElementById('plenipay-crm-open-options').addEventListener('click', (e) => {
+      e.preventDefault();
+      openOptions();
+    });
+
+    function formatDateForLead() {
+      const d = new Date();
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return day + '/' + month + '/' + year;
+    }
+
+    document.getElementById('crm-btn-save-lead').addEventListener('click', () => {
+      const contact = getContactFromDOM();
+      if (!contact || !contact.phone) {
+        showQuickStatus('Abra uma conversa no WhatsApp primeiro.', true);
+        return;
+      }
+      var addedInWhatsApp = clickWhatsAppAddContact();
+      const leadName = 'Lead PleniPay ' + formatDateForLead();
+      downloadContactVCard(leadName, contact.phone);
+      getStoredContacts().then((list) => {
+        const existing = list.find((c) => normalizePhone(c.phone) === normalizePhone(contact.phone));
+        const tags = existing && existing.tags && existing.tags.length ? existing.tags : [];
+        const nextTags = tags.indexOf('Lead') >= 0 ? tags : tags.concat('Lead');
+        const entry = {
+          id: existing ? existing.id : contact.phone,
+          phone: normalizePhone(contact.phone),
+          name: leadName,
+          photo: contact.photo || (existing && existing.photo) || '',
+          lastInteraction: new Date().toISOString(),
+          tags: nextTags,
+          isFavorite: existing ? !!existing.isFavorite : false,
+          isArchived: existing ? !!existing.isArchived : false,
+        };
+        const next = list.filter((c) => normalizePhone(c.phone) !== entry.phone);
+        next.push(entry);
+        setStored(STORAGE_KEYS.contacts, next).then(() => {
+          sendContactToApi(entry);
+          var msg = 'Salvo na lista e arquivo .vcf baixado — abra no celular para adicionar na agenda';
+          if (addedInWhatsApp) msg = 'Adicionado no WhatsApp, salvo na lista e .vcf baixado';
+          showQuickStatus(msg, false);
+        });
+      });
+    });
+
+    let tagPopover = null;
+    document.getElementById('crm-btn-add-tag').addEventListener('click', (e) => {
+      const phone = getCurrentChatPhone();
+      if (!phone) {
+        showQuickStatus('Abra uma conversa para adicionar tag.', true);
+        return;
+      }
+      if (tagPopover && tagPopover.parentNode) {
+        tagPopover.remove();
+        tagPopover = null;
+        return;
+      }
+      const btn = e.currentTarget;
+      getStoredTags().then((tags) => {
+        getStoredContacts().then((contacts) => {
+          const normalized = normalizePhone(phone);
+          const c = contacts.find((x) => normalizePhone(x.phone) === normalized);
+          const contactTags = (c && c.tags) ? c.tags : [];
+          tagPopover = document.createElement('div');
+          tagPopover.className = 'crm-tag-popover';
+          tagPopover.innerHTML = '<div class="crm-tag-popover-title">Adicionar tag</div><div class="crm-tag-popover-list"></div>';
+          const listEl = tagPopover.querySelector('.crm-tag-popover-list');
+          tags.forEach((t) => {
+            const on = contactTags.includes(t);
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'crm-tag-popover-item' + (on ? ' on' : '');
+            item.textContent = t;
+            item.addEventListener('click', () => {
+              const nextTags = on ? contactTags.filter((x) => x !== t) : contactTags.concat(t);
+              const next = contacts.filter((x) => normalizePhone(x.phone) !== normalized);
+              const updated = c ? { ...c, tags: nextTags } : { id: normalized, phone: normalized, name: '', photo: '', lastInteraction: new Date().toISOString(), tags: nextTags };
+              next.push(updated);
+              setStored(STORAGE_KEYS.contacts, next).then(() => {
+                tagPopover.remove();
+                tagPopover = null;
+                showQuickStatus('Tag atualizada.', false);
+              });
+            });
+            listEl.appendChild(item);
+          });
+          const bodyWrap = wrap.querySelector('.crm-body-with-actions');
+          bodyWrap.appendChild(tagPopover);
+          const rect = btn.getBoundingClientRect();
+          const refRect = bodyWrap.getBoundingClientRect();
+          tagPopover.style.left = (rect.right - refRect.left + 6) + 'px';
+          tagPopover.style.top = (rect.top - refRect.top) + 'px';
+          document.addEventListener('click', function closeTagPopover(ev) {
+            if (tagPopover && !tagPopover.contains(ev.target) && ev.target !== btn) {
+              document.removeEventListener('click', closeTagPopover);
+              if (tagPopover.parentNode) tagPopover.remove();
+              tagPopover = null;
+            }
+          }, true);
+        });
+      });
+    });
 
     function showQuickStatus(text, isError) {
       if (!statusEl) return;
-      if (!funnelSending) lockedSendPhone = null;
-      statusEl.classList.remove('crm-status-loading');
-      var spinner = statusEl.querySelector('.crm-status-spinner');
-      if (spinner) spinner.style.display = 'none';
-      if (statusTextEl) statusTextEl.textContent = text;
+      const txt = statusEl.querySelector('.crm-status-text');
+      if (txt) txt.textContent = text;
       statusEl.className = 'crm-status ' + (isError ? 'error' : 'success');
       statusEl.style.display = 'block';
-      setTimeout(function () {
-        statusEl.style.display = 'none';
-      }, 2800);
+      setTimeout(() => { statusEl.style.display = 'none'; }, 2800);
     }
 
-    function showSendingStatus(phoneFormatted) {
-      if (!statusEl) return;
-      statusEl.classList.add('crm-status-loading');
-      var spinner = statusEl.querySelector('.crm-status-spinner');
-      if (spinner) spinner.style.display = 'inline-block';
-      if (statusTextEl) statusTextEl.textContent = 'Enviando para o n\u00famero ' + (phoneFormatted || '—') + '...';
-      statusEl.className = 'crm-status loading';
-      statusEl.style.display = 'block';
-    }
-
-    function hideSendingStatus() {
-      if (!statusEl) return;
-      statusEl.classList.remove('crm-status-loading');
-      var spinner = statusEl.querySelector('.crm-status-spinner');
-      if (spinner) spinner.style.display = 'none';
+    function getPhoneForSend() {
+      let phone = getCurrentChatPhone();
+      if (!phone) phone = lastPhone;
+      if (!phone || phone.length < 10) return null;
+      return normalizePhone(phone);
     }
 
     function getApi() {
-      if (cachedApi.apiKey && (Date.now() - cachedApi.at) < CACHE_TTL) {
-        return Promise.resolve({ baseUrl: cachedApi.baseUrl, apiKey: cachedApi.apiKey, zapiInstanceId: cachedZapi.instanceId, zapiToken: cachedZapi.token, zapiClientToken: cachedZapi.clientToken });
-      }
-      return getStored().then(function (r) {
-        cachedApi.baseUrl = r.baseUrl;
-        cachedApi.apiKey = r.apiKey;
+      if (cachedApi.apiKey && Date.now() - cachedApi.at < CACHE_TTL)
+        return Promise.resolve({ baseUrl: cachedApi.baseUrl, apiKey: cachedApi.apiKey });
+      return getStored().then((r) => {
+        cachedApi.baseUrl = r[STORAGE_KEYS.baseUrl] || '';
+        cachedApi.apiKey = r[STORAGE_KEYS.apiKey] || '';
         cachedApi.at = Date.now();
-        if (r.zapiInstanceId && r.zapiToken) {
-          cachedZapi.instanceId = r.zapiInstanceId;
-          cachedZapi.token = r.zapiToken;
-          cachedZapi.clientToken = r.zapiClientToken || '';
-          cachedZapi.at = Date.now();
-        }
-        return r;
+        return { baseUrl: cachedApi.baseUrl, apiKey: cachedApi.apiKey };
       });
     }
 
-    function cleanPhone(num) {
-      var n = (num || '').replace(/\D/g, '');
-      if (n.length === 10 || n.length === 11) n = '55' + n;
-      return n;
-    }
-
-    function sendViaZapi(phone, text, buttons) {
-      var instanceId = cachedZapi.instanceId;
-      var token = cachedZapi.token;
-      if ((instanceId.indexOf('z-api.io') !== -1 || instanceId.indexOf('http') === 0)) {
-        var m = instanceId.match(/instances\/([^/]+)\/token\/([^/]+)/i);
-        if (m) { instanceId = m[1]; token = token || m[2]; }
-      }
-      var base = 'https://api.z-api.io/instances/' + instanceId + '/token/' + token;
-      var headers = { 'Content-Type': 'application/json' };
-      if (cachedZapi.clientToken) headers['Client-Token'] = cachedZapi.clientToken;
-      var phoneClean = cleanPhone(phone);
-      var messageText = (text && text.trim()) ? text.trim() : ' ';
-      function doReq(body, cb, showSuccess, successLabel) {
-        if (showSuccess === undefined) showSuccess = true;
-        if (!successLabel) successLabel = 'Enviada ✓';
-        if (!body.message) body.message = messageText;
-        if (showSuccess && !funnelSending) showQuickStatus(successLabel, false);
-        var urlReq = base + (body.buttonActions ? '/send-button-actions' : '/send-text');
-        fetch(urlReq, { method: 'POST', headers: headers, body: JSON.stringify(body) })
-          .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; }); })
-          .then(function (out) {
-            var isError = out.data && (out.data.error === true || out.data.erro === true || out.data.success === false || (out.data.message && String(out.data.message).toLowerCase().indexOf('error') !== -1));
-            var hasMessageId = out.data && (out.data.messageId || out.data.zaapId || out.data.id);
-            var realSuccess = out.ok && !isError && hasMessageId;
-            if (!realSuccess) {
-              var msg = (out.data && (out.data.message || out.data.error || out.data.errorMessage)) || ('Erro ' + out.status);
-              if ((msg + '').toLowerCase().indexOf('instance not found') !== -1) msg = 'Instance ID ou Token incorretos.';
-              else if (out.ok && !hasMessageId) msg = 'Resposta sem confirmação. Tente de novo.';
-              showQuickStatus(msg, true);
-            }
-            if (cb) cb(out);
-          })
-          .catch(function (err) { showQuickStatus((err && err.message) || 'Erro de rede', true); if (cb) cb({}); });
-      }
-      if (!Array.isArray(buttons) || buttons.length === 0) {
-        doReq({ phone: phoneClean, message: messageText });
-        return;
-      }
-      // Um único array na ordem configurada (todos os botões na mesma mensagem, um abaixo do outro)
-      var allButtons = [];
-      buttons.slice(0, 3).forEach(function (b) {
-        var label = (b.title || b.id || '').trim();
-        if (!label) return;
-        if (b.url && b.url.trim()) {
-          var u = b.url.trim();
-          if (u.indexOf('http') !== 0) u = 'https://' + u;
-          var btn = { type: 'URL', url: u, label: label };
-          if ((b.id || b.title || '').trim()) btn.id = (b.id || b.title || '').trim();
-          allButtons.push(btn);
-        } else {
-          var rbtn = { type: 'REPLY', label: label };
-          if ((b.id || b.title || '').trim()) rbtn.id = (b.id || b.title || '').trim();
-          allButtons.push(rbtn);
-        }
-      });
-      var messageOnly = messageText;
-      if (allButtons.length > 0) {
-        doReq({ phone: phoneClean, message: messageOnly, buttonActions: allButtons }, function (out) {
-          var failed = out && (!out.ok || (out.data && (out.data.error === true || out.data.erro === true || out.data.success === false)));
-          var noId = out && out.ok && out.data && !out.data.messageId && !out.data.zaapId && !out.data.id;
-          if (failed || noId) {
-            if (cachedApi.baseUrl && cachedApi.apiKey && (Date.now() - cachedApi.at) < 300000) {
-              showQuickStatus('Enviando pelo servidor...', false);
-              sendViaSiteApi(phone, text, buttons, cachedApi.baseUrl, cachedApi.apiKey);
-            } else {
-              showQuickStatus('Enviando só o texto...', false);
-              doReq({ phone: phoneClean, message: messageOnly }, null, true, 'Enviada ✓ (só texto)');
-            }
-          }
-        }, true);
-      } else {
-        doReq({ phone: phoneClean, message: messageOnly });
-      }
-    }
-
-    function sendViaSiteApi(phone, text, buttons, baseUrl, apiKey) {
-      var url = (baseUrl || '').replace(/\/+$/, '') + '/api/whatsapp/send-custom-extension';
-      if (!funnelSending) showQuickStatus('Enviada ✓', false);
-      var payload = { phone: phone, text: text, buttons: buttons };
+    function sendViaApi(phone, text, buttons) {
+      const base = (cachedApi.baseUrl || '').replace(/\/+$/, '');
+      const url = base + '/api/whatsapp/send-custom-extension';
+      const payload = { phone, text, buttons: buttons || [] };
       fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey, 'X-API-Key': apiKey },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cachedApi.apiKey, 'X-API-Key': cachedApi.apiKey },
         body: JSON.stringify(payload),
       })
-        .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data }; }); })
-        .then(function (out) {
-          if (out.res.status === 401) cachedApi.at = 0;
-          if (!(out.data && out.data.success)) showQuickStatus((out.data && out.data.error) || 'Erro ao enviar', true);
+        .then((res) => res.json().catch(() => ({})))
+        .then((data) => {
+          if (data && data.success) showQuickStatus('Enviada ✓', false);
+          else showQuickStatus((data && data.error) || 'Erro ao enviar', true);
         })
-        .catch(function (err) { cachedApi.at = 0; showQuickStatus((err && err.message) || 'Erro de rede', true); });
+        .catch(() => showQuickStatus('Erro de rede', true));
     }
 
-    function sendCustomMessage(msg) {
-      var phone = getPhoneForSend();
+    function sendMessage(msg) {
+      const phone = getPhoneForSend();
       if (!phone) {
-        syncPhoneFromPage();
-        phone = getPhoneForSend();
-      }
-      if (!phone) {
-        showStatus(statusEl, 'warning', 'Clique na conversa no WhatsApp para identificar o número.');
+        showQuickStatus('Abra uma conversa no WhatsApp primeiro.', true);
         return;
       }
-      if (isBlockedMessage(msg.text)) {
-        showQuickStatus('Essa mensagem foi desativada para evitar repetição.', true);
-        return;
-      }
-      var text = msg.text || '';
-      var buttons = (msg.buttons && msg.buttons.length) ? msg.buttons : undefined;
-      var hasButtons = buttons && buttons.length > 0;
-      var zapiValid = cachedZapi.instanceId && cachedZapi.token && (Date.now() - cachedZapi.at) < CACHE_TTL;
-      var siteValid = cachedApi.apiKey && cachedApi.baseUrl && (Date.now() - cachedApi.at) < CACHE_TTL;
-      if (zapiValid) {
-        sendViaZapi(phone, text, buttons);
-        return;
-      }
-      if (siteValid) {
-        sendViaSiteApi(phone, text, buttons, cachedApi.baseUrl, cachedApi.apiKey);
-        return;
-      }
-      getApi().then(function (r) {
-        if (r.zapiInstanceId && r.zapiToken) {
-          cachedZapi.instanceId = r.zapiInstanceId;
-          cachedZapi.token = r.zapiToken;
-          cachedZapi.clientToken = r.zapiClientToken || '';
-          cachedZapi.at = Date.now();
-        }
+      const text = (msg.text || '').trim();
+      const buttons = (msg.buttons && msg.buttons.length) ? msg.buttons : undefined;
+      getApi().then((r) => {
         if (r.baseUrl && r.apiKey) {
           cachedApi.baseUrl = r.baseUrl;
           cachedApi.apiKey = r.apiKey;
           cachedApi.at = Date.now();
-        }
-        if (r.zapiInstanceId && r.zapiToken) {
-          sendViaZapi(phone, text, buttons);
-          return;
-        }
-        if (!r.apiKey || !r.baseUrl) {
-          showQuickStatus('Configure API (URL e token) ou Z-API nas opções.', true);
-          return;
-        }
-        sendViaSiteApi(phone, text, buttons, r.baseUrl, r.apiKey);
-      });
-    }
-
-    function renderMessageButtons(list) {
-      msgListEl.innerHTML = '';
-      if (!list || list.length === 0) {
-        msgEmptyEl.style.display = 'block';
-        return;
-      }
-      msgEmptyEl.style.display = 'none';
-      list.forEach((msg, index) => {
-        const item = document.createElement('div');
-        item.className = 'crm-msg-item crm-msg-row';
-        item.setAttribute('data-msg-label', (msg.label || (index + 1).toString()).toLowerCase());
-        const iconCell = document.createElement('div');
-        iconCell.className = 'crm-msg-row-icon';
-        iconCell.innerHTML = '&#128172;';
-        const labelCell = document.createElement('div');
-        labelCell.className = 'crm-msg-row-label';
-        labelCell.textContent = msg.label || (index + 1).toString();
-        const actionsCell = document.createElement('div');
-        actionsCell.className = 'crm-msg-row-actions';
-        const previewBtn = document.createElement('button');
-        previewBtn.type = 'button';
-        previewBtn.className = 'crm-row-btn crm-row-btn-preview';
-        previewBtn.setAttribute('aria-label', 'Ver');
-        previewBtn.innerHTML = '&#128269;';
-        const sendBtn = document.createElement('button');
-        sendBtn.type = 'button';
-        sendBtn.className = 'crm-row-btn crm-row-btn-send';
-        sendBtn.setAttribute('aria-label', 'Enviar');
-        sendBtn.innerHTML = '&#9992;';
-        const chevronBtn = document.createElement('button');
-        chevronBtn.type = 'button';
-        chevronBtn.className = 'crm-row-btn crm-row-btn-chevron';
-        chevronBtn.innerHTML = '&#8250;';
-        const previewBlock = document.createElement('div');
-        previewBlock.className = 'crm-msg-preview';
-        previewBlock.style.display = 'none';
-        const textPreview = document.createElement('div');
-        textPreview.className = 'crm-msg-preview-text';
-        textPreview.textContent = (msg.text || '').trim() || '(sem texto)';
-        if ((msg.buttons && msg.buttons.length) > 0) {
-          const btnsPreview = document.createElement('div');
-          btnsPreview.className = 'crm-msg-preview-btns';
-          btnsPreview.textContent = 'Botões: ' + msg.buttons.map(function (b) { return b.title || b.id; }).join(', ');
-          previewBlock.appendChild(textPreview);
-          previewBlock.appendChild(btnsPreview);
+          sendViaApi(phone, text, buttons);
         } else {
-          previewBlock.appendChild(textPreview);
-        }
-        sendBtn.addEventListener('click', function () { sendCustomMessage(msg); });
-        previewBtn.addEventListener('click', function () {
-          var open = previewBlock.style.display === 'block';
-          previewBlock.style.display = open ? 'none' : 'block';
-        });
-        chevronBtn.addEventListener('click', function () {
-          var open = previewBlock.style.display === 'block';
-          previewBlock.style.display = open ? 'none' : 'block';
-        });
-        actionsCell.appendChild(previewBtn);
-        actionsCell.appendChild(sendBtn);
-        actionsCell.appendChild(chevronBtn);
-        item.appendChild(iconCell);
-        item.appendChild(labelCell);
-        item.appendChild(actionsCell);
-        item.appendChild(previewBlock);
-        msgListEl.appendChild(item);
-      });
-    }
-
-    function loadAndRenderMessages() {
-      getStoredMessages().then(renderMessageButtons);
-    }
-
-    /** Mensagem bloqueada: não enviar nem no funil nem avulsa (evita repetição e spam). */
-    function isBlockedMessage(text) {
-      var t = (text || '').trim();
-      return t === 'Em que posso ajudar? 😊';
-    }
-    var funnelSending = false;
-    function normalizeFunnelMessageIds(raw) {
-      if (Array.isArray(raw) && raw.length > 0) return raw.slice();
-      if (raw != null && typeof raw === 'string' && raw.trim() !== '') return [raw.trim()];
-      return [];
-    }
-    function sendFunnel(funnel, messagesList) {
-      if (funnelSending) {
-        showQuickStatus('Aguarde: funil já está sendo enviado.', true);
-        return;
-      }
-      var phone = getPhoneForSend();
-      if (!phone) {
-        syncPhoneFromPage();
-        phone = getPhoneForSend();
-      }
-      if (!phone) {
-        showStatus(statusEl, 'warning', 'Clique na conversa no WhatsApp para identificar o número.');
-        return;
-      }
-      var ids = normalizeFunnelMessageIds(funnel && funnel.messageIds);
-      if (ids.length === 0) {
-        showQuickStatus('Funil sem mensagens.', true);
-        return;
-      }
-      var map = {};
-      (messagesList || []).forEach(function (m) {
-        if (m && m.id != null) {
-          map[String(m.id)] = m;
-          map[m.id] = m;
+          showQuickStatus('Configure API em Configurações.', true);
         }
       });
-      var list = [];
-      for (var i = 0; i < ids.length; i++) {
-        var id = ids[i];
-        var msg = map[String(id)] || map[id];
-        if (msg) list.push(msg);
-      }
-      if (list.length === 0) {
-        showQuickStatus('Nenhuma mensagem do funil encontrada.', true);
-        return;
-      }
-      // Remover mensagem bloqueada; sem limite de quantidade. Evitar repetir texto consecutivo.
-      var prevText = '';
-      list = list.filter(function (msg) { return !isBlockedMessage(msg.text); }).filter(function (msg) {
-        var t = (msg.text || '').trim();
-        var same = t === prevText && t !== '';
-        prevText = t;
-        return !same;
-      });
-      if (list.length === 0) {
-        showQuickStatus('Nenhuma mensagem válida no funil (a mensagem "Em que posso ajudar?" foi removida).', true);
-        return;
-      }
-      var phoneToUse = getPhoneForSend();
-      if (!phoneToUse) {
-        showQuickStatus('Número inválido. Abra a conversa ou digite o número.', true);
-        return;
-      }
-      lockedSendPhone = phoneToUse;
-      funnelSending = true;
-      showSendingStatus(formatPhone(phoneToUse));
-      list.forEach(function (msg, index) {
-        setTimeout(function () {
-          sendCustomMessage(msg);
-        }, index * FUNNEL_DELAY_MS);
-      });
-      setTimeout(function () {
-        funnelSending = false;
-        lockedSendPhone = null;
-        hideSendingStatus();
-        showQuickStatus('Funil enviado ✓', false);
-      }, list.length * FUNNEL_DELAY_MS + 400);
     }
 
-    function renderFunnelButtons(funnelsList, messagesList) {
-      funnelListEl.innerHTML = '';
-      if (!funnelsList || funnelsList.length === 0) {
-        funnelEmptyEl.style.display = 'block';
-        return;
-      }
-      funnelEmptyEl.style.display = 'none';
-      funnelsList.forEach(function (funnel) {
-        var btn = document.createElement('button');
+    function renderInbox() {
+      const container = document.getElementById('view-inbox');
+      container.innerHTML = '';
+      const filterRow = document.createElement('div');
+      filterRow.className = 'crm-filter-row';
+      const filters = ['Não respondidos', 'Todos', 'Novos', 'Ativas', 'Favoritos', 'Arquivados'];
+      let currentFilter = 'Não respondidos';
+      filters.forEach((f) => {
+        const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'crm-btn-funnel';
-        var count = normalizeFunnelMessageIds(funnel && funnel.messageIds).length;
-        btn.textContent = (funnel.name || 'Funil') + ' (' + count + ' msgs)';
-        btn.addEventListener('click', function () {
-          if (funnelSending) return;
-          sendFunnel(funnel, messagesList);
+        btn.className = 'crm-filter-btn' + (f === currentFilter ? ' active' : '');
+        btn.textContent = f;
+        btn.addEventListener('click', () => {
+          currentFilter = f;
+          filterRow.querySelectorAll('.crm-filter-btn').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          renderInboxList(container, currentFilter);
         });
-        funnelListEl.appendChild(btn);
+        filterRow.appendChild(btn);
+      });
+      container.appendChild(filterRow);
+
+      const listWrap = document.createElement('div');
+      listWrap.className = 'crm-inbox-list';
+      container.appendChild(listWrap);
+
+      function renderInboxList(cont, filter) {
+        listWrap.innerHTML = '';
+        const list = collectInboxFromDOM();
+        inboxConversations = list;
+        let filtered = list;
+        getStoredContacts().then((contacts) => {
+          if (filter === 'Não respondidos') filtered = list.filter((c) => c.unread);
+          else if (filter === 'Favoritos') filtered = list.filter((c) => contacts.some((x) => x.isFavorite && normalizePhone(x.phone) === (c.phone ? normalizePhone(c.phone) : '')));
+          else if (filter === 'Arquivados') filtered = list.filter((c) => contacts.some((x) => x.isArchived && normalizePhone(x.phone) === (c.phone ? normalizePhone(c.phone) : '')));
+          else if (filter === 'Novos') filtered = list.filter((c) => !c.phone || !contacts.find((x) => normalizePhone(x.phone) === normalizePhone(c.phone)));
+          else if (filter === 'Ativas') filtered = list.filter((c) => c.phone && contacts.find((x) => normalizePhone(x.phone) === normalizePhone(c.phone)));
+          if (filtered.length === 0) {
+            const msg = filter === 'Não respondidos' ? 'Nenhuma conversa não respondida.' : 'Nenhuma conversa encontrada.';
+            listWrap.innerHTML = '<p class="crm-empty">' + msg + '</p>';
+            return;
+          }
+          filtered.forEach((conv) => {
+            const card = document.createElement('div');
+            card.className = 'crm-inbox-card' + (conv.unread ? ' unread' : '');
+            const contact = conv.phone ? contacts.find((c) => normalizePhone(c.phone) === normalizePhone(conv.phone)) : null;
+            const photo = (contact && contact.photo) ? contact.photo : '';
+            card.innerHTML = `
+              <div class="crm-inbox-avatar">${photo ? `<img src="${photo}" alt="" />` : '<span class="crm-avatar-placeholder">' + (conv.name.charAt(0).toUpperCase()) + '</span>'}</div>
+              <div class="crm-inbox-info">
+                <div class="crm-inbox-name">${escapeHtml(conv.name)}</div>
+                <div class="crm-inbox-preview">${escapeHtml(conv.preview)}</div>
+                <div class="crm-inbox-meta">${escapeHtml(conv.time)}</div>
+              </div>
+            `;
+            card.addEventListener('click', () => {
+              if (conv.el && conv.el.click) conv.el.click();
+              showContactDetail(conv, contact);
+            });
+            listWrap.appendChild(card);
+          });
+        });
+      }
+
+      function showContactDetail(conv, contact) {
+        listWrap.style.display = 'none';
+        filterRow.style.display = 'none';
+        const backBtn = document.createElement('button');
+        backBtn.type = 'button';
+        backBtn.className = 'crm-btn-back';
+        backBtn.textContent = '← Voltar';
+        backBtn.addEventListener('click', () => {
+          detail.remove();
+          listWrap.style.display = '';
+          filterRow.style.display = '';
+        });
+        const detail = document.createElement('div');
+        detail.className = 'crm-contact-detail';
+        const phone = conv.phone || (contact && contact.phone);
+        detail.appendChild(backBtn);
+        detail.innerHTML += `
+          <div class="crm-detail-avatar">${(contact && contact.photo) ? `<img src="${contact.photo}" alt="" />` : '<span class="crm-avatar-placeholder">' + (conv.name.charAt(0).toUpperCase()) + '</span>'}</div>
+          <div class="crm-detail-name">${escapeHtml(conv.name)}</div>
+          <div class="crm-detail-phone">${phone ? formatPhone(phone) : '—'}</div>
+          <div class="crm-detail-tags" id="detail-tags"></div>
+          <div class="crm-detail-actions">
+            <button type="button" class="crm-action-btn" data-action="msg">Mensagens rápidas</button>
+            <button type="button" class="crm-action-btn" data-action="fluxo">Enviar fluxo</button>
+          </div>
+        `;
+        container.appendChild(detail);
+        const tagsEl = detail.querySelector('#detail-tags');
+        if (contact && contact.tags && contact.tags.length) {
+          tagsEl.innerHTML = contact.tags.map((t) => '<span class="crm-tag">' + escapeHtml(t) + '</span>').join('');
+        }
+        detail.querySelector('[data-action="msg"]').addEventListener('click', () => showTab('mensagens'));
+        detail.querySelector('[data-action="fluxo"]').addEventListener('click', () => showTab('fluxos'));
+      }
+
+      renderInboxList(container, currentFilter);
+    }
+
+    function renderLeads() {
+      const container = document.getElementById('view-leads');
+      container.innerHTML = `
+        <div class="crm-section-title">Contatos leads</div>
+        <p class="crm-hint crm-leads-hint">Cada conversa que você abre no WhatsApp é adicionada automaticamente nesta lista, com o nome do contato.</p>
+        <button type="button" id="crm-export-leads" class="crm-btn-export-leads">Exportar lista (.vcf)</button>
+        <div class="crm-leads-list" id="leads-list"></div>
+        <p class="crm-empty-hint" id="leads-empty" style="display:none;">Nenhum contato ainda. Abra conversas no WhatsApp para preencher a lista.</p>
+      `;
+      const listEl = container.querySelector('#leads-list');
+      const emptyEl = container.querySelector('#leads-empty');
+      const exportBtn = container.querySelector('#crm-export-leads');
+
+      function render() {
+        getStoredContacts().then((contacts) => {
+          listEl.innerHTML = '';
+          if (!contacts || !contacts.length) {
+            emptyEl.style.display = 'block';
+            exportBtn.style.display = 'none';
+            return;
+          }
+          emptyEl.style.display = 'none';
+          exportBtn.style.display = 'block';
+          contacts.forEach((c) => {
+            const card = document.createElement('div');
+            card.className = 'crm-lead-card';
+            card.innerHTML = `
+              <div class="crm-inbox-avatar">${c.photo ? '<img src="' + c.photo + '" alt="" />' : '<span class="crm-avatar-placeholder">' + (c.name || '').charAt(0).toUpperCase() + '</span>'}</div>
+              <div class="crm-lead-info">
+                <div class="crm-lead-name">${escapeHtml(c.name || formatPhone(c.phone))}</div>
+                <div class="crm-lead-phone">${formatPhone(c.phone)}</div>
+              </div>
+            `;
+            listEl.appendChild(card);
+          });
+        });
+      }
+
+      exportBtn.addEventListener('click', () => {
+        getStoredContacts().then((contacts) => {
+          if (!contacts || !contacts.length) {
+            showQuickStatus('Nenhum contato para exportar.', true);
+            return;
+          }
+          downloadAllContactsVCard(contacts);
+          showQuickStatus('Lista exportada: contatos-leads-plenipay.vcf', false);
+        });
+      });
+
+      render();
+    }
+
+    function renderContatos() {
+      const container = document.getElementById('view-contatos');
+      container.innerHTML = '<div class="crm-search-wrap"><input type="text" class="crm-input-search" id="contatos-search" placeholder="Buscar contato..." /></div><div class="crm-tag-filter-wrap"><select id="contatos-tag-filter"><option value="">Todas as tags</option></select></div><div class="crm-contatos-list" id="contatos-list"></div>';
+      const searchInp = container.querySelector('#contatos-search');
+      const tagSelect = container.querySelector('#contatos-tag-filter');
+      const listEl = container.querySelector('#contatos-list');
+
+      function render() {
+        const q = (searchInp.value || '').trim().toLowerCase();
+        const tagFilter = (tagSelect.value || '').trim();
+        getStoredContacts().then((contacts) => {
+          getStoredTags().then((tags) => {
+            tagSelect.innerHTML = '<option value="">Todas as tags</option>' + tags.map((t) => '<option value="' + escapeHtml(t) + '">' + escapeHtml(t) + '</option>').join('');
+            if (tagFilter) tagSelect.value = tagFilter;
+            let list = contacts;
+            if (tagFilter) list = list.filter((c) => (c.tags || []).includes(tagFilter));
+            if (q) list = list.filter((c) => (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q));
+            listEl.innerHTML = '';
+            if (list.length === 0) {
+              listEl.innerHTML = '<p class="crm-empty">Nenhum contato.</p>';
+              return;
+            }
+            list.forEach((c) => {
+              const card = document.createElement('div');
+              card.className = 'crm-contato-card';
+              card.innerHTML = `
+                <div class="crm-inbox-avatar">${c.photo ? '<img src="' + c.photo + '" alt="" />' : '<span class="crm-avatar-placeholder">' + (c.name || '').charAt(0).toUpperCase() + '</span>'}</div>
+                <div class="crm-contato-info">
+                  <div class="crm-contato-name">${escapeHtml(c.name || formatPhone(c.phone))}</div>
+                  <div class="crm-contato-phone">${formatPhone(c.phone)}</div>
+                  <div class="crm-contato-tags">${(c.tags || []).map((t) => '<span class="crm-tag">' + escapeHtml(t) + '</span>').join('')}</div>
+                </div>
+              `;
+              listEl.appendChild(card);
+            });
+          });
+        });
+      }
+
+      searchInp.addEventListener('input', render);
+      tagSelect.addEventListener('change', render);
+      getStoredTags().then((tags) => {
+        tagSelect.innerHTML = '<option value="">Todas as tags</option>' + tags.map((t) => '<option value="' + escapeHtml(t) + '">' + escapeHtml(t) + '</option>').join('');
+      });
+      render();
+    }
+
+    function renderMensagens() {
+      const container = document.getElementById('view-mensagens');
+      container.innerHTML = '<div class="crm-search-wrap"><input type="text" class="crm-input-search" id="msg-search" placeholder="Buscar mensagem..." /></div><div class="crm-msg-list" id="plenipay-crm-msg-list"></div><p class="crm-empty-hint" id="plenipay-crm-msg-empty" style="display:none;">Nenhuma mensagem. Crie em Configurações (ícone engrenagem).</p>';
+      const listEl = container.querySelector('#plenipay-crm-msg-list');
+      const emptyEl = container.querySelector('#plenipay-crm-msg-empty');
+      const searchInp = container.querySelector('#msg-search');
+
+      function render(list) {
+        const q = (searchInp.value || '').trim().toLowerCase();
+        let show = list || [];
+        if (q) show = show.filter((m) => ((m.label || '') + (m.text || '')).toLowerCase().includes(q));
+        listEl.innerHTML = '';
+        if (!show.length) {
+          emptyEl.style.display = 'block';
+          return;
+        }
+        emptyEl.style.display = 'none';
+        show.forEach((msg) => {
+          const item = document.createElement('div');
+          item.className = 'crm-msg-item';
+          item.innerHTML = `
+            <div class="crm-msg-row-icon">💬</div>
+            <div class="crm-msg-row-label">${escapeHtml(msg.label || '(sem nome)')}</div>
+            <div class="crm-msg-row-actions">
+              <button type="button" class="crm-row-btn crm-row-btn-send" title="Enviar">📤</button>
+            </div>
+          `;
+          item.querySelector('.crm-row-btn-send').addEventListener('click', () => sendMessage(msg));
+          listEl.appendChild(item);
+        });
+      }
+
+      searchInp.addEventListener('input', () => getStoredMessages().then(render));
+      getStoredMessages().then(render);
+    }
+
+    function renderFluxos() {
+      const container = document.getElementById('view-fluxos');
+      container.innerHTML = '<div class="crm-section-title">Fluxos (sequência de mensagens)</div><div class="crm-fluxos-list" id="fluxos-list"></div><p class="crm-empty-hint" id="fluxos-empty">Nenhum fluxo. Crie na página de configuração.</p>';
+      const listEl = container.querySelector('#fluxos-list');
+      const emptyEl = container.querySelector('#fluxos-empty');
+
+      function normalizeIds(raw) {
+        if (Array.isArray(raw) && raw.length) return raw.slice();
+        if (typeof raw === 'string' && raw.trim()) return [raw.trim()];
+        return [];
+      }
+
+      function sendFunnel(funnel, messagesList) {
+        const phone = getPhoneForSend();
+        if (!phone) {
+          showQuickStatus('Abra uma conversa no WhatsApp.', true);
+          return;
+        }
+        const ids = normalizeIds(funnel.messageIds);
+        const map = {};
+        (messagesList || []).forEach((m) => { if (m && m.id) map[m.id] = m; });
+        const list = ids.map((id) => map[id]).filter(Boolean);
+        if (!list.length) {
+          showQuickStatus('Fluxo sem mensagens.', true);
+          return;
+        }
+        let delay = 0;
+        list.forEach((msg) => {
+          setTimeout(() => sendMessage(msg), delay);
+          delay += 800;
+        });
+        setTimeout(() => showQuickStatus('Fluxo enviado ✓', false), delay + 400);
+      }
+
+      Promise.all([getStoredFunnels(), getStoredMessages()]).then(([funnels, messages]) => {
+        listEl.innerHTML = '';
+        if (!funnels || !funnels.length) {
+          emptyEl.style.display = 'block';
+          return;
+        }
+        emptyEl.style.display = 'none';
+        funnels.forEach((f) => {
+          const count = normalizeIds(f.messageIds).length;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'crm-btn-funnel';
+          btn.textContent = (f.name || 'Fluxo') + ' (' + count + ' msgs)';
+          btn.addEventListener('click', () => sendFunnel(f, messages));
+          listEl.appendChild(btn);
+        });
       });
     }
 
-    function loadAndRenderFunnels() {
-      Promise.all([getStoredFunnels(), getStoredMessages()]).then(function (arr) {
-        renderFunnelButtons(arr[0], arr[1]);
+    function renderTags() {
+      const container = document.getElementById('view-tags');
+      container.innerHTML = '<div class="crm-section-title">Tags padrão (para contatos)</div><div class="crm-tags-list" id="tags-list"></div><div class="crm-current-contact-tags" id="current-contact-tags"><div class="crm-section-title">Contato atual</div><p id="current-contact-info">Abra uma conversa para ver/editar tags.</p><div id="current-tags-wrap"></div></div>';
+      const listEl = container.querySelector('#tags-list');
+      const currentWrap = container.querySelector('#current-tags-wrap');
+      const currentInfo = container.querySelector('#current-contact-info');
+
+      getStoredTags().then((tags) => {
+        listEl.innerHTML = tags.map((t) => '<span class="crm-tag">' + escapeHtml(t) + '</span>').join('');
+      });
+
+      function updateCurrentContact() {
+        const phone = getCurrentChatPhone();
+        if (!phone) {
+          currentInfo.textContent = 'Abra uma conversa para ver/editar tags.';
+          currentWrap.innerHTML = '';
+          return;
+        }
+        const normalized = normalizePhone(phone);
+        getStoredContacts().then((contacts) => {
+          const c = contacts.find((x) => normalizePhone(x.phone) === normalized);
+          currentInfo.textContent = (c && c.name) ? c.name + ' — ' + formatPhone(phone) : formatPhone(phone);
+          getStoredTags().then((tagList) => {
+            const contactTags = (c && c.tags) ? c.tags : [];
+            currentWrap.innerHTML = tagList.map((t) => {
+              const on = contactTags.includes(t);
+              return '<button type="button" class="crm-tag-toggle' + (on ? ' on' : '') + '" data-tag="' + escapeHtml(t) + '">' + escapeHtml(t) + '</button>';
+            }).join('');
+            currentWrap.querySelectorAll('.crm-tag-toggle').forEach((btn) => {
+              btn.addEventListener('click', () => {
+                const tag = btn.getAttribute('data-tag');
+                const nextTags = contactTags.includes(tag) ? contactTags.filter((x) => x !== tag) : contactTags.concat(tag);
+                const next = contacts.filter((x) => normalizePhone(x.phone) !== normalized);
+                const updated = c ? { ...c, tags: nextTags } : { id: normalized, phone: normalized, name: '', photo: '', lastInteraction: new Date().toISOString(), tags: nextTags };
+                next.push(updated);
+                setStored(STORAGE_KEYS.contacts, next).then(() => updateCurrentContact());
+              });
+            });
+          });
+        });
+      }
+
+      updateCurrentContact();
+      setInterval(updateCurrentContact, 2000);
+    }
+
+    function renderConfig() {
+      const container = document.getElementById('view-config');
+      container.innerHTML = `
+        <div class="crm-config-card">
+          <h3 class="crm-config-title">API PleniPay</h3>
+          <p class="crm-hint">Conectar à API para enviar mensagens e sincronizar contatos.</p>
+          <label>URL do site</label>
+          <input type="url" id="config-baseUrl" placeholder="https://plenipay.com" />
+          <label>Token (API Key)</label>
+          <input type="password" id="config-apiKey" placeholder="Token do servidor" />
+          <button type="button" id="config-save" class="crm-btn-primary">Salvar</button>
+          <button type="button" id="config-test" class="crm-btn-secondary">Testar conexão</button>
+        </div>
+        <div class="crm-config-card">
+          <h3 class="crm-config-title">Sincronização</h3>
+          <p class="crm-hint">O contato da conversa aberta é salvo automaticamente e pode ser enviado à API.</p>
+          <button type="button" id="config-sync-now" class="crm-btn-secondary">Sincronizar contato atual</button>
+        </div>
+        <a href="#" id="config-open-full" class="crm-link">Abrir configuração completa (mensagens e fluxos) →</a>
+      `;
+
+      getStored().then((r) => {
+        container.querySelector('#config-baseUrl').value = r[STORAGE_KEYS.baseUrl] || 'https://plenipay.com';
+        container.querySelector('#config-apiKey').value = r[STORAGE_KEYS.apiKey] || '';
+      });
+
+      container.querySelector('#config-save').addEventListener('click', () => {
+        const baseUrl = (container.querySelector('#config-baseUrl').value || '').trim().replace(/\/+$/, '') || 'https://plenipay.com';
+        const apiKey = (container.querySelector('#config-apiKey').value || '').trim();
+        setStored(STORAGE_KEYS.baseUrl, baseUrl);
+        setStored(STORAGE_KEYS.apiKey, apiKey);
+        cachedApi.baseUrl = baseUrl;
+        cachedApi.apiKey = apiKey;
+        cachedApi.at = Date.now();
+        showQuickStatus('Configuração salva.', false);
+      });
+
+      container.querySelector('#config-test').addEventListener('click', async () => {
+        const baseUrl = (container.querySelector('#config-baseUrl').value || '').trim().replace(/\/+$/, '');
+        if (!baseUrl) { showQuickStatus('Informe a URL.', true); return; }
+        try {
+          const res = await fetch(baseUrl + '/api/health', { method: 'GET' });
+          const data = await res.json().catch(() => ({}));
+          showQuickStatus(res.ok && data.status === 'ok' ? 'Conexão OK.' : 'Resposta inesperada.', !res.ok);
+        } catch (e) {
+          showQuickStatus('Falha: ' + (e.message || 'verifique a URL'), true);
+        }
+      });
+
+      container.querySelector('#config-sync-now').addEventListener('click', () => {
+        const contact = getContactFromDOM();
+        if (!contact) { showQuickStatus('Abra uma conversa primeiro.', true); return; }
+        upsertContact(contact).then(() => {
+          sendContactToApi(contact);
+          showQuickStatus('Contato sincronizado.', false);
+        });
+      });
+
+      container.querySelector('#config-open-full').addEventListener('click', (e) => {
+        e.preventDefault();
+        openOptions();
       });
     }
 
-    const SIDEBAR_WIDTH = 300;
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s == null ? '' : s;
+      return div.innerHTML;
+    }
+
+    showTab('inbox');
 
     function updatePhoneDisplay() {
       const phone = getCurrentChatPhone();
       if (phone) {
-        phoneDisplay.textContent = formatPhone(phone);
+        if (phone !== lastPhone) {
+          lastPhone = phone;
+          var contact = getContactFromDOM();
+          if (contact && contact.phone) {
+            upsertContact(contact).then(function (c) { sendContactToApi(c); });
+          }
+        }
       } else {
-        phoneDisplay.textContent = '—';
+        lastPhone = phone;
       }
+      phoneDisplay.textContent = phone ? formatPhone(phone) : '—';
     }
 
     const SIDEBAR_CSS_CLASS = 'plenipay-crm-sidebar-visible';
-
     function applySidebarMargin(visible) {
-      if (visible) {
-        document.body.style.marginRight = SIDEBAR_WIDTH + 'px';
-        document.body.classList.add(SIDEBAR_CSS_CLASS);
-      } else {
-        document.body.style.marginRight = '';
-        document.body.classList.remove(SIDEBAR_CSS_CLASS);
-      }
+      document.body.style.marginRight = visible ? SIDEBAR_WIDTH + 'px' : '';
+      document.body.classList.toggle(SIDEBAR_CSS_CLASS, visible);
     }
 
     updatePhoneDisplay();
-    loadAndRenderMessages();
-    loadAndRenderFunnels();
-    if (!cachedApi.apiKey) {
-      getStored().then(function (r) {
-        cachedApi.baseUrl = r.baseUrl;
-        cachedApi.apiKey = r.apiKey;
-        cachedApi.at = Date.now();
-        if (r.baseUrl) {
-          fetch(r.baseUrl.replace(/\/+$/, '') + '/api/health', { method: 'HEAD' }).catch(function () {});
-        }
-      });
-    }
-    chrome.storage.onChanged.addListener(function (changes, areaName) {
-      if (areaName !== 'sync') return;
-      if (changes[STORAGE_KEYS.messages]) {
-        renderMessageButtons(Array.isArray(changes[STORAGE_KEYS.messages].newValue) ? changes[STORAGE_KEYS.messages].newValue : []);
-      }
-      if (changes[STORAGE_KEYS.funnels]) {
-        loadAndRenderFunnels();
-      }
-      if (changes[STORAGE_KEYS.baseUrl] || changes[STORAGE_KEYS.apiKey] || changes[STORAGE_KEYS.zapiInstanceId] || changes[STORAGE_KEYS.zapiToken] || changes[STORAGE_KEYS.zapiClientToken]) {
-        getStored().then(function (r) {
-          cachedApi.baseUrl = r.baseUrl;
-          cachedApi.apiKey = r.apiKey;
-          cachedApi.at = Date.now();
-          if (r.zapiInstanceId && r.zapiToken) {
-            cachedZapi.instanceId = r.zapiInstanceId;
-            cachedZapi.token = r.zapiToken;
-            cachedZapi.clientToken = r.zapiClientToken || '';
-            cachedZapi.at = Date.now();
-          }
-        });
-      }
-    });
-    setTimeout(function () {
-      updatePhoneDisplay();
-      lastPhone = getCurrentChatPhone();
-    }, 1000);
     applySidebarMargin(true);
-
-    // Atualizar "Conversa atual" ao trocar de chat (polling 1s + clique + mudança no DOM)
-    let lastPhone = getCurrentChatPhone();
-    function syncPhoneFromPage() {
-      if (lockedSendPhone) return;
-      var phone = getCurrentChatPhone();
-      if (phone !== lastPhone) {
-        lastPhone = phone;
-        if (phone) {
-          phoneDisplay.textContent = formatPhone(phone);
-        } else {
-          phoneDisplay.textContent = '—';
-        }
-      }
-    }
-    setInterval(function () {
-      if (wrap.classList.contains('hidden')) return;
-      syncPhoneFromPage();
-    }, 200);
-    document.addEventListener('click', function () {
-      setTimeout(syncPhoneFromPage, 50);
-      setTimeout(syncPhoneFromPage, 200);
-      setTimeout(syncPhoneFromPage, 500);
-    }, true);
-    window.addEventListener('focus', function () { setTimeout(syncPhoneFromPage, 50); setTimeout(syncPhoneFromPage, 150); });
-    document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') setTimeout(syncPhoneFromPage, 80);
-    });
-    try {
-      const main = document.querySelector('[role="main"]') || document.body;
-      const obs = new MutationObserver(function () { syncPhoneFromPage(); });
-      obs.observe(main, { childList: true, subtree: true });
-    } catch (_) {}
-
-    document.getElementById('plenipay-crm-refresh').addEventListener('click', function () {
-      lastPhone = getCurrentChatPhone();
-      updatePhoneDisplay();
-    });
+    setInterval(updatePhoneDisplay, 500);
 
     toggle.addEventListener('click', () => {
       const hidden = wrap.classList.toggle('hidden');
       toggle.innerHTML = hidden ? '▶' : '◀';
+      toggle.style.right = hidden ? '0' : (SIDEBAR_WIDTH - 2) + 'px';
       applySidebarMargin(!hidden);
     });
+    toggle.style.right = (SIDEBAR_WIDTH - 2) + 'px';
 
-    function openConfigPanel() {
-      chrome.runtime.sendMessage({ action: 'openOptions' }).catch(() => {});
-      try { chrome.runtime.openOptionsPage(); } catch (_) {}
-    }
-    document.getElementById('plenipay-crm-open-options').addEventListener('click', (e) => {
-      e.preventDefault();
-      openConfigPanel();
+    document.addEventListener('click', () => setTimeout(updatePhoneDisplay, 100), true);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') updatePhoneDisplay(); });
+
+    getStored().then((r) => {
+      cachedApi.baseUrl = r[STORAGE_KEYS.baseUrl] || '';
+      cachedApi.apiKey = r[STORAGE_KEYS.apiKey] || '';
+      cachedApi.at = Date.now();
     });
-    var headerMenu = document.getElementById('plenipay-crm-header-menu');
-    if (headerMenu) headerMenu.addEventListener('click', openConfigPanel);
-    document.getElementById('plenipay-crm-open-panel').addEventListener('click', openConfigPanel);
 
-    var searchInput = document.getElementById('plenipay-crm-search');
-    if (searchInput) {
-      searchInput.addEventListener('input', function () {
-        var q = (this.value || '').trim().toLowerCase();
-        msgListEl.querySelectorAll('.crm-msg-row').forEach(function (row) {
-          var label = (row.getAttribute('data-msg-label') || '').toLowerCase();
-          row.style.display = !q || label.indexOf(q) !== -1 ? '' : 'none';
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== 'sync') return;
+      if (changes[STORAGE_KEYS.baseUrl] || changes[STORAGE_KEYS.apiKey]) {
+        getStored().then((r) => {
+          cachedApi.baseUrl = r[STORAGE_KEYS.baseUrl] || '';
+          cachedApi.apiKey = r[STORAGE_KEYS.apiKey] || '';
+          cachedApi.at = Date.now();
         });
-      });
-    }
-
-    document.getElementById('plenipay-crm-btn-test').addEventListener('click', async () => {
-      const { baseUrl } = await getStored();
-      if (!baseUrl) {
-        showStatus(statusEl, 'warning', 'Configure a URL nas opções primeiro.');
-        return;
-      }
-      const url = baseUrl.replace(/\/+$/, '') + '/api/health';
-      statusEl.style.display = 'block';
-      statusEl.className = 'crm-status warning';
-      statusEl.textContent = 'Testando ' + url + '...';
-      try {
-        const res = await fetch(url, { method: 'GET' });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data.status === 'ok') {
-          showStatus(statusEl, 'success', 'Conexão OK: site no ar.');
-        } else {
-          showStatus(statusEl, 'error', 'Resposta inesperada: ' + res.status);
-        }
-      } catch (err) {
-        const m = (err && err.message) ? err.message : '';
-        showStatus(statusEl, 'error', 'Falhou: ' + (m || 'verifique a URL (ex: https://seu-app.up.railway.app, sem barra no final) e recarregue a extensão.'));
       }
     });
+
+    var syncInterval = 15000;
+    setInterval(function () {
+      syncAllContactsFromList();
+    }, syncInterval);
+    setTimeout(function () { syncAllContactsFromList(); }, 3000);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') syncAllContactsFromList();
+    });
+    var listPane = document.querySelector('#pane-side, [data-testid="chat-list"], [role="application"]');
+    if (listPane) {
+      try {
+        var syncDebounce = null;
+        var obs = new MutationObserver(function () {
+          if (syncDebounce) clearTimeout(syncDebounce);
+          syncDebounce = setTimeout(function () { syncAllContactsFromList(); }, 2000);
+        });
+        obs.observe(listPane, { childList: true, subtree: true });
+      } catch (e) {}
+    }
   }
 
-  getStored().then(function (r) {
-    cachedApi.baseUrl = r.baseUrl;
-    cachedApi.apiKey = r.apiKey;
+  getStored().then((r) => {
+    cachedApi.baseUrl = r[STORAGE_KEYS.baseUrl] || '';
+    cachedApi.apiKey = r[STORAGE_KEYS.apiKey] || '';
     cachedApi.at = Date.now();
-    if (r.zapiInstanceId && r.zapiToken) {
-      cachedZapi.instanceId = r.zapiInstanceId;
-      cachedZapi.token = r.zapiToken;
-      cachedZapi.clientToken = r.zapiClientToken || '';
-      cachedZapi.at = Date.now();
-    }
-    if (r.baseUrl) {
-      fetch(r.baseUrl.replace(/\/+$/, '') + '/api/health', { method: 'HEAD' }).catch(function () {});
-    }
   });
 
   function init() {

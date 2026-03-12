@@ -7,6 +7,8 @@ import { createAdminClient } from '@/lib/supabase/server'
 
 export type QueueItemStatus = 'pending' | 'sending' | 'sent' | 'failed'
 
+export type BotaoFila = { titulo: string; link?: string }
+
 export interface PlenQueueItem {
   id: string
   contact_id: string
@@ -16,35 +18,57 @@ export interface PlenQueueItem {
   sent_at: string | null
   error_message: string | null
   created_at: string
+  botoes?: BotaoFila[] | null
 }
 
-/** Delay humano: 1.5 a 5 segundos (aleatório). */
-const DELAY_MIN_MS = 1500
-const DELAY_MAX_MS = 5000
+/** Delay curto para respostas mais rápidas (0,2 a 0,8 s). */
+const DELAY_MIN_MS = 200
+const DELAY_MAX_MS = 800
 function randomDelayMs(): number {
   return DELAY_MIN_MS + Math.random() * (DELAY_MAX_MS - DELAY_MIN_MS)
 }
 
-/** Adiciona mensagem à fila. Sem sendAfter usa delay aleatório 1.5–5s (resposta humanizada). */
+/** Janela para considerar mensagem duplicada (evita mesma resposta 2x quando Z-API reenvia webhook). */
+const DEDUPE_WINDOW_SEC = 90
+
+/** Adiciona mensagem à fila. Sem sendAfter usa delay curto 0,2–0,8s. botoes opcional: envia com botões quando o worker processar. */
 export async function enqueuePlenMessage(
   contactId: string,
   mensagem: string,
-  sendAfter?: Date
+  sendAfter?: Date,
+  botoes?: BotaoFila[]
 ): Promise<string | null> {
   const supabase = createAdminClient()
   if (!supabase) return null
 
+  const since = new Date(Date.now() - DEDUPE_WINDOW_SEC * 1000).toISOString()
+  const { data: existing } = await supabase
+    .from('plen_message_queue')
+    .select('id')
+    .eq('contact_id', contactId)
+    .eq('mensagem', mensagem)
+    .gte('created_at', since)
+    .limit(1)
+    .maybeSingle()
+  const existingId = existing != null ? (existing as { id?: string }).id : null
+  if (existingId) return existingId
+
   const after = sendAfter ?? new Date(Date.now() + randomDelayMs())
   const send_after = after.toISOString()
+  const botoesValidos = Array.isArray(botoes) ? botoes.filter((b) => (b?.titulo ?? '').trim().length > 0) : []
+  const payload: Record<string, unknown> = {
+    contact_id: contactId,
+    mensagem,
+    status: 'pending',
+    send_after,
+  }
+  if (botoesValidos.length > 0) {
+    payload.botoes = botoesValidos.map((b) => ({ titulo: (b.titulo ?? '').trim(), link: (b.link ?? '').trim() || undefined }))
+  }
 
   const { data, error } = await supabase
     .from('plen_message_queue')
-    .insert({
-      contact_id: contactId,
-      mensagem,
-      status: 'pending',
-      send_after,
-    })
+    .insert(payload)
     .select('id')
     .single()
 
@@ -105,4 +129,4 @@ export async function markQueueItemFailed(id: string, errorMessage: string): Pro
 }
 
 /** Delay entre envio de cada mensagem na fila (segundos), para não saturar Z-API. */
-export const QUEUE_DELAY_SECONDS = 2
+export const QUEUE_DELAY_SECONDS = 1

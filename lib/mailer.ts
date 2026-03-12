@@ -1,5 +1,4 @@
 import nodemailer from 'nodemailer'
-import { Resend } from 'resend'
 
 // Garantir que .env.local seja carregado (Next.js já carrega, mas em alguns contextos pode faltar)
 if (typeof process !== 'undefined' && !process.env.SMTP_HOST && process.env.NODE_ENV !== 'production') {
@@ -89,10 +88,9 @@ export function isSmtpConfigured() {
   return !!getSmtpConfig()
 }
 
-// Resend usa API HTTPS - funciona em Railway (SMTP pode ser bloqueado)
+/** Não usado: envio de e-mail é somente via SMTP. */
 export function isResendConfigured() {
-  const key = parseEnv(process.env.RESEND_API_KEY)
-  return !!key && key.length > 10
+  return false
 }
 
 function createTransporter(cfg: { host: string; port: number; secure: boolean; auth: { user: string; pass: string }; from: string }) {
@@ -113,28 +111,9 @@ function createTransporter(cfg: { host: string; port: number; secure: boolean; a
 }
 
 export async function sendMail({ to, subject, html }: SendMailArgs) {
-  // Resend primeiro (API HTTPS - funciona em Railway; SMTP costuma ser bloqueado)
-  const resendKey = parseEnv(process.env.RESEND_API_KEY)
-  const resendFrom = parseEnv(process.env.RESEND_FROM) || parseEnv(process.env.SMTP_FROM) || parseEnv(process.env.SMTP_USER) || 'onboarding@resend.dev'
-  if (resendKey && resendKey.length > 10) {
-    try {
-      const resend = new Resend(resendKey)
-      const { data, error } = await resend.emails.send({ from: resendFrom, to, subject, html })
-      if (error) {
-        throw new Error(error.message || 'Erro Resend')
-      }
-      console.log('✅ [Resend] Email enviado:', data?.id)
-      return data
-    } catch (err: any) {
-      console.error('❌ [Resend] Erro:', err?.message)
-      throw new Error(err?.message || 'Erro ao enviar email via Resend.')
-    }
-  }
-
+  // SMTP em primeiro lugar: quem configura SMTP_* usa só SMTP (sem Resend)
   const cfg = getSmtpConfig()
-  if (!cfg) {
-    throw new Error('Email não configurado. Adicione RESEND_API_KEY (recomendado) ou SMTP_* no Railway.')
-  }
+  if (cfg) {
 
   console.log('📤 [SMTP] Preparando para enviar email...')
   console.log(`  - Para: ${to}`)
@@ -189,5 +168,9 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
     ;(smtpError as any).originalError = error
     throw smtpError
   }
+  }
+
+  // Sem SMTP configurado: erro claro (não usar Resend)
+  throw new Error('Email não configurado. Adicione SMTP_HOST, SMTP_PORT, SMTP_USER e SMTP_PASSWORD no painel (ex.: Railway).')
 }
 

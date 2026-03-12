@@ -85,6 +85,83 @@ const beneficios = [
   { icon: DollarSign, texto: 'Atualizações constantes' },
 ]
 
+// ——— Copy persuasiva: vantagem de usar a PleniPay ———
+const POR_QUE_PLENIPAY = {
+  titulo: 'Por que escolher a PleniPay?',
+  subtitulo: 'Não é só controle financeiro. É decisão estratégica para o seu dinheiro.',
+  itens: [
+    'Você enxerga para onde vai cada real: receitas, despesas e metas em um só lugar, sem planilhas perdidas.',
+    'Reduz dívidas de verdade: acompanhe parcelas, prazos e priorize o que pagar primeiro com o módulo de Dívidas.',
+    'Economia que vira resultado: metas claras (viagem, reserva, quitando débitos) e acompanhamento até o objetivo.',
+    'Funciona no seu dia a dia: registre pelo app, pelo WhatsApp ou pelo navegador — onde você estiver.',
+    'PLEN AI e relatórios inteligentes: tire dúvidas e veja análises sem precisar ser expert em números.',
+    'Segurança e privacidade: seus dados protegidos, sem surpresas na fatura — você escolhe o plano e controla o gasto.',
+  ],
+}
+
+// ——— Copy detalhada de cada plano (persuasiva e estratégica) ———
+const COPY_PLANOS_DETALHADA = {
+  gratuito: {
+    titulo: 'Plano Gratuito',
+    subtitulo: 'Comece sem pagar nada. Experimente a PleniPay com o essencial.',
+    paraQuem: 'Ideal para quem está conhecendo a ferramenta, quer testar o controle financeiro ou manter uma visão básica sem compromisso.',
+    vantagens: [
+      'Até 50 registros de entrada e saída por mês — suficiente para ter noção do que entra e sai.',
+      'Dashboard com totais e estatísticas para você enxergar o panorama geral.',
+      'Até 2 usuários ou “pessoas” (ex.: você e um dependente) na mesma conta.',
+      'Filtros básicos para encontrar lançamentos por período ou tipo.',
+      'Conta gratuita permanente: sem prazo para expirar, sem cartão para cadastrar.',
+      'Acesso ao PLEN AI: tire dúvidas e peça sugestões em linguagem natural.',
+    ],
+    conclusao: 'A vantagem da PleniPay no gratuito: você não fica preso a planilhas ou apps confusos. Comece organizado e, quando quiser evoluir, é só subir de plano.',
+  },
+  basico: {
+    titulo: 'Plano Básico',
+    subtitulo: 'O passo que transforma “organizar” em “controlar de verdade”.',
+    paraQuem: 'Perfeito para uso pessoal, famílias pequenas, freelancers e quem quer deixar de perder o controle das contas e dívidas.',
+    vantagens: [
+      'Tudo do Gratuito, sem limites de registros — lance quantas entradas e saídas precisar.',
+      'Módulo de Dívidas: cadastre parcelas, prazos e valores; acompanhe o que falta e priorize o que pagar.',
+      'Salário recorrente: defina sua renda fixa e veja projeções e sobras no calendário.',
+      'Calendário Financeiro completo: visualize vencimentos e evite surpresas no fim do mês.',
+      'Até 3 metas (ex.: reserva de emergência, viagem, quitar um cartão) com acompanhamento.',
+      'Até 10 usuários/pessoas: ideal para casa compartilhada ou pequeno time.',
+      'Filtros avançados e exportação de relatórios para análise e planejamento.',
+      'Suporte prioritário: respostas mais rápidas quando precisar de ajuda.',
+    ],
+    conclusao: '7 dias grátis para testar. A vantagem da PleniPay no Básico: você une controle do dia a dia, dívidas e metas em uma única ferramenta, sem migrar de app.',
+  },
+  premium: {
+    titulo: 'Plano Premium',
+    subtitulo: 'Máximo controle: empréstimos, documentos, metas ilimitadas e suporte 24/7.',
+    paraQuem: 'Para quem leva finanças a sério: profissionais liberais, pequenos negócios, famílias que querem tudo em um só lugar e quem não quer abrir mão de nenhuma função.',
+    vantagens: [
+      'Tudo do Básico, mais gestão de Empréstimos: registre quem deve, quem te deve, prazos e parcelas.',
+      'Upload de documentos: anexe comprovantes e contratos às suas movimentações.',
+      'Game em “Juntar Dinheiro”: torne a economia mais visual e motivadora.',
+      'Metas ilimitadas: quantos objetivos quiser, com acompanhamento individual.',
+      'Usuários/pessoas ilimitados: time ou família grande, tudo na mesma conta.',
+      'Dashboard avançado com projeções e gráficos para decisões mais inteligentes.',
+      'Exportação avançada em PDF e Excel para relatórios e prestação de contas.',
+      'Suporte 24/7 e acesso antecipado a novas funcionalidades.',
+    ],
+    conclusao: 'A vantagem da PleniPay no Premium: você centraliza finanças pessoais e até operações simples (empréstimos, documentos) em um só lugar, com suporte quando precisar.',
+  },
+  anual: {
+    titulo: 'Plano Anual',
+    subtitulo: 'Todo o poder do Premium, com o melhor custo-benefício do ano.',
+    paraQuem: 'Quem já sabe que vai usar a PleniPay o ano todo e prefere pagar menos por mês e não se preocupar com renovação.',
+    vantagens: [
+      'Todas as funcionalidades do Plano Premium, sem exceção.',
+      'Pagamento único anual: R$ 197,00/ano — equivale a R$ 16,42/mês.',
+      'Economia de R$ 120 em relação a 12 meses do Premium mensal.',
+      'Suporte prioritário 24/7 e acesso antecipado a novas features.',
+      'Menos preocupação: uma vez pago, você foca em organizar o ano inteiro.',
+    ],
+    conclusao: 'A vantagem da PleniPay no Anual: você garante o máximo da plataforma por um valor mensal bem menor e sem surpresas na fatura a cada mês.',
+  },
+}
+
 const depoimentos = [
   {
     nome: 'Maria Clara',
@@ -240,10 +317,30 @@ export default function PlanosPage() {
             <span className="text-[#1e4976]">às suas necessidades</span>
           </h1>
           <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-            Controle financeiro completo, do básico ao avançado. 
-            Comece grátis e evolua conforme sua necessidade.
+            A PleniPay une controle do dia a dia, dívidas, metas e relatórios em um só lugar — no app, no navegador ou pelo WhatsApp. 
+            Comece grátis e evolua quando quiser, sem surpresas na fatura.
           </p>
         </div>
+
+        {/* Por que escolher a PleniPay */}
+        <section className="max-w-4xl mx-auto mb-12 sm:mb-16">
+          <div className="bg-[#E8EEF5]/60 border border-[#1e4976]/20 rounded-2xl p-6 sm:p-8">
+            <h2 className="text-xl sm:text-2xl font-display font-bold text-[#0D1B2A] mb-2 text-center">
+              {POR_QUE_PLENIPAY.titulo}
+            </h2>
+            <p className="text-gray-600 text-center mb-6 text-sm sm:text-base">
+              {POR_QUE_PLENIPAY.subtitulo}
+            </p>
+            <ul className="space-y-3">
+              {POR_QUE_PLENIPAY.itens.map((item, i) => (
+                <li key={i} className="flex items-start gap-3 text-gray-700 text-sm sm:text-base">
+                  <CheckCircle2 size={20} className="text-[#1e4976] flex-shrink-0 mt-0.5" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
 
         {/* Benefícios Rápidos */}
         <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mb-10 sm:mb-12">
@@ -471,6 +568,84 @@ export default function PlanosPage() {
             </button>
           </div>
         </div>
+
+        {/* Detalhamento persuasivo de cada plano */}
+        <section className="max-w-5xl mx-auto mb-12 sm:mb-16">
+          <h2 className="text-2xl sm:text-3xl font-display font-bold text-[#0D1B2A] mb-6 sm:mb-8 text-center">
+            Entenda cada plano em detalhe
+          </h2>
+          <p className="text-gray-600 text-center mb-8 max-w-2xl mx-auto text-sm sm:text-base">
+            Cada plano foi pensado para um momento da sua vida financeira. Veja o que você ganha e para quem é a melhor escolha.
+          </p>
+
+          <div className="space-y-10">
+            {/* Gratuito */}
+            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-200 shadow-sm">
+              <h3 className="text-lg sm:text-xl font-bold text-[#0D1B2A] mb-1">{COPY_PLANOS_DETALHADA.gratuito.titulo}</h3>
+              <p className="text-[#1e4976] font-medium text-sm sm:text-base mb-3">{COPY_PLANOS_DETALHADA.gratuito.subtitulo}</p>
+              <p className="text-gray-600 text-sm sm:text-base mb-4 italic">&ldquo;{COPY_PLANOS_DETALHADA.gratuito.paraQuem}&rdquo;</p>
+              <ul className="space-y-2 mb-4">
+                {COPY_PLANOS_DETALHADA.gratuito.vantagens.map((v, i) => (
+                  <li key={i} className="flex items-start gap-2 text-gray-700 text-sm">
+                    <Check size={16} className="text-[#1e4976] flex-shrink-0 mt-0.5" />
+                    <span>{v}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-gray-700 text-sm sm:text-base border-l-4 border-[#1e4976] pl-4">{COPY_PLANOS_DETALHADA.gratuito.conclusao}</p>
+            </div>
+
+            {/* Básico */}
+            <div className="bg-white rounded-2xl p-6 sm:p-8 border-2 border-[#1e4976]/30 shadow-sm">
+              <h3 className="text-lg sm:text-xl font-bold text-[#0D1B2A] mb-1">{COPY_PLANOS_DETALHADA.basico.titulo}</h3>
+              <p className="text-[#1e4976] font-medium text-sm sm:text-base mb-3">{COPY_PLANOS_DETALHADA.basico.subtitulo}</p>
+              <p className="text-gray-600 text-sm sm:text-base mb-4 italic">&ldquo;{COPY_PLANOS_DETALHADA.basico.paraQuem}&rdquo;</p>
+              <ul className="space-y-2 mb-4">
+                {COPY_PLANOS_DETALHADA.basico.vantagens.map((v, i) => (
+                  <li key={i} className="flex items-start gap-2 text-gray-700 text-sm">
+                    <Check size={16} className="text-[#1e4976] flex-shrink-0 mt-0.5" />
+                    <span>{v}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-gray-700 text-sm sm:text-base border-l-4 border-[#1e4976] pl-4">{COPY_PLANOS_DETALHADA.basico.conclusao}</p>
+            </div>
+
+            {/* Premium */}
+            <div className="bg-white rounded-2xl p-6 sm:p-8 border-2 border-[#1e4976] shadow-lg">
+              <div className="inline-block bg-[#1e4976] text-white text-xs font-bold px-3 py-1 rounded-full mb-3">MAIS POPULAR</div>
+              <h3 className="text-lg sm:text-xl font-bold text-[#0D1B2A] mb-1">{COPY_PLANOS_DETALHADA.premium.titulo}</h3>
+              <p className="text-[#1e4976] font-medium text-sm sm:text-base mb-3">{COPY_PLANOS_DETALHADA.premium.subtitulo}</p>
+              <p className="text-gray-600 text-sm sm:text-base mb-4 italic">&ldquo;{COPY_PLANOS_DETALHADA.premium.paraQuem}&rdquo;</p>
+              <ul className="space-y-2 mb-4">
+                {COPY_PLANOS_DETALHADA.premium.vantagens.map((v, i) => (
+                  <li key={i} className="flex items-start gap-2 text-gray-700 text-sm">
+                    <Check size={16} className="text-[#1e4976] flex-shrink-0 mt-0.5" />
+                    <span>{v}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-gray-700 text-sm sm:text-base border-l-4 border-[#1e4976] pl-4">{COPY_PLANOS_DETALHADA.premium.conclusao}</p>
+            </div>
+
+            {/* Anual */}
+            <div className="bg-[#0D1B2A]/5 rounded-2xl p-6 sm:p-8 border-2 border-[#0D1B2A]/20">
+              <div className="inline-block bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full mb-3">MELHOR CUSTO-BENEFÍCIO</div>
+              <h3 className="text-lg sm:text-xl font-bold text-[#0D1B2A] mb-1">{COPY_PLANOS_DETALHADA.anual.titulo}</h3>
+              <p className="text-[#1e4976] font-medium text-sm sm:text-base mb-3">{COPY_PLANOS_DETALHADA.anual.subtitulo}</p>
+              <p className="text-gray-600 text-sm sm:text-base mb-4 italic">&ldquo;{COPY_PLANOS_DETALHADA.anual.paraQuem}&rdquo;</p>
+              <ul className="space-y-2 mb-4">
+                {COPY_PLANOS_DETALHADA.anual.vantagens.map((v, i) => (
+                  <li key={i} className="flex items-start gap-2 text-gray-700 text-sm">
+                    <Check size={16} className="text-[#1e4976] flex-shrink-0 mt-0.5" />
+                    <span>{v}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-gray-700 text-sm sm:text-base border-l-4 border-[#1e4976] pl-4">{COPY_PLANOS_DETALHADA.anual.conclusao}</p>
+            </div>
+          </div>
+        </section>
 
         {/* Seção de Depoimentos */}
         <section className="mb-12 sm:mb-16">

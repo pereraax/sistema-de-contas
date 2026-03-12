@@ -306,13 +306,13 @@ Use o nome do contato quando possível.`,
         label: 'Menu global',
         nodeType: 'menu',
         config: {
-          menuIntro: 'Escolha uma opção:',
-          menuOpcoes: `Falar com humano
+          menuIntro: 'Olá, {nome}! 💙 Selecione abaixo como posso te ajudar: atendimento humanizado, dúvidas sobre a Plen, planos, recursos premium ou consulta de saldo.',
+          menuOpcoes: `Atendimento humano
 Como funciona
-Assinatura R$9,90
-Funções premium
+Plano R$9,90/mês
+Recursos premium
 Indique e ganhe
-Ver saldo`,
+Consultar saldo`,
           preview: '6 opções',
         },
       },
@@ -339,7 +339,7 @@ Ver saldo`,
         config: {
           texto: 'Em breve um atendente vai te responder. Enquanto isso, posso te ajudar com gastos e receitas! 💙',
           preview: 'Em breve um atendente...',
-          botoes: [{ titulo: 'Falar com suporte', link: '' }],
+          botoes: [{ titulo: 'Chamar atendente', link: '' }],
         },
       },
     },

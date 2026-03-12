@@ -7,6 +7,7 @@ export type ContactStatus =
   | 'usuario_ativo'
   | 'cliente_pago'
   | 'inativo'
+  | 'aguardando_atendente'
 
 export interface CrmContact {
   id: string

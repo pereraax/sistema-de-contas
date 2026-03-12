@@ -17,8 +17,14 @@ export async function getAssistenteGlobalPausada(): Promise<boolean> {
       .select('value')
       .eq('key', KEY)
       .maybeSingle()
-    if (error || !data) return false
-    return (data.value ?? '').toLowerCase() === 'true'
+    if (error || !data) {
+      if (process.env.NODE_ENV === 'development' && error) {
+        console.warn('[assistente-global-pausada] leitura falhou:', error.message)
+      }
+      return false
+    }
+    const pausada = ((data as { value?: string }).value ?? '').trim().toLowerCase() === 'true'
+    return pausada
   } catch {
     return false
   }

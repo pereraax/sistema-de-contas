@@ -17,6 +17,53 @@ import {
   sendWhatsAppMessageWithResult,
   sendWhatsAppMessageWithButtons,
 } from '@/lib/whatsapp/sender'
+import { parseExpenseOrReceita } from '@/lib/plen/ai/expense-parser'
+import { logPlenInteraction, getPlenRegistroCount } from '@/lib/plen/interaction/interaction-logs'
+
+const LIMITE_REGISTROS_GRATUITOS = 10
+
+/** Lead só é considerado cadastrado se concluiu o fluxo: status ativo/cliente ou flag + data_cadastro. */
+function isLeadCadastrado(contact: { status?: string; usuario_cadastrado?: boolean; data_cadastro?: string | null } | null): boolean {
+  if (!contact) return false
+  if (contact.status === 'usuario_ativo' || contact.status === 'cliente_pago') return true
+  if (contact.usuario_cadastrado === true && contact.data_cadastro && String(contact.data_cadastro).trim() !== '') return true
+  return false
+}
+
+/** Verifica se existe conta real no auth (profiles) para o email ou telefone do contato. Fonte de verdade: se não há user no painel, não é cadastrado. */
+async function contactTemContaAuth(contact: { email?: string | null; telefone?: string } | null): Promise<boolean> {
+  if (!contact) return false
+  const supabase = createAdminClient()
+  if (!supabase) return false
+  const emailNorm = (contact.email ?? '').trim().toLowerCase()
+  const phoneNorm = (contact.telefone ?? '').replace(/\D/g, '').trim()
+  if (emailNorm && emailNorm.includes('@')) {
+    const { data: byEmail } = await supabase.from('profiles').select('id').eq('email', emailNorm).limit(1).maybeSingle()
+    if (byEmail?.id) return true
+  }
+  if (phoneNorm.length >= 8) {
+    const { data: byPhone } = await supabase
+      .from('profiles')
+      .select('id')
+      .or(`telefone.eq.${phoneNorm},whatsapp.eq.${phoneNorm}`)
+      .limit(1)
+      .maybeSingle()
+    if (byPhone?.id) return true
+  }
+  return false
+}
+
+/** Para saudação (oi/olá): só trata como cadastrado se o CRM indicar cadastro E existir conta no auth (profiles). Assim lead sem user no painel nunca recebe "vamos registrar?". */
+async function isCadastradoParaSaudacao(
+  contact: { status?: string; usuario_cadastrado?: boolean; data_cadastro?: string | null; email?: string | null; telefone?: string } | null
+): Promise<boolean> {
+  if (!contact) return false
+  if (contact.status !== 'usuario_ativo' && contact.status !== 'cliente_pago') return false
+  const temDataCadastro = contact.data_cadastro != null && String(contact.data_cadastro).trim() !== ''
+  const flagCadastrado = contact.usuario_cadastrado === true
+  if (!flagCadastrado || !temDataCadastro) return false
+  return contactTemContaAuth(contact)
+}
 
 type EdgeRow = { source: string; target: string; sourceHandle?: string | null }
 type ChatbotFlowRow = { id: string; nome: string; estrutura_json: { nodes: unknown[]; edges: EdgeRow[] } }
@@ -73,11 +120,15 @@ function getOutgoingTargets(flow: ChatbotFlowRow, sourceId: string): string[] {
     .map((e) => e.target)
 }
 
-/** Aliases para opções de menu (ex.: botão "Total / saldo" vs nó "Ver saldo"). */
+/** Aliases para opções de menu (ex.: botão "Total / saldo" vs nó "Ver saldo"; "Plano R$9,90" vs "Assinatura"). */
 const MENU_LABEL_ALIASES: [string, string][] = [
   ['total / saldo', 'ver saldo'],
   ['total/saldo', 'ver saldo'],
+  ['consultar saldo', 'ver saldo'],
   ['saldo', 'ver saldo'],
+  ['plano r$9,90', 'assinatura'],
+  ['plano r$9,90/mês', 'assinatura'],
+  ['atendimento humano', 'falar com humano'],
 ]
 function menuLabelsMatch(msg: string, label: string): boolean {
   const t = (msg || '').trim().toLowerCase().replace(/\s+/g, ' ')
@@ -233,14 +284,64 @@ function matchInicio(
   return { matched: true, inicioNodeId: inicio.id }
 }
 
-function applyReplacements(text: string, vars: { nome?: string; valor?: string; categoria?: string }): string {
+function applyReplacements(text: string, vars: { nome?: string; valor?: string; categoria?: string; dashboardUrl?: string }): string {
   let out = text
   if (vars.nome != null) {
     out = out.replace(/\{\{nome\}\}/g, vars.nome).replace(/\{nome\}/g, vars.nome)
   }
   if (vars.valor != null) out = out.replace(/\{\{valor\}\}/g, String(vars.valor)).replace(/\{valor\}/g, String(vars.valor))
   if (vars.categoria != null) out = out.replace(/\{\{categoria\}\}/g, vars.categoria).replace(/\{categoria\}/g, vars.categoria)
+  if (vars.dashboardUrl != null) {
+    out = out.replace(/\{\{dashboardUrl\}\}/g, vars.dashboardUrl).replace(/\{dashboardUrl\}/g, vars.dashboardUrl)
+  }
   return out
+}
+
+/**
+ * Extrai apenas o nome do registro para exibição.
+ * Ex.: "gastei 392 na sala" → "Sala"; "recebi 2190 de joana" → "Joana"; "gastei 876 carro" → "Carro".
+ * 1) Se tiver preposição (no/na/de/da/do/em/com/para), usa o trecho após a última.
+ * 2) Senão, remove verbo + número do início (gastei 876 carro → carro) e usa o resto.
+ * 3) Se ainda sobrar só número ou vazio, usa a última palavra que não seja número.
+ */
+function extrairNomeRegistroCurto(descricao: string, intent: 'registrar_despesa' | 'registrar_receita'): string {
+  const d = (descricao || '').trim().toLowerCase()
+  if (!d || /^(gastei|gastou|paguei|pagou|gasto)$/.test(d)) return 'Gasto'
+  if (/^(recebi|ganhei|entrada)$/.test(d)) return 'Entrada'
+
+  let candidato = d
+
+  const preposicoes = /\s+(no|na|de|da|do|em|com|para)\s+/gi
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = preposicoes.exec(d)) !== null) lastIndex = match.index + match[0].length
+  if (lastIndex > 0) {
+    candidato = d.slice(lastIndex).trim()
+  } else {
+    const semVerboValor = candidato.replace(
+      /^(gastei|gasteu|paguei|pagou|recebi|recebeu|ganhei|ganhou|ganhamos)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*/i,
+      ''
+    ).trim()
+    if (semVerboValor && !/^[\d.,\s]+$/.test(semVerboValor)) {
+      candidato = semVerboValor
+    } else {
+      const palavras = d.split(/\s+/).filter((p) => p && !/^[\d.,]+$/.test(p))
+      if (palavras.length > 0) candidato = palavras[palavras.length - 1]
+    }
+  }
+
+  const nome = candidato || d
+  const capitalizado = nome.replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 100)
+  return capitalizado || (intent === 'registrar_receita' ? 'Entrada' : 'Gasto')
+}
+
+/** Data de hoje no formato DD/MM/AAAA. */
+function formatarDataHoje(): string {
+  const d = new Date()
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = d.getFullYear()
+  return `${day}/${month}/${year}`
 }
 
 /** Extrai valor e categoria da mensagem (ex.: "219 carro" -> { valor: "219", categoria: "Carro" }; "cafe 12" -> { valor: "12", categoria: "Cafe" }). */
@@ -259,7 +360,7 @@ async function sendMessageNodeAndReturnNext(
   nodeId: string,
   contactId: string,
   nome: string,
-  vars?: { valor?: string; categoria?: string }
+  vars?: { valor?: string; categoria?: string; dashboardUrl?: string }
 ): Promise<{ sent: boolean; nextNodeId: string | null }> {
   const node = getNodeById(flow, nodeId)
   if (!node) return { sent: false, nextNodeId: null }
@@ -275,15 +376,21 @@ async function sendMessageNodeAndReturnNext(
     const targets = getOutgoingTargets(flow, nodeId)
     return { sent: false, nextNodeId: targets[0] ?? null }
   }
-  const msg = applyReplacements(texto, { nome, ...vars })
+  const dashboardUrl =
+    (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com').toString().replace(/\/$/, '')
+  const msg = applyReplacements(texto, { nome, dashboardUrl, ...vars })
   const botoesRaw = config?.botoes as Array<{ titulo?: string; link?: string }> | undefined
   const botoes = Array.isArray(botoesRaw)
     ? botoesRaw
         .filter((b) => (b?.titulo ?? '').trim().length > 0)
         .map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined }))
     : []
+  const botoesFinal =
+    botoes.length > 0
+      ? botoes.map((b) => ({ ...b, link: b.link ? applyReplacements(b.link, { nome, dashboardUrl, ...vars }) : b.link }))
+      : botoes
   if (botoes.length > 0) {
-    const result = await sendWhatsAppMessageWithButtons(contactId, msg, botoes)
+    const result = await sendWhatsAppMessageWithButtons(contactId, msg, botoesFinal)
     if (!result.success) {
       if (process.env.NODE_ENV !== 'production') {
         console.warn('[chatbot-flow-runner] envio com botões falhou, enviando só texto:', result.error)
@@ -308,6 +415,190 @@ async function sendMessageNodeAndReturnNext(
 
 const MENU_BUTTON_LABEL_MAX = 20
 
+function formatCurrencyBRL(v: number): string {
+  try {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+  } catch {
+    return `R$${v.toFixed(2)}`
+  }
+}
+
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
+}
+
+function endOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
+}
+
+function getPeriodoFromText(textLower: string): { label: string; start?: Date; end?: Date } {
+  const now = new Date()
+  const t = (textLower || '').trim()
+  const wantsYear = /\bano\b|\banu(al)?\b/.test(t)
+  const wantsMonth = /\bm[eê]s\b|\bmensal\b/.test(t)
+  const wantsWeek = /\bsemana\b|\bsemanal\b/.test(t)
+  const wantsTotal = /\btotal\b|\btudo\b|\bdesde\b/.test(t)
+
+  if (wantsTotal) return { label: 'total', start: undefined, end: undefined }
+  if (wantsYear) {
+    const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0)
+    const end = endOfDay(new Date(now.getFullYear(), 11, 31))
+    return { label: 'ano', start, end }
+  }
+  if (wantsMonth) {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+    const end = endOfDay(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+    return { label: 'mês', start, end }
+  }
+  if (wantsWeek) {
+    // Semana começando na segunda-feira (pt-BR)
+    const day = now.getDay() // 0 dom ... 6 sáb
+    const diffToMonday = (day + 6) % 7
+    const monday = new Date(now)
+    monday.setDate(now.getDate() - diffToMonday)
+    const start = startOfDay(monday)
+    const sunday = new Date(start)
+    sunday.setDate(start.getDate() + 6)
+    const end = endOfDay(sunday)
+    return { label: 'semana', start, end }
+  }
+  // Padrão: mês atual (mais útil para "saldo" e "relatório")
+  const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+  const end = endOfDay(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+  return { label: 'mês', start, end }
+}
+
+async function getAccountOwnerIdFromContact(contact: { email?: string | null; telefone?: string | null } | null): Promise<string | null> {
+  const admin = createAdminClient()
+  if (!admin || !contact) return null
+  const emailNorm = (contact.email ?? '').trim().toLowerCase()
+  const phoneNorm = (contact.telefone ?? '').replace(/\D/g, '').trim()
+
+  if (emailNorm && emailNorm.includes('@')) {
+    const { data } = await admin.from('profiles').select('id').eq('email', emailNorm).limit(1).maybeSingle()
+    if (data?.id) return String(data.id)
+  }
+  if (phoneNorm.length >= 8) {
+    const { data } = await admin
+      .from('profiles')
+      .select('id')
+      .or(`telefone.eq.${phoneNorm},whatsapp.eq.${phoneNorm}`)
+      .limit(1)
+      .maybeSingle()
+    if (data?.id) return String(data.id)
+  }
+  return null
+}
+
+async function getUserIdsForAccountOwner(accountOwnerId: string): Promise<string[]> {
+  const admin = createAdminClient()
+  if (!admin) return []
+  const { data, error } = await admin.from('users').select('id').eq('account_owner_id', accountOwnerId)
+  if (error || !Array.isArray(data)) return []
+  return data.map((r: any) => String(r.id)).filter(Boolean)
+}
+
+async function getResumoFinanceiro(
+  accountOwnerId: string,
+  periodo: { label: string; start?: Date; end?: Date }
+): Promise<{ entradas: number; saidas: number; saldo: number } | null> {
+  const admin = createAdminClient()
+  if (!admin) return null
+  const userIds = await getUserIdsForAccountOwner(accountOwnerId)
+  if (userIds.length === 0) return null
+
+  let q = admin.from('registros').select('tipo, valor, data_registro').in('user_id', userIds)
+  if (periodo.start) q = q.gte('data_registro', periodo.start.toISOString())
+  if (periodo.end) q = q.lte('data_registro', periodo.end.toISOString())
+
+  const { data, error } = await q
+  if (error || !Array.isArray(data)) return null
+
+  let entradas = 0
+  let saidas = 0
+  for (const r of data as any[]) {
+    const tipo = String(r.tipo ?? '')
+    const valor = Number(r.valor ?? 0)
+    if (!Number.isFinite(valor)) continue
+    if (tipo === 'entrada') entradas += valor
+    else if (tipo === 'saida') saidas += valor
+  }
+  return { entradas, saidas, saldo: entradas - saidas }
+}
+
+async function enviarMensagemSaldoRelatorio(
+  contactId: string,
+  nome: string,
+  contact: { email?: string | null; telefone?: string | null } | null,
+  textLower: string,
+  dashboardUrl: string
+): Promise<boolean> {
+  const wantsSaldoOrReport =
+    /\bsaldo\b|\bquanto\s+eu\s+tenho\b|\bquanto\s+tenho\b|\bmeu\s+saldo\b|\bsaldo\s+total\b|\brelat[oó]rio\b|\brelatorio\b|\bresumo\b/.test(
+      textLower
+    )
+  if (!wantsSaldoOrReport) return false
+
+  const periodo = getPeriodoFromText(textLower)
+  const ownerId = await getAccountOwnerIdFromContact(contact)
+  if (!ownerId) {
+    const msg = applyReplacements(
+      `📊 Total / saldo
+
+💰 Resumo do seu dinheiro
+
+Você pode pedir assim:
+- meu saldo total
+- quanto eu tenho
+- relatório dessa semana
+- relatório do mês
+- relatório do ano
+
+Se você quer ver mais detalhes acesse o painel completo.
+Ver no painel: {dashboardUrl}`,
+      { nome, dashboardUrl }
+    )
+    await enqueuePlenMessage(contactId, msg, new Date(), [{ titulo: 'Ver no painel', link: dashboardUrl }])
+    return true
+  }
+
+  const resumo = await getResumoFinanceiro(ownerId, periodo)
+  if (!resumo) {
+    const msg = applyReplacements(
+      `📊 Total / saldo
+
+Não consegui carregar seu resumo agora, {nome}.
+
+Se você quer ver mais detalhes acesse o painel completo.
+Ver no painel: {dashboardUrl}`,
+      { nome, dashboardUrl }
+    )
+    await enqueuePlenMessage(contactId, msg, new Date(), [{ titulo: 'Ver no painel', link: dashboardUrl }])
+    return true
+  }
+
+  const tituloPeriodo = periodo.label === 'total' ? 'Saldo total' : `Relatório da ${periodo.label}`
+  const msg = applyReplacements(
+    `📊 ${tituloPeriodo}
+
+📥 Total recebido: ${formatCurrencyBRL(resumo.entradas)}
+📤 Total de gastos: ${formatCurrencyBRL(resumo.saidas)}
+💰 Seu saldo: ${formatCurrencyBRL(resumo.saldo)}
+
+Você também pode pedir assim:
+- meu saldo total
+- quanto eu tenho
+- relatório dessa semana
+- relatório do mês
+- relatório do ano
+
+Se você quer ver mais detalhes acesse o painel completo.`,
+    { nome, dashboardUrl }
+  )
+  await enqueuePlenMessage(contactId, msg, new Date(), [{ titulo: 'Ver no painel', link: dashboardUrl }])
+  return true
+}
+
 /** Envia menu em uma (ou duas) bolhas: texto no topo + botões empilhados. Retorna targets e as labels como enviadas (20 chars) para o estado. */
 async function sendMenuAsButtonsAndGetTargets(
   flow: ChatbotFlowRow,
@@ -323,7 +614,7 @@ async function sendMenuAsButtonsAndGetTargets(
   const linhas = opcoesStr.split('\n').map((s) => s.trim()).filter(Boolean)
   const targets = getOutgoingTargets(flow, nodeId)
   const introPadrao =
-    'Olá, {nome}! Sempre que precisar, envie MENU para ver as opções. Escolha uma opção:'
+    'Olá, {nome}! 💙 Selecione abaixo como posso te ajudar: atendimento humanizado, dúvidas sobre a Plen, planos, recursos premium ou consulta de saldo.'
   const introMsg = applyReplacements(customIntro || introPadrao, { nome })
   const labels = linhas.map((l) => l.replace(/^\d+\s*/, '').trim()).filter(Boolean)
   const sentLabels = labels.map((l) => l.trim().slice(0, MENU_BUTTON_LABEL_MAX))
@@ -376,9 +667,24 @@ async function tryRespondAsMenuOption(
     const cfg = targetNode.data?.config as Record<string, unknown> | undefined
     const texto = (cfg?.texto as string)?.trim() || ''
     if (texto) {
-      const msg = applyReplacements(texto, { nome })
-      const sent = (await sendWhatsAppMessageWithResult(contactId, msg)).success
-      if (!sent) await enqueuePlenMessage(contactId, msg)
+      const dashboardUrl =
+        (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com').toString().replace(/\/$/, '')
+      const msg = applyReplacements(texto, { nome, dashboardUrl })
+      const botoesRaw = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
+      const botoes = Array.isArray(botoesRaw)
+        ? botoesRaw
+            .filter((b) => (b?.titulo ?? '').trim().length > 0)
+            .map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined }))
+        : []
+      const botoesFinal =
+        botoes.length > 0 ? botoes.map((b) => ({ ...b, link: b.link ? applyReplacements(b.link, { nome, dashboardUrl }) : b.link })) : []
+      if (botoesFinal.length > 0) {
+        const sentBtns = await sendWhatsAppMessageWithButtons(contactId, msg, botoesFinal)
+        if (!sentBtns.success) await enqueuePlenMessage(contactId, msg, new Date(), botoesFinal)
+      } else {
+        const sent = (await sendWhatsAppMessageWithResult(contactId, msg)).success
+        if (!sent) await enqueuePlenMessage(contactId, msg)
+      }
     } else {
       await enqueuePlenMessage(contactId, applyReplacements('Opção em configuração.', { nome }))
     }
@@ -401,11 +707,16 @@ async function tryRespondAsMenuOption(
         const cfg = rawCfg && typeof rawCfg === 'object' ? rawCfg : undefined
         const texto = (cfg?.texto as string)?.trim() || ''
         if (texto) {
-          const msg = applyReplacements(texto, { nome })
+          const dashboardUrl =
+            (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com').toString().replace(/\/$/, '')
+          const msg = applyReplacements(texto, { nome, dashboardUrl })
           let br = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
           let botoes = Array.isArray(br) ? br.filter((b) => (b?.titulo ?? '').trim().length > 0).map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined })) : []
           const label = String(afterNode?.data?.label ?? '')
-          if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Falar com suporte', link: undefined }]
+          if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Chamar atendente', link: undefined }]
+          if (botoes.length > 0) {
+            botoes = botoes.map((b) => ({ ...b, link: b.link ? applyReplacements(b.link, { nome, dashboardUrl }) : b.link }))
+          }
           await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs), botoes.length > 0 ? botoes : undefined)
         }
       }
@@ -538,7 +849,7 @@ async function advanceFromNode(
             let br = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
             let botoes = Array.isArray(br) ? br.filter((b) => (b?.titulo ?? '').trim().length > 0).map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined })) : []
             const label = String(afterNode?.data?.label ?? '')
-            if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Falar com suporte', link: undefined }]
+            if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Chamar atendente', link: undefined }]
             await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs), botoes.length > 0 ? botoes : undefined)
           }
           const afterTargets = getOutgoingTargets(flow, afterDelayId)
@@ -576,6 +887,15 @@ async function advanceFromNode(
               return { replied: true, nextNodeId: currentId }
             }
             await updateContact(contactId, { email, status: 'aguardando_codigo' })
+            if (result.alreadyRegisteredNotConfirmed) {
+              const msg =
+                'Esse email já está cadastrado mas não foi confirmado. Acabei de reenviar o código para confirmar. Me diga o código aqui.'
+              const fullText = msg + '\n\nSe o email não chegar, clique no botão abaixo para reenviar.'
+              const sent = await sendWhatsAppButtonReply(contactId, fullText, 'REENVIAR CÓDIGO')
+              const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+              await processPlenQueue(3).catch(() => {})
+              return { replied: sent.success, nextNodeId: chosen }
+            }
           }
         }
         if (chosenNode?.data?.nodeType === 'mensagem') {
@@ -663,6 +983,15 @@ async function advanceFromNode(
           return { replied: true, nextNodeId: currentId }
         }
         await updateContact(contactId, { email, status: 'aguardando_codigo' })
+        if (result.alreadyRegisteredNotConfirmed) {
+          const msg =
+            'Esse email já está cadastrado mas não foi confirmado. Acabei de reenviar o código para confirmar. Me diga o código aqui.'
+          const fullText = msg + '\n\nSe o email não chegar, clique no botão abaixo para reenviar.'
+          const sent = await sendWhatsAppButtonReply(contactId, fullText, 'REENVIAR CÓDIGO')
+          const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+          await processPlenQueue(3).catch(() => {})
+          return { replied: sent.success, nextNodeId: chosen }
+        }
       }
     }
     if (chosenNode?.data?.nodeType === 'mensagem') {
@@ -756,7 +1085,9 @@ async function advanceFromNode(
         const cfg = rawConfig && typeof rawConfig === 'object' ? rawConfig : undefined
         const texto = (cfg?.texto as string)?.trim() || ''
         if (texto) {
-          const msg = applyReplacements(texto, { nome: effectiveNome })
+          const dashboardUrl =
+            (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com').toString().replace(/\/$/, '')
+          const msg = applyReplacements(texto, { nome: effectiveNome, dashboardUrl })
           let botoesRaw = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
           let botoes = Array.isArray(botoesRaw)
             ? botoesRaw
@@ -765,7 +1096,10 @@ async function advanceFromNode(
             : []
           const label = String(afterNode?.data?.label ?? '')
           if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) {
-            botoes = [{ titulo: 'Falar com suporte', link: undefined }]
+            botoes = [{ titulo: 'Chamar atendente', link: undefined }]
+          }
+          if (botoes.length > 0) {
+            botoes = botoes.map((b) => ({ ...b, link: b.link ? applyReplacements(b.link, { nome: effectiveNome, dashboardUrl }) : b.link }))
           }
           await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs), botoes.length > 0 ? botoes : undefined)
         }
@@ -826,6 +1160,8 @@ export async function runChatbotFlow(
   const status = (contact?.status ?? '').toString()
   const contactEmail = (contact?.email ?? '').trim().toLowerCase()
   const textLower = text.toLowerCase()
+  const dashboardUrl =
+    (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com').toString().replace(/\/$/, '')
 
   // Prioridade: mensagem "menu" sempre mostra o menu, em qualquer estado (exceto assistente pausada / sem fluxo).
   if (textLower === 'menu') {
@@ -843,12 +1179,194 @@ export async function runChatbotFlow(
     return { replied: sentFallback, reason: sentFallback ? undefined : 'menu_sem_no_e_envio_falhou' }
   }
 
+  // "Chamar assistente plen" — sempre reconhecida: reativa se estava aguardando atendente; senão confirma que já está ativa
+  const querVoltarAssistente =
+    /chamar\s+assistente\s+plen|voltar\s+assistente\s+plen|ativar\s+plen|chamar\s+plen|assistente\s+plen/i.test(textLower.trim()) ||
+    textLower.trim() === 'chamar assistente plen'
+  if (querVoltarAssistente) {
+    if (status === 'aguardando_atendente') {
+      await updateContact(contactId, { status: 'usuario_ativo' })
+      await enqueuePlenMessage(
+        contactId,
+        applyReplacements('Voltei, {nome}! 💙 Pode registrar gastos e receitas de novo. Digite MENU para ver as opções.', { nome }),
+        new Date()
+      )
+    } else {
+      await enqueuePlenMessage(
+        contactId,
+        applyReplacements('Eu já estou ativa, {nome}! 💙 Digite MENU para ver as opções.', { nome }),
+        new Date()
+      )
+    }
+    const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+    await processPlenQueue(3).catch(() => {})
+    return { replied: true, reason: status === 'aguardando_atendente' ? 'plen_reativada' : 'plen_ja_ativa' }
+  }
+
+  // Enquanto aguardando atendente, Plen não responde (atendente humano atende)
+  if (status === 'aguardando_atendente') {
+    return { replied: false, reason: 'aguardando_atendente' }
+  }
+
+  // Saldo / relatórios (semana/mês/ano/total): responder direto e oferecer botão do painel
+  {
+    const handled = await enviarMensagemSaldoRelatorio(contactId, nome, contact, textLower, dashboardUrl)
+    if (handled) {
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'saldo_relatorio' }
+    }
+  }
+
+  // Clique em "Chamar atendente" ou texto equivalente: pausa Plen e envia confirmação
+  const querChamarAtendente =
+    /chamar\s+atendente|falar\s+com\s+(humano|atendente|suporte)|quero\s+atendente|quero\s+humano/i.test(textLower.trim()) ||
+    textLower.trim() === 'chamar atendente' ||
+    textLower.trim() === 'falar com humano'
+  if (querChamarAtendente) {
+    await updateContact(contactId, { status: 'aguardando_atendente' })
+    const msgAtendente = applyReplacements(
+      'Já estou chamando um humano! Se quiser voltar a registrar é só mandar "Chamar assistente plen" que eu volto! 💙',
+      { nome }
+    )
+    await enqueuePlenMessage(contactId, msgAtendente, new Date())
+    const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+    await processPlenQueue(3).catch(() => {})
+    return { replied: true, reason: 'chamou_atendente' }
+  }
+
+  // Saudações (oi, olá, opa, etc.): identificar se já tem cadastro e responder de acordo
+  const ehSaudacaoInicial =
+    /^(oi|ol[aá]|ola|oii+|opa|e\s*a[ií]|eai|hey|fala|salve|bom\s*dia|boa\s*tarde|boa\s*noite)[\s!.]*$/i.test(textLower.trim()) ||
+    textLower.trim() === 'oi' ||
+    textLower.trim() === 'olá' ||
+    textLower.trim() === 'ola' ||
+    textLower.trim() === 'opa'
+  if (ehSaudacaoInicial) {
+    const jaCadastradoParaSaudacao = await isCadastradoParaSaudacao(contact)
+    if (jaCadastradoParaSaudacao) {
+      await enqueuePlenMessage(
+        contactId,
+        applyReplacements('Olá, {nome}! Olaaa, vamos registrar? 💙 Envie seu gasto ou receita, ou digite MENU para ver as opções.', { nome }),
+        new Date()
+      )
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'saudacao_cadastrado' }
+    }
+    // Lead não cadastrado: inicia o fluxo (boas-vindas + teste + cadastro) mesmo que "oi" não esteja nas frases do Início
+    await clearChatbotFlowState(contactId)
+    const inicio = findInicioNode(flow)
+    if (inicio) {
+      const firstTargets = getOutgoingTargets(flow, inicio.id)
+      const firstId = firstTargets[0]
+      if (firstId) {
+        const firstNode = getNodeById(flow, firstId)
+        const firstType = firstNode?.data?.nodeType
+        if (firstType === 'mensagem') {
+          const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, firstId, contactId, nome)
+          await setChatbotFlowState(contactId, flow.id, nextNodeId ?? firstId)
+          const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+          await processPlenQueue(3).catch(() => {})
+          return { replied: sent, reason: sent ? 'saudacao_inicio_fluxo' : 'saudacao_mensagem_vazia' }
+        }
+        if (firstType === 'menu') {
+          const { sent, targets, sentLabels } = await sendMenuAsButtonsAndGetTargets(flow, firstId, contactId, nome)
+          await setChatbotFlowState(contactId, flow.id, firstId, { waitingMenu: true, menuOptions: sentLabels, menuTargets: targets })
+          const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+          await processPlenQueue(3).catch(() => {})
+          return { replied: sent, reason: sent ? 'saudacao_inicio_fluxo' : 'saudacao_menu_sem_opcoes' }
+        }
+        if (firstType === 'ia') {
+          const iaConfig = firstNode?.data?.config as Record<string, unknown> | undefined
+          const iaPrompt = (iaConfig?.iaPrompt as string)?.trim() || ''
+          const reply = await getPlenLLMResponse({ userMessage: messageText, context: iaPrompt || undefined })
+          if (reply) await enqueuePlenMessage(contactId, reply)
+          const iaTargets = getOutgoingTargets(flow, firstId)
+          const nextAfterIa = iaTargets[0]
+          await setChatbotFlowState(contactId, flow.id, nextAfterIa ?? firstId)
+          const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+          await processPlenQueue(3).catch(() => {})
+          return { replied: !!reply, reason: reply ? 'saudacao_inicio_fluxo' : 'saudacao_ia_sem_resposta' }
+        }
+        if (firstType === 'delay') {
+          const delayTargets = getOutgoingTargets(flow, firstId)
+          const afterId = delayTargets[0]
+          const dconfig = (firstNode?.data?.config ?? {}) as Record<string, unknown>
+          const min = Number(dconfig.delayMin ?? 0) * 1000
+          const max = Math.max(Number(dconfig.delayMax ?? 5) * 1000, min)
+          const delayMs = min + Math.random() * (max - min || 0)
+          if (afterId) {
+            const afterNode = getNodeById(flow, afterId)
+            if (afterNode?.data?.nodeType === 'mensagem') {
+              const rawCfg = (afterNode.data?.config ?? afterNode.data) as Record<string, unknown> | undefined
+              const cfg = rawCfg && typeof rawCfg === 'object' ? rawCfg : undefined
+              const texto = (cfg?.texto as string)?.trim() || ''
+              if (texto) {
+                const msg = applyReplacements(texto, { nome })
+                let br = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
+                let botoes = Array.isArray(br) ? br.filter((b) => (b?.titulo ?? '').trim().length > 0).map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined })) : []
+                const label = String(afterNode?.data?.label ?? '')
+                if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Chamar atendente', link: undefined }]
+                await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs), botoes.length > 0 ? botoes : undefined)
+              }
+            }
+            await setChatbotFlowState(contactId, flow.id, afterId)
+          } else {
+            await setChatbotFlowState(contactId, flow.id, firstId)
+          }
+          const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+          await processPlenQueue(3).catch(() => {})
+          return { replied: false, reason: 'saudacao_delay_agendado' }
+        }
+      }
+    }
+    // Fallback: segue o fluxo normal (mais abaixo matchInicio pode ou não dar match)
+  }
+
+  // Usuário ativo enviou gasto ou receita (ex.: "gastei 700", "café 12", "recebi 2000") — registrar e confirmar. Só aplica se tiver conta no auth; senão deixa o fluxo de teste (condição "É um gasto?") tratar a mensagem.
+  const temContaAuth = await contactTemContaAuth(contact)
+  const isUsuarioAtivo = isLeadCadastrado(contact) && temContaAuth
+  if (isUsuarioAtivo) {
+    const expense = parseExpenseOrReceita(messageText)
+    if (expense) {
+      const count = await getPlenRegistroCount(contactId, contact?.data_cadastro ?? undefined)
+      if (count >= LIMITE_REGISTROS_GRATUITOS) {
+        const msgLimite = applyReplacements(
+          'Você já usou todos os registros do plano gratuito 💙 Quer desbloquear mais? Digite MENU e veja o plano.',
+          { nome }
+        )
+        await enqueuePlenMessage(contactId, msgLimite, new Date())
+      } else {
+        const valor = expense.valor
+        const nomeRegistro = extrairNomeRegistroCurto(expense.descricao || (expense.intent === 'registrar_receita' ? 'Entrada' : 'Gasto'), expense.intent)
+        const categoriaExibir = expense.categoria === 'Pessoas' ? 'Pessoa' : (expense.categoria ?? 'Outros')
+        const dataExibir = formatarDataHoje()
+        const titulo = expense.intent === 'registrar_receita' ? '💙 Receita registrada!' : '💙 Gasto registrado!'
+        const msgConfirmacao =
+          `${titulo}\n\n📌 ${nomeRegistro}\n📂 Categoria: ${categoriaExibir}\n💰 Valor: R$${valor.toFixed(2)}\n📅 ${dataExibir}\n\nVer meus registros: plenipay.com`
+        await enqueuePlenMessage(contactId, msgConfirmacao, new Date())
+        await logPlenInteraction({
+          contact_id: contactId,
+          mensagem_recebida: messageText.slice(0, 500),
+          estado_usuario: 'usuario_ativo',
+          intent_detectada: expense.intent,
+          acao_executada: 'registro_gasto_ativo',
+          resposta_enviada: msgConfirmacao.slice(0, 500),
+        })
+      }
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'registro_gasto_ou_receita' }
+    }
+  }
+
   // Quando o usuário diz que quer utilizar/cadastrar: verificar se já tem conta; se não, reiniciar fluxo (teste + cadastro).
   const intentQueroUtilizar =
     /quero\s+utilizar|plenipay|quero\s+usar|quero\s+cadastr|ol[aá].*quero/i.test(text) ||
     (textLower.includes('quero') && (textLower.includes('utilizar') || textLower.includes('plenipay') || textLower.includes('cadastr')))
   if (intentQueroUtilizar) {
-    const jaTemConta = status === 'usuario_ativo' || contact?.usuario_cadastrado === true
+    const jaTemConta = isLeadCadastrado(contact)
     if (jaTemConta) {
       await enqueuePlenMessage(
         contactId,
@@ -870,7 +1388,7 @@ export async function runChatbotFlow(
     /cancelar(\s*cadastro)?|desistir|n[aã]o\s*quero\s*(mais|continuar)|quero\s*cancelar/i.test(textLower) ||
     textLower.trim() === 'cancelar'
   if (querCancelarCadastro) {
-    const jaCadastrado = status === 'usuario_ativo' || contact?.usuario_cadastrado === true
+    const jaCadastrado = isLeadCadastrado(contact)
     if (!jaCadastrado) {
       await clearChatbotFlowState(contactId)
       await updateContact(contactId, { status: 'novo_lead' })
@@ -951,14 +1469,14 @@ export async function runChatbotFlow(
       await processPlenQueue(3).catch(() => {})
       return { replied: true, reason: 'cadastro_cancelado' }
     }
+    // Só reenviar quando o usuário pediu explicitamente (digitou ou clicou no botão "Reenviar código"). Não inferir reenviar.
     const clicouReenviar =
       /^reenviar\s*e?-?mail$/i.test(textLower.trim()) ||
       /^reenviar\s*c[oó]digo$/i.test(textLower.trim()) ||
       textLower.trim() === 'reenviar email' ||
       textLower.trim() === 'reenviar e-mail' ||
       textLower.trim() === 'reenviar código' ||
-      textLower.trim() === 'reenviar codigo' ||
-      (text.trim().length === 1 && /^[12]$/.test(text.trim())) // botão envia "1" ou "2" só quando é 1 caractere
+      textLower.trim() === 'reenviar codigo'
     if (clicouReenviar) {
       const result = await resendCodeForPlen(contactEmail)
       const msgConfirmacao = result.success
@@ -1075,7 +1593,7 @@ export async function runChatbotFlow(
             let br = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
             let botoes = Array.isArray(br) ? br.filter((b) => (b?.titulo ?? '').trim().length > 0).map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined })) : []
             const label = String(afterNode?.data?.label ?? '')
-            if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Falar com suporte', link: undefined }]
+            if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Chamar atendente', link: undefined }]
             await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs), botoes.length > 0 ? botoes : undefined)
           }
         }
@@ -1161,7 +1679,7 @@ export async function runChatbotFlow(
                 let br = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
                 let botoes = Array.isArray(br) ? br.filter((b) => (b?.titulo ?? '').trim().length > 0).map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined })) : []
                 const label = String(afterNode?.data?.label ?? '')
-                if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Falar com suporte', link: undefined }]
+                if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Chamar atendente', link: undefined }]
                 await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs), botoes.length > 0 ? botoes : undefined)
               }
               const afterTargets = getOutgoingTargets(flow, afterDelayId)

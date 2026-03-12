@@ -1,0 +1,29 @@
+---
+description: Toda a assistente Plen é controlada pelo Chatbot Builder
+alwaysApply: true
+---
+
+# Assistente Plen = Chatbot Builder
+
+**Regra:** Tudo que o usuário pedir para ajustar na assistente Plen deve ser feito **no Chatbot Builder** (e no que o builder usa: runner, fluxo padrão, painel de config).
+
+## Onde implementar
+
+1. **Comportamento da conversa** (respostas, fluxos, condições, menus)
+   - **Fluxo padrão:** `lib/plen/chatbot-default-flow.ts` — template "Fluxo principal Plen".
+   - **Runner:** `lib/plen/chatbot-flow-runner.ts` — execução dos blocos (Início, Mensagem, Condição, IA, Menu, Delay, etc.).
+   - **Painel de config:** `components/plen/chatbot-builder/ConfigPanel.tsx` — opções de cada bloco (Condição, Início, IA, etc.).
+   - **Página do builder:** `app/administracaosecr/plen/chatbot-builder/page.tsx`.
+
+2. **Novas opções / novos tipos de bloco**
+   - Se o pedido exigir um comportamento que não existe: criar **nova opção** no bloco existente (ex.: novo tipo de condição em Condição) ou, se fizer sentido, novo tipo de bloco.
+   - Atualizar sempre: **runner** (lógica), **ConfigPanel** (UI da opção), e **fluxo padrão** (se o padrão precisar usar essa opção).
+
+3. **Comandos especiais** (ex.: reset, cancelar)
+   - Podem ficar no webhook (`app/api/whatsapp/zapi/webhook/route.ts`) quando forem atalhos globais, mas o comportamento da conversa em si (o que a Plen diz e faz) deve vir do fluxo do Chatbot Builder.
+
+## Resumo
+
+- Nada de lógica duplicada da assistente fora do builder.
+- Qualquer mudança de texto, condição, menu ou fluxo → Chatbot Builder (fluxo padrão + runner + ConfigPanel).
+- Se faltar opção para atender o pedido → criar a opção no builder e no runner.

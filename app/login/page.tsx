@@ -336,6 +336,23 @@ function LoginContent() {
             errorMessage.includes('invalid email or password') ||
             errorMessage.includes('wrong password') ||
             errorCode === 'invalid_credentials') {
+          try {
+            const checkRes = await fetch('/api/auth/check-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: formData.email.trim() }),
+            })
+            const checkData = await checkRes.json().catch(() => ({}))
+            if (checkData.precisaDefinirSenha) {
+              setLoginStep('first_access')
+              setErrorMessage(null)
+              createNotification('Este é o primeiro acesso. Crie uma nova senha antes de acessar.', 'info')
+              setLoading(false)
+              return
+            }
+          } catch {
+            // ignore check-email errors, fall through to generic message
+          }
           mensagemErro = 'Email ou senha incorretos. Verifique suas credenciais e tente novamente.'
           
           setErrorMessage(mensagemErro)
@@ -693,7 +710,7 @@ function LoginContent() {
               ) : (
                 <>
                   <p className="text-sm text-gray-700 dark:text-gray-300">
-                    Percebemos que este é seu primeiro acesso. Vamos criar uma senha para sua conta.
+                    Este é o primeiro acesso. Crie uma nova senha antes de acessar.
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     E-mail: <strong>{formData.email}</strong>

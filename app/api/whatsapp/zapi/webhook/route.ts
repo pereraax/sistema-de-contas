@@ -84,9 +84,14 @@ function detectOrigemAnuncio(text: string): boolean {
 }
 
 export async function POST(request: Request) {
+  // Log incondicional: se não aparecer no terminal ao enviar mensagem, a Z-API não está chegando aqui (ex.: ngrok/túnel)
+  console.log('[webhooks/zapi] POST recebido')
   let body: unknown = null
   try {
     body = await request.json().catch(() => null)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[webhooks/zapi] Body:', body ? 'ok' : 'vazio', body ? JSON.stringify(body).slice(0, 150) : '')
+    }
     const payloadPreview = body ? JSON.stringify(body).slice(0, PAYLOAD_PREVIEW_MAX) : null
     const safeLog = (p: {
       status: 'success' | 'ignored' | 'error'
@@ -97,6 +102,9 @@ export async function POST(request: Request) {
 
     const parsed = parseZApiPayload(body)
     if (!parsed) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[webhooks/zapi] Payload ignorado (parse falhou). Preview:', payloadPreview)
+      }
       await safeLog({
         status: 'ignored',
         detail: 'Payload Z-API inválido',
@@ -137,6 +145,9 @@ export async function POST(request: Request) {
     }
 
     if (!contact) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[webhooks/zapi] Ignorado: número inválido ou não plausível', { phone: parsed.phone, plausible })
+      }
       await safeLog({
         status: 'ignored',
         detail: 'Número inválido (não criar contato)',
@@ -152,9 +163,7 @@ export async function POST(request: Request) {
       const menuFromPayload = findMenuOptionInPayload(body)
       if (menuFromPayload) effectiveText = menuFromPayload
     }
-    if (!effectiveText && !parsed.mediaUrl && contact.status === 'aguardando_codigo' && (contact.email ?? '').includes('@')) {
-      effectiveText = 'Reenviar email'
-    }
+    // Não inventar "Reenviar email" quando não há texto — evita reenviar código sem o usuário ter clicado no botão
     const hasText = !!effectiveText || !!parsed.mediaUrl
     if (!hasText) {
       await safeLog({ status: 'ignored', detail: 'Sem texto nem mídia', payload_preview: payloadPreview })
@@ -240,13 +249,24 @@ export async function POST(request: Request) {
           plenReason = r.reason
           console.warn('[webhooks/zapi] Plen não respondeu:', { contact_id: contact.id, reason: r.reason })
         }
-        if (r.replied) {
-          const delayMs = process.env.NODE_ENV === 'development' ? 6000 : 1500
-          await new Promise((resolve) => setTimeout(resolve, delayMs))
-          const { sent, failed } = await processPlenQueue(5)
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[webhooks/zapi] PLEN fila:', { sent, failed })
+        // Sempre processar a fila após o fluxo. Respostas normais (ex.: "oi") vão para a fila com delay 0,2–0,8s;
+        // mensagens após Delay com 1,5–5s. Em dev: esperar 2s e processar antes de responder (garante 1ª resposta).
+        if (process.env.NODE_ENV === 'development') {
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+          const first = await processPlenQueue(10)
+          if (first.sent > 0 || first.failed > 0) {
+            console.log('[webhooks/zapi] PLEN fila (dev):', first)
           }
+          setTimeout(() => {
+            processPlenQueue(10)
+              .then((r) => { if (r.sent > 0 || r.failed > 0) console.log('[webhooks/zapi] PLEN fila (dev 2ª):', r) })
+              .catch((e) => console.warn('[webhooks/zapi] PLEN fila (dev) erro:', (e as Error)?.message))
+          }, 3500)
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 1200))
+          await processPlenQueue(10)
+          await new Promise((resolve) => setTimeout(resolve, 4300))
+          await processPlenQueue(10)
         }
       } catch (err) {
         const errMsg = (err as Error)?.message ?? 'Erro'

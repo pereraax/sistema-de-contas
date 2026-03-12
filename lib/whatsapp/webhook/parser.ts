@@ -113,6 +113,13 @@ export function extractMessageContent(message: unknown): string {
   const buttonText = extractButtonResponseText(m)
   if (buttonText) return buttonText
 
+  // Z-API: texto em text.message (objeto)
+  const textObj = m.text
+  if (textObj != null && typeof textObj === 'object' && !Array.isArray(textObj)) {
+    const t = (textObj as Record<string, unknown>).message
+    if (t != null && typeof t === 'string' && t !== '[object Object]') return String(t).trim()
+  }
+
   const msg = m.message != null && typeof m.message === 'object' ? (m.message as Record<string, unknown>) : null
   if (msg) {
     if (msg.conversation != null && typeof msg.conversation === 'string') return msg.conversation.trim()
