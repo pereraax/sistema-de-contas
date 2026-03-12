@@ -22,6 +22,9 @@ import { logPlenInteraction, getPlenRegistroCount } from '@/lib/plen/interaction
 
 const LIMITE_REGISTROS_GRATUITOS = 10
 
+/** URL do painel para links enviados no WhatsApp. Sempre plenipay.com (nunca localhost). */
+const PLEN_DASHBOARD_URL = (process.env.PLEN_DASHBOARD_URL || 'https://plenipay.com').toString().replace(/\/$/, '')
+
 /** Lead só é considerado cadastrado se concluiu o fluxo: status ativo/cliente ou flag + data_cadastro. */
 function isLeadCadastrado(contact: { status?: string; usuario_cadastrado?: boolean; data_cadastro?: string | null } | null): boolean {
   if (!contact) return false
@@ -376,9 +379,7 @@ async function sendMessageNodeAndReturnNext(
     const targets = getOutgoingTargets(flow, nodeId)
     return { sent: false, nextNodeId: targets[0] ?? null }
   }
-  const dashboardUrl =
-    (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com').toString().replace(/\/$/, '')
-  const msg = applyReplacements(texto, { nome, dashboardUrl, ...vars })
+  const msg = applyReplacements(texto, { nome, dashboardUrl: PLEN_DASHBOARD_URL, ...vars })
   const botoesRaw = config?.botoes as Array<{ titulo?: string; link?: string }> | undefined
   const botoes = Array.isArray(botoesRaw)
     ? botoesRaw
@@ -387,7 +388,7 @@ async function sendMessageNodeAndReturnNext(
     : []
   const botoesFinal =
     botoes.length > 0
-      ? botoes.map((b) => ({ ...b, link: b.link ? applyReplacements(b.link, { nome, dashboardUrl, ...vars }) : b.link }))
+      ? botoes.map((b) => ({ ...b, link: b.link ? applyReplacements(b.link, { nome, dashboardUrl: PLEN_DASHBOARD_URL, ...vars }) : b.link }))
       : botoes
   if (botoes.length > 0) {
     const result = await sendWhatsAppMessageWithButtons(contactId, msg, botoesFinal)
@@ -468,25 +469,52 @@ function getPeriodoFromText(textLower: string): { label: string; start?: Date; e
   return { label: 'mês', start, end }
 }
 
+/**
+ * Identifica o dono da conta (profile id) a partir do contato CRM.
+ * Prioridade: TELEFONE primeiro (canal WhatsApp = dono do número), depois email.
+ * Assim insert de gasto e relatório usam sempre o mesmo dono.
+ */
 async function getAccountOwnerIdFromContact(contact: { email?: string | null; telefone?: string | null } | null): Promise<string | null> {
   const admin = createAdminClient()
   if (!admin || !contact) return null
   const emailNorm = (contact.email ?? '').trim().toLowerCase()
-  const phoneNorm = (contact.telefone ?? '').replace(/\D/g, '').trim()
+  const phoneRaw = (contact.telefone ?? '').replace(/\D/g, '').trim()
 
+  // 1) Por telefone primeiro (mensagem veio do WhatsApp → dono é quem tem esse número)
+  if (phoneRaw.length >= 8) {
+    const { data: byPhone } = await admin
+      .from('profiles')
+      .select('id')
+      .or(`telefone.eq.${phoneRaw},whatsapp.eq.${phoneRaw}`)
+      .limit(1)
+      .maybeSingle()
+    if (byPhone?.id) return String(byPhone.id)
+    if (phoneRaw.length >= 10) {
+      const sem55 = phoneRaw.startsWith('55') ? phoneRaw.slice(2) : phoneRaw
+      const com55 = phoneRaw.startsWith('55') ? phoneRaw : `55${phoneRaw}`
+      const { data: byPhone2 } = await admin
+        .from('profiles')
+        .select('id')
+        .or(`telefone.eq.${sem55},whatsapp.eq.${sem55},telefone.eq.${com55},whatsapp.eq.${com55}`)
+        .limit(1)
+        .maybeSingle()
+      if (byPhone2?.id) return String(byPhone2.id)
+    }
+  }
+
+  // 2) Por email (Auth como fonte da verdade)
   if (emailNorm && emailNorm.includes('@')) {
+    try {
+      const { data: usersData } = await admin.auth.admin.listUsers({ perPage: 1000 })
+      const user = usersData?.users?.find((u) => (u.email ?? '').toLowerCase() === emailNorm)
+      if (user?.id) return String(user.id)
+    } catch {
+      // fallback para profiles
+    }
     const { data } = await admin.from('profiles').select('id').eq('email', emailNorm).limit(1).maybeSingle()
     if (data?.id) return String(data.id)
   }
-  if (phoneNorm.length >= 8) {
-    const { data } = await admin
-      .from('profiles')
-      .select('id')
-      .or(`telefone.eq.${phoneNorm},whatsapp.eq.${phoneNorm}`)
-      .limit(1)
-      .maybeSingle()
-    if (data?.id) return String(data.id)
-  }
+
   return null
 }
 
@@ -495,7 +523,72 @@ async function getUserIdsForAccountOwner(accountOwnerId: string): Promise<string
   if (!admin) return []
   const { data, error } = await admin.from('users').select('id').eq('account_owner_id', accountOwnerId)
   if (error || !Array.isArray(data)) return []
-  return data.map((r: any) => String(r.id)).filter(Boolean)
+  let userIds = data.map((r: any) => String(r.id)).filter(Boolean)
+  if (userIds.length === 0) {
+    const { data: profile } = await admin.from('profiles').select('nome').eq('id', accountOwnerId).maybeSingle()
+    const nome = (profile as { nome?: string } | null)?.nome?.trim() || 'Meus registros'
+    const { data: novo, error: errInsert } = await admin
+      .from('users')
+      .insert({ nome, account_owner_id: accountOwnerId })
+      .select('id')
+      .single()
+    if (!errInsert && (novo as { id?: string })?.id) {
+      userIds = [String((novo as { id: string }).id)]
+    }
+  }
+  return userIds
+}
+
+/**
+ * Insere um gasto ou receita na tabela registros quando o usuário envia pelo WhatsApp.
+ * Assim o relatório/saldo mostra os valores reais da conta.
+ */
+async function inserirRegistroPlenWhatsApp(
+  contact: { email?: string | null; telefone?: string | null } | null,
+  expense: { valor: number; intent: 'registrar_despesa' | 'registrar_receita'; categoria?: string | null; descricao?: string | null }
+): Promise<boolean> {
+  const admin = createAdminClient()
+  if (!admin || !contact) {
+    console.warn('[plen/registro] Insert skip: admin ou contact ausente')
+    return false
+  }
+  const ownerId = await getAccountOwnerIdFromContact(contact)
+  if (!ownerId) {
+    console.warn('[plen/registro] Insert skip: perfil não encontrado para email/telefone do contato')
+    return false
+  }
+  const userIds = await getUserIdsForAccountOwner(ownerId)
+  const userId = userIds[0]
+  if (!userId) {
+    console.warn('[plen/registro] Insert skip: nenhum user_id na conta do perfil')
+    return false
+  }
+
+  const tipo = expense.intent === 'registrar_receita' ? 'entrada' : 'saida'
+  const nomeRegistro = extrairNomeRegistroCurto(
+    expense.descricao || (expense.intent === 'registrar_receita' ? 'Entrada' : 'Gasto'),
+    expense.intent
+  )
+  const categoria = expense.categoria === 'Pessoas' ? 'Pessoa' : (expense.categoria ?? 'Outros')
+  const dataRegistro = new Date().toISOString()
+
+  const { error } = await admin.from('registros').insert({
+    user_id: userId,
+    nome: nomeRegistro,
+    tipo,
+    valor: expense.valor,
+    data_registro: dataRegistro,
+    categoria: categoria || null,
+    parcelas_totais: 1,
+    parcelas_pagas: 0,
+    etiquetas: [],
+  })
+
+  if (error) {
+    console.warn('[plen/registro] Erro ao inserir registro no WhatsApp:', error.message, error.code)
+    return false
+  }
+  return true
 }
 
 async function getResumoFinanceiro(
@@ -513,6 +606,10 @@ async function getResumoFinanceiro(
 
   const { data, error } = await q
   if (error || !Array.isArray(data)) return null
+
+  if (process.env.NODE_ENV === 'development' || (data.length === 0 && (process.env.LOG_PLEN_RESUMO === '1'))) {
+    console.log('[plen/resumo]', { accountOwnerId, userIdsCount: userIds.length, periodo: periodo.label, registrosCount: data.length })
+  }
 
   let entradas = 0
   let saidas = 0
@@ -667,9 +764,7 @@ async function tryRespondAsMenuOption(
     const cfg = targetNode.data?.config as Record<string, unknown> | undefined
     const texto = (cfg?.texto as string)?.trim() || ''
     if (texto) {
-      const dashboardUrl =
-        (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com').toString().replace(/\/$/, '')
-      const msg = applyReplacements(texto, { nome, dashboardUrl })
+      const msg = applyReplacements(texto, { nome, dashboardUrl: PLEN_DASHBOARD_URL })
       const botoesRaw = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
       const botoes = Array.isArray(botoesRaw)
         ? botoesRaw
@@ -677,7 +772,7 @@ async function tryRespondAsMenuOption(
             .map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined }))
         : []
       const botoesFinal =
-        botoes.length > 0 ? botoes.map((b) => ({ ...b, link: b.link ? applyReplacements(b.link, { nome, dashboardUrl }) : b.link })) : []
+        botoes.length > 0 ? botoes.map((b) => ({ ...b, link: b.link ? applyReplacements(b.link, { nome, dashboardUrl: PLEN_DASHBOARD_URL }) : b.link })) : []
       if (botoesFinal.length > 0) {
         const sentBtns = await sendWhatsAppMessageWithButtons(contactId, msg, botoesFinal)
         if (!sentBtns.success) await enqueuePlenMessage(contactId, msg, new Date(), botoesFinal)
@@ -707,15 +802,13 @@ async function tryRespondAsMenuOption(
         const cfg = rawCfg && typeof rawCfg === 'object' ? rawCfg : undefined
         const texto = (cfg?.texto as string)?.trim() || ''
         if (texto) {
-          const dashboardUrl =
-            (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com').toString().replace(/\/$/, '')
-          const msg = applyReplacements(texto, { nome, dashboardUrl })
+          const msg = applyReplacements(texto, { nome, dashboardUrl: PLEN_DASHBOARD_URL })
           let br = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
           let botoes = Array.isArray(br) ? br.filter((b) => (b?.titulo ?? '').trim().length > 0).map((b) => ({ titulo: (b?.titulo ?? '').trim(), link: (b?.link ?? '').trim() || undefined })) : []
           const label = String(afterNode?.data?.label ?? '')
           if (botoes.length === 0 && /falar com humano|suporte|atendente|clique abaixo/i.test(label)) botoes = [{ titulo: 'Chamar atendente', link: undefined }]
           if (botoes.length > 0) {
-            botoes = botoes.map((b) => ({ ...b, link: b.link ? applyReplacements(b.link, { nome, dashboardUrl }) : b.link }))
+            botoes = botoes.map((b) => ({ ...b, link: b.link ? applyReplacements(b.link, { nome, dashboardUrl: PLEN_DASHBOARD_URL }) : b.link }))
           }
           await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs), botoes.length > 0 ? botoes : undefined)
         }
@@ -1085,9 +1178,7 @@ async function advanceFromNode(
         const cfg = rawConfig && typeof rawConfig === 'object' ? rawConfig : undefined
         const texto = (cfg?.texto as string)?.trim() || ''
         if (texto) {
-          const dashboardUrl =
-            (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com').toString().replace(/\/$/, '')
-          const msg = applyReplacements(texto, { nome: effectiveNome, dashboardUrl })
+          const msg = applyReplacements(texto, { nome: effectiveNome, dashboardUrl: PLEN_DASHBOARD_URL })
           let botoesRaw = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
           let botoes = Array.isArray(botoesRaw)
             ? botoesRaw
@@ -1099,7 +1190,7 @@ async function advanceFromNode(
             botoes = [{ titulo: 'Chamar atendente', link: undefined }]
           }
           if (botoes.length > 0) {
-            botoes = botoes.map((b) => ({ ...b, link: b.link ? applyReplacements(b.link, { nome: effectiveNome, dashboardUrl }) : b.link }))
+            botoes = botoes.map((b) => ({ ...b, link: b.link ? applyReplacements(b.link, { nome: effectiveNome, dashboardUrl: PLEN_DASHBOARD_URL }) : b.link }))
           }
           await enqueuePlenMessage(contactId, msg, new Date(Date.now() + delayMs), botoes.length > 0 ? botoes : undefined)
         }
@@ -1160,8 +1251,6 @@ export async function runChatbotFlow(
   const status = (contact?.status ?? '').toString()
   const contactEmail = (contact?.email ?? '').trim().toLowerCase()
   const textLower = text.toLowerCase()
-  const dashboardUrl =
-    (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com').toString().replace(/\/$/, '')
 
   // Prioridade: mensagem "menu" sempre mostra o menu, em qualquer estado (exceto assistente pausada / sem fluxo).
   if (textLower === 'menu') {
@@ -1210,7 +1299,7 @@ export async function runChatbotFlow(
 
   // Saldo / relatórios (semana/mês/ano/total): responder direto e oferecer botão do painel
   {
-    const handled = await enviarMensagemSaldoRelatorio(contactId, nome, contact, textLower, dashboardUrl)
+    const handled = await enviarMensagemSaldoRelatorio(contactId, nome, contact, textLower, PLEN_DASHBOARD_URL)
     if (handled) {
       const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
       await processPlenQueue(3).catch(() => {})
@@ -1343,8 +1432,14 @@ export async function runChatbotFlow(
         const categoriaExibir = expense.categoria === 'Pessoas' ? 'Pessoa' : (expense.categoria ?? 'Outros')
         const dataExibir = formatarDataHoje()
         const titulo = expense.intent === 'registrar_receita' ? '💙 Receita registrada!' : '💙 Gasto registrado!'
+        await inserirRegistroPlenWhatsApp(contact, {
+          valor: expense.valor,
+          intent: expense.intent,
+          categoria: expense.categoria ?? undefined,
+          descricao: expense.descricao ?? undefined,
+        })
         const msgConfirmacao =
-          `${titulo}\n\n📌 ${nomeRegistro}\n📂 Categoria: ${categoriaExibir}\n💰 Valor: R$${valor.toFixed(2)}\n📅 ${dataExibir}\n\nVer meus registros: plenipay.com`
+          `${titulo}\n\n📌 ${nomeRegistro}\n📂 Categoria: ${categoriaExibir}\n💰 Valor: R$${valor.toFixed(2)}\n📅 ${dataExibir}\n\nVer meus registros: ${PLEN_DASHBOARD_URL}`
         await enqueuePlenMessage(contactId, msgConfirmacao, new Date())
         await logPlenInteraction({
           contact_id: contactId,
