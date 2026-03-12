@@ -518,6 +518,23 @@ async function getAccountOwnerIdFromContact(contact: { email?: string | null; te
   return null
 }
 
+/** Retorna o account owner id apenas por email (para fallback quando o dono por telefone tem 0 registros). */
+async function getAccountOwnerIdByEmailOnly(email: string | null | undefined): Promise<string | null> {
+  const admin = createAdminClient()
+  if (!admin) return null
+  const emailNorm = (email ?? '').trim().toLowerCase()
+  if (!emailNorm || !emailNorm.includes('@')) return null
+  try {
+    const { data: usersData } = await admin.auth.admin.listUsers({ perPage: 1000 })
+    const user = usersData?.users?.find((u) => (u.email ?? '').toLowerCase() === emailNorm)
+    if (user?.id) return String(user.id)
+  } catch {
+    // fallback para profiles
+  }
+  const { data } = await admin.from('profiles').select('id').eq('email', emailNorm).limit(1).maybeSingle()
+  return data?.id ? String(data.id) : null
+}
+
 async function getUserIdsForAccountOwner(accountOwnerId: string): Promise<string[]> {
   const admin = createAdminClient()
   if (!admin) return []
@@ -659,7 +676,7 @@ Ver no painel: {dashboardUrl}`,
     return true
   }
 
-  const resumo = await getResumoFinanceiro(ownerId, periodo)
+  let resumo = await getResumoFinanceiro(ownerId, periodo)
   if (!resumo) {
     const msg = applyReplacements(
       `📊 Total / saldo
@@ -672,6 +689,18 @@ Ver no painel: {dashboardUrl}`,
     )
     await enqueuePlenMessage(contactId, msg, new Date(), [{ titulo: 'Ver no painel', link: dashboardUrl }])
     return true
+  }
+
+  // Fallback: se o dono (por telefone) tem 0 registros e o contato tem email, pode ser que os gastos estejam na conta ligada ao email (ex.: cadastro antigo)
+  const resumoZerado = resumo.entradas === 0 && resumo.saidas === 0
+  if (resumoZerado && (contact?.email ?? '').trim().includes('@')) {
+    const ownerByEmail = await getAccountOwnerIdByEmailOnly(contact!.email)
+    if (ownerByEmail && ownerByEmail !== ownerId) {
+      const resumoEmail = await getResumoFinanceiro(ownerByEmail, periodo)
+      if (resumoEmail && (resumoEmail.entradas !== 0 || resumoEmail.saidas !== 0)) {
+        resumo = resumoEmail
+      }
+    }
   }
 
   const tituloPeriodo = periodo.label === 'total' ? 'Saldo total' : `Relatório da ${periodo.label}`
