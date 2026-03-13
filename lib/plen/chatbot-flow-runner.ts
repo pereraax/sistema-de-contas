@@ -432,6 +432,7 @@ function endOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
 }
 
+/** Semana/mês/ano em UTC para bater com data_registro (guardado em ISO/UTC). Evita fuso excluir registros. */
 function getPeriodoFromText(textLower: string): { label: string; start?: Date; end?: Date } {
   const now = new Date()
   const t = (textLower || '').trim()
@@ -441,31 +442,36 @@ function getPeriodoFromText(textLower: string): { label: string; start?: Date; e
   const wantsTotal = /\btotal\b|\btudo\b|\bdesde\b/.test(t)
 
   if (wantsTotal) return { label: 'total', start: undefined, end: undefined }
+  // Usar UTC para limites: data_registro no DB é timestamptz (UTC)
+  const y = now.getUTCFullYear()
+  const m = now.getUTCMonth()
+  const d = now.getUTCDate()
+  const dayOfWeek = now.getUTCDay() // 0 dom ... 6 sáb
+  const diffToMonday = (dayOfWeek + 6) % 7
   if (wantsYear) {
-    const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0)
-    const end = endOfDay(new Date(now.getFullYear(), 11, 31))
+    const start = new Date(Date.UTC(y, 0, 1, 0, 0, 0, 0))
+    const end = new Date(Date.UTC(y, 11, 31, 23, 59, 59, 999))
     return { label: 'ano', start, end }
   }
   if (wantsMonth) {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
-    const end = endOfDay(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+    const start = new Date(Date.UTC(y, m, 1, 0, 0, 0, 0))
+    const lastDay = new Date(Date.UTC(y, m + 1, 0))
+    const end = new Date(Date.UTC(y, m + 1, 0, 23, 59, 59, 999))
     return { label: 'mês', start, end }
   }
   if (wantsWeek) {
-    // Semana começando na segunda-feira (pt-BR)
-    const day = now.getDay() // 0 dom ... 6 sáb
-    const diffToMonday = (day + 6) % 7
-    const monday = new Date(now)
-    monday.setDate(now.getDate() - diffToMonday)
-    const start = startOfDay(monday)
-    const sunday = new Date(start)
-    sunday.setDate(start.getDate() + 6)
-    const end = endOfDay(sunday)
+    const msPerDay = 24 * 60 * 60 * 1000
+    const todayUtc = Date.UTC(y, m, d)
+    const mondayUtc = new Date(todayUtc - diffToMonday * msPerDay)
+    const start = new Date(mondayUtc.getTime())
+    start.setUTCHours(0, 0, 0, 0)
+    const sundayUtc = new Date(start.getTime() + 6 * msPerDay)
+    const end = new Date(sundayUtc.getTime())
+    end.setUTCHours(23, 59, 59, 999)
     return { label: 'semana', start, end }
   }
-  // Padrão: mês atual (mais útil para "saldo" e "relatório")
-  const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
-  const end = endOfDay(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+  const start = new Date(Date.UTC(y, m, 1, 0, 0, 0, 0))
+  const end = new Date(Date.UTC(y, m + 1, 0, 23, 59, 59, 999))
   return { label: 'mês', start, end }
 }
 
@@ -655,6 +661,13 @@ async function enviarMensagemSaldoRelatorio(
 
   const periodo = getPeriodoFromText(textLower)
   const ownerId = await getAccountOwnerIdFromContact(contact)
+  if (process.env.NODE_ENV === 'development' || process.env.LOG_PLEN_RESUMO === '1') {
+    console.log('[plen/resumo] contact', {
+      telefone: contact?.telefone ?? '(vazio)',
+      email: contact?.email ? `${(contact.email as string).slice(0, 3)}***` : '(vazio)',
+      ownerId: ownerId ?? '(não encontrado)',
+    })
+  }
   if (!ownerId) {
     const msg = applyReplacements(
       `📊 Total / saldo
@@ -691,7 +704,8 @@ Ver no painel: {dashboardUrl}`,
     return true
   }
 
-  // Fallback: se o dono (por telefone) tem 0 registros e o contato tem email, pode ser que os gastos estejam na conta ligada ao email (ex.: cadastro antigo)
+  // Fallback 1: se o dono (por telefone) tem 0 registros e o contato tem email, tentar dono por email (cadastro antigo)
+  let effectiveOwnerId = ownerId
   const resumoZerado = resumo.entradas === 0 && resumo.saidas === 0
   if (resumoZerado && (contact?.email ?? '').trim().includes('@')) {
     const ownerByEmail = await getAccountOwnerIdByEmailOnly(contact!.email)
@@ -699,7 +713,18 @@ Ver no painel: {dashboardUrl}`,
       const resumoEmail = await getResumoFinanceiro(ownerByEmail, periodo)
       if (resumoEmail && (resumoEmail.entradas !== 0 || resumoEmail.saidas !== 0)) {
         resumo = resumoEmail
+        effectiveOwnerId = ownerByEmail
       }
+    }
+  }
+
+  // Fallback 2: se ainda zerado e o pedido foi por período (semana/mês/ano), buscar saldo TOTAL — pode haver registros fora do período ou fuso
+  let linhaSaldoTotal = ''
+  if (resumo.entradas === 0 && resumo.saidas === 0 && periodo.start != null) {
+    const periodoTotal = { label: 'total', start: undefined as Date | undefined, end: undefined as Date | undefined }
+    const resumoTotal = await getResumoFinanceiro(effectiveOwnerId, periodoTotal)
+    if (resumoTotal && (resumoTotal.entradas !== 0 || resumoTotal.saidas !== 0)) {
+      linhaSaldoTotal = `\n\n📊 Seu saldo total no painel: ${formatCurrencyBRL(resumoTotal.saldo)}\n(No ${periodo.label} não há movimentação; use o painel para ver todos os registros.)`
     }
   }
 
@@ -709,7 +734,7 @@ Ver no painel: {dashboardUrl}`,
 
 📥 Total recebido: ${formatCurrencyBRL(resumo.entradas)}
 📤 Total de gastos: ${formatCurrencyBRL(resumo.saidas)}
-💰 Seu saldo: ${formatCurrencyBRL(resumo.saldo)}
+💰 Seu saldo: ${formatCurrencyBRL(resumo.saldo)}${linhaSaldoTotal}
 
 Você também pode pedir assim:
 - meu saldo total
