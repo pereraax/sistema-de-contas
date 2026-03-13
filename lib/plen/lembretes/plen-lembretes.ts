@@ -106,10 +106,20 @@ export async function getPlenLembretesParaHoje(): Promise<PlenLembreteParaEnvio[
     horario?: string | null
   }>
   return rows.filter((r) => {
-    const dataStr = r.data_lembrete?.slice(0, 10)
+    // Normalizar data (Supabase pode devolver string "YYYY-MM-DD" ou Date)
+    const rawData = r.data_lembrete
+    const dataStr =
+      typeof rawData === 'string'
+        ? rawData.slice(0, 10)
+        : rawData instanceof Date
+          ? rawData.toISOString().slice(0, 10)
+          : ''
     const ehHoje = dataStr === today || (r.is_recorrente && r.dia_recorrente != null && r.dia_recorrente === dayOfMonth)
     if (!ehHoje) return false
-    const minLembrete = horarioParaMinutos(r.horario)
+    // Normalizar horário (Postgres TIME vem como "HH:MM:SS" ou "HH:MM:SS.123456")
+    const rawHorario = r.horario
+    const horarioStr = typeof rawHorario === 'string' ? rawHorario.trim() : ''
+    const minLembrete = horarioParaMinutos(horarioStr || null)
     if (minLembrete == null) return true
     return minutosAgora >= minLembrete
   })

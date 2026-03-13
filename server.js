@@ -194,9 +194,9 @@ app.prepare().then(() => {
         req.on('timeout', () => req.destroy())
         req.end()
       }
-      setInterval(runLembretes, 5 * 60 * 1000) // a cada 5 minutos (para respeitar horário ex.: 00:09)
-      setTimeout(runLembretes, 3 * 60 * 1000)   // primeira execução após 3 minutos
-      console.log('✅ [Cron] Lembretes Plen: a cada 5 min (envia no dia e hora combinados, America/Sao_Paulo)')
+      setInterval(runLembretes, 1 * 60 * 1000) // a cada 1 minuto (disparar no horário exato ex.: 17:27)
+      setTimeout(runLembretes, 1 * 60 * 1000)   // primeira execução após 1 minuto
+      console.log('✅ [Cron] Lembretes Plen: a cada 1 min (envia no dia e hora combinados, America/Sao_Paulo)')
     } else if (!cronSecret && !dev) {
       console.log('ℹ️ [Cron] CRON_SECRET não definido: configure para ativar envio automático de boas-vindas e mensagens de vácuo')
     }

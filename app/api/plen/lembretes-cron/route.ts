@@ -44,7 +44,8 @@ export async function GET(request: Request) {
         l.tipo === 'pagar'
           ? `📅 Não esqueça que você precisa pagar *${l.descricao}* hoje!! Você já pagou?\n\nSe sim, diga *sim*!\nSe não, diga *não*! 💙`
           : `📅 Hoje você deve receber: *${l.descricao}*. Já recebeu?\n\nSe sim, diga *sim*!\nSe não, diga *não*! 💙`
-      await enqueuePlenMessage(l.contact_id, msg)
+      // sendAfter = agora para a mensagem ser elegível na hora (senão fica 200–800 ms no futuro e o processPlenQueue não pega)
+      await enqueuePlenMessage(l.contact_id, msg, new Date())
       if (supabase) {
         const { data: row } = await supabase
           .from('chatbot_flow_state')

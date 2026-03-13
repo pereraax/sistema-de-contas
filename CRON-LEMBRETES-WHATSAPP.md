@@ -2,12 +2,12 @@
 
 ## Lembretes Plen (me lembre de pagar X dia D)
 
-Quando o app sobe com **`node server.js`** e **`CRON_SECRET`** está definido, o **cron de lembretes Plen** roda **a cada 5 minutos** e envia a mensagem "Não esqueça que você precisa pagar *X* hoje!! Você já pagou? sim/não" no **dia e hora** combinados (horário **America/Sao_Paulo**).
+Quando o app sobe com **`node server.js`** e **`CRON_SECRET`** está definido, o **cron de lembretes Plen** roda **a cada 1 minuto** e envia a mensagem "Não esqueça que você precisa pagar *X* hoje!! Você já pagou? sim/não" no **dia e hora** combinados (horário **America/Sao_Paulo**).
 
 - **Rota:** `GET /api/plen/lembretes-cron?secret=CRON_SECRET`
-- **Frequência:** a cada 5 min (para respeitar horário, ex.: 00:09)
+- **Frequência:** a cada 1 min (para disparar no horário exato, ex.: 17:27)
 - **Fuso:** "hoje" e "hora atual" são calculados em America/Sao_Paulo para o lembrete disparar no horário certo no Brasil.
-- Se não usar server.js, agende essa URL em um cron externo (cron-job.org etc.) a cada 5 min.
+- Se não usar server.js, agende essa URL em um cron externo (cron-job.org etc.) a cada 1 min.
 
 ---
 
