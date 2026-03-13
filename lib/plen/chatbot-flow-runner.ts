@@ -1486,7 +1486,8 @@ export async function runChatbotFlow(
         const nomeRegistro = extrairNomeRegistroCurto(expense.descricao || (expense.intent === 'registrar_receita' ? 'Entrada' : 'Gasto'), expense.intent)
         const categoriaExibir = expense.categoria === 'Pessoas' ? 'Pessoa' : (expense.categoria ?? 'Outros')
         const dataExibir = formatarDataHoje()
-        const titulo = expense.intent === 'registrar_receita' ? '💙 Receita registrada!' : '💙 Gasto registrado!'
+        const titulo =
+          expense.intent === 'registrar_receita' ? '🟢 Recibo registrado! 💙' : '🔴 Gasto registrado! 💙'
         await inserirRegistroPlenWhatsApp(contact, {
           valor: expense.valor,
           intent: expense.intent,

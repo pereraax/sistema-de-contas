@@ -44,11 +44,38 @@ export function parseExpenseSimple(text: string): ExpenseParseResult | null {
   }
 }
 
+/** Palavras que indicam ENTRADA (receita). Se o texto começar com uma delas (ou tiver verbo + número), priorizar interpretarMensagem para não registrar como gasto. */
+const ENTRADA_KEYWORDS =
+  /^(recebi|recebeu|ganhei|ganhou|ganhamos|extra|recebido|entrada\s+de|(meu\s+)?sal[aá]rio)\s+[\d.,\s]|^(recebi|recebeu|ganhei|ganhou|extra|recebido)\s+[\d.,]/i
+
 /**
- * Tenta interpretar como receita (ex: "recebi 100 da mãe"). Usa plen-registro se necessário.
- * Por simplicidade aqui retornamos apenas despesa do formato "X valor"; receita pode vir do intent_router.
+ * Tenta interpretar como receita (ex: "recebi 100 da mãe", "ganhei 500", "extra 200") ou despesa.
+ * Quando o texto indica entrada (recebi, ganhei, extra...), tenta interpretarMensagem primeiro para não registrar como gasto.
  */
 export function parseExpenseOrReceita(text: string): ExpenseParseResult | null {
+  const t = (text || '').trim()
+  if (ENTRADA_KEYWORDS.test(t)) {
+    const interpreted = interpretarMensagem(text)
+    if (interpreted) {
+      if (interpreted.tipo === 'entrada') {
+        return {
+          intent: 'registrar_receita',
+          descricao: interpreted.nome,
+          valor: interpreted.valor,
+          categoria: interpreted.categoria,
+        }
+      }
+      if (interpreted.tipo === 'saida') {
+        return {
+          intent: 'registrar_despesa',
+          descricao: interpreted.nome,
+          valor: interpreted.valor,
+          categoria: interpreted.categoria,
+        }
+      }
+    }
+  }
+
   const simple = parseExpenseSimple(text)
   if (simple) return simple
 

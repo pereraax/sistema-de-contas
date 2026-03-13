@@ -285,8 +285,10 @@ function todosValoresNoTexto(texto: string): number[] {
 
 export function interpretarMensagem(texto: string): InterpretadoPlen | null {
   const t = normalizarNumerosPorExtenso(texto.trim().toLowerCase())
-  // Preferir o valor que vem logo após o verbo (gastei/paguei/recebi) para não pegar "2" de "dia 2" ou transcrição errada
-  const valorAposVerbo = t.match(/(?:gastei|gasteu|gastou|paguei|pagou|recebi|recebeu|ganhei|ganhou|emprestei|emprestou|entrada\s+de)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i)?.[1]
+  // Preferir o valor que vem logo após o verbo/palavra (gastei/recebi/extra) para não pegar "2" de "dia 2" ou transcrição errada
+  const valorAposVerbo = t.match(
+    /(?:gastei|gasteu|gastou|paguei|pagou|recebi|recebeu|ganhei|ganhou|extra|recebido|emprestei|emprestou|entrada\s+de)\s+([\d.,]+)\s*(?:reais?|r\$|r\b)?/i
+  )?.[1]
   let valorStr = valorAposVerbo ?? t.match(/[\d.,]+\s*(?:reais?|r\$|r\b)?/i)?.[0] ?? t.match(/[\d.,]+/)?.[0]
   let valorNum = valorStr ? extrairValor(valorStr) : null
   if (valorNum == null || valorNum <= 0) return null
@@ -396,9 +398,12 @@ export function interpretarMensagem(texto: string): InterpretadoPlen | null {
   const verbosGasto = /(?:gastei|gasteu|gastou|paguei|pagou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?/i
   const despesaMatch = t.match(/(?:gastei|gasteu|gastou|paguei|pagou)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:\b(?:de|em|com|para|no|na)\b\s+)?(.*)/i)
 
-  // Verbos de ENTRADA: recebi, recebeu, ganhei, ganhou, entrei com, entrada de, etc.
-  const verbosEntrada = /(?:recebi|recebeu|ganhei|ganhou|ganhamos|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?/i
-  const entradaMatch = t.match(/(?:recebi|recebeu|ganhei|ganhou|ganhamos|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:\b(?:de|do|da|com)\b\s+)?(.*)/i)
+  // Verbos/palavras de ENTRADA: recebi, ganhei, extra, recebido, entrada de, etc.
+  const verbosEntrada =
+    /(?:recebi|recebeu|ganhei|ganhou|ganhamos|extra|recebido|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?/i
+  const entradaMatch = t.match(
+    /(?:recebi|recebeu|ganhei|ganhou|ganhamos|extra|recebido|entrada\s+de?)\s+[\d.,]+\s*(?:reais?|r\$|r\b)?\s*(?:\b(?:de|do|da|com)\b\s+)?(.*)/i
+  )
 
   if (despesaMatch && verbosGasto.test(t)) {
     nome = (despesaMatch[1] || '').trim() || 'Gasto'
