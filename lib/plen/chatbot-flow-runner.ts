@@ -18,6 +18,8 @@ import {
   sendWhatsAppMessageWithButtons,
 } from '@/lib/whatsapp/sender'
 import { parseExpenseOrReceita } from '@/lib/plen/ai/expense-parser'
+import { createPlenLembrete, markPlenLembreteConcluido, getPlenLembreteById } from '@/lib/plen/lembretes/plen-lembretes'
+import { parseLembreteMensagem } from '@/lib/plen/lembretes/parse-lembrete'
 import { logPlenInteraction, getPlenRegistroCount } from '@/lib/plen/interaction/interaction-logs'
 
 const LIMITE_REGISTROS_GRATUITOS = 10
@@ -1377,6 +1379,77 @@ export async function runChatbotFlow(
     const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
     await processPlenQueue(3).catch(() => {})
     return { replied: true, reason: 'chamou_atendente' }
+  }
+
+  // Resposta "sim" / "não" ao lembrete "Você já pagou?"
+  const stateLembrete = await getChatbotFlowState(contactId)
+  const ctxLembrete = normalizeContext(stateLembrete?.context)
+  const lembreteId = ctxLembrete.lembretePerguntaId as string | undefined
+  if (lembreteId && /^(sim|s|n[aã]o|nao)$/i.test(textLower.trim())) {
+    const lembrete = await getPlenLembreteById(lembreteId)
+    const novoCtx = { ...ctxLembrete, lembretePerguntaId: undefined }
+    await setChatbotFlowState(contactId, flow.id, stateLembrete!.current_node_id, novoCtx)
+    if (lembrete) {
+      const ehSim = /^s(im)?$/i.test(textLower.trim())
+      if (ehSim) {
+        await markPlenLembreteConcluido(lembreteId)
+        await enqueuePlenMessage(
+          contactId,
+          'Parabéns!!! Menos uma dívida esse mês!!!!!! 💙 Continue assim!',
+          new Date()
+        )
+      } else {
+        await enqueuePlenMessage(
+          contactId,
+          'Poxa! Não deixe pra depois, se não vira uma bola de neve hein! 😅 Quando pagar é só me dizer aqui que eu marco como pago! 💙',
+          new Date()
+        )
+      }
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'lembrete_resposta_sim_nao' }
+    }
+  }
+
+  // Pedido de lembrete: "me lembre de pagar X dia D" — não registrar como gasto; criar lembrete ou pedir data
+  if (/\b(me\s+)?lembre\s+de\b|lembrete\s+para\b/i.test(textLower)) {
+    const parsed = parseLembreteMensagem(messageText)
+    if (parsed.missingDate) {
+      const msgInstrucoes = `📅 Para registrar um lembrete, me envie o que devo te lembrar, o valor e a data. Exemplos:
+
+• Data fixa: *me lembre de pagar 140 da academia dia 13-09*
+• Recorrente (todo mês): *me lembre de pagar 140 da academia todo dia 8*
+• Com horário: *me lembre de pagar 140 da academia todo dia 8 às 9 horas*
+
+Quando chegar no dia (e na hora, se você informou), te aviso e pergunto se já pagou! 💙`
+      await enqueuePlenMessage(contactId, msgInstrucoes, new Date())
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'lembrete_sem_data' }
+    }
+    const id = await createPlenLembrete({
+      contactId,
+      tipo: 'pagar',
+      descricao: parsed.descricao,
+      dataLembrete: parsed.data!,
+      valor: parsed.valor ?? undefined,
+      horario: parsed.horario ?? undefined,
+      isRecorrente: parsed.isRecorrente ?? false,
+      diaRecorrente: parsed.diaRecorrente ?? undefined,
+    })
+    if (id) {
+      const valorStr = parsed.valor != null ? ` R$ ${parsed.valor.toFixed(2)}` : ''
+      const quando = parsed.isRecorrente && parsed.diaRecorrente
+        ? `todo dia ${parsed.diaRecorrente}`
+        : parsed.data
+      const msgOk = `✅ Lembrete registrado! 💙\n\n📌 ${parsed.descricao}${valorStr}\n📅 ${quando}${parsed.horario ? ` às ${parsed.horario.slice(0, 5)}` : ''}\n\nNo dia te aviso e pergunto se já pagou!`
+      await enqueuePlenMessage(contactId, msgOk, new Date())
+    } else {
+      await enqueuePlenMessage(contactId, 'Não consegui salvar o lembrete agora. Tente de novo ou use o painel.', new Date())
+    }
+    const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+    await processPlenQueue(3).catch(() => {})
+    return { replied: true, reason: 'lembrete_criado' }
   }
 
   // Saudações (oi, olá, opa, etc.): identificar se já tem cadastro e responder de acordo
