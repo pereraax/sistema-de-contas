@@ -211,10 +211,12 @@ export function interpretarComContextoEDescricao(texto: string): InterpretadoCom
 /**
  * Interpreta mensagem em linguagem natural e retorna tipo, valor, nome, data e categoria.
  */
-/** Mapeia nome/descrição para categoria inteligente: compras→Supermercado, nomes de pessoas→Pessoas, etc. */
+/** Mapeia nome/descrição para categoria inteligente: compras→Supermercado, extra→Renda extra, nomes de pessoas→Pessoas, etc. */
 export function categoriaInteligente(nome: string, tipo: TipoRegistro): string {
   const n = nome.trim().toLowerCase()
   if (!n || n === 'gasto' || n === 'entrada') return 'Outros'
+
+  // Gastos (saída): mapeamento explícito por palavra-chave
   const categoriasGasto: Record<string, string> = {
     mercado: 'Supermercado',
     supermercado: 'Supermercado',
@@ -224,14 +226,22 @@ export function categoriaInteligente(nome: string, tipo: TipoRegistro): string {
     comida: 'Alimentação',
     restaurante: 'Alimentação',
     lanche: 'Alimentação',
+    cafe: 'Alimentação',
+    café: 'Alimentação',
+    almoco: 'Alimentação',
+    almoço: 'Alimentação',
+    janta: 'Alimentação',
+    jantar: 'Alimentação',
     uber: 'Transporte',
     transporte: 'Transporte',
     gasolina: 'Transporte',
     combustivel: 'Transporte',
     onibus: 'Transporte',
+    ônibus: 'Transporte',
     'conta de luz': 'Contas',
     luz: 'Contas',
     agua: 'Contas',
+    água: 'Contas',
     internet: 'Contas',
     telefone: 'Contas',
     cartao: 'Cartão',
@@ -256,10 +266,48 @@ export function categoriaInteligente(nome: string, tipo: TipoRegistro): string {
   }
   const cat = categoriasGasto[n] || Object.keys(categoriasGasto).find((k) => n.includes(k))
   if (cat) return categoriasGasto[cat] || cat
-  // Entrada: se o nome parece pessoa (nome próprio curto, ou "mãe", "pai", "joão"), usar Pessoas
+
+  // Entrada (receita): mapeamento explícito — evita "extra", "bônus", "salário" virarem Pessoas
   if (tipo === 'entrada') {
+    const categoriasEntrada: Record<string, string> = {
+      extra: 'Renda extra',
+      bonus: 'Renda extra',
+      bônus: 'Renda extra',
+      salario: 'Salário',
+      salário: 'Salário',
+      salarios: 'Salário',
+      salários: 'Salário',
+      freela: 'Trabalho autônomo',
+      freelance: 'Trabalho autônomo',
+      freelancer: 'Trabalho autônomo',
+      venda: 'Vendas',
+      vendi: 'Vendas',
+      vendas: 'Vendas',
+      renda: 'Outros',
+      ganhos: 'Outros',
+      investimento: 'Investimento',
+      dividendos: 'Investimento',
+      juros: 'Investimento',
+      reembolso: 'Reembolso',
+      devolucao: 'Reembolso',
+      devolução: 'Reembolso',
+      presente: 'Outros',
+      gorjeta: 'Outros',
+      gorjetas: 'Outros',
+      comissao: 'Comissão',
+      comissão: 'Comissão',
+      recebido: 'Outros',
+      entrada: 'Outros',
+    }
+    const catEntrada = categoriasEntrada[n] || Object.keys(categoriasEntrada).find((k) => n.includes(k))
+    if (catEntrada) return categoriasEntrada[catEntrada] || catEntrada
+    // Palavras que NUNCA são pessoa (tipo de renda / conceito)
+    const naoEhPessoa = /\b(extra|bonus|bônus|sal[aá]rio|freela|freelance|venda|vendi|renda|ganhos|investimento|reembolso|comiss[aã]o|receita|entrada)\b/i.test(n)
+    if (naoEhPessoa) return 'Outros'
     if (n.length <= 2 || /^(da|do|de|do\s|da\s)/.test(n)) return 'Outros'
-    const parecePessoa = /^(m[aã]e|pai|marido|esposa|amigo|cliente|jo[aã]o|maria|pedro|ana|jose|carolina)$/i.test(n) || (n.length <= 25 && !/\d/.test(n) && !/mercado|conta|banco|guardado|saldo|entrada|ganho|receita/.test(n))
+    // Só considera Pessoas se for claramente nome de pessoa (mãe, pai, João, Maria, etc.)
+    const parecePessoa = /^(m[aã]e|pai|marido|esposa|amigo|amiga|cliente|jo[aã]o|maria|pedro|ana|jose|carolina|fernanda|carlos|roberto|paulo|luciana)$/i.test(n) ||
+      (n.length <= 20 && !/\d/.test(n) && !/mercado|conta|banco|guardado|saldo|entrada|ganho|receita|extra|bonus|sal[aá]rio|freela|venda|renda/.test(n) && /^[a-záàâãéêíóôõúç\s]+$/i.test(n))
     return parecePessoa ? 'Pessoas' : 'Outros'
   }
   if (tipo === 'divida') return n === 'dívida' ? 'Outros' : 'Pessoas'
