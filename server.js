@@ -162,6 +162,41 @@ app.prepare().then(() => {
       setInterval(runPlenSmart, 30 * 60 * 1000) // a cada 30 minutos
       setTimeout(runPlenSmart, 5 * 60 * 1000)   // primeira execução após 5 minutos
       console.log('✅ [Cron] Follow-up 10min + smart messages: a cada 30 min (máx. 2+2+2 envios/run; WHATSAPP_CRON_VACUUM_DISABLED=true desativa)')
+
+      // Lembretes Plen: envia "Não esqueça de pagar X hoje! Já pagou? sim/não" no dia e hora do lembrete
+      const cronLembretesUrl = `${baseUrl}/api/plen/lembretes-cron?secret=${encodeURIComponent(cronSecret)}`
+      const runLembretes = () => {
+        const http = require('http')
+        const url = new URL(cronLembretesUrl)
+        const options = {
+          hostname: url.hostname,
+          port: url.port,
+          path: url.pathname + url.search,
+          method: 'GET',
+          timeout: 60000,
+        }
+        const req = http.request(options, (res) => {
+          let body = ''
+          res.on('data', (chunk) => { body += chunk })
+          res.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}')
+              if (data.ok && data.sent > 0) {
+                console.log('[Cron lembretes]', data.sent, 'lembretes enviados')
+              }
+              if (!data.ok && data.error) {
+                console.error('[Cron lembretes]', data.error)
+              }
+            } catch (_) {}
+          })
+        })
+        req.on('error', (err) => { console.error('[Cron lembretes] request error:', err?.message || err) })
+        req.on('timeout', () => req.destroy())
+        req.end()
+      }
+      setInterval(runLembretes, 5 * 60 * 1000) // a cada 5 minutos (para respeitar horário ex.: 00:09)
+      setTimeout(runLembretes, 3 * 60 * 1000)   // primeira execução após 3 minutos
+      console.log('✅ [Cron] Lembretes Plen: a cada 5 min (envia no dia e hora combinados, America/Sao_Paulo)')
     } else if (!cronSecret && !dev) {
       console.log('ℹ️ [Cron] CRON_SECRET não definido: configure para ativar envio automático de boas-vindas e mensagens de vácuo')
     }

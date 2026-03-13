@@ -1,6 +1,17 @@
 # Cron: lembrete no WhatsApp no dia do compromisso
 
-No dia do lembrete, a assistente envia uma mensagem no WhatsApp para o usuário, por exemplo:
+## Lembretes Plen (me lembre de pagar X dia D)
+
+Quando o app sobe com **`node server.js`** e **`CRON_SECRET`** está definido, o **cron de lembretes Plen** roda **a cada 5 minutos** e envia a mensagem "Não esqueça que você precisa pagar *X* hoje!! Você já pagou? sim/não" no **dia e hora** combinados (horário **America/Sao_Paulo**).
+
+- **Rota:** `GET /api/plen/lembretes-cron?secret=CRON_SECRET`
+- **Frequência:** a cada 5 min (para respeitar horário, ex.: 00:09)
+- **Fuso:** "hoje" e "hora atual" são calculados em America/Sao_Paulo para o lembrete disparar no horário certo no Brasil.
+- Se não usar server.js, agende essa URL em um cron externo (cron-job.org etc.) a cada 5 min.
+
+---
+
+No dia do lembrete (outro fluxo), a assistente envia uma mensagem no WhatsApp para o usuário, por exemplo:
 
 > Olá! Hoje você precisa: pagar minha dívida de 11/03. Ok? 📌
 
