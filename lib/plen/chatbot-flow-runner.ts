@@ -653,8 +653,9 @@ async function enviarMensagemSaldoRelatorio(
   textLower: string,
   dashboardUrl: string
 ): Promise<boolean> {
+  // Reconhece pedidos de saldo, relatório, gastos ou despesas (ex.: "me mostre meus gastos dessa semana")
   const wantsSaldoOrReport =
-    /\bsaldo\b|\bquanto\s+eu\s+tenho\b|\bquanto\s+tenho\b|\bmeu\s+saldo\b|\bsaldo\s+total\b|\brelat[oó]rio\b|\brelatorio\b|\bresumo\b/.test(
+    /\bsaldo\b|\bquanto\s+eu\s+tenho\b|\bquanto\s+tenho\b|\bmeu\s+saldo\b|\bsaldo\s+total\b|\brelat[oó]rio\b|\brelatorio\b|\bresumo\b|\bgastos\b|\bmeus\s+gastos\b|\bminhas\s+despesas\b|\bdespesas\b|\bmostre\s+(meus\s+)?gastos\b|\bmostre\s+(minhas\s+)?despesas\b|\bver\s+gastos\b|\bver\s+despesas\b/.test(
       textLower
     )
   if (!wantsSaldoOrReport) return false
