@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getPlenLembretesParaHoje, markPlenLembreteEnviado } from '@/lib/plen/lembretes/plen-lembretes'
 import { enqueuePlenMessage } from '@/lib/plen/queue/message-queue'
+import { processPlenQueue } from '@/lib/plen/queue/queue-worker'
 
 const CRON_SECRET = process.env.CRON_SECRET ?? process.env.PLEN_QUEUE_SECRET
 
@@ -63,6 +64,12 @@ export async function GET(request: Request) {
       }
       await markPlenLembreteEnviado(l.id)
       sent++
+    }
+    // Processar a fila para enviar de fato pelo WhatsApp (o cron só enfileirava; sem isso a mensagem nunca saía)
+    if (sent > 0) {
+      await processPlenQueue(Math.max(10, sent * 2)).catch((err) => {
+        console.error('[plen/lembretes-cron] processPlenQueue:', (err as Error)?.message ?? err)
+      })
     }
     return NextResponse.json({ ok: true, sent, total: lembretes.length })
   } catch (e) {
