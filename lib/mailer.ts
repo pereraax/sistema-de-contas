@@ -212,14 +212,14 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
 
     const isConnectionError = error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.message?.includes('timeout') || error.message?.includes('ECONNREFUSED')
     if (process.env.NODE_ENV === 'production' && isConnectionError) {
-      console.error('[SMTP] No Railway, as portas SMTP (465/587) só funcionam no plano Pro. Faça upgrade em railway.app e redeploy.')
+      console.error('[SMTP] No Railway, SMTP só funciona no plano Pro (não no Hobby). Confira Settings → Billing e faça Redeploy após upgrade para Pro.')
     }
 
     let errorMessage = error.message || 'Erro desconhecido ao enviar email'
     if (error.code === 'EAUTH' || error.message?.includes('Invalid login') || error.message?.includes('535')) {
       errorMessage = 'Erro de autenticação SMTP. Confira no painel da Hostinger: usuário (email completo) e senha do email. Se tiver 2FA, use uma "Senha de app" para SMTP.'
     } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
-      errorMessage = `Erro de conexão SMTP. No Railway, as portas 465 e 587 só estão liberadas no plano Pro — faça upgrade e redeploy para o envio por SMTP funcionar.`
+      errorMessage = `Erro de conexão SMTP. No Railway, só o plano Pro (não o Hobby) libera as portas 465/587. Confira em Settings → Billing que está em Pro e faça Redeploy.`
     } else if (error.code === 'EENVELOPE') {
       errorMessage = 'Erro no endereço de email. Verifique o formato.'
     }
@@ -236,6 +236,6 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
     return sendMailViaResend({ to, subject, html })
   }
 
-  throw new Error('Email não configurado. Adicione SMTP_HOST, SMTP_PORT, SMTP_USER e SMTP_PASSWORD no painel. No Railway, use o plano Pro para SMTP funcionar.')
+  throw new Error('Email não configurado. Adicione SMTP_HOST, SMTP_PORT, SMTP_USER e SMTP_PASSWORD. No Railway, use o plano Pro (não Hobby) e faça Redeploy.')
 }
 

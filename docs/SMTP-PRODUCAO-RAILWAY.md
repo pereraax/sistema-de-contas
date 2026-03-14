@@ -4,17 +4,18 @@ Se o cadastro por WhatsApp funcionava em **localhost** mas em **produção** o e
 
 ---
 
-## Causa: Railway bloqueia portas SMTP nos planos Free / Trial / Hobby
+## Causa: Railway libera SMTP só no plano Pro (não no Hobby)
 
-Nos logs aparece **`[SMTP] Erro ao enviar email: Connection timeout`** e **`Código: ETIMEDOUT`**. No **Railway**, as portas **465** e **587** (SMTP) estão **bloqueadas** nos planos Free, Trial e Hobby. Elas só são liberadas no **plano Pro**.
+Nos logs aparece **`[SMTP] Erro ao enviar email: Connection timeout`** e **`Código: ETIMEDOUT`**. No **Railway**, as portas **465** e **587** (SMTP) estão **bloqueadas** nos planos Free, Trial e **Hobby**. Mesmo o **Hobby sendo pago**, ele **não** inclui SMTP. Apenas o plano **Pro** libera as portas 465 e 587.
 
-**Solução para o envio por SMTP funcionar igual ao localhost:**
+**Se você já tem um plano ativado (ex.: Hobby):**
 
-1. Faça **upgrade para o plano Pro** no Railway: [railway.app](https://railway.app) → seu projeto → **Settings** → **Billing** → plano **Pro**.
-2. Depois do upgrade, faça um **Redeploy** do serviço (Deployments → ⋮ → Redeploy) para que a liberação das portas passe a valer.
-3. Mantenha as mesmas variáveis de SMTP que você usa no localhost: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (e `SUPABASE_SERVICE_ROLE_KEY` para a Plen).
+1. Confirme qual plano está ativo: [railway.app](https://railway.app) → seu projeto → **Settings** → **Billing**. O nome deve ser **Pro**, não Hobby.
+2. Se estiver no **Hobby**, faça **upgrade para Pro** (Settings → Billing → Pro). Só o Pro libera SMTP.
+3. Depois de estar no **Pro**, faça um **Redeploy** do serviço: **Deployments** → ⋮ no último deploy → **Redeploy**. Sem o redeploy, a liberação das portas não entra em efeito.
+4. Mantenha as variáveis de SMTP iguais ao localhost: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (e `SUPABASE_SERVICE_ROLE_KEY` para a Plen).
 
-Com o plano Pro, a conexão com `smtp.hostinger.com` (465 ou 587) passa a funcionar e o envio do código e reenvio da Plen voltam a operar normalmente.
+**Testar se as portas estão acessíveis (apenas no Pro):** use o Railway CLI para SSH no serviço e rode o comando de diagnóstico da [documentação do Railway](https://docs.railway.com/reference/outbound-networking#debugging-smtp-issues) (substitua pelo seu `SMTP_HOST`, ex.: `smtp.hostinger.com`). Se 465/587 aparecerem como "reachable", o SMTP do app deve funcionar.
 
 ---
 
@@ -114,7 +115,7 @@ Se a Plen mostra **"Enviei um código de confirmação no seu email"** e o email
 
 ## 6. Resumo rápido
 
-1. **ETIMEDOUT em produção no Railway?** As portas SMTP (465/587) só funcionam no **plano Pro**. Faça upgrade em railway.app e redeploy.
+1. **ETIMEDOUT em produção no Railway?** Só o **plano Pro** libera SMTP (o Hobby, mesmo pago, não). Confira em Settings → Billing que está em Pro e faça **Redeploy**.
 2. Confira **logs** no Railway ao tentar enviar o código (e o **destino** no log).
 3. Teste com **POST /api/teste-smtp** em produção.
 4. Confira **SMTP_USER** = email completo da caixa Hostinger, **SMTP_PASSWORD** = senha ou senha de app (2FA), **SUPABASE_SERVICE_ROLE_KEY** definida.
