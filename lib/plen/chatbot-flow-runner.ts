@@ -17,7 +17,7 @@ import {
   sendWhatsAppMessageWithResult,
   sendWhatsAppMessageWithButtons,
 } from '@/lib/whatsapp/sender'
-import { parseExpenseOrReceita } from '@/lib/plen/ai/expense-parser'
+import { parseExpenseOrReceita, parseMultipleExpensesOrReceita } from '@/lib/plen/ai/expense-parser'
 import { createPlenLembrete, markPlenLembreteConcluido, getPlenLembreteById } from '@/lib/plen/lembretes/plen-lembretes'
 import { parseLembreteMensagem } from '@/lib/plen/lembretes/parse-lembrete'
 import { logPlenInteraction, getPlenRegistroCount } from '@/lib/plen/interaction/interaction-logs'
@@ -897,6 +897,7 @@ const KNOWN_MENU_OPTIONS = [
   'falar com humano',
   'como funciona',
   'assinatura r$9,90',
+  'assinatura r$9.90',
   'funções premium',
   'indique e ganhe',
   'total / saldo',
@@ -1541,46 +1542,73 @@ Quando chegar no dia (e na hora, se você informou), te aviso e pergunto se já 
     // Fallback: segue o fluxo normal (mais abaixo matchInicio pode ou não dar match)
   }
 
-  // Usuário ativo enviou gasto ou receita (ex.: "gastei 700", "café 12", "recebi 2000") — registrar e confirmar. Só aplica se tiver conta no auth; senão deixa o fluxo de teste (condição "É um gasto?") tratar a mensagem.
+  // Opção de menu (ex.: "Assinatura R$9,90") não pode ser registrada como gasto — tratar antes do parse de despesa.
+  if (isKnownMenuOption(messageText)) {
+    const menuResponded = await tryRespondAsMenuOption(flow, contactId, nome, messageText)
+    if (menuResponded) {
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(5).catch(() => {})
+      return { replied: true, reason: 'menu_opcao' }
+    }
+    const fallbackMsg = getMenuOptionFallbackMessage(messageText, nome)
+    const fallbackSent = (await sendWhatsAppMessageWithResult(contactId, fallbackMsg)).success
+    if (!fallbackSent) await enqueuePlenMessage(contactId, fallbackMsg, new Date())
+    const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+    await processPlenQueue(3).catch(() => {})
+    return { replied: true, reason: 'menu_opcao_fallback' }
+  }
+
+  // Usuário ativo enviou gasto(s) ou receita(s) — reconhecer múltiplos na mesma mensagem e registrar todos na ordem.
   const temContaAuth = await contactTemContaAuth(contact)
   const isUsuarioAtivo = isLeadCadastrado(contact) && temContaAuth
   if (isUsuarioAtivo) {
-    const expense = parseExpenseOrReceita(messageText)
-    if (expense) {
+    const expenses = parseMultipleExpensesOrReceita(messageText)
+    if (expenses.length > 0) {
       const count = await getPlenRegistroCount(contactId, contact?.data_cadastro ?? undefined)
-      if (count >= LIMITE_REGISTROS_GRATUITOS) {
+      const slotsRestantes = Math.max(0, LIMITE_REGISTROS_GRATUITOS - count)
+      if (slotsRestantes === 0) {
         const msgLimite = applyReplacements(
           'Você já usou todos os registros do plano gratuito 💙 Quer desbloquear mais? Digite MENU e veja o plano.',
           { nome }
         )
         await enqueuePlenMessage(contactId, msgLimite, new Date())
       } else {
-        const valor = expense.valor
-        const nomeRegistro = extrairNomeRegistroCurto(expense.descricao || (expense.intent === 'registrar_receita' ? 'Entrada' : 'Gasto'), expense.intent)
-        const categoriaExibir = expense.categoria === 'Pessoas' ? 'Pessoa' : (expense.categoria ?? 'Outros')
+        const toRegister = expenses.slice(0, slotsRestantes)
+        const skipped = expenses.length - toRegister.length
+        const linhas: string[] = []
+        for (let i = 0; i < toRegister.length; i++) {
+          const expense = toRegister[i]
+          const nomeRegistro = extrairNomeRegistroCurto(expense.descricao || (expense.intent === 'registrar_receita' ? 'Entrada' : 'Gasto'), expense.intent)
+          const categoriaExibir = expense.categoria === 'Pessoas' ? 'Pessoa' : (expense.categoria ?? 'Outros')
+          const emoji = expense.intent === 'registrar_receita' ? '🟢' : '🔴'
+          await inserirRegistroPlenWhatsApp(contact, {
+            valor: expense.valor,
+            intent: expense.intent,
+            categoria: expense.categoria ?? undefined,
+            descricao: expense.descricao ?? undefined,
+          })
+          linhas.push(`${emoji} ${i + 1}. ${nomeRegistro} — ${categoriaExibir} — R$${expense.valor.toFixed(2)}`)
+        }
         const dataExibir = formatarDataHoje()
-        const titulo =
-          expense.intent === 'registrar_receita' ? '🟢 Recibo registrado! 💙' : '🔴 Gasto registrado! 💙'
-        await inserirRegistroPlenWhatsApp(contact, {
-          valor: expense.valor,
-          intent: expense.intent,
-          categoria: expense.categoria ?? undefined,
-          descricao: expense.descricao ?? undefined,
-        })
-        const msgConfirmacao =
-          `${titulo}\n\n📌 ${nomeRegistro}\n📂 Categoria: ${categoriaExibir}\n💰 Valor: R$${valor.toFixed(2)}\n📅 ${dataExibir}\n\nVer meus registros: ${PLEN_DASHBOARD_URL}`
+        const titulo = toRegister.length === 1
+          ? (toRegister[0].intent === 'registrar_receita' ? '🟢 Recibo registrado! 💙' : '🔴 Gasto registrado! 💙')
+          : `💙 ${toRegister.length} registros feitos!`
+        let msgConfirmacao = `${titulo}\n\n${linhas.join('\n')}\n\n📅 ${dataExibir}\n\nVer meus registros: ${PLEN_DASHBOARD_URL}`
+        if (skipped > 0) {
+          msgConfirmacao += `\n\n⚠️ ${skipped} não registrado(s): você atingiu o limite do plano gratuito. Digite MENU para fazer upgrade.`
+        }
         await enqueuePlenMessage(contactId, msgConfirmacao, new Date())
         await logPlenInteraction({
           contact_id: contactId,
           mensagem_recebida: messageText.slice(0, 500),
           estado_usuario: 'usuario_ativo',
-          intent_detectada: expense.intent,
+          intent_detectada: toRegister.length === 1 ? toRegister[0].intent : 'registrar_despesa',
           acao_executada: 'registro_gasto_ativo',
           resposta_enviada: msgConfirmacao.slice(0, 500),
         })
       }
       const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
-      await processPlenQueue(3).catch(() => {})
+      await processPlenQueue(Math.max(3, expenses.length * 2)).catch(() => {})
       return { replied: true, reason: 'registro_gasto_ou_receita' }
     }
   }

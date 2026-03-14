@@ -365,8 +365,19 @@ Consultar saldo`,
         label: 'Assinatura',
         nodeType: 'mensagem',
         config: {
-          texto: 'Plano básico por apenas R$9,90/mês. Controle ilimitado de gastos e receitas. Quer ativar? Responda "sim" ou fale com um atendente (opção 1).',
-          preview: 'R$9,90/mês',
+          texto:
+            '💙 *Plano Básico — R$ 9,90/mês*\n\n' +
+            'Com a assinatura você desbloqueia tudo que a PLEN oferece:\n\n' +
+            '• *Controle ilimitado* de gastos e receitas\n' +
+            '• *Lembretes* para não esquecer de registrar\n' +
+            '• *Relatórios e visão do seu dinheiro* na plataforma\n' +
+            '• *Metas* para guardar e planejar\n' +
+            '• Acesso pelo celular e pelo computador, quando quiser\n\n' +
+            'Por menos de R$ 0,35 por dia você organiza suas contas de forma simples e segura. Quer assinar? Use o botão abaixo para ir direto à plataforma.',
+          preview: 'Plano R$9,90 — vantagens e botão',
+          botoes: [
+            { titulo: 'Ver plano e assinar na plataforma', link: '{dashboardUrl}/upgrade' },
+          ],
         },
       },
     },

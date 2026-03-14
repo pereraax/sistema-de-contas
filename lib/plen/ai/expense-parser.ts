@@ -48,12 +48,29 @@ export function parseExpenseSimple(text: string): ExpenseParseResult | null {
 const ENTRADA_KEYWORDS =
   /^(recebi|recebeu|ganhei|ganhou|ganhamos|extra|recebido|entrada\s+de|(meu\s+)?sal[aá]rio)\s+[\d.,\s]|^(recebi|recebeu|ganhei|ganhou|extra|recebido)\s+[\d.,]/i
 
+/** Textos que são opções de menu (não registrar como gasto/receita). */
+const MENU_OPTION_PATTERNS = [
+  /^assinatura\s*r\$\s*9[,.]90$/i,
+  /^plano\s*r\$\s*9[,.]90/i,
+  /^fun[cç][oõ]es\s*premium$/i,
+  /^indique\s*e\s*ganhe$/i,
+  /^total\s*\/?\s*saldo$/i,
+  /^falar\s*com\s*humano$/i,
+  /^como\s*funciona$/i,
+]
+
+function isMenuOptionText(text: string): boolean {
+  const t = (text || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  return MENU_OPTION_PATTERNS.some((r) => r.test(t))
+}
+
 /**
  * Tenta interpretar como receita (ex: "recebi 100 da mãe", "ganhei 500", "extra 200") ou despesa.
  * Quando o texto indica entrada (recebi, ganhei, extra...), tenta interpretarMensagem primeiro para não registrar como gasto.
  */
 export function parseExpenseOrReceita(text: string): ExpenseParseResult | null {
   const t = (text || '').trim()
+  if (isMenuOptionText(t)) return null
   if (ENTRADA_KEYWORDS.test(t)) {
     const interpreted = interpretarMensagem(text)
     if (interpreted) {
@@ -99,4 +116,47 @@ export function parseExpenseOrReceita(text: string): ExpenseParseResult | null {
     }
   }
   return null
+}
+
+/** Regex para detectar início de nova frase de gasto/receita (verbo + número). */
+const INICIO_TRANSACAO =
+  /(?:gastei|gasteu|recebi|recebeu|ganhei|ganhou|paguei|pagou|extra|recebido|ganhamos)\s+[\d.,]/i
+
+/**
+ * Divide o texto em frases que podem ser gasto/receita e interpreta cada uma, na ordem.
+ * Suporta várias linhas ("gastei 329 em roupas\nrecebi 879 de pai") ou várias frases na mesma linha
+ * ("gastei 329 em roupas recebi 879 de pai Gastei 87 uber").
+ * Retorna array em ordem; se nenhuma for reconhecida, tenta o texto inteiro como um único registro.
+ */
+export function parseMultipleExpensesOrReceita(text: string): ExpenseParseResult[] {
+  const t = (text || '').trim()
+  if (!t) return []
+  if (isMenuOptionText(t)) return []
+
+  const resultados: ExpenseParseResult[] = []
+
+  // 1) Dividir por quebra de linha
+  const linhas = t.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
+  if (linhas.length > 1) {
+    for (const linha of linhas) {
+      const parsed = parseExpenseOrReceita(linha)
+      if (parsed) resultados.push(parsed)
+    }
+    if (resultados.length > 0) return resultados
+  }
+
+  // 2) Mesma linha: dividir onde começa nova transação (verbo + número)
+  const partes = t.split(new RegExp(`(?=${INICIO_TRANSACAO.source})`, 'i')).map((s) => s.trim()).filter(Boolean)
+  if (partes.length > 1) {
+    for (const parte of partes) {
+      const parsed = parseExpenseOrReceita(parte)
+      if (parsed) resultados.push(parsed)
+    }
+    if (resultados.length > 0) return resultados
+  }
+
+  // 3) Fallback: texto inteiro como um único registro
+  const unico = parseExpenseOrReceita(t)
+  if (unico) return [unico]
+  return []
 }
