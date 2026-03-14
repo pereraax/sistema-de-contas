@@ -1677,7 +1677,12 @@ Quando chegar no dia (e na hora, se você informou), te aviso e pergunto se já 
     if (jaTemConta) {
       await enqueuePlenMessage(
         contactId,
-        'Você já está cadastrado! Use o app ou envie "menu" para ver opções.',
+        'Você já está cadastrado! 💙\n\n' +
+          'Pode começar a usar: me envie seus gastos e receitas por aqui. Exemplos:\n\n' +
+          '• gastei 290 academia\n' +
+          '• recebi 2000 salario\n' +
+          '• gastei 39 uber\n\n' +
+          'Use o app ou envie "menu" para ver mais opções.',
         new Date()
       )
       const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
