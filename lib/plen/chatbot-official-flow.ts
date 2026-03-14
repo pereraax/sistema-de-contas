@@ -270,7 +270,17 @@ Envie ele aqui para ativar sua conta.`,
         label: 'Conta confirmada',
         nodeType: 'mensagem',
         config: {
-          texto: 'Conta confirmada {nome}! 🎉\n\nAgora você já pode registrar seus gastos.\n\nDigite MENU a qualquer momento para acessar as opções.',
+          texto: `Conta confirmada {nome}! 🎉
+
+Agora você já pode registrar *gastos* e *entradas*:
+
+📤 *Gasto:* escreva o que foi e o valor
+Ex.: café 12 | almoço 35 | gastei 50 mercado
+
+📥 *Entrada (receita):* use recebi ou ganhei + valor
+Ex.: recebi 2000 salário | ganhei 500 extra
+
+Digite MENU a qualquer momento para ver todas as opções.`,
           preview: 'Conta confirmada! 🎉',
         },
       },
