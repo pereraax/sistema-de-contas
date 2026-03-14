@@ -1,6 +1,20 @@
 # SMTP em produção (Railway / Hostinger)
 
-Se o cadastro por WhatsApp funcionava em **localhost** mas em **produção** o email não é enviado (Plen mostra "Não foi possível reenviar agora"):
+Se o cadastro por WhatsApp funcionava em **localhost** mas em **produção** o email não é enviado (Plen mostra "Não foi possível reenviar agora" ou "Não foi possível enviar o código agora"):
+
+---
+
+## Causa comum: Railway bloqueia SMTP (ETIMEDOUT)
+
+Nos logs aparece **`[SMTP] Erro ao enviar email: Connection timeout`** e **`Código: ETIMEDOUT`**. Isso significa que a **rede do Railway (ou outro PaaS) não consegue conectar** ao servidor SMTP da Hostinger nas portas 465/587 — muitas nuvens bloqueiam saída SMTP para evitar spam.
+
+**Solução recomendada:** usar **Resend** (API HTTP) em produção. O app já faz **fallback automático**: se SMTP falhar por conexão em produção e `RESEND_API_KEY` estiver definida, o email é enviado pelo Resend.
+
+1. Crie uma conta em [resend.com](https://resend.com), verifique seu domínio e gere uma API Key.
+2. No **Railway** → projeto → **Variables**, adicione:
+   - `RESEND_API_KEY` = sua API Key do Resend
+   - (opcional) `RESEND_FROM` = `PleniPay <noreply@plenipay.com>` ou o remetente que você verificou no Resend
+3. Faça um novo deploy. Os envios da Plen (código de verificação, reenvio) passarão a funcionar via Resend quando o SMTP der timeout.
 
 ---
 
@@ -100,8 +114,9 @@ Se a Plen mostra **"Enviei um código de confirmação no seu email"** e o email
 
 ## 6. Resumo rápido
 
-1. Confira **logs** no Railway ao tentar enviar o código (e o **destino** no log).
-2. Teste com **POST /api/teste-smtp** em produção.
-3. Confira **SMTP_USER** = email completo da caixa Hostinger, **SMTP_PASSWORD** = senha ou senha de app (2FA), **SUPABASE_SERVICE_ROLE_KEY** definida.
-4. Se o app diz que enviou mas não chega: verificar spam, remetente válido na Hostinger, SPF/DKIM do domínio e teste pelo webmail.
-5. Se continuar falha de **conexão** com 465, troque para **587** ou avalie usar um provedor de email por API.
+1. **ETIMEDOUT em produção?** Adicione **RESEND_API_KEY** (e opcionalmente **RESEND_FROM**) no Railway; o app usa Resend automaticamente quando SMTP falha por conexão.
+2. Confira **logs** no Railway ao tentar enviar o código (e o **destino** no log).
+3. Teste com **POST /api/teste-smtp** em produção.
+4. Confira **SMTP_USER** = email completo da caixa Hostinger, **SMTP_PASSWORD** = senha ou senha de app (2FA), **SUPABASE_SERVICE_ROLE_KEY** definida.
+5. Se o app diz que enviou mas não chega: verificar spam, remetente válido na Hostinger, SPF/DKIM do domínio e teste pelo webmail.
+6. Se continuar falha de **conexão** com 465/587, use **RESEND_API_KEY** (recomendado em Railway).

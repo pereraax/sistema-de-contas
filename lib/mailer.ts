@@ -88,9 +88,28 @@ export function isSmtpConfigured() {
   return !!getSmtpConfig()
 }
 
-/** Não usado: envio de e-mail é somente via SMTP. */
+/** Resend (API HTTP) funciona em produção quando a rede bloqueia SMTP (ex.: Railway → ETIMEDOUT). */
 export function isResendConfigured() {
-  return false
+  return !!parseEnv(process.env.RESEND_API_KEY)
+}
+
+function getResendFrom(): string {
+  const from = parseEnv(process.env.RESEND_FROM)
+  if (from) return from
+  const user = parseEnv(process.env.SMTP_USER)
+  if (user) return user
+  return 'PleniPay <noreply@plenipay.com>'
+}
+
+async function sendMailViaResend({ to, subject, html }: SendMailArgs): Promise<{ messageId?: string }> {
+  const apiKey = parseEnv(process.env.RESEND_API_KEY)
+  if (!apiKey) throw new Error('RESEND_API_KEY não configurado.')
+  const { Resend } = await import('resend')
+  const resend = new Resend(apiKey)
+  const from = getResendFrom()
+  const { data, error } = await resend.emails.send({ from, to: [to], subject, html })
+  if (error) throw new Error(error.message || 'Resend falhou')
+  return { messageId: data?.id }
 }
 
 function createTransporter(cfg: { host: string; port: number; secure: boolean; auth: { user: string; pass: string }; from: string }) {
@@ -191,11 +210,23 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
     console.error('[SMTP] Erro ao enviar email:', error.message)
     console.error('[SMTP] Código:', error.code)
 
+    const isConnectionError = error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.message?.includes('timeout') || error.message?.includes('ECONNREFUSED')
+    if (process.env.NODE_ENV === 'production' && isConnectionError && isResendConfigured()) {
+      console.warn('[SMTP] Conexão falhou (rede pode bloquear SMTP). Tentando Resend...')
+      try {
+        const result = await sendMailViaResend({ to, subject, html })
+        console.warn('[Resend] Email enviado com sucesso (fallback).')
+        return result
+      } catch (resendErr: any) {
+        console.error('[Resend] Fallback falhou:', resendErr.message)
+      }
+    }
+
     let errorMessage = error.message || 'Erro desconhecido ao enviar email'
     if (error.code === 'EAUTH' || error.message?.includes('Invalid login') || error.message?.includes('535')) {
       errorMessage = 'Erro de autenticação SMTP. Confira no painel da Hostinger: usuário (email completo) e senha do email. Se tiver 2FA, use uma "Senha de app" para SMTP.'
     } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
-      errorMessage = `Erro de conexão SMTP. Verifique host (${cfg.host}) e porta (${cfg.port}).`
+      errorMessage = `Erro de conexão SMTP. Verifique host (${cfg.host}) e porta (${cfg.port}). Em produção (ex.: Railway) a rede pode bloquear SMTP: configure RESEND_API_KEY para fallback.`
     } else if (error.code === 'EENVELOPE') {
       errorMessage = 'Erro no endereço de email. Verifique o formato.'
     }
@@ -207,7 +238,11 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
   }
   }
 
-  // Sem SMTP configurado: erro claro (não usar Resend)
-  throw new Error('Email não configurado. Adicione SMTP_HOST, SMTP_PORT, SMTP_USER e SMTP_PASSWORD no painel (ex.: Railway).')
+  // Sem SMTP: tentar Resend se configurado (comum em produção onde SMTP é bloqueado)
+  if (isResendConfigured()) {
+    return sendMailViaResend({ to, subject, html })
+  }
+
+  throw new Error('Email não configurado. Adicione SMTP_* ou RESEND_API_KEY no painel (ex.: Railway). Para produção, RESEND_API_KEY evita bloqueio de SMTP.')
 }
 
