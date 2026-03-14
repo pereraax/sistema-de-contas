@@ -317,7 +317,16 @@ function matchInicio(
   if (tipo === 'mensagem_recebida') {
     if (frases.length === 0) return { matched: true, inicioNodeId: inicio.id }
     const match = frases.some((f) => text.includes((f || '').trim().toLowerCase()))
-    return match ? { matched: true, inicioNodeId: inicio.id } : null
+    if (match) return { matched: true, inicioNodeId: inicio.id }
+    // Novo lead: SEMPRE disparar Início (Plen 24h — qualquer primeira mensagem recebe boas-vindas).
+    if (isNewLead) return { matched: true, inicioNodeId: inicio.id }
+    // Lead já existente que não bateu nas frases: só aceitar saudações curtas para não ignorar "oi" após tempo parado.
+    const saudacao =
+      /^(oi|ol[aá]|ola|oii+|opa|e\s*a[ií]|eai|hey|fala|salve|bom\s*dia|boa\s*tarde|boa\s*noite)[\s!.]*$/i.test(text) ||
+      /quero\s+utilizar|plenipay|quero\s+usar|quero\s+cadastr/i.test(text) ||
+      (text.length <= 60 && /^(ol[aá]|oi)\s*[!.]?\s*/i.test(text))
+    if (saudacao) return { matched: true, inicioNodeId: inicio.id }
+    return null
   }
 
   return { matched: true, inicioNodeId: inicio.id }
@@ -1071,11 +1080,11 @@ async function advanceFromNode(
             if (!result.success) {
               console.warn('[chatbot-flow-runner] createUserAndSendCode falhou:', result.error)
               await updateContact(contactId, { email })
-              await enqueuePlenMessage(
-                contactId,
-                result.error ?? 'Não foi possível enviar o código agora. Verifique o email e tente novamente.',
-                new Date()
-              )
+              const msgErro =
+                result.error && !/smtp|host|porta|587|conexão|connection/i.test(result.error)
+                  ? result.error
+                  : 'Não foi possível enviar o código agora. Tente novamente em alguns minutos ou verifique o email. 💙'
+              await enqueuePlenMessage(contactId, msgErro, new Date())
               const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
               await processPlenQueue(2).catch(() => {})
               return { replied: true, nextNodeId: currentId }
@@ -1167,11 +1176,11 @@ async function advanceFromNode(
         if (!result.success) {
           console.warn('[chatbot-flow-runner] createUserAndSendCode (nó condição) falhou:', result.error)
           await updateContact(contactId, { email })
-          await enqueuePlenMessage(
-            contactId,
-            result.error ?? 'Não foi possível enviar o código agora. Verifique o email e tente novamente.',
-            new Date()
-          )
+          const msgErro =
+            result.error && !/smtp|host|porta|587|conexão|connection/i.test(result.error)
+              ? result.error
+              : 'Não foi possível enviar o código agora. Tente novamente em alguns minutos ou verifique o email. 💙'
+          await enqueuePlenMessage(contactId, msgErro, new Date())
           const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
           await processPlenQueue(2).catch(() => {})
           return { replied: true, nextNodeId: currentId }
@@ -1333,11 +1342,23 @@ export async function runChatbotFlow(
   const text = (messageText || '').trim()
   if (!text) return { replied: false, reason: 'empty' }
 
+  // Plen funciona 24h: novos leads SEMPRE recebem resposta, mesmo com assistente pausada ou você fora do WhatsApp.
   const paused = await getAssistenteGlobalPausada()
-  if (paused) return { replied: false, reason: 'assistente_pausada' }
+  if (paused && !isNewLead) return { replied: false, reason: 'assistente_pausada' }
 
   const flow = await getActiveFlow()
-  if (!flow) return { replied: false, reason: 'no_active_flow' }
+  if (!flow) {
+    // Novo lead nunca fica sem resposta: fallback mínimo (Plen 24h).
+    if (isNewLead) {
+      const fallback = 'Olá! 💙 Sou a Plen, assistente da Plenipay. Para começar, me envie seu nome ou digite *menu* para ver opções.'
+      const sent = (await sendWhatsAppMessageWithResult(contactId, fallback)).success
+      if (!sent) await enqueuePlenMessage(contactId, fallback, new Date())
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'novo_lead_sem_fluxo_fallback' }
+    }
+    return { replied: false, reason: 'no_active_flow' }
+  }
 
   const contact = await getContactById(contactId)
   const nomeWhatsApp = (whatsappContactName ?? '').trim()
@@ -1800,14 +1821,21 @@ Quando chegar no dia (e na hora, se você informou), te aviso e pergunto se já 
       return { replied: true, reason: 'codigo_reenviado' }
     }
     const reclamouQueNaoChegou =
-      /email\s*n[aã]o\s*chegou|n[aã]o\s*recebi\s*(o\s*)?(email|c[oó]digo)|c[oó]digo\s*n[aã]o\s*chegou|n[aã]o\s*chegou\s*(o\s*)?email/.test(textLower)
+      /email\s*n[aã]o\s*chegou|n[aã]o\s*recebi(\s*(o\s*)?(email|c[oó]digo))?(\s*$)?|c[oó]digo\s*n[aã]o\s*chegou|n[aã]o\s*chegou\s*(o\s*)?email/.test(textLower)
     if (reclamouQueNaoChegou) {
-      const sent = await sendWhatsAppButtonReply(
+      const result = await resendCodeForPlen(contactEmail)
+      const msgConfirmacao = result.success
+        ? 'Acabei de reenviar o código para seu email. Confira a caixa de entrada e o spam. Digite o código aqui para finalizar.'
+        : 'Não foi possível reenviar agora. Tente em instantes ou confira se o email está correto. Se quiser, clique no botão abaixo para tentar de novo.'
+      await enqueuePlenMessage(contactId, msgConfirmacao, new Date())
+      await sendWhatsAppButtonReply(
         contactId,
-        'Parece que o email não chegou ainda. Clique abaixo para reenviar.',
+        'Não recebeu? Clique abaixo para reenviar o código.',
         'Reenviar código'
-      )
-      return { replied: sent.success, reason: sent.success ? undefined : 'botao_reenviar_falhou' }
+      ).catch(() => {})
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'codigo_reenviado' }
     }
     await enqueuePlenMessage(
       contactId,
