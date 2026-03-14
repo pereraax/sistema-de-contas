@@ -1403,11 +1403,7 @@ export async function runChatbotFlow(
       }
     }
     if (emailParaReenvio) {
-      const result = await resendCodeForPlen(emailParaReenvio)
-      const msg = result.success
-        ? 'Acabei de reenviar o código para seu email. Confira a caixa de entrada e o spam. Digite o código aqui para finalizar.'
-        : 'Não foi possível reenviar agora. Tente em instantes ou confira se o email está correto.'
-      await enqueuePlenMessage(contactId, msg, new Date())
+      await resendCodeForPlen(emailParaReenvio)
       await sendWhatsAppButtonReply(
         contactId,
         'Não recebeu? Clique abaixo para reenviar o código.',
@@ -1892,11 +1888,12 @@ Quando chegar no dia (e na hora, se você informou), te aviso e pergunto se já 
       textLower.trim() === 'reenviar código' ||
       textLower.trim() === 'reenviar codigo'
     if (clicouReenviar) {
-      const result = await resendCodeForPlen(contactEmail)
-      const msgConfirmacao = result.success
-        ? 'Reenviei o código para seu email. Confira a caixa de entrada e o spam. Digite o código aqui para finalizar.'
-        : 'Não foi possível reenviar agora. Tente novamente em alguns minutos ou confira se o email está correto.'
-      await enqueuePlenMessage(contactId, msgConfirmacao, new Date())
+      await resendCodeForPlen(contactEmail)
+      await sendWhatsAppButtonReply(
+        contactId,
+        'Não recebeu? Clique abaixo para reenviar o código.',
+        'Reenviar código'
+      ).catch(() => {})
       const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
       await processPlenQueue(3).catch(() => {})
       return { replied: true, reason: 'codigo_reenviado' }
@@ -1904,11 +1901,7 @@ Quando chegar no dia (e na hora, se você informou), te aviso e pergunto se já 
     const reclamouQueNaoChegou =
       /email\s*n[aã]o\s*chegou|n[aã]o\s*recebi(\s*(o\s*)?(email|c[oó]digo))?(\s*$)?|c[oó]digo\s*n[aã]o\s*chegou|n[aã]o\s*chegou\s*(o\s*)?email/.test(textLower)
     if (reclamouQueNaoChegou) {
-      const result = await resendCodeForPlen(contactEmail)
-      const msgConfirmacao = result.success
-        ? 'Acabei de reenviar o código para seu email. Confira a caixa de entrada e o spam. Digite o código aqui para finalizar.'
-        : 'Não foi possível reenviar agora. Tente em instantes ou confira se o email está correto. Se quiser, clique no botão abaixo para tentar de novo.'
-      await enqueuePlenMessage(contactId, msgConfirmacao, new Date())
+      await resendCodeForPlen(contactEmail)
       await sendWhatsAppButtonReply(
         contactId,
         'Não recebeu? Clique abaixo para reenviar o código.',
