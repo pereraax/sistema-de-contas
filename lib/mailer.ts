@@ -115,9 +115,11 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
   const cfg = getSmtpConfig()
   if (cfg) {
 
-  console.log('📤 [SMTP] Preparando para enviar email...')
-  console.log(`  - Para: ${to}`)
-  console.log(`  - Host: ${cfg.host}:${cfg.port} (${cfg.secure ? 'SSL' : 'STARTTLS'})`)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('📤 [SMTP] Preparando para enviar email...')
+    console.log(`  - Para: ${to}`)
+    console.log(`  - Host: ${cfg.host}:${cfg.port} (${cfg.secure ? 'SSL' : 'STARTTLS'})`)
+  }
 
   const trySend = async (config: typeof cfg): Promise<any> => {
     const transporter = createTransporter(config)
@@ -129,30 +131,52 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
     })
   }
 
-  try {
-    const result = await trySend(cfg)
-    console.log('✅ [SMTP] Email enviado com sucesso!')
-    console.log(`  - Message ID: ${result.messageId}`)
-    return result
-  } catch (error: any) {
-    const isAuthError = error.code === 'EAUTH' || error.message?.includes('Invalid login') || error.message?.includes('535') || error.message?.includes('authentication failed')
-    
-    // Se falhou por autenticação na porta 587, tentar porta 465 (SSL) - comum na Hostinger
-    if (isAuthError && cfg.port === 587 && cfg.host.includes('hostinger')) {
-      console.warn('⚠️ [SMTP] Autenticação falhou na porta 587. Tentando porta 465 (SSL)...')
-      try {
-        const cfg465 = { ...cfg, port: 465 as number, secure: true }
-        const result = await trySend(cfg465)
-        console.log('✅ [SMTP] Email enviado com sucesso via porta 465!')
-        return result
-      } catch (err465: any) {
-        console.error('❌ [SMTP] Porta 465 também falhou:', err465.message)
-        // Continua e lança o erro original abaixo
-      }
-    }
+  // Em produção (Railway, Vercel, etc.) a porta 587 costuma dar timeout; Hostinger aceita 465. Tentar 465 primeiro quando config = 587.
+  const try465First = cfg.port === 587 && process.env.NODE_ENV === 'production'
+  const configsToTry = try465First ? [{ ...cfg, port: 465 as number, secure: true }, cfg] : [cfg]
 
-    console.error('❌ [SMTP] Erro ao enviar email:', error.message)
-    console.error('❌ [SMTP] Código:', error.code)
+  let lastError: any = null
+  for (let i = 0; i < configsToTry.length; i++) {
+    const c = configsToTry[i]
+    try {
+      if (try465First && i === 0) {
+        console.warn('[SMTP] Em produção com porta 587 configurada: tentando primeiro porta 465 (SSL) para evitar timeout.')
+      }
+      const result = await trySend(c)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ [SMTP] Email enviado com sucesso!')
+        console.log(`  - Message ID: ${result.messageId}`)
+      }
+      return result
+    } catch (error: any) {
+      lastError = error
+      const isConnectionError = error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.message?.includes('timeout') || error.message?.includes('ECONNREFUSED')
+      const isAuthError = error.code === 'EAUTH' || error.message?.includes('Invalid login') || error.message?.includes('535') || error.message?.includes('authentication failed')
+      const nextIs465 = try465First && i === 0
+      if (nextIs465 && (isConnectionError || isAuthError)) {
+        const reason = isConnectionError ? 'conexão' : 'autenticação'
+        console.warn(`[SMTP] Porta 465 falhou (${reason}). Tentando porta 587...`)
+        continue
+      }
+      if (cfg.port === 587 && !try465First && (isAuthError || isConnectionError)) {
+        const reason = isConnectionError ? 'conexão' : 'autenticação'
+        console.warn(`[SMTP] Falha de ${reason} na porta 587. Tentando porta 465 (SSL)...`)
+        try {
+          const result = await trySend({ ...cfg, port: 465 as number, secure: true })
+          if (process.env.NODE_ENV === 'development') console.log('✅ [SMTP] Email enviado com sucesso via porta 465!')
+          return result
+        } catch (err465: any) {
+          console.error('[SMTP] Porta 465 também falhou:', err465.message)
+        }
+      }
+      break
+    }
+  }
+
+  const error = lastError
+  if (error) {
+    console.error('[SMTP] Erro ao enviar email:', error.message)
+    console.error('[SMTP] Código:', error.code)
 
     let errorMessage = error.message || 'Erro desconhecido ao enviar email'
     if (error.code === 'EAUTH' || error.message?.includes('Invalid login') || error.message?.includes('535')) {
