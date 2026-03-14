@@ -117,6 +117,10 @@ export async function createContact(input: CrmContactInsert): Promise<CrmContact
     .select()
     .single()
   if (error) {
+    if (error.code === '23505' && typeof error.details === 'string' && error.details.includes('telefone')) {
+      const existing = await findContactByPhone(input.telefone)
+      if (existing) return existing
+    }
     console.error('[crm/contacts] createContact:', error)
     return null
   }
@@ -135,11 +139,13 @@ export async function getOrCreateContactByPhone(
     }
     return existing
   }
-  return createContact({
+  const created = await createContact({
     telefone: phone,
     nome: options?.nome ?? null,
     origem: options?.origem ?? 'whatsapp',
   })
+  if (created) return created
+  return findContactByPhone(phone)
 }
 
 /** Retorna o contato e se acabou de ser criado (novo lead). */
@@ -167,7 +173,9 @@ export async function getOrCreateContactByPhoneWithFlag(
     origem: options?.origem ?? 'whatsapp',
     avatar_url: options?.avatar_url ?? null,
   })
-  return { contact, created: !!contact }
+  if (contact) return { contact, created: true }
+  const fallback = await findContactByPhone(phone)
+  return { contact: fallback, created: false }
 }
 
 export async function updateContact(

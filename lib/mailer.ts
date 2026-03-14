@@ -131,7 +131,8 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
     })
   }
 
-  // Em produção (Railway, Vercel, etc.) a porta 587 costuma dar timeout; Hostinger aceita 465. Tentar 465 primeiro quando config = 587.
+  // Em produção a porta 587 costuma dar timeout (ETIMEDOUT). Hostinger aceita 465 (SSL).
+  // Se os logs ainda mostrarem timeout em 587, defina SMTP_PORT=465 no painel da hospedagem.
   const try465First = cfg.port === 587 && process.env.NODE_ENV === 'production'
   const configsToTry = try465First ? [{ ...cfg, port: 465 as number, secure: true }, cfg] : [cfg]
 
