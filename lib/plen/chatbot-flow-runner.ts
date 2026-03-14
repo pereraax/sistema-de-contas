@@ -1090,6 +1090,11 @@ async function advanceFromNode(
               return { replied: true, nextNodeId: currentId }
             }
             await updateContact(contactId, { email, status: 'aguardando_codigo' })
+            const stateForEmail = await getChatbotFlowState(contactId)
+            await setChatbotFlowState(contactId, flow.id, chosen, {
+              ...(stateForEmail?.context ?? {}),
+              pending_email: email,
+            })
             if (result.alreadyRegisteredNotConfirmed) {
               const msg =
                 'Esse email já está cadastrado mas não foi confirmado. Acabei de reenviar o código para confirmar. Me diga o código aqui.'
@@ -1186,6 +1191,11 @@ async function advanceFromNode(
           return { replied: true, nextNodeId: currentId }
         }
         await updateContact(contactId, { email, status: 'aguardando_codigo' })
+        const stateForEmail2 = await getChatbotFlowState(contactId)
+        await setChatbotFlowState(contactId, flow.id, chosen, {
+          ...(stateForEmail2?.context ?? {}),
+          pending_email: email,
+        })
         if (result.alreadyRegisteredNotConfirmed) {
           const msg =
             'Esse email já está cadastrado mas não foi confirmado. Acabei de reenviar o código para confirmar. Me diga o código aqui.'
@@ -1371,7 +1381,14 @@ export async function runChatbotFlow(
         : 'amigo'
 
   const status = (contact?.status ?? '').toString()
-  const contactEmail = (contact?.email ?? '').trim().toLowerCase()
+  let contactEmail = (contact?.email ?? '').trim().toLowerCase()
+  if (status === 'aguardando_codigo' && !contactEmail.includes('@')) {
+    const flowState = await getChatbotFlowState(contactId)
+    const pendingEmail = (flowState?.context as { pending_email?: string } | undefined)?.pending_email
+    if (pendingEmail && typeof pendingEmail === 'string' && pendingEmail.includes('@')) {
+      contactEmail = pendingEmail.trim().toLowerCase()
+    }
+  }
   const textLower = text.toLowerCase()
 
   // Prioridade: mensagem "menu" sempre mostra o menu, em qualquer estado (exceto assistente pausada / sem fluxo).
@@ -1736,11 +1753,29 @@ Quando chegar no dia (e na hora, se você informou), te aviso e pergunto se já 
     }
   }
 
-  const isAguardandoCodigo = status === 'aguardando_codigo' && contactEmail.includes('@')
+  const isAguardandoCodigo = status === 'aguardando_codigo'
   if (isAguardandoCodigo) {
+    const clicouReenviarOuReclamou =
+      /^reenviar\s*e?-?mail$/i.test(textLower.trim()) ||
+      /^reenviar\s*c[oó]digo$/i.test(textLower.trim()) ||
+      textLower.trim() === 'reenviar código' ||
+      textLower.trim() === 'reenviar codigo' ||
+      textLower.trim() === 'reenviar email' ||
+      textLower.trim() === 'reenviar e-mail' ||
+      /email\s*n[aã]o\s*chegou|n[aã]o\s*recebi(\s*(o\s*)?(email|c[oó]digo))?(\s*$)?|c[oó]digo\s*n[aã]o\s*chegou|n[aã]o\s*chegou\s*(o\s*)?email/.test(textLower)
+    if (clicouReenviarOuReclamou && !contactEmail.includes('@')) {
+      await enqueuePlenMessage(
+        contactId,
+        'Não encontrei seu email aqui. Envie seu email de novo (ex.: seu@email.com) para eu reenviar o código.',
+        new Date()
+      )
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(2).catch(() => {})
+      return { replied: true, reason: 'aguardando_codigo_sem_email' }
+    }
     const apenasDigitos = text.replace(/\D/g, '')
     const codigo6Digitos = apenasDigitos.length === 6 && /^\d{6}$/.test(apenasDigitos)
-    if (codigo6Digitos) {
+    if (codigo6Digitos && contactEmail.includes('@')) {
       const result = await verifyCodeForPlen(apenasDigitos, contactEmail)
       if (result.success) {
         await updateContact(contactId, { status: 'usuario_ativo', usuario_cadastrado: true, data_cadastro: new Date().toISOString() })
