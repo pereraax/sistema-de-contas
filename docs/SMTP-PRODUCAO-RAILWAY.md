@@ -2,6 +2,28 @@
 
 Se o cadastro por WhatsApp funcionava em **localhost** mas em **produção** o email não é enviado (Plen mostra "Não foi possível reenviar agora"):
 
+---
+
+## Igualar produção ao localhost (checklist)
+
+O **código de envio é o mesmo** em localhost e produção. Para produção se comportar igual:
+
+1. **Copie as mesmas variáveis do `.env.local` para o Railway** (Variables do projeto):
+
+   | Variável no Railway | Obrigatório para email | Exemplo (não colar valores reais aqui) |
+   |---------------------|------------------------|----------------------------------------|
+   | `SMTP_HOST`         | Sim                    | `smtp.hostinger.com`                    |
+   | `SMTP_PORT`         | Sim                    | `587` (localhost) ou `465` (recomendado em produção) |
+   | `SMTP_USER`         | Sim                    | Email completo, ex.: `comercial@plenipay.com` |
+   | `SMTP_PASSWORD`     | Sim                    | Senha do email (ou senha de app se tiver 2FA) |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Sim            | A mesma chave do Supabase (Dashboard → Settings → API) |
+
+2. **Não use variáveis diferentes** – se no `.env.local` está `SMTP_USER=comercial@plenipay.com`, no Railway deve ser o **mesmo** valor (sem espaços, aspas só se precisar).
+
+3. **Porta:** No localhost a porta **587** costuma funcionar. No Railway a **587** pode dar timeout; use **465** no Railway. O código já tenta 465 primeiro quando você configura 587 em produção.
+
+4. Depois de salvar as variáveis, faça um **novo deploy** (ou Redeploy no Railway) para carregar as variáveis.
+
 ## 1. Ver o erro real nos logs
 
 Após o deploy, quando um lead pedir o código ou clicar em "Reenviar código":

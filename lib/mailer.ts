@@ -152,6 +152,8 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
       if (process.env.NODE_ENV === 'development') {
         console.log('✅ [SMTP] Email enviado com sucesso!')
         console.log(`  - Message ID: ${result.messageId}`)
+      } else {
+        console.warn('[SMTP] Email enviado com sucesso.')
       }
       return result
     } catch (error: any) {
