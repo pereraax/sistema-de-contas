@@ -96,15 +96,14 @@ export async function sendWhatsAppMessageWithResult(
 }
 
 /**
- * Envia mensagem com botões em duas etapas para maior compatibilidade com Z-API/WhatsApp:
- * 1) Envia o texto completo como mensagem normal.
- * 2) Envia uma segunda mensagem curta com os botões (REPLY ou URL).
- * Assim o usuário sempre vê o texto e, em seguida, uma bolha com botões.
+ * Envia mensagem com botões.
+ * @param sameBubble - se true, envia uma única mensagem com o texto + botões na mesma bolha. Se false, envia o texto e depois outra bolha "Escolha uma opção abaixo:" + botões.
  */
 export async function sendWhatsAppMessageWithButtons(
   contactId: string,
   message: string,
-  botoes: Array<{ titulo: string; link?: string }>
+  botoes: Array<{ titulo: string; link?: string }>,
+  sameBubble = false
 ): Promise<SendResult> {
   const { createAdminClient } = await import('@/lib/supabase/server')
   const supabase = createAdminClient()
@@ -119,12 +118,21 @@ export async function sendWhatsAppMessageWithButtons(
     (contact as { jid?: string | null }).jid?.trim()?.replace('@s.whatsapp.net', '') ||
     (contact as { telefone: string }).telefone
 
+  const urlBotoes = botoes.filter((b) => (b.link ?? '').trim().length > 0).slice(0, 3)
+  const replyBotoes = botoes.filter((b) => !(b.link ?? '').trim()).slice(0, MAX_REPLY_BUTTONS_PER_MESSAGE)
+
+  if (urlBotoes.length > 0 && sameBubble) {
+    const actions: ButtonActionZApi[] = urlBotoes.map((b) => ({
+      type: 'URL',
+      label: (b.titulo || 'Link').trim().slice(0, 20),
+      url: (b.link ?? '').trim().startsWith('http') ? (b.link ?? '').trim() : `https://${(b.link ?? '').trim()}`,
+    }))
+    return sendButtonActionsViaZApi(phone, message, actions)
+  }
+
   // Etapa 1: enviar o texto completo (sempre funciona)
   const textResult = await sendViaZApi(phone, message)
   if (!textResult.success) return textResult
-
-  const urlBotoes = botoes.filter((b) => (b.link ?? '').trim().length > 0).slice(0, 3)
-  const replyBotoes = botoes.filter((b) => !(b.link ?? '').trim()).slice(0, MAX_REPLY_BUTTONS_PER_MESSAGE)
 
   // Etapa 2: enviar botões em mensagem separada (texto curto + botões)
   const shortMessage = 'Escolha uma opção abaixo:'

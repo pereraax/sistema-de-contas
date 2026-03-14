@@ -1136,7 +1136,7 @@ async function advanceFromNode(
           { nome: effectiveNome, dashboardUrl: PLEN_DASHBOARD_URL }
         )
         const botoesCadastro = [{ titulo: 'Criar conta na PleniPay', link: `${PLEN_DASHBOARD_URL}/cadastro` }]
-        const sent2 = (await sendWhatsAppMessageWithButtons(contactId, msgInstrucao, botoesCadastro)).success
+        const sent2 = (await sendWhatsAppMessageWithButtons(contactId, msgInstrucao, botoesCadastro, true)).success
         return { replied: sent1 || sent2, nextNodeId: AGUARDAR_EMAIL_VINCULAR_ID }
       }
       const isProximoPedirNomeOuEmail =
@@ -1150,7 +1150,7 @@ async function advanceFromNode(
           { nome: effectiveNome, dashboardUrl: PLEN_DASHBOARD_URL }
         )
         const botoesCadastro = [{ titulo: 'Criar conta na PleniPay', link: `${PLEN_DASHBOARD_URL}/cadastro` }]
-        const sentCadastro = (await sendWhatsAppMessageWithButtons(contactId, msgInstrucao, botoesCadastro)).success
+        const sentCadastro = (await sendWhatsAppMessageWithButtons(contactId, msgInstrucao, botoesCadastro, true)).success
         return { replied: sentCadastro, nextNodeId: AGUARDAR_EMAIL_VINCULAR_ID }
       }
       const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, nextId, contactId, effectiveNome)
