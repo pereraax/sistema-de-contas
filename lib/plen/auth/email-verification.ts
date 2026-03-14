@@ -291,6 +291,54 @@ export async function upsertProfileFromPlenContact(
 }
 
 /**
+ * Vincula um contato CRM (WhatsApp) a uma conta existente no site pelo email.
+ * Usado no fluxo "cadastre-se no site e envie seu email aqui".
+ * Busca usuário por email em profiles; se achar, atualiza o contato e o profile (telefone/whatsapp).
+ */
+export async function linkPlenContactToUserByEmail(
+  contactId: string,
+  email: string,
+  contactData: { telefone: string; nome: string | null }
+): Promise<{ linked: boolean; userId?: string; error?: string }> {
+  const admin = createAdminClient()
+  if (!admin) return { linked: false, error: 'Sistema indisponível. Tente em instantes.' }
+  const emailNorm = email.trim().toLowerCase()
+  if (!emailNorm || !emailNorm.includes('@')) return { linked: false, error: 'Envie um email válido.' }
+
+  const { data: profile } = await admin.from('profiles').select('id').eq('email', emailNorm).maybeSingle()
+  let userId: string | null = profile?.id ?? null
+  if (!userId) {
+    const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 })
+    const user = list?.users?.find((u) => (u.email ?? '').toLowerCase() === emailNorm)
+    userId = user?.id ?? null
+  }
+  if (!userId) {
+    return {
+      linked: false,
+      error: 'Não encontrei nenhuma conta com esse email. Cadastre-se na plataforma e, depois de criar a conta, envie seu email aqui de novo.',
+    }
+  }
+
+  const { updateContact } = await import('@/lib/crm/contacts')
+  const updated = await updateContact(contactId, {
+    email: emailNorm,
+    status: 'usuario_ativo',
+    usuario_cadastrado: true,
+    data_cadastro: new Date().toISOString(),
+  })
+  if (!updated) return { linked: false, error: 'Erro ao ativar conta. Tente novamente.' }
+
+  const upsertErr = await upsertProfileFromPlenContact(userId, {
+    email: emailNorm,
+    nome: contactData.nome ?? '',
+    telefone: contactData.telefone ?? '',
+  })
+  if (upsertErr.error) console.warn('[plen/link] upsertProfile:', upsertErr.error)
+
+  return { linked: true, userId }
+}
+
+/**
  * Reenvia o email com código.
  * Se o app tiver SMTP: atualiza/cria registro em plen_email_otp e envia pelo mailer. Caso contrário, usa Supabase resend.
  */

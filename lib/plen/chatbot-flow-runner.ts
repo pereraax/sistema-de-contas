@@ -10,7 +10,7 @@ import { getContactById, updateContact } from '@/lib/crm/contacts'
 import { enqueuePlenMessage } from '@/lib/plen/queue/message-queue'
 import { getAssistenteGlobalPausada } from '@/lib/assistente-global-pausada'
 import { getPlenLLMResponse } from '@/lib/plen-llm-fallback'
-import { createUserAndSendCode, resendCodeForPlen, verifyCodeForPlen, upsertProfileFromPlenContact } from '@/lib/plen/auth/email-verification'
+import { createUserAndSendCode, resendCodeForPlen, verifyCodeForPlen, upsertProfileFromPlenContact, linkPlenContactToUserByEmail } from '@/lib/plen/auth/email-verification'
 import {
   sendWhatsAppButtonReply,
   sendWhatsAppMenuButtons,
@@ -1125,16 +1125,16 @@ async function advanceFromNode(
       return { replied: false, nextNodeId: nao ?? sim }
     }
     if (nextType === 'mensagem') {
-      const isResultadoTeste =
+        const isResultadoTeste =
         (String(currentId).includes('resultado') || String(node.data?.label ?? '').toLowerCase().includes('resultado')) &&
         (String(nextId).includes('copy-cadastro') || String(nextNode?.data?.label ?? '').toLowerCase().includes('copy cadastro'))
       if (isResultadoTeste) {
         const { sent: sent1 } = await sendMessageNodeAndReturnNext(flow, nextId, contactId, effectiveNome)
         const nextOfCopy = getOutgoingTargets(flow, nextId)[0]
-        const nodePedirNome = nextOfCopy ? getNodeById(flow, nextOfCopy) : null
-        if (nodePedirNome?.data?.nodeType === 'mensagem') {
-          const { sent: sent2 } = await sendMessageNodeAndReturnNext(flow, nextOfCopy!, contactId, effectiveNome)
-          return { replied: sent1 || sent2, nextNodeId: nextOfCopy }
+        const nodeAfterCopy = nextOfCopy ? getNodeById(flow, nextOfCopy) : null
+        if (nodeAfterCopy?.data?.nodeType === 'mensagem') {
+          const { sent: sent2, nextNodeId: afterSecond } = await sendMessageNodeAndReturnNext(flow, nextOfCopy!, contactId, effectiveNome)
+          return { replied: sent1 || sent2, nextNodeId: afterSecond ?? nextOfCopy }
         }
         return { replied: sent1, nextNodeId: nextOfCopy ?? nextId }
       }
@@ -1922,6 +1922,49 @@ Quando chegar no dia (e na hora, se você informou), te aviso e pergunto se já 
   }
 
   const state = await getChatbotFlowState(contactId)
+
+  // Cadastro no site + envio de email para vincular: quando está em "aguardar-email-vincular" e usuário envia email
+  const currentNodeId = state?.current_node_id ?? ''
+  const isAguardarEmailVincular =
+    String(currentNodeId).includes('aguardar-email-vincular') || String(currentNodeId).includes('aguardar_email_vincular')
+  if (isAguardarEmailVincular) {
+    const msgPareceEmail = /^.+\@.+\..+$/.test((text || '').trim()) || (text || '').trim().includes('@')
+    if (msgPareceEmail) {
+      const email = text.trim().toLowerCase()
+      const telefone = (contact?.telefone ?? '').replace(/\D/g, '').trim() || ''
+      const result = await linkPlenContactToUserByEmail(contactId, email, {
+        telefone,
+        nome: contact?.nome ?? null,
+      })
+      if (result.linked) {
+        const contaConfirmadaId = 'oficial-conta-confirmada'
+        const contaConfirmadaNode = getNodeById(flow, contaConfirmadaId)
+        const cfg = (contaConfirmadaNode?.data?.config ?? {}) as Record<string, unknown>
+        const textoConfirmacao =
+          (cfg?.texto as string)?.trim() ||
+          'Conta ativada! 🎉 Agora você já pode registrar seus gastos. Digite MENU a qualquer momento para acessar as opções.'
+        await enqueuePlenMessage(contactId, applyReplacements(textoConfirmacao, { nome }), new Date())
+        await setChatbotFlowState(contactId, flow.id, contaConfirmadaId, {})
+        const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+        await processPlenQueue(3).catch(() => {})
+        return { replied: true, reason: 'conta_vinculada_email' }
+      }
+      await enqueuePlenMessage(contactId, result.error ?? 'Não encontrei conta com esse email. Cadastre-se na plataforma e envie seu email aqui de novo.', new Date(), [
+        { titulo: 'Criar conta na PleniPay', link: `${PLEN_DASHBOARD_URL}/cadastro` },
+      ])
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'email_sem_conta' }
+    }
+    await enqueuePlenMessage(
+      contactId,
+      'Envie aqui o mesmo email que você usou ao criar sua conta na plataforma (ex.: seu@email.com).',
+      new Date()
+    )
+    const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+    await processPlenQueue(2).catch(() => {})
+    return { replied: true, reason: 'aguardar_email_vincular_invalido' }
+  }
 
   // Sempre tentar responder como opção do menu (1º nó menu do fluxo) — funciona com ou sem estado.
   const menuRespondedAny = await tryRespondAsMenuOption(flow, contactId, nome, messageText)

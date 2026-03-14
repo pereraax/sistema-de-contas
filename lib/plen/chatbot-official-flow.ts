@@ -155,7 +155,36 @@ Prometo que é bem rápido! ✨`,
         },
       },
     },
-    // BLOCO 7 — PEDIR NOME (salvar como nome_usuario no contato)
+    // BLOCO 7 — INSTRUÇÃO CADASTRO NO SITE (mensagem + botão link; runner envia e avança para aguardar-email)
+    {
+      id: 'oficial-instrucao-cadastro-site',
+      type: 'flowNode',
+      position: pos(1, 6),
+      data: {
+        label: 'Instrução cadastro no site',
+        nodeType: 'mensagem',
+        config: {
+          texto: `Crie sua conta na plataforma pelo link abaixo. Depois que terminar, volte aqui e envie o **mesmo email** que você usou no cadastro. Aí ativamos sua conta para este WhatsApp. 💙`,
+          preview: 'Cadastre-se no site e envie seu email',
+          botoes: [{ titulo: 'Criar conta na PleniPay', link: '{dashboardUrl}/cadastro' }],
+        },
+      },
+    },
+    // BLOCO 8 — AGUARDAR EMAIL PARA VINCULAR (runner: quando usuário envia email, busca conta e vincula)
+    {
+      id: 'oficial-aguardar-email-vincular',
+      type: 'flowNode',
+      position: pos(1, 7),
+      data: {
+        label: 'Aguardar email para vincular',
+        nodeType: 'mensagem',
+        config: {
+          texto: 'Envie aqui o mesmo email que você usou ao criar sua conta na plataforma.',
+          preview: 'Aguardando email',
+        },
+      },
+    },
+    // BLOCO 7 (legado) — PEDIR NOME (mantido para compatibilidade; não usado no fluxo novo)
     {
       id: 'oficial-pedir-nome',
       type: 'flowNode',
@@ -503,7 +532,9 @@ Se você quer ver mais detalhes acesse o painel completo.`,
     { id: 'e5', source: 'oficial-pede-gasto', target: 'oficial-cond-gasto' },
     { id: 'e6', source: 'oficial-reg-gasto', target: 'oficial-msg-resultado' },
     { id: 'e7', source: 'oficial-msg-resultado', target: 'oficial-copy-cadastro' },
-    { id: 'e8', source: 'oficial-copy-cadastro', target: 'oficial-pedir-nome' },
+    { id: 'e8', source: 'oficial-copy-cadastro', target: 'oficial-instrucao-cadastro-site' },
+    { id: 'e8b', source: 'oficial-instrucao-cadastro-site', target: 'oficial-aguardar-email-vincular' },
+    { id: 'e8c', source: 'oficial-aguardar-email-vincular', target: 'oficial-conta-confirmada' },
     { id: 'e9', source: 'oficial-pedir-nome', target: 'oficial-pedir-email' },
     { id: 'e10', source: 'oficial-pedir-email', target: 'oficial-cond-email' },
     { id: 'e11', source: 'oficial-cond-email', target: 'oficial-pedir-codigo', sourceHandle: 'sim' },
