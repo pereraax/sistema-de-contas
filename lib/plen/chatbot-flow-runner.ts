@@ -1130,13 +1130,28 @@ async function advanceFromNode(
         (String(nextId).includes('copy-cadastro') || String(nextNode?.data?.label ?? '').toLowerCase().includes('copy cadastro'))
       if (isResultadoTeste) {
         const { sent: sent1 } = await sendMessageNodeAndReturnNext(flow, nextId, contactId, effectiveNome)
-        const nextOfCopy = getOutgoingTargets(flow, nextId)[0]
-        const nodeAfterCopy = nextOfCopy ? getNodeById(flow, nextOfCopy) : null
-        if (nodeAfterCopy?.data?.nodeType === 'mensagem') {
-          const { sent: sent2, nextNodeId: afterSecond } = await sendMessageNodeAndReturnNext(flow, nextOfCopy!, contactId, effectiveNome)
-          return { replied: sent1 || sent2, nextNodeId: afterSecond ?? nextOfCopy }
-        }
-        return { replied: sent1, nextNodeId: nextOfCopy ?? nextId }
+        const AGUARDAR_EMAIL_VINCULAR_ID = 'oficial-aguardar-email-vincular'
+        const msgInstrucao = applyReplacements(
+          'Crie sua conta na plataforma pelo link abaixo. Depois que terminar, volte aqui e envie o **mesmo email** que você usou no cadastro. Aí ativamos sua conta para este WhatsApp. 💙',
+          { nome: effectiveNome, dashboardUrl: PLEN_DASHBOARD_URL }
+        )
+        const botoesCadastro = [{ titulo: 'Criar conta na PleniPay', link: `${PLEN_DASHBOARD_URL}/cadastro` }]
+        const sent2 = (await sendWhatsAppMessageWithButtons(contactId, msgInstrucao, botoesCadastro)).success
+        return { replied: sent1 || sent2, nextNodeId: AGUARDAR_EMAIL_VINCULAR_ID }
+      }
+      const isProximoPedirNomeOuEmail =
+        String(nextId).includes('pedir-nome') ||
+        String(nextId).includes('pedir-email') ||
+        /pedir\s*nome|pedir\s*email/i.test(String(nextNode?.data?.label ?? ''))
+      if (isProximoPedirNomeOuEmail) {
+        const AGUARDAR_EMAIL_VINCULAR_ID = 'oficial-aguardar-email-vincular'
+        const msgInstrucao = applyReplacements(
+          'Crie sua conta na plataforma pelo link abaixo. Depois que terminar, volte aqui e envie o **mesmo email** que você usou no cadastro. Aí ativamos sua conta para este WhatsApp. 💙',
+          { nome: effectiveNome, dashboardUrl: PLEN_DASHBOARD_URL }
+        )
+        const botoesCadastro = [{ titulo: 'Criar conta na PleniPay', link: `${PLEN_DASHBOARD_URL}/cadastro` }]
+        const sentCadastro = (await sendWhatsAppMessageWithButtons(contactId, msgInstrucao, botoesCadastro)).success
+        return { replied: sentCadastro, nextNodeId: AGUARDAR_EMAIL_VINCULAR_ID }
       }
       const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, nextId, contactId, effectiveNome)
       return { replied: sent, nextNodeId: nextNodeId ?? nextId }
