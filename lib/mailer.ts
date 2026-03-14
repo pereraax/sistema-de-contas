@@ -120,7 +120,7 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
     console.log(`  - Para: ${to}`)
     console.log(`  - Host: ${cfg.host}:${cfg.port} (${cfg.secure ? 'SSL' : 'STARTTLS'})`)
   } else {
-    console.warn(`[SMTP] Tentando envio para ${cfg.host}:${cfg.port} (${cfg.secure ? 'SSL' : 'STARTTLS'})`)
+    console.warn(`[SMTP] Tentando envio para ${cfg.host}:${cfg.port} (${cfg.secure ? 'SSL' : 'STARTTLS'}) destino: ${to}`)
   }
 
   const trySend = async (config: typeof cfg): Promise<any> => {

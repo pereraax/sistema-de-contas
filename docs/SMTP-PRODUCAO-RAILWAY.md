@@ -71,9 +71,37 @@ Se mesmo com 465 os logs mostrarem **ETIMEDOUT** ou **ECONNREFUSED**, pode ser:
 - **Firewall / rede do Railway** bloqueando saída SMTP. Nesse caso você pode precisar de um serviço de email por **API HTTP** (ex.: Resend, SendGrid) em vez de SMTP.
 - **Hostinger** exige que o envio seja do mesmo domínio do email (ex.: enviar de `contato@seudominio.com` com `SMTP_USER=contato@seudominio.com`).
 
-## 5. Resumo rápido
+## 5. App diz que enviou, mas o email não chega (porta 465 ok)
 
-1. Confira **logs** no Railway ao tentar enviar o código.
+Se a Plen mostra **"Enviei um código de confirmação no seu email"** e o email **não aparece** na caixa de entrada:
+
+- O servidor SMTP **aceitou** a mensagem (por isso não há erro). O problema está na **entrega** ou na **visibilidade**.
+
+**O que fazer:**
+
+1. **Spam / Lixo eletrônico**  
+   Peça ao destinatário para verificar a pasta de **spam** e **promoções** (Gmail). Aguarde alguns minutos; às vezes há atraso.
+
+2. **Remetente (SMTP_USER) na Hostinger**  
+   O email de envio (`SMTP_USER` / `SMTP_FROM`) deve ser uma **caixa real** criada na Hostinger, no domínio que você usa (ex.: `comercial@plenipay.com` com domínio `plenipay.com` configurado na conta). Se o domínio ou a caixa não existirem na Hostinger, eles podem aceitar a conexão mas **não entregar** o email.
+
+3. **Conferir destinatário nos logs**  
+   Nos logs do Railway, procure por:  
+   `[SMTP] Tentando envio para smtp.hostinger.com:465 (SSL) destino: xxx@...`  
+   Confirme se o **destino** é exatamente o email que o lead informou (sem espaço, sem typo). Ex.: `contacomerciaal01@gmail.com` (com dois "a" em "comerciaal").
+
+4. **Teste manual pela Hostinger**  
+   Envie um email de teste pelo **webmail da Hostinger** (mesmo remetente e mesmo destinatário).  
+   - Se **não chegar** nem pelo webmail → problema na Hostinger ou no destinatário (spam, bloqueio).  
+   - Se **chegar** pelo webmail → pode ser diferença de cabeçalhos/conteúdo; nesse caso vale testar **POST /api/teste-smtp** em produção com esse mesmo email e ver se esse email de teste chega.
+
+5. **Domínio e reputação**  
+   Envio para **Gmail/Outlook** exige que o domínio do remetente tenha **SPF/DKIM** configurado no DNS. Na Hostinger, em **Email → Configurações do domínio**, verifique se SPF/DKIM estão ativos para o domínio do `SMTP_USER`. Sem isso, o Gmail pode aceitar e mandar direto para spam ou rejeitar silenciosamente.
+
+## 6. Resumo rápido
+
+1. Confira **logs** no Railway ao tentar enviar o código (e o **destino** no log).
 2. Teste com **POST /api/teste-smtp** em produção.
-3. Confira **SMTP_USER** = email completo, **SMTP_PASSWORD** = senha ou senha de app (2FA), **SUPABASE_SERVICE_ROLE_KEY** definida.
-4. Se continuar falha de conexão com 465, troque para **587** ou avalie usar um provedor de email por API.
+3. Confira **SMTP_USER** = email completo da caixa Hostinger, **SMTP_PASSWORD** = senha ou senha de app (2FA), **SUPABASE_SERVICE_ROLE_KEY** definida.
+4. Se o app diz que enviou mas não chega: verificar spam, remetente válido na Hostinger, SPF/DKIM do domínio e teste pelo webmail.
+5. Se continuar falha de **conexão** com 465, troque para **587** ou avalie usar um provedor de email por API.
