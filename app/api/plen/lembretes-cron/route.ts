@@ -66,11 +66,16 @@ export async function GET(request: Request) {
       await markPlenLembreteEnviado(l.id)
       sent++
     }
-    // Processar a fila para enviar de fato pelo WhatsApp (o cron só enfileirava; sem isso a mensagem nunca saía)
+    // Processar a fila para enviar de fato pelo WhatsApp
     if (sent > 0) {
-      await processPlenQueue(Math.max(10, sent * 2)).catch((err) => {
+      await new Promise((r) => setTimeout(r, 1500)) // garantir que os itens estão commitados e send_after <= agora
+      const result = await processPlenQueue(Math.max(10, sent * 2)).catch((err) => {
         console.error('[plen/lembretes-cron] processPlenQueue:', (err as Error)?.message ?? err)
+        return { sent: 0, failed: 0 }
       })
+      if (result && (result.failed ?? 0) > 0) {
+        console.warn('[plen/lembretes-cron] fila processada com falhas:', result)
+      }
     }
     return NextResponse.json({ ok: true, sent, total: lembretes.length })
   } catch (e) {

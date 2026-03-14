@@ -9,6 +9,25 @@ Quando o app sobe com **`node server.js`** e **`CRON_SECRET`** está definido, o
 - **Fuso:** "hoje" e "hora atual" são calculados em America/Sao_Paulo para o lembrete disparar no horário certo no Brasil.
 - Se não usar server.js, agende essa URL em um cron externo (cron-job.org etc.) a cada 1 min.
 
+### Se o lembrete não chega no WhatsApp
+
+1. **Servidor em produção**  
+   O cron só roda se o processo for iniciado com **`node server.js`** (ou `npm start`). Se o deploy usar só `next start` ou outro comando que não inicia o `server.js`, o cron **nunca** roda.  
+   **Solução:** no Railway/Render/VPS, use **Start Command = `npm start`** (ou `node server.js`). Ou use um cron externo (veja abaixo).
+
+2. **CRON_SECRET**  
+   A variável **CRON_SECRET** precisa existir no ambiente de produção. Se não existir, o server.js não agenda o cron de lembretes (e aparece no log: "CRON_SECRET não definido").
+
+3. **Testar manualmente**  
+   Abra no navegador (troque SEU_DOMINIO e SEU_SECRET):  
+   `https://SEU_DOMINIO.com/api/plen/lembretes-cron?secret=SEU_SECRET`  
+   Se estiver tudo certo e houver lembrete para hoje no horário já passado, a resposta será `{"ok":true,"sent":1,"total":1}` e a mensagem deve ir para o WhatsApp.
+
+4. **Cron externo (quando server.js não roda)**  
+   Em [cron-job.org](https://cron-job.org) (ou similar), crie um job que chama **a cada 1 minuto**:
+   - URL: `https://SEU_DOMINIO.com/api/plen/lembretes-cron?secret=SEU_CRON_SECRET`
+   - Método: GET
+
 ---
 
 No dia do lembrete (outro fluxo), a assistente envia uma mensagem no WhatsApp para o usuário, por exemplo:
