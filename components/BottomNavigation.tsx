@@ -5,10 +5,9 @@ import {
   Home, 
   FileText, 
   Calendar, 
-  Menu,
+  Gift,
   Sparkles
 } from 'lucide-react'
-import { useMenuContext } from './MobileMenu'
 
 // Função para abrir o PLEN Assistant
 const openPlenAssistant = () => {
@@ -20,7 +19,6 @@ const openPlenAssistant = () => {
 export default function BottomNavigation() {
   const pathname = usePathname()
   const router = useRouter()
-  const { isOpen: isMobileMenuOpen, setIsOpen: setMobileMenuOpen } = useMenuContext()
 
   // Verificar se está em uma página autenticada (barra inferior visível em mobile; em desktop fica oculta por lg:hidden)
   const isAuthenticatedPage = pathname?.startsWith('/home') || 
@@ -45,10 +43,6 @@ export default function BottomNavigation() {
 
   const handleNavClick = (href: string) => {
     router.push(href)
-  }
-
-  const handleMoreClick = () => {
-    setMobileMenuOpen(!isMobileMenuOpen)
   }
 
   const isActive = (href: string) => {
@@ -167,39 +161,28 @@ export default function BottomNavigation() {
             </span>
           </button>
 
-          {/* Mais */}
-          {(() => {
-            const isMoreActive = pathname?.startsWith('/dividas') || 
-              pathname?.startsWith('/lembretes') || 
-              pathname?.startsWith('/minhas-metas') || 
-              pathname?.startsWith('/dashboard') || 
-              pathname?.startsWith('/categorias') || 
-              pathname?.startsWith('/tutoriais') || 
-              pathname?.startsWith('/configuracoes') ||
-              pathname?.startsWith('/gastos-por-banco') ||
-              pathname?.startsWith('/upgrade') ||
-              pathname?.startsWith('/checkout') ||
-              pathname?.startsWith('/pagamento')
-            return (
-              <button
-                onClick={handleMoreClick}
-                className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all ${
-                  isMoreActive
-                    ? 'bg-brand-aqua dark:bg-[#252525]'
-                    : 'hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
-                }`}
-              >
-                <Menu 
-                  size={24} 
-                  className={isMoreActive ? 'text-white' : 'text-gray-600 dark:text-gray-400'} 
-                  strokeWidth={isMoreActive ? 2.5 : 2}
-                />
-                <span className={`text-xs font-medium ${isMoreActive ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`}>
-                  Mais
-                </span>
-              </button>
-            )
-          })()}
+          {/* Indique e ganhe */}
+          <button
+            onClick={() => handleNavClick('/ganhe-indicando')}
+            className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all ${
+              isActive('/ganhe-indicando')
+                ? 'bg-brand-aqua dark:bg-[#252525]'
+                : 'hover:bg-gray-100 dark:hover:bg-brand-midnight/50'
+            }`}
+          >
+            <Gift 
+              size={24} 
+              className={isActive('/ganhe-indicando') ? 'text-white' : 'text-gray-600 dark:text-gray-400'} 
+              strokeWidth={isActive('/ganhe-indicando') ? 2.5 : 2}
+            />
+            <span className={`text-xs font-medium ${
+              isActive('/ganhe-indicando') 
+                ? 'text-white' 
+                : 'text-gray-600 dark:text-gray-400'
+            }`}>
+              Indique e ganhe
+            </span>
+          </button>
         </div>
       </nav>
 

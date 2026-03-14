@@ -63,8 +63,17 @@ export function MenuProvider({ children }: { children: ReactNode }) {
 }
 
 export function MenuButton({ className = '' }: { className?: string }) {
-  // MenuButton removido no mobile - agora usa apenas o bottom navigation
-  return null
+  const { setIsOpen } = useMenuContext()
+  return (
+    <button
+      type="button"
+      onClick={() => setIsOpen(true)}
+      className={`lg:hidden flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-brand-midnight/50 transition-colors ${className}`}
+      aria-label="Abrir menu"
+    >
+      <Menu size={22} strokeWidth={2} />
+    </button>
+  )
 }
 
 export default function MobileMenu() {

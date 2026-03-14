@@ -306,10 +306,11 @@ export default function HomeLayoutNovo({ initialStats, initialUserProfile }: { i
       <div className="flex items-center justify-between gap-2 sm:gap-4 py-1 lg:py-0">
         {/* Esquerda: no mobile Logo + perfil + saudação + toggle; no desktop perfil + saudação + toggle */}
         <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 min-w-0">
-          {/* Logo só no mobile, mesmo tamanho do ícone de perfil (36px) */}
+          {/* Logo + menu (mobile): menu ao lado do logo na parte superior */}
           <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center overflow-hidden rounded-lg lg:hidden [&_a]:!p-0 [&_a]:!w-full [&_a]:!h-full [&_img]:!w-full [&_img]:!h-full [&_img]:!object-contain">
             <Logo />
           </div>
+          <MenuButton />
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="relative flex-shrink-0">
               {/* Ícone de coroa acima do avatar = dono da conta */}
