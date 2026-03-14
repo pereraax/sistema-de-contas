@@ -35,6 +35,10 @@ function otpExpiresAt(): Date {
   return d
 }
 
+/** Mensagem genérica para o usuário quando o envio de email falha (nunca expor erro técnico SMTP no WhatsApp). */
+const EMAIL_ENVIO_FALHOU_MSG =
+  'Não foi possível enviar o email agora. Tente novamente em alguns minutos ou verifique se o email está correto. 💙'
+
 /** Envia o código por email usando o SMTP do app. */
 async function sendOtpEmail(email: string, code: string): Promise<{ success: boolean; error?: string }> {
   try {
@@ -52,7 +56,9 @@ async function sendOtpEmail(email: string, code: string): Promise<{ success: boo
     return { success: true }
   } catch (e) {
     const err = e instanceof Error ? e.message : String(e)
-    return { success: false, error: err }
+    const code = e && typeof e === 'object' && 'code' in e ? (e as { code: string }).code : ''
+    console.warn('[plen/email] Falha SMTP:', err, code ? `(código: ${code})` : '')
+    return { success: false, error: EMAIL_ENVIO_FALHOU_MSG }
   }
 }
 
@@ -76,7 +82,11 @@ export async function createUserAndSendCode(
 
   if (isSmtpConfigured()) {
     const admin = createAdminClient()
-    if (admin) {
+    if (!admin) {
+      console.error('[plen/email] SMTP configurado mas SUPABASE_SERVICE_ROLE_KEY ausente. Defina no painel da hospedagem (Railway/Vercel) para o email de confirmação ser enviado.')
+      return { success: false, error: EMAIL_ENVIO_FALHOU_MSG }
+    }
+    {
       const now = new Date().toISOString()
       const { data: existingOtp } = await admin
         .from('plen_email_otp')
@@ -125,7 +135,7 @@ export async function createUserAndSendCode(
             }
             const sendResult = await sendOtpEmail(emailNorm, code)
             if (!sendResult.success) {
-              return { success: false, error: sendResult.error ?? 'Falha ao enviar email.' }
+              return { success: false, error: sendResult.error ?? EMAIL_ENVIO_FALHOU_MSG }
             }
             if (process.env.NODE_ENV === 'development') {
               console.log('[plen/email] Email já cadastrado mas não confirmado — código reenviado para', emailNorm)
@@ -164,7 +174,7 @@ export async function createUserAndSendCode(
 
       const sendResult = await sendOtpEmail(emailNorm, code)
       if (!sendResult.success) {
-        return { success: false, error: sendResult.error ?? 'Falha ao enviar email.' }
+        return { success: false, error: sendResult.error ?? EMAIL_ENVIO_FALHOU_MSG }
       }
       if (process.env.NODE_ENV === 'development') {
         console.log('[plen/email] Código enviado via SMTP do app para', emailNorm)
@@ -308,8 +318,8 @@ export async function resendCodeForPlen(email: string): Promise<{ success: boole
       if (upsertError) return { success: false, error: 'Erro ao gerar novo código.' }
       const sendResult = await sendOtpEmail(emailNorm, code)
       if (!sendResult.success) {
-        console.warn('[plen/email] Falha ao reenviar código SMTP:', emailNorm, sendResult.error)
-        return { success: false, error: sendResult.error ?? 'Falha ao reenviar email.' }
+        console.warn('[plen/email] Falha ao reenviar código SMTP:', emailNorm)
+        return { success: false, error: EMAIL_ENVIO_FALHOU_MSG }
       }
       if (process.env.NODE_ENV === 'development') console.log('[plen/email] Código reenviado via SMTP para', emailNorm)
       return { success: true }

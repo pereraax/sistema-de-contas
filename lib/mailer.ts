@@ -119,6 +119,8 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
     console.log('📤 [SMTP] Preparando para enviar email...')
     console.log(`  - Para: ${to}`)
     console.log(`  - Host: ${cfg.host}:${cfg.port} (${cfg.secure ? 'SSL' : 'STARTTLS'})`)
+  } else {
+    console.warn(`[SMTP] Tentando envio para ${cfg.host}:${cfg.port} (${cfg.secure ? 'SSL' : 'STARTTLS'})`)
   }
 
   const trySend = async (config: typeof cfg): Promise<any> => {
@@ -132,9 +134,12 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
   }
 
   // Em produção a porta 587 costuma dar timeout (ETIMEDOUT). Hostinger aceita 465 (SSL).
-  // Se os logs ainda mostrarem timeout em 587, defina SMTP_PORT=465 no painel da hospedagem.
+  // Se SMTP_PORT=465 falhar (ex.: Railway bloqueia 465), tentar 587 como fallback.
   const try465First = cfg.port === 587 && process.env.NODE_ENV === 'production'
-  const configsToTry = try465First ? [{ ...cfg, port: 465 as number, secure: true }, cfg] : [cfg]
+  const try587AsFallback = cfg.port === 465 && process.env.NODE_ENV === 'production'
+  let configsToTry: Array<{ host: string; port: number; secure: boolean; auth: { user: string; pass: string }; from: string }> = [cfg]
+  if (try465First) configsToTry = [{ ...cfg, port: 465, secure: true }, cfg]
+  else if (try587AsFallback) configsToTry = [cfg, { ...cfg, port: 587, secure: false }]
 
   let lastError: any = null
   for (let i = 0; i < configsToTry.length; i++) {
@@ -154,12 +159,17 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
       const isConnectionError = error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.message?.includes('timeout') || error.message?.includes('ECONNREFUSED')
       const isAuthError = error.code === 'EAUTH' || error.message?.includes('Invalid login') || error.message?.includes('535') || error.message?.includes('authentication failed')
       const nextIs465 = try465First && i === 0
+      const nextIs587 = try587AsFallback && i === 0
       if (nextIs465 && (isConnectionError || isAuthError)) {
         const reason = isConnectionError ? 'conexão' : 'autenticação'
         console.warn(`[SMTP] Porta 465 falhou (${reason}). Tentando porta 587...`)
         continue
       }
-      if (cfg.port === 587 && !try465First && (isAuthError || isConnectionError)) {
+      if (nextIs587 && (isConnectionError || isAuthError)) {
+        console.warn('[SMTP] Porta 465 falhou. Tentando porta 587 (STARTTLS)...')
+        continue
+      }
+      if (cfg.port === 587 && !try465First && !try587AsFallback && (isAuthError || isConnectionError)) {
         const reason = isConnectionError ? 'conexão' : 'autenticação'
         console.warn(`[SMTP] Falha de ${reason} na porta 587. Tentando porta 465 (SSL)...`)
         try {
