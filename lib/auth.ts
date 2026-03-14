@@ -361,22 +361,16 @@ export async function signUp(
       logInfo('✅ Email já confirmado - não precisa enviar', 'SIGNUP')
     }
     
-    // Para CONTA NOVA: Supabase já envia o email oficial (template Plenipay). Não enviar segundo email (onboarding).
-    // Para USUÁRIO JÁ EXISTENTE (email não confirmado): enviar link por nosso email (Resend/SMTP) para reenvio.
+    // Sempre que o usuário não está confirmado: enviar link por nosso SMTP/Resend (cadastro novo ou reenvio).
+    // O Supabase pode não enviar o email (SMTP do projeto não configurado, limites, etc.), então enviamos nós mesmos.
     const deveTentarSmtpProprio = userToUse && !emailConfirmado && supabaseAdmin
     
     if (deveTentarSmtpProprio) {
-      if (!usuarioJaExistia) {
-        emailEnviado = true
-        logInfo('✅ Supabase enviou o email oficial de confirmação (um único email, link plenipay.com via redirect)', 'SIGNUP')
-      } else {
-        logInfo('📧 Usuário já existia (email não confirmado) - gerando e enviando link de confirmação por email...', 'SIGNUP')
-      }
-      
       const { isSmtpConfigured, isResendConfigured, sendMail } = await import('./mailer')
       const emailEnvioConfigurado = isSmtpConfigured() || isResendConfigured()
       
-      if (usuarioJaExistia && emailEnvioConfigurado) {
+      if (emailEnvioConfigurado) {
+        logInfo('📧 Gerando e enviando link de confirmação por email (SMTP/Resend)...', 'SIGNUP')
         try {
           // Link do email sempre com domínio oficial (getSiteUrlForEmailRedirect = plenipay.com)
           const redirectToEmail = redirectTo
