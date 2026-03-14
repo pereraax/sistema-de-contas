@@ -299,7 +299,11 @@ export async function resendCodeForPlen(email: string): Promise<{ success: boole
 
   if (isSmtpConfigured()) {
     const admin = createAdminClient()
-    if (admin) {
+    if (!admin) {
+      console.error('[plen/email] SMTP configurado mas SUPABASE_SERVICE_ROLE_KEY ausente — reenvio não disponível.')
+      return { success: false, error: EMAIL_ENVIO_FALHOU_MSG }
+    }
+    {
       const { data: existing } = await admin.from('plen_email_otp').select('user_id').eq('email', emailNorm).maybeSingle()
       let userId: string | null = existing?.user_id ?? null
       if (!userId) {

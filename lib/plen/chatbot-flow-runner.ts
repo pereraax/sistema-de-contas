@@ -1382,6 +1382,53 @@ export async function runChatbotFlow(
 
   const status = (contact?.status ?? '').toString()
   let contactEmail = (contact?.email ?? '').trim().toLowerCase()
+  const textLower = text.toLowerCase()
+
+  const isPedidoReenviarOuNaoRecebi =
+    /^reenviar\s*e?-?mail$/i.test(textLower.trim()) ||
+    /^reenviar\s*c[oó]digo$/i.test(textLower.trim()) ||
+    textLower.trim() === 'reenviar código' ||
+    textLower.trim() === 'reenviar codigo' ||
+    textLower.trim() === 'reenviar email' ||
+    textLower.trim() === 'reenviar e-mail' ||
+    /email\s*n[aã]o\s*chegou|n[aã]o\s*recebi(\s*(o\s*)?(email|c[oó]digo))?(\s*$)?|c[oó]digo\s*n[aã]o\s*chegou|n[aã]o\s*chegou\s*(o\s*)?email/.test(textLower)
+
+  if (isPedidoReenviarOuNaoRecebi) {
+    let emailParaReenvio = contactEmail.includes('@') ? contactEmail : ''
+    if (!emailParaReenvio) {
+      const flowState = await getChatbotFlowState(contactId)
+      const pending = (flowState?.context as { pending_email?: string } | undefined)?.pending_email
+      if (pending && typeof pending === 'string' && pending.includes('@')) {
+        emailParaReenvio = pending.trim().toLowerCase()
+      }
+    }
+    if (emailParaReenvio) {
+      const result = await resendCodeForPlen(emailParaReenvio)
+      const msg = result.success
+        ? 'Acabei de reenviar o código para seu email. Confira a caixa de entrada e o spam. Digite o código aqui para finalizar.'
+        : 'Não foi possível reenviar agora. Tente em instantes ou confira se o email está correto.'
+      await enqueuePlenMessage(contactId, msg, new Date())
+      await sendWhatsAppButtonReply(
+        contactId,
+        'Não recebeu? Clique abaixo para reenviar o código.',
+        'Reenviar código'
+      ).catch(() => {})
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(3).catch(() => {})
+      return { replied: true, reason: 'codigo_reenviado' }
+    }
+    if (status === 'aguardando_codigo') {
+      await enqueuePlenMessage(
+        contactId,
+        'Não encontrei seu email aqui. Envie seu email de novo (ex.: seu@email.com) para eu reenviar o código.',
+        new Date()
+      )
+      const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
+      await processPlenQueue(2).catch(() => {})
+      return { replied: true, reason: 'aguardando_codigo_sem_email' }
+    }
+  }
+
   if (status === 'aguardando_codigo' && !contactEmail.includes('@')) {
     const flowState = await getChatbotFlowState(contactId)
     const pendingEmail = (flowState?.context as { pending_email?: string } | undefined)?.pending_email
@@ -1389,7 +1436,6 @@ export async function runChatbotFlow(
       contactEmail = pendingEmail.trim().toLowerCase()
     }
   }
-  const textLower = text.toLowerCase()
 
   // Prioridade: mensagem "menu" sempre mostra o menu, em qualquer estado (exceto assistente pausada / sem fluxo).
   if (textLower === 'menu') {
