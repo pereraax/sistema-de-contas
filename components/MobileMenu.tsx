@@ -68,7 +68,7 @@ export function MenuButton({ className = '' }: { className?: string }) {
     <button
       type="button"
       onClick={() => setIsOpen(true)}
-      className={`lg:hidden flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-brand-midnight/50 transition-colors ${className}`}
+      className={`lg:hidden flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-white/10 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-white/20 dark:hover:bg-white/10 border border-gray-200/50 dark:border-white/10 transition-all duration-200 shadow-sm ${className}`}
       aria-label="Abrir menu"
     >
       <Menu size={22} strokeWidth={2} />

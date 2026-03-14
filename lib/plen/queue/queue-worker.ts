@@ -11,6 +11,7 @@ import {
   QUEUE_DELAY_SECONDS,
 } from './message-queue'
 import { sendWhatsAppMessageWithResult, sendWhatsAppMessageWithButtons } from '@/lib/whatsapp/sender'
+import { markPlenLembreteEnviado } from '@/lib/plen/lembretes/plen-lembretes'
 
 const DELAY_MS = QUEUE_DELAY_SECONDS * 1000
 
@@ -47,6 +48,9 @@ export async function processPlenQueue(maxMessages = 5): Promise<{ sent: number;
 
     if (result.success) {
       await markQueueItemSent(item.id)
+      if (item.lembrete_id) {
+        await markPlenLembreteEnviado(item.lembrete_id)
+      }
       sent++
     } else {
       const errMsg = result.error ?? 'Erro desconhecido'

@@ -27,6 +27,18 @@ const LIMITE_REGISTROS_GRATUITOS = 10
 /** URL do painel para links enviados no WhatsApp. Sempre plenipay.com (nunca localhost). */
 const PLEN_DASHBOARD_URL = (process.env.PLEN_DASHBOARD_URL || 'https://plenipay.com').toString().replace(/\/$/, '')
 
+/** Mensagem fixa do plano R$ 9,90 (usada quando o usuário escolhe "Assinatura R$9,90" e o fluxo no DB tem conteúdo errado). */
+const MSG_PLANO_BASICO_9_90 =
+  '💙 *Plano Básico — R$ 9,90/mês*\n\n' +
+  'Com a assinatura você desbloqueia tudo que a PLEN oferece:\n\n' +
+  '• *Controle ilimitado* de gastos e receitas\n' +
+  '• *Lembretes* para não esquecer de registrar\n' +
+  '• *Relatórios e visão do seu dinheiro* na plataforma\n' +
+  '• *Metas* para guardar e planejar\n' +
+  '• Acesso pelo celular e pelo computador, quando quiser\n\n' +
+  'Por menos de R$ 0,35 por dia você organiza suas contas de forma simples e segura. Quer assinar? Use o botão abaixo para ir direto à plataforma.'
+const BOTOES_PLANO_BASICO = [{ titulo: 'Ver plano e assinar na plataforma', link: '{dashboardUrl}/upgrade' }]
+
 /** Lead só é considerado cadastrado se concluiu o fluxo: status ativo/cliente ou flag + data_cadastro. */
 function isLeadCadastrado(contact: { status?: string; usuario_cadastrado?: boolean; data_cadastro?: string | null } | null): boolean {
   if (!contact) return false
@@ -133,6 +145,8 @@ const MENU_LABEL_ALIASES: [string, string][] = [
   ['saldo', 'ver saldo'],
   ['plano r$9,90', 'assinatura'],
   ['plano r$9,90/mês', 'assinatura'],
+  ['assinatura r$9,90', 'assinatura'],
+  ['assinatura r$9.90', 'assinatura'],
   ['atendimento humano', 'falar com humano'],
 ]
 function menuLabelsMatch(msg: string, label: string): boolean {
@@ -153,6 +167,26 @@ function getMenuTargetByMessage(flow: ChatbotFlowRow, menuNodeId: string, messag
   const targets = getOutgoingTargets(flow, menuNodeId)
   const t = (messageText || '').trim().toLowerCase().replace(/\s+/g, ' ')
   if (!t) return null
+  // "Assinatura R$9,90" deve ir SEMPRE para o nó da assinatura (plano básico), nunca para o nó "Funções premium" (R$49,90).
+  const isPlanoBasico = /\b(9[,.]90|r\s*\$?\s*9\b)/.test(t) && !/49/.test(t)
+  const isPremium = /premium|49[,.]90|r\s*\$?\s*49/.test(t)
+  if (isPlanoBasico) {
+    for (const targetId of targets) {
+      const node = getNodeById(flow, targetId)
+      const label = (node?.data?.label ?? (node?.data?.config as Record<string, unknown>)?.preview ?? '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
+      if (!label || label.includes('premium')) continue
+      if (label.includes('assinatura') && menuLabelsMatch(messageText.trim(), label)) return targetId
+      if (menuLabelsMatch(messageText.trim(), label)) return targetId
+    }
+  }
+  if (isPremium) {
+    for (const targetId of targets) {
+      const node = getNodeById(flow, targetId)
+      const label = (node?.data?.label ?? (node?.data?.config as Record<string, unknown>)?.preview ?? '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
+      if (!label || !label.includes('premium')) continue
+      if (menuLabelsMatch(messageText.trim(), label)) return targetId
+    }
+  }
   for (const targetId of targets) {
     const node = getNodeById(flow, targetId)
     const label = (node?.data?.label ?? (node?.data?.config as Record<string, unknown>)?.preview ?? '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
@@ -819,10 +853,19 @@ async function tryRespondAsMenuOption(
   const targetNode = getNodeById(flow, targetId)
   if (targetNode?.data?.nodeType === 'mensagem') {
     const cfg = targetNode.data?.config as Record<string, unknown> | undefined
-    const texto = (cfg?.texto as string)?.trim() || ''
+    let texto = (cfg?.texto as string)?.trim() || ''
+    const t = (messageText || '').trim().toLowerCase().replace(/\s+/g, ' ')
+    const isPlanoBasico = /\b(9[,.]90|r\s*\$?\s*9\b)/.test(t) && !/49/.test(t)
+    const textoParecePremium = /49[,.]90|r\s*\$?\s*49/.test(texto)
+    if (isPlanoBasico && textoParecePremium) {
+      texto = MSG_PLANO_BASICO_9_90
+    }
     if (texto) {
       const msg = applyReplacements(texto, { nome, dashboardUrl: PLEN_DASHBOARD_URL })
-      const botoesRaw = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
+      let botoesRaw = cfg?.botoes as Array<{ titulo?: string; link?: string }> | undefined
+      if (isPlanoBasico && textoParecePremium) {
+        botoesRaw = BOTOES_PLANO_BASICO
+      }
       const botoes = Array.isArray(botoesRaw)
         ? botoesRaw
             .filter((b) => (b?.titulo ?? '').trim().length > 0)
@@ -1575,6 +1618,7 @@ Quando chegar no dia (e na hora, se você informou), te aviso e pergunto se já 
       } else {
         const toRegister = expenses.slice(0, slotsRestantes)
         const skipped = expenses.length - toRegister.length
+        const dataExibir = formatarDataHoje()
         const linhas: string[] = []
         for (let i = 0; i < toRegister.length; i++) {
           const expense = toRegister[i]
@@ -1589,11 +1633,22 @@ Quando chegar no dia (e na hora, se você informou), te aviso e pergunto se já 
           })
           linhas.push(`${emoji} ${i + 1}. ${nomeRegistro} — ${categoriaExibir} — R$${expense.valor.toFixed(2)}`)
         }
-        const dataExibir = formatarDataHoje()
-        const titulo = toRegister.length === 1
-          ? (toRegister[0].intent === 'registrar_receita' ? '🟢 Recibo registrado! 💙' : '🔴 Gasto registrado! 💙')
-          : `💙 ${toRegister.length} registros feitos!`
-        let msgConfirmacao = `${titulo}\n\n${linhas.join('\n')}\n\n📅 ${dataExibir}\n\nVer meus registros: ${PLEN_DASHBOARD_URL}`
+        let msgConfirmacao: string
+        if (toRegister.length === 1) {
+          const expense = toRegister[0]
+          const nomeRegistro = extrairNomeRegistroCurto(expense.descricao || (expense.intent === 'registrar_receita' ? 'Entrada' : 'Gasto'), expense.intent)
+          const categoriaExibir = expense.categoria === 'Pessoas' ? 'Pessoa' : (expense.categoria ?? 'Outros')
+          const titulo = expense.intent === 'registrar_receita' ? '🟢 Recibo registrado! 💙' : '🔴 Gasto registrado! 💙'
+          const frase =
+            messageText.trim() ||
+            (expense.intent === 'registrar_receita'
+              ? `Recebi R$${expense.valor.toFixed(2)} ${(expense.descricao || '').trim()}`.trim()
+              : `Gastei R$${expense.valor.toFixed(2)} ${(expense.descricao || '').trim()}`.trim())
+          msgConfirmacao = `${titulo}\n\n📌 ${nomeRegistro}\n${frase}\n\n📁 Categoria: ${categoriaExibir}\n💰 Valor: R$${expense.valor.toFixed(2)}\n📅 ${dataExibir}\n\nVer meus registros: ${PLEN_DASHBOARD_URL}`
+        } else {
+          const titulo = `💙 ${toRegister.length} registros feitos!`
+          msgConfirmacao = `${titulo}\n\n${linhas.join('\n')}\n\n📅 ${dataExibir}\n\nVer meus registros: ${PLEN_DASHBOARD_URL}`
+        }
         if (skipped > 0) {
           msgConfirmacao += `\n\n⚠️ ${skipped} não registrado(s): você atingiu o limite do plano gratuito. Digite MENU para fazer upgrade.`
         }

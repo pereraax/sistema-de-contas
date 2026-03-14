@@ -389,8 +389,20 @@ Consultar saldo`,
         label: 'Funções premium',
         nodeType: 'mensagem',
         config: {
-          texto: 'Funções premium: relatórios, metas, lembretes e mais. Assine o plano por R$9,90 e desbloqueie tudo. Digite "menu" para voltar.',
-          preview: 'Funções premium',
+          texto:
+            '⭐ *Funções Premium*\n🚀 *Plano Premium da Plen*\n\n' +
+            'Esse é o plano mais completo para quem quer levar o controle financeiro a outro nível.\n\n' +
+            '✨ Tudo do plano básico\n' +
+            '📄 Controle de empréstimos\n' +
+            '📁 Upload de comprovantes\n' +
+            '🎮 Game para juntar dinheiro\n' +
+            '🎯 Metas ilimitadas\n' +
+            '👥 Usuários ilimitados\n' +
+            '📊 Dashboard financeiro avançado\n' +
+            '🆘 Suporte 24h\n\n' +
+            '💰 R$49,90 por mês. Ou ainda mais econômico no plano anual.\n\n' +
+            '💙 Ideal para quem quer ter total controle do dinheiro. Digite "menu" para voltar.',
+          preview: 'Funções premium — R$49,90',
         },
       },
     },

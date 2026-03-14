@@ -118,17 +118,17 @@ export default function Sidebar() {
                     isActive
                       ? 'bg-brand-aqua text-white dark:bg-[#252525] dark:text-white shadow-md'
                       : collapsed
-                        ? 'text-brand-aqua dark:text-white hover:bg-brand-aqua/10 dark:hover:bg-white/10'
-                        : 'text-brand-aqua dark:text-white hover:bg-brand-aqua/10 dark:hover:bg-white/10'
+                        ? 'text-brand-aqua dark:text-[#7ec8f7] hover:bg-brand-aqua/10 dark:hover:bg-white/10'
+                        : 'text-brand-aqua dark:text-[#7ec8f7] hover:bg-brand-aqua/10 dark:hover:bg-white/10'
                   }`}
                 >
                   {isLoading ? (
-                    <Loader2 size={20} strokeWidth={2} className={`animate-spin flex-shrink-0 ${isActive ? 'text-white' : 'text-brand-aqua dark:text-white'}`} />
+                    <Loader2 size={20} strokeWidth={2.5} className={`animate-spin flex-shrink-0 ${isActive ? 'text-white' : 'text-brand-aqua dark:text-[#7ec8f7]'}`} />
                   ) : (
-                    <Icon size={20} strokeWidth={2} className={`flex-shrink-0 ${isActive ? 'text-white' : 'dark:text-white'}`} />
+                    <Icon size={20} strokeWidth={2.5} className={`flex-shrink-0 ${isActive ? 'text-white' : 'text-brand-aqua dark:text-[#7ec8f7]'}`} />
                   )}
                   {!collapsed && (
-                    <span className={`text-sm font-medium truncate min-w-0 ${isActive ? 'text-white' : 'text-gray-700 dark:text-white'}`} title={item.label}>
+                    <span className={`text-sm font-medium truncate min-w-0 ${isActive ? 'text-white' : 'text-gray-700 dark:text-gray-100'}`} title={item.label}>
                       {item.label}
                     </span>
                   )}

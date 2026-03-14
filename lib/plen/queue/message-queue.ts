@@ -19,6 +19,7 @@ export interface PlenQueueItem {
   error_message: string | null
   created_at: string
   botoes?: BotaoFila[] | null
+  lembrete_id?: string | null
 }
 
 /** Delay curto para respostas mais rápidas (0,2 a 0,8 s). */
@@ -31,12 +32,13 @@ function randomDelayMs(): number {
 /** Janela para considerar mensagem duplicada (evita mesma resposta 2x quando Z-API reenvia webhook). */
 const DEDUPE_WINDOW_SEC = 90
 
-/** Adiciona mensagem à fila. Sem sendAfter usa delay curto 0,2–0,8s. botoes opcional: envia com botões quando o worker processar. */
+/** Adiciona mensagem à fila. Sem sendAfter usa delay curto 0,2–0,8s. botoes opcional. lembreteId: ao marcar como enviado, o worker marca o lembrete também. */
 export async function enqueuePlenMessage(
   contactId: string,
   mensagem: string,
   sendAfter?: Date,
-  botoes?: BotaoFila[]
+  botoes?: BotaoFila[],
+  lembreteId?: string | null
 ): Promise<string | null> {
   const supabase = createAdminClient()
   if (!supabase) return null
@@ -64,6 +66,9 @@ export async function enqueuePlenMessage(
   }
   if (botoesValidos.length > 0) {
     payload.botoes = botoesValidos.map((b) => ({ titulo: (b.titulo ?? '').trim(), link: (b.link ?? '').trim() || undefined }))
+  }
+  if (lembreteId != null && lembreteId !== '') {
+    payload.lembrete_id = lembreteId
   }
 
   const { data, error } = await supabase

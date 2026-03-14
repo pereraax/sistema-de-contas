@@ -38,14 +38,20 @@ export async function GET(request: Request) {
   try {
     const lembretes = await getPlenLembretesParaHoje()
     const supabase = createAdminClient()
-    let sent = 0
+
+    if (lembretes.length === 0) {
+      return NextResponse.json({ ok: true, sent: 0, total: 0, message: 'Nenhum lembrete para hoje neste horário' })
+    }
+
+    let enqueued = 0
     for (const l of lembretes) {
       const msg =
         l.tipo === 'pagar'
           ? `📅 Não esqueça que você precisa pagar *${l.descricao}* hoje!! Você já pagou?\n\nSe sim, diga *sim*!\nSe não, diga *não*! 💙`
           : `📅 Hoje você deve receber: *${l.descricao}*. Já recebeu?\n\nSe sim, diga *sim*!\nSe não, diga *não*! 💙`
-      // sendAfter = agora para a mensagem ser elegível na hora (senão fica 200–800 ms no futuro e o processPlenQueue não pega)
-      await enqueuePlenMessage(l.contact_id, msg, new Date())
+      // sendAfter = agora para a mensagem ser elegível na hora. lembreteId: worker marca como enviado só após envio real
+      const id = await enqueuePlenMessage(l.contact_id, msg, new Date(), undefined, l.id)
+      if (id) enqueued++
       if (supabase) {
         const { data: row } = await supabase
           .from('chatbot_flow_state')
@@ -63,21 +69,27 @@ export async function GET(request: Request) {
             .eq('contact_id', l.contact_id)
         }
       }
-      await markPlenLembreteEnviado(l.id)
-      sent++
+      // Não marcar como enviado aqui: o worker marca só após enviar de fato pelo WhatsApp
     }
+
     // Processar a fila para enviar de fato pelo WhatsApp
-    if (sent > 0) {
+    let sent = 0
+    if (enqueued > 0) {
       await new Promise((r) => setTimeout(r, 1500)) // garantir que os itens estão commitados e send_after <= agora
-      const result = await processPlenQueue(Math.max(10, sent * 2)).catch((err) => {
+      const result = await processPlenQueue(Math.max(10, enqueued * 2)).catch((err) => {
         console.error('[plen/lembretes-cron] processPlenQueue:', (err as Error)?.message ?? err)
         return { sent: 0, failed: 0 }
       })
+      sent = result?.sent ?? 0
       if (result && (result.failed ?? 0) > 0) {
-        console.warn('[plen/lembretes-cron] fila processada com falhas:', result)
+        console.warn('[plen/lembretes-cron] fila com falhas:', result.failed, 'itens falharam; lembretes pendentes serão reenviados no próximo minuto')
+      }
+      if (sent > 0) {
+        console.log('[plen/lembretes-cron]', sent, 'lembrete(s) enviado(s) por WhatsApp')
       }
     }
-    return NextResponse.json({ ok: true, sent, total: lembretes.length })
+
+    return NextResponse.json({ ok: true, sent, enqueued, total: lembretes.length })
   } catch (e) {
     const err = e as Error
     console.error('[plen/lembretes-cron]', err)

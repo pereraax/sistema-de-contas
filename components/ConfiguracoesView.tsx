@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@/lib/types'
 import { obterUsuarios, criarUsuario, resetarTodosRegistros, atualizarImagemPerfilUsuario, atualizarImagemProprioPerfil, atualizarNomePerfil } from '@/lib/actions'
-import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown, Download, Smartphone, Share2, ArrowRight, Lightbulb, Copy, Check, Camera } from 'lucide-react'
+import { Users, Plus, Edit, Trash2, X, User as UserIcon, LogOut, Key, Mail, Eye, EyeOff, AlertTriangle, RotateCcw, MessageCircle, Phone, Crown, Download, Smartphone, Share2, ArrowRight, Lightbulb, Copy, Check, Camera, Sparkles } from 'lucide-react'
 import { createNotification } from './NotificationBell'
 import { atualizarSenha, reenviarEmailConfirmacao, signOut, limparBypassEmailConfirmacao } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/client'
@@ -1264,14 +1264,31 @@ export default function ConfiguracoesView({ tabAtivo: tabInicial, initialProfile
                           )}
                         </div>
 
-                        {/* Assistente WhatsApp: em manutenção (nova arquitetura em breve) */}
-                        <div className="flex flex-col gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-brand-midnight dark:text-brand-clean/70">Assistente PLEN no WhatsApp:</span>
-                          </div>
-                          <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
-                            Em manutenção. Nova versão do assistente em breve.
+                        {/* Assistente PLEN no WhatsApp: mensagem ativa + botões */}
+                        <div className="flex flex-col gap-3">
+                          <span className="text-sm font-medium text-brand-midnight dark:text-brand-clean/70">Assistente PLEN no WhatsApp:</span>
+                          <p className="text-sm text-brand-midnight dark:text-brand-clean/80 bg-brand-aqua/5 dark:bg-brand-aqua/10 border border-brand-aqua/20 dark:border-brand-aqua/30 rounded-lg px-3 py-2">
+                            Converse com a PLEN pelo WhatsApp para registrar gastos, ver saldo, lembretes e muito mais.
                           </p>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => window.dispatchEvent(new CustomEvent('open-plen-assistant'))}
+                              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#2c5aa0] to-[#163a5f] text-white rounded-lg font-medium hover:opacity-90 transition-smooth shadow-md"
+                            >
+                              <Sparkles size={18} />
+                              Abrir PLEN
+                            </button>
+                            <a
+                              href="https://wa.me/message/PLHJUVZSV2B5O1"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#25D366] text-white rounded-lg font-medium hover:bg-[#20BD5A] transition-smooth shadow-md"
+                            >
+                              <MessageCircle size={18} />
+                              WhatsApp da PLEN
+                            </a>
+                          </div>
                         </div>
                         {userProfile.profile?.plano && (
                           <>
