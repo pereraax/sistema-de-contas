@@ -42,7 +42,13 @@ export async function processPlenQueue(maxMessages = 5): Promise<{ sent: number;
     const botoes = Array.isArray(botoesRaw)
       ? (botoesRaw as Array<{ titulo?: string; link?: string }>).filter((b) => (b?.titulo ?? '').trim().length > 0)
       : []
-    const sameBubble = botoes.length > 0 && (item.mensagem ?? '').includes('Crie sua conta na plataforma pelo link abaixo')
+    const msg = (item.mensagem ?? '').trim()
+    const sameBubble =
+      botoes.length > 0 &&
+      (msg.includes('Crie sua conta na plataforma pelo link abaixo') ||
+        msg.includes('Saldo total') ||
+        msg.includes('Seu saldo:') ||
+        msg.includes('acesse o painel completo'))
     const result = botoes.length > 0
       ? await sendWhatsAppMessageWithButtons(item.contact_id, item.mensagem, botoes, sameBubble)
       : await sendWhatsAppMessageWithResult(item.contact_id, item.mensagem)
