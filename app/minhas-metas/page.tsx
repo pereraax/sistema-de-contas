@@ -45,10 +45,10 @@ export default function MinhasMetasPage() {
           {/* Header: no mobile logo à esquerda do título; headbar compacta */}
           <div className="relative z-30 flex items-center justify-between gap-2 sm:gap-4 py-1 lg:py-0 mb-3 sm:mb-4">
             <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+              <MenuButton />
               <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center overflow-hidden rounded-lg lg:hidden [&_a]:!p-0 [&_a]:!w-full [&_a]:!h-full [&_img]:!w-full [&_img]:!h-full [&_img]:!object-contain">
                 <Logo />
               </div>
-              <MenuButton />
               <div className="p-1.5 sm:p-2 bg-brand-aqua/20 rounded-lg sm:rounded-xl flex-shrink-0 flex items-center justify-center">
                 <Image 
                   src="/porco-azul.png" 

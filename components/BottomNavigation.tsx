@@ -161,7 +161,7 @@ export default function BottomNavigation() {
             </span>
           </button>
 
-          {/* Indique e ganhe */}
+          {/* Indique */}
           <button
             onClick={() => handleNavClick('/ganhe-indicando')}
             className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all ${
@@ -180,7 +180,7 @@ export default function BottomNavigation() {
                 ? 'text-white' 
                 : 'text-gray-600 dark:text-gray-400'
             }`}>
-              Indique e ganhe
+              Indique
             </span>
           </button>
         </div>

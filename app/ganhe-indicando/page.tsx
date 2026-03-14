@@ -178,10 +178,10 @@ export default function GanheIndicandoPage() {
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between gap-2 sm:gap-4 py-1 lg:py-0 mb-4 sm:mb-6">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <MenuButton />
               <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center overflow-hidden rounded-lg lg:hidden">
                 <Logo />
               </div>
-              <MenuButton />
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-display font-bold text-brand-midnight dark:text-brand-clean leading-none truncate min-w-0">
                 Ganhe indicando
               </h1>

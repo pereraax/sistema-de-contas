@@ -25,10 +25,10 @@ export default async function ConfiguracoesPage({
           <div className="flex items-center justify-between gap-2 sm:gap-4 py-1 lg:py-0 mb-3 sm:mb-4">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               {/* Logo só no mobile, mesmo tamanho do ícone de perfil (igual à Home) */}
+              <MenuButton />
               <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center overflow-hidden rounded-lg lg:hidden [&_a]:!p-0 [&_a]:!w-full [&_a]:!h-full [&_img]:!w-full [&_img]:!h-full [&_img]:!object-contain">
                 <Logo />
               </div>
-              <MenuButton />
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-display font-bold text-brand-midnight dark:text-brand-clean leading-none truncate min-w-0">
                 Configurações
               </h1>
