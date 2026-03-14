@@ -1249,6 +1249,11 @@ async function advanceFromNode(
       const nextNextId = nextId ? getOutgoingTargets(flow, nextId)[0] : null
       const nextNextNode = nextNextId ? getNodeById(flow, nextNextId) : null
       const isCopyNode = nextId && (String(nextId).includes('copy') || String(nextNode?.data?.label ?? '').toLowerCase().includes('copy'))
+      const isProximoPedirNomeOuEmail =
+        nextNextId &&
+        (String(nextNextId).includes('pedir-nome') ||
+          String(nextNextId).includes('pedir-email') ||
+          /pedir\s*nome|pedir\s*email/i.test(String(nextNextNode?.data?.label ?? '')))
       let stateAposCadastro = nextId ?? firstId
       if (nextNode?.data?.nodeType === 'mensagem') {
         const cfg2 = nextNode.data?.config as Record<string, unknown> | undefined
@@ -1259,13 +1264,23 @@ async function advanceFromNode(
         }
         stateAposCadastro = nextId
         if (isCopyNode && nextNextNode?.data?.nodeType === 'mensagem') {
-          const cfg3 = nextNextNode.data?.config as Record<string, unknown> | undefined
-          const texto3 = (cfg3?.texto as string)?.trim() || ''
-          if (texto3) {
-            const msg3 = applyReplacements(texto3, { nome: effectiveNome })
-            await enqueuePlenMessage(contactId, msg3, new Date(Date.now() + 1200))
+          if (isProximoPedirNomeOuEmail) {
+            const msgInstrucao = applyReplacements(
+              'Crie sua conta na plataforma pelo link abaixo. Depois que terminar, volte aqui e envie o **mesmo email** que você usou no cadastro. Aí ativamos sua conta para este WhatsApp. 💙',
+              { nome: effectiveNome, dashboardUrl: PLEN_DASHBOARD_URL }
+            )
+            const botoesCadastro = [{ titulo: 'Criar conta na PleniPay', link: `${PLEN_DASHBOARD_URL}/cadastro` }]
+            await enqueuePlenMessage(contactId, msgInstrucao, new Date(Date.now() + 1200), botoesCadastro)
+            stateAposCadastro = 'oficial-aguardar-email-vincular'
+          } else {
+            const cfg3 = nextNextNode.data?.config as Record<string, unknown> | undefined
+            const texto3 = (cfg3?.texto as string)?.trim() || ''
+            if (texto3) {
+              const msg3 = applyReplacements(texto3, { nome: effectiveNome })
+              await enqueuePlenMessage(contactId, msg3, new Date(Date.now() + 1200))
+            }
+            stateAposCadastro = nextNextId!
           }
-          stateAposCadastro = nextNextId!
         }
       }
       return { replied: true, nextNodeId: stateAposCadastro }
