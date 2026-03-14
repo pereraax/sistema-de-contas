@@ -19,6 +19,29 @@ Nos logs aparece **`[SMTP] Erro ao enviar email: Connection timeout`** e **`Cód
 
 ---
 
+## Alternativa gratuita: Vercel (SMTP liberado no free tier)
+
+Se você quiser **manter SMTP (Hostinger) sem pagar plano Pro**, pode hospedar o app na **Vercel**. A Vercel **não bloqueia** as portas 465 e 587 no plano gratuito (apenas a porta 25). O projeto é Next.js e funciona lá.
+
+**Passos resumidos:**
+
+1. Crie uma conta em [vercel.com](https://vercel.com) e importe o repositório do GitHub (ou faça deploy via CLI).
+2. Configure as **Environment Variables** iguais ao `.env.local`: `SMTP_HOST`, `SMTP_PORT` (use **465**), `SMTP_USER`, `SMTP_PASSWORD`, `SUPABASE_SERVICE_ROLE_KEY`, e as demais que o app usa.
+3. Faça o deploy. O envio por SMTP (código da Plen, reenvio) deve funcionar com a mesma config da Hostinger.
+
+**Dica:** na Vercel, use `SMTP_PORT=465` e deixe o código usar SSL; evita problemas de timeout. O mailer deste projeto já tenta 465 em produção quando configurado 587.
+
+**Outros provedores:**
+
+| Provedor    | Free tier SMTP (465/587) | Observação |
+|-------------|--------------------------|------------|
+| **Vercel**  | ✅ Liberado              | Melhor opção gratuita para SMTP. |
+| **Railway** | ❌ Só no plano Pro       | Free/Trial/Hobby bloqueiam. |
+| **Render**  | ❌ Free bloqueia         | Plano pago libera 465/587. |
+| **Fly.io**  | ⚠️ Liberado mas instável | IPs compartilhados costumam ser bloqueados por provedores de email. |
+
+---
+
 ## Igualar produção ao localhost (checklist)
 
 O **código de envio é o mesmo** em localhost e produção. Para produção se comportar igual:
