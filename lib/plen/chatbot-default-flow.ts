@@ -414,8 +414,20 @@ Consultar saldo`,
         label: 'Indique e ganhe',
         nodeType: 'mensagem',
         config: {
-          texto: 'Indique a Plen para amigos e ganhe benefícios! Compartilhe seu link de indicação. Digite "menu" para outras opções.',
-          preview: 'Indique e ganhe',
+          texto:
+            '🎁 *Indique e ganhe*\n\n' +
+            '💙 Indique a Plen e ganhe *R$ 3,00* por indicação quando seu amigo criar a conta.\n\n' +
+            'Se você está gostando da Plen, pode convidar seus amigos também.\n\n' +
+            '*Funciona assim:*\n' +
+            '📱 Você envia seu link de convite\n' +
+            '👤 Seu amigo cria a conta\n' +
+            '🎁 Você ganha R$ 3,00 dentro da plataforma\n\n' +
+            'Quanto mais pessoas você indicar, mais benefícios você desbloqueia.\n\n' +
+            'Para começar a indicar agora, pegue seu link de indicação no seu perfil — clique no botão abaixo para ir direto à plataforma.',
+          preview: 'Indique e ganhe — R$ 3 por indicação',
+          botoes: [
+            { titulo: 'Pegar meu link de indicação', link: '{dashboardUrl}/ganhe-indicando' },
+          ],
         },
       },
     },
