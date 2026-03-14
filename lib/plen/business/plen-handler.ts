@@ -503,7 +503,13 @@ export async function handlePlenIncomingMessage(
               'Reenviar código'
             ).catch(() => {})
           } else {
-            reply = `Não consegui reenviar agora (${res.error ?? 'erro'}). Tente em instantes ou confira se o email está correto.`
+            const msgErro =
+              res.error && !/smtp|host|porta|587|465|conexão|conexao|connection|timeout|etimedout|eauth|verifique/i.test(res.error)
+                ? res.error
+                : null
+            reply = msgErro
+              ? `Não consegui reenviar agora (${msgErro}). Tente em instantes ou confira se o email está correto.`
+              : 'Não consegui reenviar agora. Tente em instantes ou confira se o email está correto.'
             acao = 'reenviar_erro'
           }
         }

@@ -1081,7 +1081,7 @@ async function advanceFromNode(
               console.warn('[chatbot-flow-runner] createUserAndSendCode falhou:', result.error)
               await updateContact(contactId, { email })
               const msgErro =
-                result.error && !/smtp|host|porta|587|conexão|connection/i.test(result.error)
+                result.error && !/smtp|host|porta|587|465|conexão|conexao|connection|timeout|etimedout|eauth|verifique/i.test(result.error)
                   ? result.error
                   : 'Não foi possível enviar o código agora. Tente novamente em alguns minutos ou verifique o email. 💙'
               await enqueuePlenMessage(contactId, msgErro, new Date())
@@ -1177,7 +1177,7 @@ async function advanceFromNode(
           console.warn('[chatbot-flow-runner] createUserAndSendCode (nó condição) falhou:', result.error)
           await updateContact(contactId, { email })
           const msgErro =
-            result.error && !/smtp|host|porta|587|conexão|connection/i.test(result.error)
+            result.error && !/smtp|host|porta|587|465|conexão|conexao|connection|timeout|etimedout|eauth|verifique/i.test(result.error)
               ? result.error
               : 'Não foi possível enviar o código agora. Tente novamente em alguns minutos ou verifique o email. 💙'
           await enqueuePlenMessage(contactId, msgErro, new Date())
