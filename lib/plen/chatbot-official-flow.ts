@@ -272,15 +272,14 @@ Envie ele aqui para ativar sua conta.`,
         config: {
           texto: `Conta confirmada {nome}! 🎉
 
-Agora você já pode registrar *gastos* e *entradas*:
+Me envie assim:
+gastei 392 roupas
+recebi 2000 salário
+gastei 23 café
 
-📤 *Gasto:* escreva o que foi e o valor
-Ex.: café 12 | almoço 35 | gastei 50 mercado
+e assim já posso registrar seus gastos.
 
-📥 *Entrada (receita):* use recebi ou ganhei + valor
-Ex.: recebi 2000 salário | ganhei 500 extra
-
-Digite MENU a qualquer momento para ver todas as opções.`,
+Digite MENU a qualquer momento para acessar as opções.`,
           preview: 'Conta confirmada! 🎉',
         },
       },

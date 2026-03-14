@@ -1834,7 +1834,7 @@ Quando chegar no dia (e na hora, se você informou), te aviso e pergunto se já 
           await enqueuePlenMessage(
             contactId,
             applyReplacements(
-              'Conta confirmada {nome}! 🎉\n\nAgora você já pode registrar *gastos* e *entradas*:\n\n📤 *Gasto:* escreva o que foi e o valor\nEx.: café 12 | almoço 35 | gastei 50 mercado\n\n📥 *Entrada (receita):* use recebi ou ganhei + valor\nEx.: recebi 2000 salário | ganhei 500 extra\n\nDigite MENU a qualquer momento para ver todas as opções.',
+              'Conta confirmada {nome}! 🎉\n\nMe envie assim:\ngastei 392 roupas\nrecebi 2000 salário\ngastei 23 café\n\ne assim já posso registrar seus gastos.\n\nDigite MENU a qualquer momento para acessar as opções.',
               { nome }
             ),
             new Date()
@@ -1932,7 +1932,7 @@ Quando chegar no dia (e na hora, se você informou), te aviso e pergunto se já 
         const cfg = (contaConfirmadaNode?.data?.config ?? {}) as Record<string, unknown>
         const textoConfirmacao =
           (cfg?.texto as string)?.trim() ||
-          'Conta ativada! 🎉\n\nAgora você já pode registrar *gastos* e *entradas*:\n\n📤 *Gasto:* ex.: café 12 | almoço 35\n📥 *Entrada:* ex.: recebi 2000 salário\n\nDigite MENU para ver todas as opções.'
+          'Conta ativada! 🎉\n\nMe envie assim:\ngastei 392 roupas\nrecebi 2000 salário\ngastei 23 café\n\ne assim já posso registrar seus gastos.\n\nDigite MENU a qualquer momento para acessar as opções.'
         await enqueuePlenMessage(contactId, applyReplacements(textoConfirmacao, { nome }), new Date())
         await setChatbotFlowState(contactId, flow.id, contaConfirmadaId, {})
         const { processPlenQueue } = await import('@/lib/plen/queue/queue-worker')
