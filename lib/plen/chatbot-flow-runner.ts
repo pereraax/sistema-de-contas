@@ -1125,34 +1125,6 @@ async function advanceFromNode(
       return { replied: false, nextNodeId: nao ?? sim }
     }
     if (nextType === 'mensagem') {
-        const isResultadoTeste =
-        (String(currentId).includes('resultado') || String(node.data?.label ?? '').toLowerCase().includes('resultado')) &&
-        (String(nextId).includes('copy-cadastro') || String(nextNode?.data?.label ?? '').toLowerCase().includes('copy cadastro'))
-      if (isResultadoTeste) {
-        const { sent: sent1 } = await sendMessageNodeAndReturnNext(flow, nextId, contactId, effectiveNome)
-        const AGUARDAR_EMAIL_VINCULAR_ID = 'oficial-aguardar-email-vincular'
-        const msgInstrucao = applyReplacements(
-          'Crie sua conta na plataforma pelo link abaixo. Depois que terminar, volte aqui e envie o **mesmo email** que você usou no cadastro. Aí ativamos sua conta para este WhatsApp. 💙',
-          { nome: effectiveNome, dashboardUrl: PLEN_DASHBOARD_URL }
-        )
-        const botoesCadastro = [{ titulo: 'Criar conta na PleniPay', link: `${PLEN_DASHBOARD_URL}/cadastro` }]
-        const sent2 = (await sendWhatsAppMessageWithButtons(contactId, msgInstrucao, botoesCadastro, true)).success
-        return { replied: sent1 || sent2, nextNodeId: AGUARDAR_EMAIL_VINCULAR_ID }
-      }
-      const isProximoPedirNomeOuEmail =
-        String(nextId).includes('pedir-nome') ||
-        String(nextId).includes('pedir-email') ||
-        /pedir\s*nome|pedir\s*email/i.test(String(nextNode?.data?.label ?? ''))
-      if (isProximoPedirNomeOuEmail) {
-        const AGUARDAR_EMAIL_VINCULAR_ID = 'oficial-aguardar-email-vincular'
-        const msgInstrucao = applyReplacements(
-          'Crie sua conta na plataforma pelo link abaixo. Depois que terminar, volte aqui e envie o **mesmo email** que você usou no cadastro. Aí ativamos sua conta para este WhatsApp. 💙',
-          { nome: effectiveNome, dashboardUrl: PLEN_DASHBOARD_URL }
-        )
-        const botoesCadastro = [{ titulo: 'Criar conta na PleniPay', link: `${PLEN_DASHBOARD_URL}/cadastro` }]
-        const sentCadastro = (await sendWhatsAppMessageWithButtons(contactId, msgInstrucao, botoesCadastro, true)).success
-        return { replied: sentCadastro, nextNodeId: AGUARDAR_EMAIL_VINCULAR_ID }
-      }
       const { sent, nextNodeId } = await sendMessageNodeAndReturnNext(flow, nextId, contactId, effectiveNome)
       return { replied: sent, nextNodeId: nextNodeId ?? nextId }
     }
@@ -1249,11 +1221,6 @@ async function advanceFromNode(
       const nextNextId = nextId ? getOutgoingTargets(flow, nextId)[0] : null
       const nextNextNode = nextNextId ? getNodeById(flow, nextNextId) : null
       const isCopyNode = nextId && (String(nextId).includes('copy') || String(nextNode?.data?.label ?? '').toLowerCase().includes('copy'))
-      const isProximoPedirNomeOuEmail =
-        nextNextId &&
-        (String(nextNextId).includes('pedir-nome') ||
-          String(nextNextId).includes('pedir-email') ||
-          /pedir\s*nome|pedir\s*email/i.test(String(nextNextNode?.data?.label ?? '')))
       let stateAposCadastro = nextId ?? firstId
       if (nextNode?.data?.nodeType === 'mensagem') {
         const cfg2 = nextNode.data?.config as Record<string, unknown> | undefined
@@ -1264,23 +1231,13 @@ async function advanceFromNode(
         }
         stateAposCadastro = nextId
         if (isCopyNode && nextNextNode?.data?.nodeType === 'mensagem') {
-          if (isProximoPedirNomeOuEmail) {
-            const msgInstrucao = applyReplacements(
-              'Crie sua conta na plataforma pelo link abaixo. Depois que terminar, volte aqui e envie o **mesmo email** que você usou no cadastro. Aí ativamos sua conta para este WhatsApp. 💙',
-              { nome: effectiveNome, dashboardUrl: PLEN_DASHBOARD_URL }
-            )
-            const botoesCadastro = [{ titulo: 'Criar conta na PleniPay', link: `${PLEN_DASHBOARD_URL}/cadastro` }]
-            await enqueuePlenMessage(contactId, msgInstrucao, new Date(Date.now() + 1200), botoesCadastro)
-            stateAposCadastro = 'oficial-aguardar-email-vincular'
-          } else {
-            const cfg3 = nextNextNode.data?.config as Record<string, unknown> | undefined
-            const texto3 = (cfg3?.texto as string)?.trim() || ''
-            if (texto3) {
-              const msg3 = applyReplacements(texto3, { nome: effectiveNome })
-              await enqueuePlenMessage(contactId, msg3, new Date(Date.now() + 1200))
-            }
-            stateAposCadastro = nextNextId!
+          const cfg3 = nextNextNode.data?.config as Record<string, unknown> | undefined
+          const texto3 = (cfg3?.texto as string)?.trim() || ''
+          if (texto3) {
+            const msg3 = applyReplacements(texto3, { nome: effectiveNome })
+            await enqueuePlenMessage(contactId, msg3, new Date(Date.now() + 1200))
           }
+          stateAposCadastro = nextNextId!
         }
       }
       return { replied: true, nextNodeId: stateAposCadastro }
