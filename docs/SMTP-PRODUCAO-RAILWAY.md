@@ -4,17 +4,17 @@ Se o cadastro por WhatsApp funcionava em **localhost** mas em **produção** o e
 
 ---
 
-## Causa comum: Railway bloqueia SMTP (ETIMEDOUT)
+## Causa: Railway bloqueia portas SMTP nos planos Free / Trial / Hobby
 
-Nos logs aparece **`[SMTP] Erro ao enviar email: Connection timeout`** e **`Código: ETIMEDOUT`**. Isso significa que a **rede do Railway (ou outro PaaS) não consegue conectar** ao servidor SMTP da Hostinger nas portas 465/587 — muitas nuvens bloqueiam saída SMTP para evitar spam.
+Nos logs aparece **`[SMTP] Erro ao enviar email: Connection timeout`** e **`Código: ETIMEDOUT`**. No **Railway**, as portas **465** e **587** (SMTP) estão **bloqueadas** nos planos Free, Trial e Hobby. Elas só são liberadas no **plano Pro**.
 
-**Solução recomendada:** usar **Resend** (API HTTP) em produção. O app já faz **fallback automático**: se SMTP falhar por conexão em produção e `RESEND_API_KEY` estiver definida, o email é enviado pelo Resend.
+**Solução para o envio por SMTP funcionar igual ao localhost:**
 
-1. Crie uma conta em [resend.com](https://resend.com), verifique seu domínio e gere uma API Key.
-2. No **Railway** → projeto → **Variables**, adicione:
-   - `RESEND_API_KEY` = sua API Key do Resend
-   - (opcional) `RESEND_FROM` = `PleniPay <noreply@plenipay.com>` ou o remetente que você verificou no Resend
-3. Faça um novo deploy. Os envios da Plen (código de verificação, reenvio) passarão a funcionar via Resend quando o SMTP der timeout.
+1. Faça **upgrade para o plano Pro** no Railway: [railway.app](https://railway.app) → seu projeto → **Settings** → **Billing** → plano **Pro**.
+2. Depois do upgrade, faça um **Redeploy** do serviço (Deployments → ⋮ → Redeploy) para que a liberação das portas passe a valer.
+3. Mantenha as mesmas variáveis de SMTP que você usa no localhost: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (e `SUPABASE_SERVICE_ROLE_KEY` para a Plen).
+
+Com o plano Pro, a conexão com `smtp.hostinger.com` (465 ou 587) passa a funcionar e o envio do código e reenvio da Plen voltam a operar normalmente.
 
 ---
 
@@ -114,9 +114,8 @@ Se a Plen mostra **"Enviei um código de confirmação no seu email"** e o email
 
 ## 6. Resumo rápido
 
-1. **ETIMEDOUT em produção?** Adicione **RESEND_API_KEY** (e opcionalmente **RESEND_FROM**) no Railway; o app usa Resend automaticamente quando SMTP falha por conexão.
+1. **ETIMEDOUT em produção no Railway?** As portas SMTP (465/587) só funcionam no **plano Pro**. Faça upgrade em railway.app e redeploy.
 2. Confira **logs** no Railway ao tentar enviar o código (e o **destino** no log).
 3. Teste com **POST /api/teste-smtp** em produção.
 4. Confira **SMTP_USER** = email completo da caixa Hostinger, **SMTP_PASSWORD** = senha ou senha de app (2FA), **SUPABASE_SERVICE_ROLE_KEY** definida.
 5. Se o app diz que enviou mas não chega: verificar spam, remetente válido na Hostinger, SPF/DKIM do domínio e teste pelo webmail.
-6. Se continuar falha de **conexão** com 465/587, use **RESEND_API_KEY** (recomendado em Railway).

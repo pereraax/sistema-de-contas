@@ -211,22 +211,15 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
     console.error('[SMTP] Código:', error.code)
 
     const isConnectionError = error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.message?.includes('timeout') || error.message?.includes('ECONNREFUSED')
-    if (process.env.NODE_ENV === 'production' && isConnectionError && isResendConfigured()) {
-      console.warn('[SMTP] Conexão falhou (rede pode bloquear SMTP). Tentando Resend...')
-      try {
-        const result = await sendMailViaResend({ to, subject, html })
-        console.warn('[Resend] Email enviado com sucesso (fallback).')
-        return result
-      } catch (resendErr: any) {
-        console.error('[Resend] Fallback falhou:', resendErr.message)
-      }
+    if (process.env.NODE_ENV === 'production' && isConnectionError) {
+      console.error('[SMTP] No Railway, as portas SMTP (465/587) só funcionam no plano Pro. Faça upgrade em railway.app e redeploy.')
     }
 
     let errorMessage = error.message || 'Erro desconhecido ao enviar email'
     if (error.code === 'EAUTH' || error.message?.includes('Invalid login') || error.message?.includes('535')) {
       errorMessage = 'Erro de autenticação SMTP. Confira no painel da Hostinger: usuário (email completo) e senha do email. Se tiver 2FA, use uma "Senha de app" para SMTP.'
     } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
-      errorMessage = `Erro de conexão SMTP. Verifique host (${cfg.host}) e porta (${cfg.port}). Em produção (ex.: Railway) a rede pode bloquear SMTP: configure RESEND_API_KEY para fallback.`
+      errorMessage = `Erro de conexão SMTP. No Railway, as portas 465 e 587 só estão liberadas no plano Pro — faça upgrade e redeploy para o envio por SMTP funcionar.`
     } else if (error.code === 'EENVELOPE') {
       errorMessage = 'Erro no endereço de email. Verifique o formato.'
     }
@@ -238,11 +231,11 @@ export async function sendMail({ to, subject, html }: SendMailArgs) {
   }
   }
 
-  // Sem SMTP: tentar Resend se configurado (comum em produção onde SMTP é bloqueado)
+  // Sem SMTP: Resend só se explicitamente configurado (auth/outros)
   if (isResendConfigured()) {
     return sendMailViaResend({ to, subject, html })
   }
 
-  throw new Error('Email não configurado. Adicione SMTP_* ou RESEND_API_KEY no painel (ex.: Railway). Para produção, RESEND_API_KEY evita bloqueio de SMTP.')
+  throw new Error('Email não configurado. Adicione SMTP_HOST, SMTP_PORT, SMTP_USER e SMTP_PASSWORD no painel. No Railway, use o plano Pro para SMTP funcionar.')
 }
 
