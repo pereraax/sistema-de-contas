@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { obterHomeEstatisticas } from '@/lib/actions'
-import { TrendingUp, TrendingDown, ChevronDown, ChevronLeft, ChevronRight, Check, Moon, Sun, User, Crown, Wallet, Info, AlertTriangle, AlertCircle, CheckCircle } from 'lucide-react'
+import { TrendingUp, TrendingDown, ChevronDown, ChevronLeft, ChevronRight, Check, Moon, Sun, Wallet, Info, AlertTriangle, AlertCircle, CheckCircle } from 'lucide-react'
 import { useFiltroData } from './FiltroRapidoDataWrapper'
 import { MenuButton } from './MobileMenu'
 import NotificationBell from './NotificationBell'
@@ -177,15 +177,6 @@ export default function HomeLayoutNovo({ initialStats, initialUserProfile }: { i
     applyTheme(newDarkMode)
   }
 
-  const handlePerfilClick = () => {
-    router.push('/configuracoes?tab=perfil')
-  }
-
-  // Prefetch configurações ao passar o mouse para carregamento instantâneo
-  const handlePerfilMouseEnter = () => {
-    router.prefetch('/configuracoes?tab=perfil')
-  }
-
   // Carregar perfil do usuário só quando não veio do servidor (evita delay e request duplicado)
   useEffect(() => {
     if (initialUserProfile != null) return // já veio na home, não busca de novo no mount
@@ -302,70 +293,33 @@ export default function HomeLayoutNovo({ initialStats, initialUserProfile }: { i
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Header: no mobile logo ao lado do perfil; headbar compacta */}
+      {/* Header: menu + logo (mobile); direita: sino + toggle + perfil com coroa */}
       <div className="flex items-center justify-between gap-2 sm:gap-4 py-1 lg:py-0">
-        {/* Esquerda: no mobile Logo + perfil + saudação + toggle; no desktop perfil + saudação + toggle */}
-        <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 min-w-0">
-          {/* Menu (mobile) à esquerda do logo */}
+        {/* Esquerda: menu (mobile) mais no canto + logo (mobile) + saudação */}
+        <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 min-w-0 -ml-2 sm:ml-0">
           <MenuButton />
           <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center overflow-hidden rounded-lg lg:hidden [&_a]:!p-0 [&_a]:!w-full [&_a]:!h-full [&_img]:!w-full [&_img]:!h-full [&_img]:!object-contain">
             <Logo />
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="relative flex-shrink-0">
-              {/* Ícone de coroa acima do avatar = dono da conta */}
-              <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 shadow-sm" title="Dono da conta">
-                <Crown size={10} className="text-amber-900" strokeWidth={2.5} />
-              </div>
-              <button
-                onClick={handlePerfilClick}
-                onMouseEnter={handlePerfilMouseEnter}
-                type="button"
-                className="w-9 h-9 border-[2.5px] border-brand-aqua bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-full hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 transition-smooth flex items-center justify-center overflow-hidden flex-shrink-0 cursor-pointer relative"
-                title="Configurações de perfil"
-              >
-                {userProfile?.imagem_url ? (
-                  <img 
-                    src="/api/user/avatar"
-                    alt={userProfile.nome || 'Perfil'}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement
-                      target.style.display = 'none'
-                      const parent = target.parentElement
-                      if (parent) {
-                        const inicial = (userProfile?.nome || 'U').charAt(0).toUpperCase()
-                        parent.innerHTML = `<span class="text-brand-aqua font-semibold text-sm">${inicial}</span>`
-                      }
-                    }}
-                  />
-                ) : (
-                  <span className="text-brand-aqua font-semibold text-sm">
-                    {(userProfile?.nome || 'U').charAt(0).toUpperCase()}
-                  </span>
-                )}
-              </button>
-            </div>
-            <span className="text-sm sm:text-base font-bold text-brand-midnight dark:text-brand-clean -tracking-tight min-w-0 truncate max-w-[180px] sm:max-w-[220px]" style={{ fontFamily: '"SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif', fontWeight: 700 }}>
-              Olá, {userProfile.nome} 👋!
-            </span>
-          </div>
-          
-          {/* Toggle Dark/Light Mode */}
+          <span className="text-sm sm:text-base font-bold text-brand-midnight dark:text-brand-clean -tracking-tight min-w-0 truncate max-w-[180px] sm:max-w-[220px] hidden sm:inline" style={{ fontFamily: '"SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif', fontWeight: 700 }}>
+            Olá, {userProfile.nome} 👋!
+          </span>
+        </div>
+
+        {/* Direita: sino + botão escuro/claro + perfil com coroa */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <NotificationBell />
           <button
             onClick={toggleDarkMode}
             className="relative w-14 h-7 bg-white dark:bg-gray-700 rounded-full flex items-center px-1 transition-colors duration-300 border border-gray-200 dark:border-gray-600"
             title={isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
           >
-            {/* Ícones nas extremidades */}
             <div className="absolute left-1 flex items-center justify-center">
               <Sun size={14} className="text-gray-600 dark:text-gray-400" strokeWidth={2} />
             </div>
             <div className="absolute right-1 flex items-center justify-center">
               <Moon size={14} className="text-gray-600 dark:text-gray-400" strokeWidth={2} />
             </div>
-            
-            {/* Indicador deslizante */}
             <div className={`absolute w-6 h-6 rounded-full shadow-md transition-transform duration-300 flex items-center justify-center ${
               isDarkMode 
                 ? 'bg-gray-50 dark:bg-gray-50 border-2 border-gray-200 dark:border-gray-300 translate-x-7' 
@@ -378,10 +332,6 @@ export default function HomeLayoutNovo({ initialStats, initialUserProfile }: { i
               )}
             </div>
           </button>
-        </div>
-        
-        <div className="flex items-center gap-2 sm:gap-3 ml-auto">
-          <NotificationBell />
           <UserProfileMenu />
         </div>
       </div>

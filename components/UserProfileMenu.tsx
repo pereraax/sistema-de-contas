@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { User, Moon, Sun, Settings, LogOut } from 'lucide-react'
+import { User, Moon, Sun, Settings, LogOut, Crown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -133,9 +133,36 @@ export default function UserProfileMenu() {
     <div className="relative flex items-center">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-brand-midnight dark:text-brand-clean hover:bg-brand-clean dark:hover:bg-white/10 rounded-xl transition-smooth flex items-center justify-center"
+        className="relative flex-shrink-0 w-9 h-9 border-[2.5px] border-brand-aqua bg-brand-aqua/10 dark:bg-brand-aqua/20 rounded-full hover:bg-brand-aqua/20 dark:hover:bg-brand-aqua/30 transition-smooth flex items-center justify-center overflow-hidden cursor-pointer"
+        title="Minha conta"
       >
-        <User size={24} strokeWidth={2} />
+        {/* Coroa = dono da conta */}
+        <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 shadow-sm" title="Dono da conta">
+          <Crown size={10} className="text-amber-900" strokeWidth={2.5} />
+        </div>
+        {userProfile?.imagem_url ? (
+          <img
+            src="/api/user/avatar"
+            alt={userProfile.nome || 'Perfil'}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement
+              target.style.display = 'none'
+              const parent = target.parentElement
+              if (parent) {
+                const fallback = parent.querySelector('[data-crown-fallback]') as HTMLElement
+                if (fallback) fallback.style.display = 'flex'
+              }
+            }}
+          />
+        ) : null}
+        <span
+          data-crown-fallback
+          className="text-brand-aqua font-semibold text-sm w-full h-full flex items-center justify-center"
+          style={{ display: userProfile?.imagem_url ? 'none' : 'flex' }}
+        >
+          {(userProfile?.nome || 'U').charAt(0).toUpperCase()}
+        </span>
       </button>
 
       {isOpen && (
