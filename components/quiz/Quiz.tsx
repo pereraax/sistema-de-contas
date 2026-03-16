@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Hero } from './Hero'
 import { HowItWorks } from './HowItWorks'
@@ -12,6 +12,8 @@ import { ProgressBar } from './ProgressBar'
 import { Result } from './Result'
 
 type DiagnosisKey = 'automation' | 'organization' | 'clients' | 'clarity'
+
+type QuizMode = 'idle' | 'how' | 'how2' | 'how3' | 'how4' | 'quiz' | 'analyzing' | 'result'
 
 type AnswerMap = {
   q1?: string
@@ -26,13 +28,32 @@ const ANALYSIS_MESSAGES = [
 ]
 
 export default function Quiz() {
-  const [mode, setMode] = useState<'idle' | 'how' | 'how2' | 'how3' | 'how4' | 'quiz' | 'analyzing' | 'result'>('idle')
+  const [mode, setMode] = useState<QuizMode>('idle')
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<AnswerMap>({})
   const [diagnosis, setDiagnosis] = useState<DiagnosisKey>('automation')
   const [analysisIndex, setAnalysisIndex] = useState(0)
 
   const totalSteps = 3
+
+  // History API: ao avançar, empilha estado para o botão Voltar do navegador levar às páginas anteriores
+  const goToStep = useCallback((nextMode: QuizMode) => {
+    setMode(nextMode)
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ mode: nextMode }, '', window.location.pathname)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.history.replaceState({ mode: 'idle' }, '', window.location.pathname)
+    const onPopState = (e: PopStateEvent) => {
+      const next = (e.state?.mode as QuizMode | undefined) ?? 'idle'
+      setMode(next)
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
 
   // Este funil precisa ser sempre "modo claro" (fundo branco), independente do tema global
   useEffect(() => {
@@ -130,11 +151,14 @@ export default function Quiz() {
     setMode('analyzing')
   }
 
-  const handleStartQuiz = () => {
+  const handleContinueToQuiz = useCallback(() => {
     setAnswers({})
     setStep(0)
     setMode('quiz')
-  }
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ mode: 'quiz' }, '', window.location.pathname)
+    }
+  }, [])
 
   return (
     <main className="min-h-screen bg-white text-[#0D1B2A] flex flex-col">
@@ -147,7 +171,7 @@ export default function Quiz() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4 }}
           >
-            <Hero onStart={() => setMode('how')} />
+            <Hero onStart={() => goToStep('how')} />
           </motion.div>
         )}
 
@@ -159,7 +183,7 @@ export default function Quiz() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35 }}
           >
-            <HowItWorks onContinue={() => setMode('how2')} />
+            <HowItWorks onContinue={() => goToStep('how2')} />
           </motion.div>
         )}
 
@@ -171,7 +195,7 @@ export default function Quiz() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35 }}
           >
-            <DemoStep2 onContinue={() => setMode('how3')} />
+            <DemoStep2 onContinue={() => goToStep('how3')} />
           </motion.div>
         )}
 
@@ -183,7 +207,7 @@ export default function Quiz() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35 }}
           >
-            <DemoStep3 onContinue={() => setMode('how4')} />
+            <DemoStep3 onContinue={() => goToStep('how4')} />
           </motion.div>
         )}
 
@@ -195,7 +219,7 @@ export default function Quiz() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35 }}
           >
-            <DemoStep4 onContinue={handleStartQuiz} />
+            <DemoStep4 onContinue={handleContinueToQuiz} />
           </motion.div>
         )}
 
