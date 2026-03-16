@@ -30,6 +30,16 @@ export default function Quiz() {
 
   const totalSteps = 3
 
+  // Este funil precisa ser sempre "modo claro" (fundo branco), independente do tema global
+  useEffect(() => {
+    const root = document.documentElement
+    const hadDark = root.classList.contains('dark')
+    if (hadDark) root.classList.remove('dark')
+    return () => {
+      if (hadDark) root.classList.add('dark')
+    }
+  }, [])
+
   // Travar scroll enquanto o quiz estiver ativo
   useEffect(() => {
     if (mode === 'quiz' || mode === 'analyzing' || mode === 'result') {
