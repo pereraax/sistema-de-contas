@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Hero } from './Hero'
 import { HowItWorks } from './HowItWorks'
 import { DemoStep2 } from './DemoStep2'
+import { DemoStep3 } from './DemoStep3'
 import { Question } from './Question'
 import { ProgressBar } from './ProgressBar'
 import { Result } from './Result'
@@ -24,7 +25,7 @@ const ANALYSIS_MESSAGES = [
 ]
 
 export default function Quiz() {
-  const [mode, setMode] = useState<'idle' | 'how' | 'how2' | 'quiz' | 'analyzing' | 'result'>('idle')
+  const [mode, setMode] = useState<'idle' | 'how' | 'how2' | 'how3' | 'quiz' | 'analyzing' | 'result'>('idle')
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<AnswerMap>({})
   const [diagnosis, setDiagnosis] = useState<DiagnosisKey>('automation')
@@ -169,7 +170,19 @@ export default function Quiz() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35 }}
           >
-            <DemoStep2 onContinue={handleStartQuiz} />
+            <DemoStep2 onContinue={() => setMode('how3')} />
+          </motion.div>
+        )}
+
+        {mode === 'how3' && (
+          <motion.div
+            key="how3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <DemoStep3 onContinue={handleStartQuiz} />
           </motion.div>
         )}
 
