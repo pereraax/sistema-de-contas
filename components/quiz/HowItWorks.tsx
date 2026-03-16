@@ -3,10 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Play } from 'lucide-react'
 
 type HowItWorksProps = {
-  onDemo: () => void
+  onContinue: () => void
 }
 
-export function HowItWorks({ onDemo }: HowItWorksProps) {
+export function HowItWorks({ onContinue }: HowItWorksProps) {
   const [demoState, setDemoState] = useState<'idle' | 'running' | 'done'>('idle')
   const [showUserMsg, setShowUserMsg] = useState(false)
   const [showTyping, setShowTyping] = useState(false)
@@ -180,7 +180,7 @@ export function HowItWorks({ onDemo }: HowItWorksProps) {
             >
               <button
                 type="button"
-                onClick={onDemo}
+                onClick={onContinue}
                 className="w-full rounded-2xl py-4 text-base font-bold text-white bg-[#0B4BFF] shadow-lg hover:brightness-110 active:scale-[0.99] transition-all"
               >
                 Continuar
