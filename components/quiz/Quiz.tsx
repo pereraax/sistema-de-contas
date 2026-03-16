@@ -7,13 +7,15 @@ import { HowItWorks } from './HowItWorks'
 import { DemoStep2 } from './DemoStep2'
 import { DemoStep3 } from './DemoStep3'
 import { DemoStep4 } from './DemoStep4'
+import { MoreResources } from './MoreResources'
+import { OfferPage } from './OfferPage'
 import { Question } from './Question'
 import { ProgressBar } from './ProgressBar'
 import { Result } from './Result'
 
 type DiagnosisKey = 'automation' | 'organization' | 'clients' | 'clarity'
 
-type QuizMode = 'idle' | 'how' | 'how2' | 'how3' | 'how4' | 'quiz' | 'analyzing' | 'result'
+type QuizMode = 'idle' | 'how' | 'how2' | 'how3' | 'how4' | 'how5' | 'how6' | 'quiz' | 'analyzing' | 'result'
 
 type AnswerMap = {
   q1?: string
@@ -68,7 +70,21 @@ export default function Quiz() {
   // Ao mudar de etapa, rolar para o topo para a nova página começar visível do início
   useEffect(() => {
     if (typeof window === 'undefined') return
-    window.scrollTo({ top: 0, behavior: 'auto' })
+    const scrollToTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
+    }
+    scrollToTop()
+    const raf = requestAnimationFrame(() => {
+      scrollToTop()
+      requestAnimationFrame(scrollToTop)
+    })
+    const t = setTimeout(scrollToTop, 80)
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(t)
+    }
   }, [mode])
 
   // Travar scroll enquanto o quiz estiver ativo
@@ -225,7 +241,31 @@ export default function Quiz() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35 }}
           >
-            <DemoStep4 onContinue={handleContinueToQuiz} />
+            <DemoStep4 onContinue={() => goToStep('how5')} />
+          </motion.div>
+        )}
+
+        {mode === 'how5' && (
+          <motion.div
+            key="how5"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <MoreResources onContinue={() => goToStep('how6')} />
+          </motion.div>
+        )}
+
+        {mode === 'how6' && (
+          <motion.div
+            key="how6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <OfferPage onContinue={handleContinueToQuiz} />
           </motion.div>
         )}
 
