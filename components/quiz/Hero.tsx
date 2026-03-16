@@ -6,53 +6,115 @@ type HeroProps = {
 
 export function Hero({ onStart }: HeroProps) {
   return (
-    <section className="relative min-h-screen flex items-center justify-center px-4 py-10 overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      {/* Glow de fundo */}
+    <section className="relative min-h-screen flex items-center justify-center px-4 py-10 overflow-hidden bg-[#0D1B2A]">
+      {/* Fundo PleniPay (glow) */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-40 -left-32 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute -bottom-32 -right-24 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
+        <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-80 w-[520px] rounded-full bg-cyan-500/20 blur-3xl" />
+        <div className="absolute -bottom-40 -right-24 h-80 w-80 rounded-full bg-sky-500/15 blur-3xl" />
+        <div className="absolute -bottom-48 -left-24 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
       </div>
 
-      <div className="relative z-10 w-full max-w-3xl mx-auto text-center space-y-8">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1 text-[11px] font-medium tracking-[0.18em] uppercase text-cyan-200 mb-4">
-            Diagnóstico rápido • em menos de 30s
-          </p>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold text-white leading-[1.1] mb-4">
-            Descubra em 30 segundos o que está travando seus resultados.
-          </h1>
-          <p className="text-sm sm:text-base md:text-lg text-gray-300 max-w-xl mx-auto">
-            Responda algumas perguntas rápidas e receba um diagnóstico personalizado sobre o maior gargalo hoje no seu negócio.
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4"
-        >
-          <button
-            type="button"
-            onClick={onStart}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-sky-500 to-blue-500 px-7 py-3.5 text-sm sm:text-base font-semibold text-slate-950 shadow-xl shadow-cyan-500/30 hover:brightness-110 hover:shadow-2xl active:scale-[0.98] transition-all"
+      <motion.div
+        initial={{ opacity: 0, y: 18, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 w-full max-w-[480px] rounded-[28px] bg-white shadow-2xl border border-white/10 overflow-hidden"
+      >
+        <div className="px-6 pt-10 pb-6 text-center">
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="text-xs text-slate-500 italic"
           >
-            Começar diagnóstico agora
-            <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-900/90">
-              30s
-            </span>
-          </button>
+            A mesma tecnologia usada por gerentes de investimentos.
+          </motion.p>
 
-          <p className="text-[11px] sm:text-xs text-gray-400">
-            Sem compromisso • Diagnóstico 100% gratuito
-          </p>
-        </motion.div>
-      </div>
+          <motion.h1
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            className="mt-5 text-[22px] sm:text-2xl font-extrabold leading-tight text-[#0D1B2A]"
+          >
+            Economize{' '}
+            <span className="text-[#007A99]">+ de 400 Reais</span> Em{' '}
+            <span className="text-[#007A99]">30 Dias</span> sem cortar os &quot;Luxos&quot; e
+            apenas com o WhatsApp.
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.18, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="mt-4 text-sm text-slate-600"
+          >
+            Não é aplicativo, nem planilha, nem Notion.
+            <br />
+            <span className="font-semibold text-slate-700">É inteligência artificial de ponta.</span>
+          </motion.p>
+        </div>
+
+        <div className="px-6 pb-7 space-y-3">
+          <FeatureCard
+            delay={0.24}
+            title="Pra onde tá indo seu dinheiro?"
+            text="Você trabalha o mês inteiro, mas não faz ideia de onde foi parar seu dinheiro suado."
+          />
+          <FeatureCard
+            delay={0.3}
+            title="Sem planilhas ou apps"
+            text="Tudo isso é complicado, dá muita preguiça de usar. Aqui você resolve direto no WhatsApp."
+          />
+          <FeatureCard
+            delay={0.36}
+            title="Perdido nas dívidas?"
+            text="Não sabe quanto paga de parcela, quanto tempo falta, quem deve, e não tem um plano para pagar."
+          />
+          <FeatureCard
+            delay={0.42}
+            title="Você paga mais caro sempre!"
+            text="Faz compras por impulso ou não pesquisa antes? Você está gastando mais e deixando de poupar."
+          />
+
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="pt-4"
+          >
+            <button
+              type="button"
+              onClick={onStart}
+              className="w-full rounded-2xl py-4 text-base font-bold text-white bg-[#0B4BFF] shadow-lg hover:brightness-110 active:scale-[0.99] transition-all"
+            >
+              Continuar
+            </button>
+          </motion.div>
+        </div>
+      </motion.div>
     </section>
+  )
+}
+
+function FeatureCard({
+  title,
+  text,
+  delay,
+}: {
+  title: string
+  text: string
+  delay: number
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      className="rounded-2xl border border-emerald-200/80 bg-gradient-to-b from-emerald-50 to-emerald-50/60 px-5 py-4 shadow-sm"
+    >
+      <div className="text-sm font-extrabold text-[#0D1B2A] text-center">{title}</div>
+      <div className="mt-2 text-[13px] leading-relaxed text-slate-700 text-center">{text}</div>
+    </motion.div>
   )
 }
 
