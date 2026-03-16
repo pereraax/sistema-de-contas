@@ -150,12 +150,13 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     }
   }, [step, pixData?.subscriptionId, pixData?.pixQrCode, pixData?.pixCopyPaste])
 
-  // Polling status do PIX (guest) quando está na tela do QR code
+  // Polling status do PIX (guest): verificação imediata + a cada 3s
   useEffect(() => {
-    if (step !== 'pix' || !pixData?.subscriptionId) return
-    const t = setInterval(async () => {
+    if (step !== 'pix' || !pixData?.subscriptionId || paymentCompleted) return
+    const subId = pixData.subscriptionId
+    const check = async () => {
       try {
-        const res = await fetch(`/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(pixData.subscriptionId)}`)
+        const res = await fetch(`/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(subId)}`)
         const data = await res.json()
         if (data.success && data.pago) {
           setPaymentCompleted(true)
@@ -163,9 +164,11 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
       } catch {
         // silencioso
       }
-    }, 5000)
+    }
+    check()
+    const t = setInterval(check, 3000)
     return () => clearInterval(t)
-  }, [step, pixData?.subscriptionId, onClose])
+  }, [step, pixData?.subscriptionId, paymentCompleted])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -360,6 +363,10 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                 )}
                 <p className="text-center text-xs text-slate-500">
                   Após o pagamento, seu acesso será liberado em instantes. Você receberá um e-mail de boas-vindas.
+                </p>
+                <p className="text-center text-xs mt-2 flex items-center justify-center gap-1.5" style={{ color: SOFT_BLUE }}>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                  Verificando pagamento...
                 </p>
               </div>
             </>
