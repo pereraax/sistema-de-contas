@@ -6,6 +6,7 @@ import { Hero } from './Hero'
 import { HowItWorks } from './HowItWorks'
 import { DemoStep2 } from './DemoStep2'
 import { DemoStep3 } from './DemoStep3'
+import { DemoStep4 } from './DemoStep4'
 import { Question } from './Question'
 import { ProgressBar } from './ProgressBar'
 import { Result } from './Result'
@@ -25,7 +26,7 @@ const ANALYSIS_MESSAGES = [
 ]
 
 export default function Quiz() {
-  const [mode, setMode] = useState<'idle' | 'how' | 'how2' | 'how3' | 'quiz' | 'analyzing' | 'result'>('idle')
+  const [mode, setMode] = useState<'idle' | 'how' | 'how2' | 'how3' | 'how4' | 'quiz' | 'analyzing' | 'result'>('idle')
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<AnswerMap>({})
   const [diagnosis, setDiagnosis] = useState<DiagnosisKey>('automation')
@@ -182,7 +183,19 @@ export default function Quiz() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35 }}
           >
-            <DemoStep3 onContinue={handleStartQuiz} />
+            <DemoStep3 onContinue={() => setMode('how4')} />
+          </motion.div>
+        )}
+
+        {mode === 'how4' && (
+          <motion.div
+            key="how4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <DemoStep4 onContinue={handleStartQuiz} />
           </motion.div>
         )}
 
