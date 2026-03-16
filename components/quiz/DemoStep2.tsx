@@ -95,9 +95,17 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
   const [showPhase2Typing, setShowPhase2Typing] = useState(false)
   const [showPhase2Resp, setShowPhase2Resp] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const continuarRef = useRef<HTMLDivElement | null>(null)
+  const phase2ContinuarRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    if (demoState === 'phase2done') {
+      phase2ContinuarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    } else if (demoState === 'done') {
+      continuarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
   }, [showUserMsg, showTyping, showResp1, showResp2, showResp3, showResp4, showPhase2User, showPhase2Typing, showPhase2Resp, demoState])
 
   const runDemo = async () => {
@@ -358,6 +366,7 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
 
         {showCtaAndGreenButton && (
           <motion.div
+            ref={continuarRef}
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -381,6 +390,7 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
 
         {showPhase2Closing && (
           <motion.div
+            ref={phase2ContinuarRef}
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}

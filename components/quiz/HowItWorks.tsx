@@ -13,9 +13,14 @@ export function HowItWorks({ onContinue }: HowItWorksProps) {
   const [showAiCard, setShowAiCard] = useState(false)
   const [showAiReminder, setShowAiReminder] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const continuarRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    if (demoState === 'done') {
+      continuarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
   }, [showUserMsg, showTyping, showAiCard, showAiReminder, demoState])
 
   const runDemo = async () => {
@@ -173,6 +178,7 @@ export function HowItWorks({ onContinue }: HowItWorksProps) {
 
           {demoState === 'done' && (
             <motion.div
+              ref={continuarRef}
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
