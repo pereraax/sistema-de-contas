@@ -6,21 +6,14 @@ type HeroProps = {
 
 export function Hero({ onStart }: HeroProps) {
   return (
-    <section className="relative min-h-screen flex items-center justify-center px-4 py-10 overflow-hidden bg-[#0D1B2A]">
-      {/* Fundo PleniPay (glow) */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-80 w-[520px] rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute -bottom-40 -right-24 h-80 w-80 rounded-full bg-sky-500/15 blur-3xl" />
-        <div className="absolute -bottom-48 -left-24 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 18, scale: 0.985 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 w-full max-w-[480px] rounded-[28px] bg-white shadow-2xl border border-white/10 overflow-hidden"
-      >
-        <div className="px-6 pt-10 pb-6 text-center">
+    <section className="relative min-h-screen bg-white">
+      <div className="mx-auto w-full max-w-[520px] px-5 sm:px-6 py-10">
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+          className="text-center"
+        >
           <motion.p
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -52,9 +45,9 @@ export function Hero({ onStart }: HeroProps) {
             <br />
             <span className="font-semibold text-slate-700">É inteligência artificial de ponta.</span>
           </motion.p>
-        </div>
+        </motion.div>
 
-        <div className="px-6 pb-7 space-y-3">
+        <div className="mt-7 space-y-3">
           <FeatureCard
             delay={0.24}
             title="Pra onde tá indo seu dinheiro?"
@@ -91,7 +84,7 @@ export function Hero({ onStart }: HeroProps) {
             </button>
           </motion.div>
         </div>
-      </motion.div>
+      </div>
     </section>
   )
 }

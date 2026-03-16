@@ -123,7 +123,7 @@ export default function Quiz() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0D1B2A] text-white flex flex-col">
+    <main className="min-h-screen bg-white text-[#0D1B2A] flex flex-col">
       <AnimatePresence mode="wait">
         {mode === 'idle' && (
           <motion.div
@@ -140,22 +140,15 @@ export default function Quiz() {
         {(mode === 'quiz' || mode === 'analyzing' || mode === 'result') && (
           <motion.section
             key="quiz"
-            className="relative flex-1 flex items-start justify-center px-4 py-8 bg-[#0D1B2A]"
+            className="relative flex-1 flex items-start justify-center px-4 py-8 bg-white"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4 }}
           >
-            {/* Fundo PWA (sem “janela”) */}
-            <div className="pointer-events-none absolute inset-0">
-              <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-80 w-[520px] rounded-full bg-cyan-500/20 blur-3xl" />
-              <div className="absolute -bottom-40 -right-24 h-80 w-80 rounded-full bg-sky-500/15 blur-3xl" />
-              <div className="absolute -bottom-48 -left-24 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
-            </div>
-
             <div className="relative z-10 w-full max-w-[520px] pt-2">
               {mode === 'quiz' && (
-                <div className="bg-white text-[#0D1B2A] rounded-[22px] shadow-2xl border border-white/10 overflow-hidden">
+                <div className="bg-white text-[#0D1B2A] rounded-[22px] shadow-xl border border-slate-200 overflow-hidden">
                   <div className="px-6 py-6">
                     <ProgressBar currentStep={step} totalSteps={totalSteps} />
                     <div className="text-[#0D1B2A]">
@@ -181,10 +174,10 @@ export default function Quiz() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -16 }}
                   transition={{ duration: 0.4 }}
-                  className="flex flex-col items-center text-center py-10 bg-white text-[#0D1B2A] rounded-[22px] shadow-2xl border border-white/10 overflow-hidden px-6"
+                  className="flex flex-col items-center text-center py-10 bg-white text-[#0D1B2A] rounded-[22px] shadow-xl border border-slate-200 overflow-hidden px-6"
                 >
                   <div className="relative mb-6">
-                    <div className="h-16 w-16 rounded-3xl bg-[#0D1B2A] border border-cyan-500/40 flex items-center justify-center shadow-[0_0_0_1px_rgba(13,27,42,0.9)]">
+                    <div className="h-16 w-16 rounded-3xl bg-[#0D1B2A] border border-cyan-500/40 flex items-center justify-center shadow-sm">
                       <div className="h-8 w-8 rounded-2xl bg-gradient-to-br from-cyan-400 to-emerald-400 flex items-center justify-center">
                         <div className="h-2.5 w-2.5 rounded-full bg-[#0D1B2A]" />
                       </div>
@@ -221,7 +214,7 @@ export default function Quiz() {
               )}
 
               {mode === 'result' && (
-                <div className="bg-white text-[#0D1B2A] rounded-[22px] shadow-2xl border border-white/10 overflow-hidden px-6 py-8">
+                <div className="bg-white text-[#0D1B2A] rounded-[22px] shadow-xl border border-slate-200 overflow-hidden px-6 py-8">
                   <Result diagnosis={diagnosis} />
                 </div>
               )}
