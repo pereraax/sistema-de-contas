@@ -310,35 +310,15 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
             <p className="text-slate-600 text-sm">
               Imaginando que esses gastos sejam os seus, pergunte algo ao seu assistente:
             </p>
-            <div className="rounded-2xl rounded-tr-md bg-emerald-600 px-5 py-4 shadow-lg flex items-center gap-3 text-white">
+            <button
+              type="button"
+              onClick={onContinue}
+              className="w-full rounded-2xl rounded-tr-md bg-emerald-600 px-5 py-4 shadow-lg flex items-center gap-3 text-white hover:bg-emerald-700 active:scale-[0.99] transition-all text-left"
+            >
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 flex-shrink-0">
                 <Send size={18} />
               </span>
               <span className="text-base font-semibold">O que eu gastei a mais essa semana?</span>
-            </div>
-            <button
-              type="button"
-              onClick={onContinue}
-              className="w-full rounded-2xl py-4 text-base font-bold text-white bg-[#0B4BFF] shadow-lg hover:brightness-110 active:scale-[0.99] transition-all"
-            >
-              Continuar
-            </button>
-          </motion.div>
-        )}
-
-        {demoState === 'idle' && (
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.32, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-10"
-          >
-            <button
-              type="button"
-              onClick={onContinue}
-              className="w-full rounded-2xl py-3 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 active:scale-[0.99] transition-all"
-            >
-              Pular e continuar
             </button>
           </motion.div>
         )}
