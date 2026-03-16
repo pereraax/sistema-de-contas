@@ -150,7 +150,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     }
   }, [step, pixData?.subscriptionId, pixData?.pixQrCode, pixData?.pixCopyPaste])
 
-  // Polling status do PIX (guest): verificação imediata + a cada 3s
+  // Polling status do PIX (guest): verificação imediata + a cada 1,5s para mensagem aparecer mais rápido
   useEffect(() => {
     if (step !== 'pix' || !pixData?.subscriptionId || paymentCompleted) return
     const subId = pixData.subscriptionId
@@ -166,7 +166,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
       }
     }
     check()
-    const t = setInterval(check, 3000)
+    const t = setInterval(check, 1500)
     return () => clearInterval(t)
   }, [step, pixData?.subscriptionId, paymentCompleted])
 

@@ -59,7 +59,8 @@ export async function GET(request: NextRequest) {
     if (profile?.email && !alreadyActive) {
       try {
         const nome = (profile.nome || '').trim() || 'Assinante'
-        const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://plenipay.com').replace(/\/$/, '')
+        // Link do email sempre plenipay.com (nunca localhost)
+        const siteUrl = 'https://plenipay.com'
         const loginUrl = `${siteUrl}/auth/login`
         const html = `
           <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
