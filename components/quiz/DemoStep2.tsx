@@ -159,14 +159,12 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.08, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="flex items-start gap-4"
+          className="flex flex-col items-center text-center"
         >
           <div className="text-4xl font-extrabold text-[#0B4BFF] leading-none">2.</div>
-          <div>
-            <h2 className="text-xl sm:text-2xl font-extrabold text-[#0D1B2A] leading-tight">
-              Você pode perguntar <span className="text-[#0B4BFF]">TUDO SOBRE SUAS FINANÇAS.</span>
-            </h2>
-          </div>
+          <h2 className="mt-2 text-xl sm:text-2xl font-extrabold text-[#0D1B2A] leading-tight max-w-md">
+            Você pode perguntar <span className="text-[#0B4BFF]">TUDO SOBRE SUAS FINANÇAS.</span>
+          </h2>
         </motion.div>
 
         <motion.p
