@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Hero } from './Hero'
+import { HowItWorks } from './HowItWorks'
 import { Question } from './Question'
 import { ProgressBar } from './ProgressBar'
 import { Result } from './Result'
@@ -22,7 +23,7 @@ const ANALYSIS_MESSAGES = [
 ]
 
 export default function Quiz() {
-  const [mode, setMode] = useState<'idle' | 'quiz' | 'analyzing' | 'result'>('idle')
+  const [mode, setMode] = useState<'idle' | 'how' | 'quiz' | 'analyzing' | 'result'>('idle')
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<AnswerMap>({})
   const [diagnosis, setDiagnosis] = useState<DiagnosisKey>('automation')
@@ -126,7 +127,7 @@ export default function Quiz() {
     setMode('analyzing')
   }
 
-  const handleStart = () => {
+  const handleStartQuiz = () => {
     setAnswers({})
     setStep(0)
     setMode('quiz')
@@ -143,7 +144,19 @@ export default function Quiz() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4 }}
           >
-            <Hero onStart={handleStart} />
+            <Hero onStart={() => setMode('how')} />
+          </motion.div>
+        )}
+
+        {mode === 'how' && (
+          <motion.div
+            key="how"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <HowItWorks onDemo={handleStartQuiz} />
           </motion.div>
         )}
 
