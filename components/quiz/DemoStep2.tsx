@@ -9,6 +9,7 @@ type DemoStep2Props = {
 }
 
 const STAMP = '13:40'
+const STAMP_PHASE2 = '13:54'
 
 // Bar values (max 131 for height scale)
 const BAR_DATA = [
@@ -83,18 +84,21 @@ function Bubble({
 }
 
 export function DemoStep2({ onContinue }: DemoStep2Props) {
-  const [demoState, setDemoState] = useState<'idle' | 'running' | 'done'>('idle')
+  const [demoState, setDemoState] = useState<'idle' | 'running' | 'done' | 'phase2running' | 'phase2done'>('idle')
   const [showUserMsg, setShowUserMsg] = useState(false)
   const [showTyping, setShowTyping] = useState(false)
   const [showResp1, setShowResp1] = useState(false)
   const [showResp2, setShowResp2] = useState(false)
   const [showResp3, setShowResp3] = useState(false)
   const [showResp4, setShowResp4] = useState(false)
+  const [showPhase2User, setShowPhase2User] = useState(false)
+  const [showPhase2Typing, setShowPhase2Typing] = useState(false)
+  const [showPhase2Resp, setShowPhase2Resp] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [showUserMsg, showTyping, showResp1, showResp2, showResp3, showResp4, demoState])
+  }, [showUserMsg, showTyping, showResp1, showResp2, showResp3, showResp4, showPhase2User, showPhase2Typing, showPhase2Resp, demoState])
 
   const runDemo = async () => {
     if (demoState !== 'idle') return
@@ -119,8 +123,23 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
     setDemoState('done')
   }
 
+  const runPhase2 = async () => {
+    if (demoState !== 'done') return
+    setDemoState('phase2running')
+    setShowPhase2User(true)
+    setShowPhase2Typing(true)
+
+    await wait(1100)
+    setShowPhase2Typing(false)
+    setShowPhase2Resp(true)
+
+    await wait(500)
+    setDemoState('phase2done')
+  }
+
   const showPrompt = demoState === 'idle' || demoState === 'running'
-  const showCtaAndContinue = demoState === 'done'
+  const showCtaAndGreenButton = demoState === 'done'
+  const showPhase2Closing = demoState === 'phase2done'
 
   return (
     <section className="relative min-h-screen bg-white">
@@ -292,7 +311,46 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
 
             {showResp4 && (
               <Bubble key="resp4" from="ai" stamp={STAMP}>
-                Segue o gráfico da divisão dos seus gastos por categoria 👇
+                Segue o gráfico da divisão dos seus gastos por categoria 👋
+              </Bubble>
+            )}
+
+            {showPhase2User && (
+              <Bubble key="phase2-user" from="user" stamp={STAMP_PHASE2}>
+                O que eu gastei a mais essa semana?
+              </Bubble>
+            )}
+
+            {showPhase2Typing && (
+              <motion.div
+                key="phase2-typing"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                className="flex justify-start"
+              >
+                <div className="rounded-2xl rounded-tl-md bg-[#1f2937] text-white px-4 py-3 shadow-sm">
+                  <div className="flex items-center gap-1.5">
+                    <Dot delay={0} />
+                    <Dot delay={0.15} />
+                    <Dot delay={0.3} />
+                    <span className="sr-only">Digitando...</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {showPhase2Resp && (
+              <Bubble key="phase2-ai" from="ai" stamp={STAMP_PHASE2}>
+                <div className="space-y-2 text-sm">
+                  <p>
+                    Os gastos aumentaram nesta semana em comparação com a semana passada, totalizando R$157,00 a mais.
+                  </p>
+                  <p>
+                    O principal motivo foi a compra de gás de cozinha, realizada na Segunda-feira e na Quarta-feira, o que não ocorreu na semana anterior.
+                  </p>
+                </div>
               </Bubble>
             )}
           </AnimatePresence>
@@ -300,7 +358,7 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
           <div ref={bottomRef} />
         </div>
 
-        {showCtaAndContinue && (
+        {showCtaAndGreenButton && (
           <motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
@@ -312,13 +370,33 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
             </p>
             <button
               type="button"
-              onClick={onContinue}
+              onClick={runPhase2}
               className="w-full rounded-2xl rounded-tr-md bg-emerald-600 px-5 py-4 shadow-lg flex items-center gap-3 text-white hover:bg-emerald-700 active:scale-[0.99] transition-all text-left"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 flex-shrink-0">
                 <Send size={18} />
               </span>
               <span className="text-base font-semibold">O que eu gastei a mais essa semana?</span>
+            </button>
+          </motion.div>
+        )}
+
+        {showPhase2Closing && (
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className="mt-8 space-y-6"
+          >
+            <p className="text-slate-700 text-sm leading-relaxed">
+              Você nunca mais vai se fazer a pergunta &quot;onde que eu gastei tanto esse mês&quot;, sem ter a resposta.
+            </p>
+            <button
+              type="button"
+              onClick={onContinue}
+              className="w-full rounded-2xl py-4 text-base font-bold text-white bg-[#0B4BFF] shadow-lg hover:brightness-110 active:scale-[0.99] transition-all"
+            >
+              Continuar
             </button>
           </motion.div>
         )}
