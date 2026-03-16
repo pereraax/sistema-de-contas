@@ -123,7 +123,7 @@ export default function Quiz() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white flex flex-col">
+    <main className="min-h-screen bg-[#0D1B2A] text-white flex flex-col">
       <AnimatePresence mode="wait">
         {mode === 'idle' && (
           <motion.div
@@ -140,34 +140,38 @@ export default function Quiz() {
         {(mode === 'quiz' || mode === 'analyzing' || mode === 'result') && (
           <motion.section
             key="quiz"
-            className="relative flex-1 flex items-center justify-center px-4 py-8 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950"
+            className="relative flex-1 flex items-start justify-center px-4 py-8 bg-[#0D1B2A]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4 }}
           >
-            {/* Fundo com gradiente e bordas suaves */}
+            {/* Fundo PWA (sem “janela”) */}
             <div className="pointer-events-none absolute inset-0">
-              <div className="absolute inset-y-10 inset-x-4 rounded-[32px] border border-white/10 bg-slate-900/60 backdrop-blur-2xl shadow-[0_0_0_1px_rgba(15,23,42,0.7)]" />
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 h-40 w-[70%] bg-gradient-to-b from-cyan-500/15 to-transparent blur-3xl" />
+              <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-80 w-[520px] rounded-full bg-cyan-500/20 blur-3xl" />
+              <div className="absolute -bottom-40 -right-24 h-80 w-80 rounded-full bg-sky-500/15 blur-3xl" />
+              <div className="absolute -bottom-48 -left-24 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
             </div>
 
-            <div className="relative z-10 w-full max-w-xl px-5 py-6 sm:px-8 sm:py-7 md:px-10 md:py-8">
+            <div className="relative z-10 w-full max-w-[520px] pt-2">
               {mode === 'quiz' && (
-                <>
-                  <ProgressBar currentStep={step} totalSteps={totalSteps} />
-                  <Question
-                    title={currentQuestion.title}
-                    // @ts-expect-error subtitle is optional in one question only
-                    subtitle={currentQuestion.subtitle}
-                    options={currentQuestion.options}
-                    onSelect={handleSelect}
-                  />
-                  <p className="mt-6 text-[11px] text-gray-400">
-                    Leva menos de 30 segundos. Suas respostas são usadas apenas para montar este
-                    diagnóstico.
-                  </p>
-                </>
+                <div className="bg-white text-[#0D1B2A] rounded-[22px] shadow-2xl border border-white/10 overflow-hidden">
+                  <div className="px-6 py-6">
+                    <ProgressBar currentStep={step} totalSteps={totalSteps} />
+                    <div className="text-[#0D1B2A]">
+                      <Question
+                        title={currentQuestion.title}
+                        // @ts-expect-error subtitle is optional in one question only
+                        subtitle={currentQuestion.subtitle}
+                        options={currentQuestion.options}
+                        onSelect={handleSelect}
+                      />
+                    </div>
+                    <p className="mt-6 text-[11px] text-slate-500">
+                      Leva menos de 30 segundos. Suas respostas são usadas apenas para montar este diagnóstico.
+                    </p>
+                  </div>
+                </div>
               )}
 
               {mode === 'analyzing' && (
@@ -177,12 +181,12 @@ export default function Quiz() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -16 }}
                   transition={{ duration: 0.4 }}
-                  className="flex flex-col items-center text-center py-10"
+                  className="flex flex-col items-center text-center py-10 bg-white text-[#0D1B2A] rounded-[22px] shadow-2xl border border-white/10 overflow-hidden px-6"
                 >
                   <div className="relative mb-6">
-                    <div className="h-16 w-16 rounded-3xl bg-slate-900 border border-cyan-500/40 flex items-center justify-center shadow-[0_0_0_1px_rgba(15,23,42,0.9)]">
+                    <div className="h-16 w-16 rounded-3xl bg-[#0D1B2A] border border-cyan-500/40 flex items-center justify-center shadow-[0_0_0_1px_rgba(13,27,42,0.9)]">
                       <div className="h-8 w-8 rounded-2xl bg-gradient-to-br from-cyan-400 to-emerald-400 flex items-center justify-center">
-                        <div className="h-2.5 w-2.5 rounded-full bg-slate-950" />
+                        <div className="h-2.5 w-2.5 rounded-full bg-[#0D1B2A]" />
                       </div>
                     </div>
                     <motion.div
@@ -194,7 +198,7 @@ export default function Quiz() {
                   </div>
 
                   <div className="space-y-3">
-                    <p className="text-xs font-medium tracking-[0.2em] uppercase text-cyan-300">
+                    <p className="text-xs font-medium tracking-[0.2em] uppercase text-cyan-600">
                       Montando seu diagnóstico
                     </p>
                     <motion.p
@@ -203,20 +207,24 @@ export default function Quiz() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -6 }}
                       transition={{ duration: 0.35 }}
-                      className="text-sm sm:text-base text-gray-100"
+                      className="text-sm sm:text-base text-slate-700"
                     >
                       {ANALYSIS_MESSAGES[analysisIndex]}
                     </motion.p>
                   </div>
 
-                  <div className="mt-6 flex items-center gap-2 text-[11px] text-gray-400">
-                    <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <div className="mt-6 flex items-center gap-2 text-[11px] text-slate-500">
+                    <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     Isso leva só alguns segundos.
                   </div>
                 </motion.div>
               )}
 
-              {mode === 'result' && <Result diagnosis={diagnosis} />}
+              {mode === 'result' && (
+                <div className="bg-white text-[#0D1B2A] rounded-[22px] shadow-2xl border border-white/10 overflow-hidden px-6 py-8">
+                  <Result diagnosis={diagnosis} />
+                </div>
+              )}
             </div>
           </motion.section>
         )}

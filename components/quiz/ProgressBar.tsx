@@ -10,13 +10,13 @@ export function ProgressBar({ currentStep, totalSteps }: ProgressBarProps) {
 
   return (
     <div className="w-full mb-6">
-      <div className="flex items-center justify-between mb-2 text-xs text-gray-400">
+      <div className="flex items-center justify-between mb-2 text-xs text-slate-500">
         <span>
           Pergunta {currentStep + 1} de {totalSteps}
         </span>
         <span>{Math.round(progress)}%</span>
       </div>
-      <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden border border-white/10">
+      <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden border border-slate-200">
         <motion.div
           className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-blue-500"
           initial={{ width: 0 }}

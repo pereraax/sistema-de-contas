@@ -692,6 +692,11 @@ export default function ChatWidget() {
   if (pathname?.startsWith('/administracaosecr')) {
     return null
   }
+  
+  // Ocultar em páginas de funil/quiz (experiência PWA limpa, sem chat ao vivo)
+  if (pathname === '/diagnostico-quiz' || pathname?.startsWith('/diagnostico-quiz/')) {
+    return null
+  }
 
   // Páginas sem barra inferior (mobile): botão mais baixo
   const publicRoutesNoBottomNav = ['/', '/login', '/cadastro', '/planos', '/termos', '/privacidade', '/suporte']
