@@ -24,7 +24,7 @@ export function HowItWorks({ onContinue }: HowItWorksProps) {
     setShowUserMsg(true)
     setShowTyping(true)
 
-    await wait(1000)
+    await wait(2200)
     setShowTyping(false)
     setShowAiCard(true)
 

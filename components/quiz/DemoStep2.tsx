@@ -106,7 +106,7 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
     setShowUserMsg(true)
     setShowTyping(true)
 
-    await wait(1200)
+    await wait(2400)
     setShowTyping(false)
     setShowResp1(true)
 
@@ -129,7 +129,7 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
     setShowPhase2User(true)
     setShowPhase2Typing(true)
 
-    await wait(1100)
+    await wait(2200)
     setShowPhase2Typing(false)
     setShowPhase2Resp(true)
 
