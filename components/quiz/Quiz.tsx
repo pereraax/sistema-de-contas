@@ -65,6 +65,12 @@ export default function Quiz() {
     }
   }, [])
 
+  // Ao mudar de etapa, rolar para o topo para a nova página começar visível do início
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [mode])
+
   // Travar scroll enquanto o quiz estiver ativo
   useEffect(() => {
     if (mode === 'quiz' || mode === 'analyzing' || mode === 'result') {
