@@ -234,7 +234,7 @@ export function OfferPage({ onContinue }: OfferPageProps) {
                   transition={{ duration: 0.3 }}
                   className="flex flex-row gap-3 items-center"
                 >
-                  <div className="relative h-12 w-12 shrink-0 rounded-full overflow-hidden bg-slate-200 ring-2 ring-white shadow">
+                  <div className="relative h-12 w-12 shrink-0 rounded-full overflow-hidden bg-slate-200 ring-2 ring-white shadow flex items-center justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={TESTIMONIALS[slideIndex].image}
@@ -242,7 +242,20 @@ export function OfferPage({ onContinue }: OfferPageProps) {
                       width={48}
                       height={48}
                       className="h-12 w-12 object-cover object-top"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement
+                        target.style.display = 'none'
+                        const fallback = target.nextElementSibling
+                        if (fallback) (fallback as HTMLElement).style.display = 'flex'
+                      }}
                     />
+                    <span
+                      className="absolute inset-0 hidden items-center justify-center text-lg font-bold text-slate-600 bg-slate-200"
+                      style={{ display: 'none' }}
+                      aria-hidden
+                    >
+                      {TESTIMONIALS[slideIndex].name.charAt(0)}
+                    </span>
                   </div>
                   <div className="min-w-0 flex-1 flex flex-col py-0.5">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
