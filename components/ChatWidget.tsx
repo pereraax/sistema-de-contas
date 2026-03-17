@@ -697,6 +697,9 @@ export default function ChatWidget() {
   if (pathname === '/diagnostico-quiz' || pathname?.startsWith('/diagnostico-quiz/')) {
     return null
   }
+  if (pathname === '/quizplenipay' || pathname?.startsWith('/quizplenipay/') || pathname === '/quiz' || pathname?.startsWith('/quiz/')) {
+    return null
+  }
 
   // Páginas sem barra inferior (mobile): botão mais baixo
   const publicRoutesNoBottomNav = ['/', '/login', '/cadastro', '/planos', '/termos', '/privacidade', '/suporte']

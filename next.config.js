@@ -42,34 +42,13 @@ const nextConfig = {
     serverComponentsExternalPackages: ['resend', 'svix'],
   },
   
-  // Redirecionamentos - TEMPORARIAMENTE DESABILITADO para evitar erro DEPLOYMENT_NOT_FOUND
-  // Ambos os domínios devem funcionar diretamente
-  // async redirects() {
-  //   return [
-  //     {
-  //       source: '/',
-  //       has: [
-  //         {
-  //           type: 'host',
-  //           value: 'plenipay.com',
-  //         },
-  //       ],
-  //       destination: 'https://www.plenipay.com',
-  //       permanent: true,
-  //     },
-  //     {
-  //       source: '/:path*',
-  //       has: [
-  //         {
-  //           type: 'host',
-  //           value: 'plenipay.com',
-  //         },
-  //       ],
-  //       destination: 'https://www.plenipay.com/:path*',
-  //       permanent: true,
-  //     },
-  //   ]
-  // },
+  // Redirecionamento: /quiz -> /quizplenipay (URL oficial do quiz)
+  async redirects() {
+    return [
+      { source: '/quiz', destination: '/quizplenipay', permanent: true },
+      { source: '/quiz/', destination: '/quizplenipay', permanent: true },
+    ]
+  },
 
   // Corrige 404 em assets: WebView/Capacitor às vezes pede /next/ em vez de /_next/
   async rewrites() {
