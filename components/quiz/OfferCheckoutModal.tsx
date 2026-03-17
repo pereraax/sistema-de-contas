@@ -83,6 +83,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
   const [paymentCompleted, setPaymentCompleted] = useState(false)
   const [pixTimeout, setPixTimeout] = useState(false)
   const [manualCheckLoading, setManualCheckLoading] = useState(false)
+  const [manualCheckNote, setManualCheckNote] = useState<string | null>(null)
 
   const checkAuth = useCallback(async () => {
     if (!open) return
@@ -121,6 +122,8 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
       setPixData(null)
       setPaymentCompleted(false)
       setPixTimeout(false)
+      setManualCheckLoading(false)
+      setManualCheckNote(null)
     }
   }, [open])
 
@@ -187,6 +190,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
   const checkPaymentNow = useCallback(async () => {
     if (!pixData?.subscriptionId || paymentCompleted) return
     setManualCheckLoading(true)
+    setManualCheckNote(null)
     try {
       const pid = pixData?.paymentId ? `&paymentId=${encodeURIComponent(String(pixData.paymentId))}` : ''
       const url = `/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(pixData.subscriptionId)}${pid}&t=${Date.now()}`
@@ -195,11 +199,18 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
       if (data?.pago === true) {
         setPaymentCompleted(true)
         createNotification('Pagamento confirmado!', 'success')
+        setManualCheckNote('Pagamento confirmado! Se tudo estiver certo, você já deve receber o e-mail de acesso.')
       } else {
-        createNotification('Ainda não confirmou. Aguarde alguns segundos e toque em "Já paguei" novamente.', 'warning')
+        const status = data?.paymentStatus ? String(data.paymentStatus) : ''
+        const msg = status
+          ? `Ainda não confirmou (status: ${status}). Aguarde alguns segundos e toque em "Já paguei" novamente.`
+          : 'Ainda não confirmou. Aguarde alguns segundos e toque em "Já paguei" novamente.'
+        createNotification(msg, 'warning')
+        setManualCheckNote(msg)
       }
     } catch {
       createNotification('Não consegui verificar agora. Tente novamente em instantes.', 'warning')
+      setManualCheckNote('Não consegui verificar agora. Tente novamente em instantes.')
     } finally {
       setManualCheckLoading(false)
     }
@@ -235,7 +246,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
         }),
       })
       const text = await res.text()
-      let data: { success?: boolean; error?: string; subscriptionId?: string; metodoPagamento?: string; pixQrCode?: string; pixCopyPaste?: string; paymentUrl?: string } = {}
+      let data: { success?: boolean; error?: string; subscriptionId?: string; metodoPagamento?: string; pixQrCode?: string; pixCopyPaste?: string; paymentUrl?: string; paymentId?: string | null } = {}
       try {
         data = JSON.parse(text)
       } catch {
@@ -243,18 +254,20 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
       }
 
       if (!res.ok) throw new Error(data.error || `Erro ${res.status} ao processar`)
-      const metodo = String(data.metodoPagamento || '').toUpperCase().trim()
-      if (metodo === 'PIX' && data.subscriptionId) {
+      const metodo = String(data.metodoPagamento || formData.metodoPagamento || '').toUpperCase().trim()
+      const isPix = metodo === 'PIX'
+      if (isPix && data.subscriptionId) {
         const hasQr = !!(data.pixQrCode || data.pixCopyPaste)
         setPixData({
           pixQrCode: data.pixQrCode ?? null,
           pixCopyPaste: data.pixCopyPaste ?? null,
           subscriptionId: data.subscriptionId,
-          paymentId: (data as any).paymentId ?? null,
+          paymentId: data.paymentId ?? null,
         })
         setStep('pix')
         setPixTimeout(false)
         setPaymentCompleted(false)
+        setManualCheckNote(null)
         setPixLoading(!hasQr)
         setLoading(false)
         return
@@ -436,6 +449,11 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                     'Já paguei'
                   )}
                 </button>
+                {manualCheckNote && (
+                  <p className="text-center text-xs text-slate-600">
+                    {manualCheckNote}
+                  </p>
+                )}
                 <p className="text-center text-xs mt-2 flex items-center justify-center gap-1.5" style={{ color: SOFT_BLUE }}>
                   <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
                   Verificando pagamento...
