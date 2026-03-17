@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
     if (!pendingPayment) {
       return NextResponse.json({
         success: true,
+        paymentId: null,
         pixQrCode: null,
         pixCopyPaste: null,
       })
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      paymentId: pendingPayment.id ?? null,
       pixQrCode: pixData.encodedImage ?? null,
       pixCopyPaste: pixData.payload ?? null,
     })

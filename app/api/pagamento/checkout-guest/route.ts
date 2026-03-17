@@ -188,6 +188,7 @@ export async function POST(request: NextRequest) {
     let pixQrCode: string | undefined
     let pixCopyPaste: string | undefined
     let paymentUrl: string | undefined
+    let paymentId: string | undefined
 
     // Asaas cria o primeiro pagamento da assinatura de forma assíncrona; é necessário retry com delay
     if (billingType === 'PIX') {
@@ -201,6 +202,7 @@ export async function POST(request: NextRequest) {
         if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, delayMs))
       }
       if (firstPayment) {
+        paymentId = firstPayment.id
         const pixData = await buscarPixQrCode(firstPayment.id)
         pixQrCode = pixData.encodedImage
         pixCopyPaste = pixData.payload
@@ -212,6 +214,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       subscriptionId,
+      paymentId,
       pixQrCode,
       pixCopyPaste,
       paymentUrl,

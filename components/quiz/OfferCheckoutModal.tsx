@@ -76,6 +76,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     pixQrCode?: string | null
     pixCopyPaste?: string | null
     subscriptionId: string
+    paymentId?: string | null
   } | null>(null)
   const [pixCopied, setPixCopied] = useState(false)
   const [pixLoading, setPixLoading] = useState(false)
@@ -143,7 +144,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
         const data = await res.json()
         if (cancelled) return
         if (data.success && (data.pixQrCode || data.pixCopyPaste)) {
-          setPixData((prev) => prev ? { ...prev, pixQrCode: data.pixQrCode ?? undefined, pixCopyPaste: data.pixCopyPaste ?? undefined } : null)
+          setPixData((prev) => prev ? { ...prev, pixQrCode: data.pixQrCode ?? undefined, pixCopyPaste: data.pixCopyPaste ?? undefined, paymentId: data.paymentId ?? prev.paymentId } : null)
           setPixLoading(false)
         }
       } catch {
@@ -165,7 +166,8 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     const subId = pixData.subscriptionId
     const check = async () => {
       try {
-        const url = `/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(subId)}&t=${Date.now()}`
+        const pid = pixData?.paymentId ? `&paymentId=${encodeURIComponent(String(pixData.paymentId))}` : ''
+        const url = `/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(subId)}${pid}&t=${Date.now()}`
         const res = await fetch(url, { cache: 'no-store', credentials: 'same-origin' })
         const data = await res.json().catch(() => ({}))
         if (data?.pago === true) {
@@ -224,6 +226,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
           pixQrCode: data.pixQrCode ?? null,
           pixCopyPaste: data.pixCopyPaste ?? null,
           subscriptionId: data.subscriptionId,
+          paymentId: (data as any).paymentId ?? null,
         })
         setStep('pix')
         setPixLoading(!hasQr)

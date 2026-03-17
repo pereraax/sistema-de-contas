@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { buscarPagamentosAssinatura, buscarAssinaturaAsaas } from '@/lib/asaas'
+import { buscarPagamentoAsaas, buscarPagamentosAssinatura, buscarAssinaturaAsaas } from '@/lib/asaas'
 import { confirmarAssinaturaGuest } from '@/lib/pagamento/confirmar-assinatura-guest'
 
 export const dynamic = 'force-dynamic'
@@ -31,6 +31,7 @@ function isStatusPago(p: any): boolean {
 
 export async function GET(request: NextRequest) {
   const subscriptionId = request.nextUrl.searchParams.get('subscriptionId')
+  const paymentId = request.nextUrl.searchParams.get('paymentId')
   if (!subscriptionId) {
     return NextResponse.json(
       { success: false, error: 'subscriptionId é obrigatório' },
@@ -60,6 +61,33 @@ export async function GET(request: NextRequest) {
         }
       } catch {
         // Tabela pode não existir ainda; segue para Asaas
+      }
+    }
+
+    // Se temos paymentId, checar status direto da cobrança (mais confiável e rápido que listar payments da assinatura)
+    if (paymentId) {
+      try {
+        const payment = await buscarPagamentoAsaas(paymentId)
+        if (!isStatusPago(payment)) {
+          return NextResponse.json({ success: true, pago: false }, { headers: noCacheHeaders })
+        }
+        const { ok } = await confirmarAssinaturaGuest(subscriptionId)
+        if (ok && admin) {
+          try {
+            await admin.from('pagamento_webhook_confirmations').upsert(
+              { subscription_id: subscriptionId, confirmed_at: new Date().toISOString() },
+              { onConflict: 'subscription_id' }
+            )
+          } catch {
+            // ignora
+          }
+        }
+        return NextResponse.json(
+          { success: true, pago: true, plano: 'premium' },
+          { headers: noCacheHeaders }
+        )
+      } catch {
+        // Se falhar, cai no fluxo por assinatura/pagamentos
       }
     }
 
