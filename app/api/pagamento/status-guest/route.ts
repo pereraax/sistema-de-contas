@@ -5,7 +5,8 @@ import { confirmarAssinaturaGuest } from '@/lib/pagamento/confirmar-assinatura-g
 
 export const dynamic = 'force-dynamic'
 
-const STATUS_PAGO = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']
+// Asaas: status de cobrança quando o PIX foi creditado (inglês e possível retorno em PT)
+const STATUS_PAGO = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH', 'RECEBIDO', 'CONFIRMADO']
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,9 +41,11 @@ export async function GET(request: NextRequest) {
     }
 
     const payments = await buscarPagamentosAssinatura(subscriptionId)
-    const paymentPago = payments.find((p: any) =>
-      STATUS_PAGO.includes(String(p.status || '').toUpperCase())
-    )
+    const normaliza = (s: string) => String(s || '').toUpperCase().trim()
+    const paymentPago = payments.find((p: any) => {
+      const status = normaliza(p?.status ?? p?.paymentStatus ?? p?.payment?.status ?? '')
+      return status && STATUS_PAGO.some((s) => normaliza(s) === status)
+    })
 
     if (!paymentPago) {
       return NextResponse.json({ success: true, pago: false })

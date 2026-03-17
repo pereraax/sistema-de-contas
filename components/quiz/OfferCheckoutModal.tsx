@@ -157,8 +157,9 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     const check = async () => {
       try {
         const res = await fetch(`/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(subId)}`)
-        const data = await res.json()
-        if (data.success && data.pago) {
+        const data = await res.json().catch(() => ({}))
+        // Considera pago se o backend retornar pago: true (mesmo com success: false em edge cases)
+        if (data?.pago === true) {
           setPaymentCompleted(true)
         }
       } catch {
