@@ -117,14 +117,15 @@ export async function POST(request: NextRequest) {
           email_confirm: true,
           user_metadata: { full_name: nomeTrim },
         })
-        if (createError || !newUser?.id) {
+        const createdId = (newUser as any)?.user?.id ?? (newUser as any)?.id
+        if (createError || !createdId) {
           console.error('[checkout-guest] createUser:', createError)
           return NextResponse.json(
             { success: false, error: createError?.message || 'Não foi possível criar sua conta.' },
             { status: 400 }
           )
         }
-        userId = newUser.id
+        userId = createdId
         await admin
           .from('profiles')
           .upsert(
