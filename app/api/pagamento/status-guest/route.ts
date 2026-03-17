@@ -68,8 +68,19 @@ export async function GET(request: NextRequest) {
     if (paymentId) {
       try {
         const payment = await buscarPagamentoAsaas(paymentId)
-        if (!isStatusPago(payment)) {
-          return NextResponse.json({ success: true, pago: false }, { headers: noCacheHeaders })
+        const paymentStatus = normaliza(payment?.status ?? payment?.paymentStatus ?? '')
+        const pago = isStatusPago(payment)
+        console.log('[status-guest] paymentId check', {
+          subscriptionId,
+          paymentId,
+          paymentStatus,
+          pago,
+        })
+        if (!pago) {
+          return NextResponse.json(
+            { success: true, pago: false, paymentStatus },
+            { headers: noCacheHeaders }
+          )
         }
         const { ok } = await confirmarAssinaturaGuest(subscriptionId)
         if (ok && admin) {
@@ -83,10 +94,15 @@ export async function GET(request: NextRequest) {
           }
         }
         return NextResponse.json(
-          { success: true, pago: true, plano: 'premium' },
+          { success: true, pago: true, plano: 'premium', paymentStatus },
           { headers: noCacheHeaders }
         )
-      } catch {
+      } catch (err: any) {
+        console.warn('[status-guest] paymentId check falhou', {
+          subscriptionId,
+          paymentId,
+          error: err?.message ?? String(err),
+        })
         // Se falhar, cai no fluxo por assinatura/pagamentos
       }
     }
