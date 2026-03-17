@@ -14,8 +14,22 @@ export async function POST(request: NextRequest) {
   try {
     const tokenEnv = process.env.ASAAS_WEBHOOK_TOKEN?.trim()
     if (tokenEnv) {
-      const headerToken = request.headers.get('asaas-access-token')?.trim()
-      if (headerToken !== tokenEnv) {
+      // Asaas costuma enviar em `asaas-access-token`, mas aceitamos variações comuns
+      const headerToken =
+        request.headers.get('asaas-access-token')?.trim() ||
+        request.headers.get('access_token')?.trim() ||
+        request.headers.get('x-asaas-access-token')?.trim() ||
+        request.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() ||
+        ''
+
+      if (!headerToken || headerToken !== tokenEnv) {
+        // Log sem expor o token (ajuda a diagnosticar header ausente/mismatch)
+        console.warn('[webhook-asaas] 401 token mismatch', {
+          hasEnv: true,
+          envLen: tokenEnv.length,
+          headerPresent: !!headerToken,
+          headerLen: headerToken.length,
+        })
         return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
       }
     }
