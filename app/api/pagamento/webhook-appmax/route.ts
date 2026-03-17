@@ -4,6 +4,10 @@ import { confirmarPagamentoAppmax } from '@/lib/pagamento/confirmar-pagamento-ap
 
 export const dynamic = 'force-dynamic'
 
+export async function GET() {
+  return NextResponse.json({ ok: true, service: 'webhook-appmax' }, { status: 200 })
+}
+
 function norm(s: any): string {
   return String(s ?? '').trim()
 }
@@ -27,6 +31,12 @@ function eventIsPaid(eventName: string): boolean {
  */
 export async function POST(request: NextRequest) {
   try {
+    console.log('[webhook-appmax] hit', {
+      method: 'POST',
+      hasEnvToken: !!process.env.APPMAX_WEBHOOK_TOKEN,
+      contentType: request.headers.get('content-type') || null,
+    })
+
     const tokenEnv = process.env.APPMAX_WEBHOOK_TOKEN?.trim()
     if (tokenEnv) {
       const headerToken =
