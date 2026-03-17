@@ -1,7 +1,11 @@
 import type { Metadata } from 'next'
-import dynamic from 'next/dynamic'
+import nextDynamic from 'next/dynamic'
 
-const Quiz = dynamic(() => import('@/components/quiz/Quiz'), {
+// Evitar cache estático para sempre servir a versão mais recente após deploy
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+const Quiz = nextDynamic(() => import('@/components/quiz/Quiz'), {
   ssr: false,
 })
 

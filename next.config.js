@@ -62,6 +62,11 @@ const nextConfig = {
     // Em desenvolvimento, não aplicar headers restritivos que podem causar problemas
     if (process.env.NODE_ENV === 'production') {
       return [
+        // Quiz: evitar cache para sempre servir versão mais recente após deploy
+        { source: '/diagnostico-quiz', headers: [{ key: 'Cache-Control', value: 'no-store, must-revalidate' }] },
+        { source: '/diagnostico-quiz/:path*', headers: [{ key: 'Cache-Control', value: 'no-store, must-revalidate' }] },
+        { source: '/quizplenipay', headers: [{ key: 'Cache-Control', value: 'no-store, must-revalidate' }] },
+        { source: '/quizplenipay/:path*', headers: [{ key: 'Cache-Control', value: 'no-store, must-revalidate' }] },
         {
           source: '/:path*',
           headers: [
