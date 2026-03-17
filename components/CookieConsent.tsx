@@ -2,9 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Cookie } from 'lucide-react'
 
 const STORAGE_KEY = 'plenipay_cookie_consent'
+
+const QUIZ_PATHS = ['/diagnostico-quiz', '/quizplenipay', '/quiz']
+
+function isQuizPath(pathname: string | null): boolean {
+  if (!pathname) return false
+  return QUIZ_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
+}
 
 function useIsDark() {
   const [isDark, setIsDark] = useState(false)
@@ -32,6 +40,7 @@ function useIsDark() {
 }
 
 export default function CookieConsent() {
+  const pathname = usePathname()
   const [visible, setVisible] = useState(false)
   const [mounted, setMounted] = useState(false)
   const isDark = useIsDark()
@@ -47,6 +56,8 @@ export default function CookieConsent() {
       setVisible(true)
     }
   }, [])
+
+  if (isQuizPath(pathname)) return null
 
   const accept = () => {
     try {
