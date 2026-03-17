@@ -170,8 +170,11 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     const subId = pixData.subscriptionId
       const check = async () => {
       try {
+        const pixProvider = (process.env.NEXT_PUBLIC_PIX_PROVIDER || '').toLowerCase()
         const pid = pixData?.paymentId ? `&paymentId=${encodeURIComponent(String(pixData.paymentId))}` : ''
-        const url = `/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(subId)}${pid}&t=${Date.now()}`
+        const url = pixProvider === 'woovi'
+          ? `/api/pagamento/woovi/status-guest?chargeId=${encodeURIComponent(subId)}&t=${Date.now()}`
+          : `/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(subId)}${pid}&t=${Date.now()}`
         const res = await fetch(url, { cache: 'no-store', credentials: 'same-origin' })
         const data = await res.json().catch(() => ({}))
         if (data?.pago === true) {
@@ -192,8 +195,11 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     setManualCheckLoading(true)
     setManualCheckNote(null)
     try {
+      const pixProvider = (process.env.NEXT_PUBLIC_PIX_PROVIDER || '').toLowerCase()
       const pid = pixData?.paymentId ? `&paymentId=${encodeURIComponent(String(pixData.paymentId))}` : ''
-      const url = `/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(pixData.subscriptionId)}${pid}&t=${Date.now()}`
+      const url = pixProvider === 'woovi'
+        ? `/api/pagamento/woovi/status-guest?chargeId=${encodeURIComponent(pixData.subscriptionId)}&t=${Date.now()}`
+        : `/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(pixData.subscriptionId)}${pid}&t=${Date.now()}`
       const res = await fetch(url, { cache: 'no-store', credentials: 'same-origin' })
       const data = await res.json().catch(() => ({}))
       if (data?.pago === true) {
@@ -234,7 +240,12 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
 
     setLoading(true)
     try {
-      const res = await fetch('/api/pagamento/checkout-guest', {
+      const pixProvider = (process.env.NEXT_PUBLIC_PIX_PROVIDER || '').toLowerCase()
+      const checkoutUrl = (formData.metodoPagamento === 'PIX' && pixProvider === 'woovi')
+        ? '/api/pagamento/woovi/checkout-guest'
+        : '/api/pagamento/checkout-guest'
+
+      const res = await fetch(checkoutUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -256,12 +267,13 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
       if (!res.ok) throw new Error(data.error || `Erro ${res.status} ao processar`)
       const metodo = String(data.metodoPagamento || formData.metodoPagamento || '').toUpperCase().trim()
       const isPix = metodo === 'PIX'
-      if (isPix && data.subscriptionId) {
+      const subId = data.subscriptionId || (data as any).chargeId
+      if (isPix && subId) {
         const hasQr = !!(data.pixQrCode || data.pixCopyPaste)
         setPixData({
           pixQrCode: data.pixQrCode ?? null,
           pixCopyPaste: data.pixCopyPaste ?? null,
-          subscriptionId: data.subscriptionId,
+          subscriptionId: subId,
           paymentId: data.paymentId ?? null,
         })
         setStep('pix')
@@ -394,7 +406,13 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                     {pixData.pixQrCode && (
                       <div className="flex justify-center bg-white p-4 rounded-xl border border-slate-200">
                         <img
-                          src={pixData.pixQrCode.startsWith('data:') ? pixData.pixQrCode : `data:image/png;base64,${pixData.pixQrCode}`}
+                          src={
+                            pixData.pixQrCode.startsWith('data:')
+                              ? pixData.pixQrCode
+                              : pixData.pixQrCode.startsWith('http')
+                                ? pixData.pixQrCode
+                                : `data:image/png;base64,${pixData.pixQrCode}`
+                          }
                           alt="QR Code PIX"
                           className="w-48 h-48 object-contain"
                         />
