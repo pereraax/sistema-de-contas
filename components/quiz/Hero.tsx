@@ -1,4 +1,6 @@
 import { motion } from 'framer-motion'
+import Image from 'next/image'
+import mascot from '@/assets/mascot-CebL40u7.gif'
 
 type HeroProps = {
   onStart: () => void
@@ -14,6 +16,23 @@ export function Hero({ onStart }: HeroProps) {
           transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
           className="text-center"
         >
+          <div className="flex justify-center mb-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="relative w-full max-w-[280px] sm:max-w-[320px] aspect-square"
+            >
+              <Image
+                src={mascot}
+                alt="Mascote Plenipay"
+                className="object-contain w-full h-full"
+                priority
+                unoptimized
+              />
+            </motion.div>
+          </div>
+
           <motion.p
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
