@@ -165,9 +165,9 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     const subId = pixData.subscriptionId
     const check = async () => {
       try {
-        const res = await fetch(`/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(subId)}`)
+        const url = `/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(subId)}&t=${Date.now()}`
+        const res = await fetch(url, { cache: 'no-store', credentials: 'same-origin' })
         const data = await res.json().catch(() => ({}))
-        // Considera pago se o backend retornar pago: true (mesmo com success: false em edge cases)
         if (data?.pago === true) {
           setPaymentCompleted(true)
         }
