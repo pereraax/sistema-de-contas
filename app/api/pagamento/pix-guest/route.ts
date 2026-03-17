@@ -17,10 +17,17 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const payments = await buscarPagamentosAssinatura(subscriptionId)
-    const pendingPayment = payments.find(
+    let payments = await buscarPagamentosAssinatura(subscriptionId)
+    let pendingPayment = payments.find(
       (p: any) => p.status === 'PENDING' || p.status === 'AWAITING_RISK_ANALYSIS'
     )
+    if (!pendingPayment && payments.length === 0) {
+      await new Promise((r) => setTimeout(r, 1200))
+      payments = await buscarPagamentosAssinatura(subscriptionId)
+      pendingPayment = payments.find(
+        (p: any) => p.status === 'PENDING' || p.status === 'AWAITING_RISK_ANALYSIS'
+      )
+    }
 
     if (!pendingPayment) {
       return NextResponse.json({

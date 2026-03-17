@@ -80,6 +80,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
   const [pixCopied, setPixCopied] = useState(false)
   const [pixLoading, setPixLoading] = useState(false)
   const [paymentCompleted, setPaymentCompleted] = useState(false)
+  const [pixTimeout, setPixTimeout] = useState(false)
 
   const checkAuth = useCallback(async () => {
     if (!open) return
@@ -117,8 +118,16 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
       setStep('form')
       setPixData(null)
       setPaymentCompleted(false)
+      setPixTimeout(false)
     }
   }, [open])
+
+  // Timeout: se após 40s no step PIX ainda não tiver QR, mostrar opção de voltar
+  useEffect(() => {
+    if (step !== 'pix' || pixData?.pixQrCode || pixData?.pixCopyPaste || paymentCompleted) return
+    const t = setTimeout(() => setPixTimeout(true), 40000)
+    return () => clearTimeout(t)
+  }, [step, pixData?.pixQrCode, pixData?.pixCopyPaste, paymentCompleted])
 
   // Buscar QR Code PIX quando a assinatura foi criada mas o QR não veio na resposta (Asaas pode demorar)
   useEffect(() => {
@@ -314,7 +323,19 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                   <h3 className="font-semibold text-slate-800">Pague com PIX</h3>
                   <p className="text-sm text-slate-500 mt-1">Escaneie o QR Code ou copie o código no app do seu banco</p>
                 </div>
-                {(!pixData.pixQrCode && !pixData.pixCopyPaste) || pixLoading ? (
+                {pixTimeout && !pixData.pixQrCode && !pixData.pixCopyPaste ? (
+                  <div className="flex flex-col items-center justify-center py-6 space-y-3">
+                    <p className="text-sm text-slate-600 text-center">O QR Code está demorando mais que o esperado.</p>
+                    <p className="text-xs text-slate-500 text-center">Verifique sua conexão ou tente novamente em instantes. Você também pode voltar e escolher pagamento com cartão.</p>
+                    <button
+                      type="button"
+                      onClick={() => { setStep('form'); setPixData(null); setPixTimeout(false); setPixLoading(false); }}
+                      className="rounded-xl py-2.5 px-4 text-sm font-medium border border-slate-300 text-slate-700 hover:bg-slate-50"
+                    >
+                      Voltar e tentar outra forma
+                    </button>
+                  </div>
+                ) : (!pixData.pixQrCode && !pixData.pixCopyPaste) || pixLoading ? (
                   <div className="flex flex-col items-center justify-center py-8">
                     <Loader2 className="h-10 w-10 animate-spin mb-3" style={{ color: SOFT_BLUE }} />
                     <p className="text-sm text-slate-600">Gerando QR Code PIX...</p>
