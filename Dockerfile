@@ -1,18 +1,16 @@
 # Dockerfile para Railway / Docker
-# Next.js + Node custom server
+# Next.js + Node custom server (Debian slim = glibc, evita erro sharp no build)
 
-FROM node:20-alpine AS base
+FROM node:20-slim AS base
+RUN apt-get update -y && apt-get install -y --no-install-recommends libc6-dev && rm -rf /var/lib/apt/lists/*
 
-# Instalar dependências do sistema
-RUN apk add --no-cache libc6-compat
-
-# Dependências (npm install tolera melhor lock file no Railway que npm ci)
+# Dependências
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install --legacy-peer-deps
 
-# Build
+# Build (slim = sharp e outros nativos funcionam)
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
@@ -30,14 +28,13 @@ RUN npm run build
 # Horário do build (em public/ para garantir que seja copiado e encontrado no runtime)
 RUN date -u +%Y-%m-%dT%H:%M:%SZ > /app/build-time.txt && cp /app/build-time.txt /app/public/build-time.txt
 
-# Produção
+# Produção (mesma base slim para compatibilidade com node_modules do build)
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN groupadd -r -g 1001 nodejs && useradd -r -u 1001 -g nodejs nextjs
 
 # Copiar arquivos necessários
 COPY --from=builder /app/build-time.txt ./

@@ -66,7 +66,8 @@
   "optionalDependencies": {
     "@next/swc-darwin-arm64": "^14.2.33",
     "bufferutil": "^4.0.9",
-    "utf-8-validate": "^5.0.10"
+    "utf-8-validate": "^5.0.10",
+    "sharp": "^0.33.0"
   },
   "devDependencies": {
     "ngrok": "^5.0.0-beta.2",
