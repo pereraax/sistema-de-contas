@@ -64,12 +64,12 @@ function Bubble({
     >
       <div
         className={[
-          'max-w-[92%] rounded-2xl px-4 py-3 shadow-sm',
+          'max-w-[92%] rounded-2xl px-4 py-3 shadow-sm text-base',
           isUser ? 'rounded-tr-md bg-emerald-600 text-white' : 'rounded-tl-md bg-[#1f2937] text-white',
         ].join(' ')}
       >
         {children}
-        <div className="mt-2 flex items-center justify-end gap-1 text-[11px] opacity-70">
+        <div className="mt-2 flex items-center justify-end gap-1 text-xs opacity-70">
           {isUser && (
             <svg className="h-3.5 w-4" viewBox="0 0 16 11" fill="currentColor">
               <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.564.278l-.037.135a.32.32 0 0 1-.188.2.32.32 0 0 1-.26 0  .32.32 0 0 1-.188-.2l-.037-.135a.365.365 0 0 0-.564-.278l-.478.372a.365.365 0 0 0-.136.46l.015.03a.365.365 0 0 0 .223.168l.05.01a.32.32 0 0 1 .188.2l.037.135a.365.365 0 0 0 .564.278l.478-.372a.365.365 0 0 0 .136-.46l-.015-.03a.365.365 0 0 0-.223-.168l-.05-.01a.32.32 0 0 1-.188-.2l-.037-.135a.365.365 0 0 0-.564-.278l-.478.372a.365.365 0 0 0-.136.46l.015.03a.365.365 0 0 0 .223.168l.05.01a.32.32 0 0 1 .188.2l.037.135a.365.365 0 0 0 .564.278l.478-.372a.365.365 0 0 0 .136-.46l-.015-.03a.365.365 0 0 0-.223-.168l-.05-.01a.32.32 0 0 1-.188-.2l-.037-.135z" />
@@ -242,14 +242,14 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
                 className="flex justify-start"
               >
                 <div className="max-w-[92%] rounded-2xl rounded-tl-md bg-white px-4 py-4 shadow-lg border border-slate-200 text-[#0D1B2A]">
-                  <div className="text-sm font-bold">Últimos 7 dias</div>
-                  <div className="text-xs text-slate-600 mt-0.5">
+                  <div className="text-base font-bold">Últimos 7 dias</div>
+                  <div className="text-sm text-slate-600 mt-0.5">
                     R$ 632,00 - 16/03/2026 - 23/03/2026
                   </div>
                   <div className="flex items-end gap-1.5 mt-3 h-16">
                     {BAR_DATA.map((d, i) => (
                       <div key={d.label} className="flex-1 flex flex-col items-center gap-1">
-                        <span className="text-[10px] font-medium text-slate-600">{d.value}</span>
+                        <span className="text-xs font-medium text-slate-600">{d.value}</span>
                         <div
                           className="w-full rounded-t bg-emerald-400 min-h-[8px]"
                           style={{ height: `${(d.value / BAR_MAX) * 100}%` }}
@@ -257,16 +257,16 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
                       </div>
                     ))}
                   </div>
-                  <div className="flex gap-1 mt-1.5 justify-between text-[10px] text-slate-500">
+                  <div className="flex gap-1 mt-1.5 justify-between text-xs text-slate-500">
                     {BAR_DATA.map((d) => (
                       <span key={d.label}>{d.label}</span>
                     ))}
                   </div>
-                  <div className="flex items-center gap-1.5 mt-3 text-xs text-red-600">
+                  <div className="flex items-center gap-1.5 mt-3 text-sm text-red-600">
                     <TrendingUp size={14} />
                     <span>Seus gastos aumentaram em 20% essa semana</span>
                   </div>
-                  <div className="mt-2 text-[11px] text-slate-400 flex justify-end">{STAMP}</div>
+                  <div className="mt-2 text-xs text-slate-400 flex justify-end">{STAMP}</div>
                 </div>
               </motion.div>
             )}
@@ -287,8 +287,8 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
                 className="flex justify-start"
               >
                 <div className="max-w-[92%] rounded-2xl rounded-tl-md bg-white px-4 py-4 shadow-lg border border-slate-200 text-[#0D1B2A]">
-                  <div className="text-sm font-bold">Divisão de gastos</div>
-                  <div className="text-xs text-slate-600 mt-0.5">16/03/2026 - 23/03/2026</div>
+                  <div className="text-base font-bold">Divisão de gastos</div>
+                  <div className="text-sm text-slate-600 mt-0.5">16/03/2026 - 23/03/2026</div>
                   <div
                     className="mt-3 w-28 h-28 rounded-full mx-auto"
                     style={{
@@ -303,14 +303,14 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
                   />
                   <div className="mt-3 space-y-1.5">
                     {PIE_LEGEND.map((item) => (
-                      <div key={item.label} className="flex items-center gap-2 text-xs">
+                      <div key={item.label} className="flex items-center gap-2 text-sm">
                         <span className={`w-3 h-3 rounded-sm ${item.color}`} />
                         <span className="text-slate-700">{item.label}</span>
                         <span className="text-slate-500 ml-auto">{item.pct}%</span>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-2 text-[11px] text-slate-400 flex justify-end">{STAMP}</div>
+                  <div className="mt-2 text-xs text-slate-400 flex justify-end">{STAMP}</div>
                 </div>
               </motion.div>
             )}
@@ -349,7 +349,7 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
 
             {showPhase2Resp && (
               <Bubble key="phase2-ai" from="ai" stamp={STAMP_PHASE2}>
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2 text-base">
                   <p>
                     Os gastos aumentaram nesta semana em comparação com a semana passada, totalizando R$157,00 a mais.
                   </p>
@@ -372,7 +372,7 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             className="mt-8 space-y-4"
           >
-            <p className="text-slate-600 text-sm">
+            <p className="text-slate-600 text-base">
               Imaginando que esses gastos sejam os seus, pergunte algo ao seu assistente:
             </p>
             <button
@@ -396,7 +396,7 @@ export function DemoStep2({ onContinue }: DemoStep2Props) {
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             className="mt-8 space-y-6"
           >
-            <p className="text-slate-700 text-sm leading-relaxed">
+            <p className="text-slate-700 text-base leading-relaxed">
               Você nunca mais vai se fazer a pergunta &quot;onde que eu gastei tanto esse mês&quot;, sem ter a resposta.
             </p>
             <button

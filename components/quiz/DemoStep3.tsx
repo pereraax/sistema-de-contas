@@ -29,12 +29,12 @@ function Bubble({
     <div className={isUser ? 'flex justify-end' : 'flex justify-start'}>
       <div
         className={[
-          'max-w-[92%] rounded-2xl px-4 py-3 shadow-sm',
+          'max-w-[92%] rounded-2xl px-4 py-3 shadow-sm text-base',
           isUser ? 'rounded-tr-md bg-emerald-600 text-white' : 'rounded-tl-md bg-[#1f2937] text-white',
         ].join(' ')}
       >
         {children}
-        <div className="mt-2 flex items-center justify-end gap-1 text-[11px] opacity-70">
+        <div className="mt-2 flex items-center justify-end gap-1 text-xs opacity-70">
           {isUser && (
             <svg className="h-3.5 w-4" viewBox="0 0 16 11" fill="currentColor">
               <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.564.278l-.037.135a.32.32 0 0 1-.188.2.32.32 0 0 1-.26 0  .32.32 0 0 1-.188-.2l-.037-.135a.365.365 0 0 0-.564-.278l-.478.372a.365.365 0 0 0-.136.46l.015.03a.365.365 0 0 0 .223.168l.05.01a.32.32 0 0 1 .188.2l.037.135a.365.365 0 0 0 .564.278l.478-.372a.365.365 0 0 0 .136-.46l-.015-.03a.365.365 0 0 0-.223-.168l-.05-.01a.32.32 0 0 1-.188-.2l-.037-.135a.365.365 0 0 0-.564-.278l-.478.372a.365.365 0 0 0-.136.46l.015.03a.365.365 0 0 0 .223.168l.05.01a.32.32 0 0 1 .188.2l.037.135a.365.365 0 0 0 .564.278l.478-.372a.365.365 0 0 0 .136-.46l-.015-.03a.365.365 0 0 0-.223-.168l-.05-.01a.32.32 0 0 1-.188-.2l-.037-.135z" />
@@ -79,7 +79,7 @@ export function DemoStep3({ onContinue }: DemoStep3Props) {
               Boleto do carro todo dia 12, R$ 1300
             </Bubble>
             <Bubble from="ai" stamp={STAMP}>
-              <div className="text-sm">
+              <div className="text-base">
                 Lembrete adicionado 📌{' '}
                 <span className="text-red-300 font-semibold">Boleto do carro</span> Data: 12
                 Frequência: Mensal
@@ -98,13 +98,13 @@ export function DemoStep3({ onContinue }: DemoStep3Props) {
           <SectionHeading number={4}>E seja lembrado com antecedência.</SectionHeading>
           <div className="space-y-3 mt-4">
             <Bubble from="ai" stamp={STAMP}>
-              <span className="text-sm">💡 Lembrete: Boleto Carro</span>
+              <span className="text-base">💡 Lembrete: Boleto Carro</span>
             </Bubble>
             <Bubble from="user" stamp={STAMP}>
               paguei já
             </Bubble>
             <Bubble from="ai" stamp={STAMP}>
-              <span className="text-sm">Te lembro de novo mês que vem ✔</span>
+              <span className="text-base">Te lembro de novo mês que vem ✔</span>
             </Bubble>
           </div>
         </motion.div>
@@ -126,13 +126,13 @@ export function DemoStep3({ onContinue }: DemoStep3Props) {
             <div className="flex justify-start">
               <div className="max-w-[92%] rounded-2xl rounded-tl-md bg-[#1f2937] text-white px-3 py-3 shadow-sm">
                 <div className="rounded-xl bg-white text-[#0D1B2A] px-4 py-3 shadow-inner">
-                  <div className="text-xs font-semibold text-slate-600 mb-3">
+                  <div className="text-sm font-semibold text-slate-600 mb-3">
                     Limite definido: Relatório dia 21/01
                   </div>
                   <div className="space-y-3">
                     {LIMIT_CATEGORIES.map((cat) => (
                       <div key={cat.name}>
-                        <div className="flex justify-between items-center text-xs mb-1">
+                        <div className="flex justify-between items-center text-sm mb-1">
                           <span className="font-medium text-slate-800">{cat.name}</span>
                           <span className="font-semibold text-emerald-600">{cat.pct}%</span>
                         </div>
@@ -142,18 +142,18 @@ export function DemoStep3({ onContinue }: DemoStep3Props) {
                             style={{ width: `${Math.min(cat.pct, 100)}%` }}
                           />
                         </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
+                        <div className="text-xs text-slate-500 mt-0.5">
                           R$ {cat.value} de R$ {cat.limit}
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-                <div className="mt-2 text-[11px] opacity-70 flex justify-end">{STAMP}</div>
+                <div className="mt-2 text-xs opacity-70 flex justify-end">{STAMP}</div>
               </div>
             </div>
             <Bubble from="ai" stamp={STAMP}>
-              <span className="text-sm">Segue relatório dos seus limites de gastos 👇</span>
+              <span className="text-base">Segue relatório dos seus limites de gastos 👆</span>
             </Bubble>
           </div>
         </motion.div>

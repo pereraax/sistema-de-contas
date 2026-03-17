@@ -151,20 +151,20 @@ export function HowItWorks({ onContinue }: HowItWorksProps) {
               {showAiCard && (
                 <Bubble key="ai-card" from="ai" stamp="12:54">
                   <div className="space-y-2">
-                    <div className="text-sm font-semibold">Gasto adicionado</div>
-                    <div className="text-sm">
+                    <div className="text-base font-semibold">Gasto adicionado</div>
+                    <div className="text-base">
                       <span className="mr-2">📌</span>
                       Camisa <span className="opacity-85 italic">(Roupas)</span>
                     </div>
-                    <div className="text-base font-bold">R$ 110.00</div>
-                    <div className="pt-2 text-xs opacity-80">25/02/2025</div>
+                    <div className="text-lg font-bold">R$ 110.00</div>
+                    <div className="pt-2 text-sm opacity-80">25/02/2025</div>
                   </div>
                 </Bubble>
               )}
 
               {showAiReminder && (
                 <Bubble key="ai-reminder" from="ai" stamp="12:54">
-                  <div className="text-sm">
+                  <div className="text-base">
                     Lembrete: Você está quase chegando no seu limite definido de{' '}
                     <span className="font-bold">R$ 200</span> por mês com{' '}
                     <span className="font-bold">Roupas</span>.
@@ -219,12 +219,12 @@ function Bubble({
     >
       <div
         className={[
-          'max-w-[92%] rounded-2xl px-4 py-3 shadow-sm',
+          'max-w-[92%] rounded-2xl px-4 py-3 shadow-sm text-base',
           isUser ? 'rounded-tr-md bg-emerald-800 text-white' : 'rounded-tl-md bg-[#1f2937] text-white',
         ].join(' ')}
       >
         {children}
-        <div className="mt-2 text-[11px] opacity-70 flex justify-end">{stamp}</div>
+        <div className="mt-2 text-xs opacity-70 flex justify-end">{stamp}</div>
       </div>
     </motion.div>
   )

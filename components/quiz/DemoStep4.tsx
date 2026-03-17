@@ -23,12 +23,12 @@ function Bubble({
     <div className={isUser ? 'flex justify-end' : 'flex justify-start'}>
       <div
         className={[
-          'max-w-[92%] rounded-2xl px-4 py-3 shadow-sm',
+          'max-w-[92%] rounded-2xl px-4 py-3 shadow-sm text-base',
           isUser ? 'rounded-tr-md bg-emerald-600 text-white' : 'rounded-tl-md bg-[#1f2937] text-white',
         ].join(' ')}
       >
         {children}
-        <div className="mt-2 flex items-center justify-end gap-1 text-[11px] opacity-70">
+        <div className="mt-2 flex items-center justify-end gap-1 text-xs opacity-70">
           {isUser && (
             <svg className="h-3.5 w-4" viewBox="0 0 16 11" fill="currentColor">
               <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.564.278l-.037.135a.32.32 0 0 1-.188.2.32.32 0 0 1-.26 0  .32.32 0 0 1-.188-.2l-.037-.135a.365.365 0 0 0-.564-.278l-.478.372a.365.365 0 0 0-.136.46l.015.03a.365.365 0 0 0 .223.168l.05.01a.32.32 0 0 1 .188.2l.037.135a.365.365 0 0 0 .564.278l.478-.372a.365.365 0 0 0 .136-.46l-.015-.03a.365.365 0 0 0-.223-.168l-.05-.01a.32.32 0 0 1-.188-.2l-.037-.135a.365.365 0 0 0-.564-.278l-.478.372a.365.365 0 0 0-.136.46l.015.03a.365.365 0 0 0 .223.168l.05.01a.32.32 0 0 1 .188.2l.037.135a.365.365 0 0 0 .564.278l.478-.372a.365.365 0 0 0 .136-.46l-.015-.03a.365.365 0 0 0-.223-.168l-.05-.01a.32.32 0 0 1-.188-.2l-.037-.135z" />
@@ -65,19 +65,19 @@ export function DemoStep4({ onContinue }: DemoStep4Props) {
           className="space-y-3"
         >
           <SectionHeading number={6}>Planejamento de Metas</SectionHeading>
-          <p className="text-slate-600 text-sm leading-relaxed text-center max-w-md mx-auto mt-3">
+          <p className="text-slate-600 text-base leading-relaxed text-center max-w-md mx-auto mt-3">
             Defina uma meta e te levaremos até lá. Ele planeja, calcula e avisa o que você precisa
             fazer.
           </p>
           <div className="space-y-3 mt-4">
             <Bubble from="user" stamp={STAMP}>
-              <span className="text-sm">Crie uma meta para Iphone 16, preciso de 5.399</span>
+              <span className="text-base">Crie uma meta para Iphone 16, preciso de 5.399</span>
             </Bubble>
             <Bubble from="user" stamp={STAMP}>
-              <span className="text-sm">Já guardei 500 hoje</span>
+              <span className="text-base">Já guardei 500 hoje</span>
             </Bubble>
             <Bubble from="ai" stamp={STAMP}>
-              <span className="text-sm">
+              <span className="text-base">
                 Criei a meta e já registrei o valor que você guardou hoje.
               </span>
             </Bubble>
@@ -86,7 +86,7 @@ export function DemoStep4({ onContinue }: DemoStep4Props) {
                 <div className="rounded-xl bg-white text-[#0D1B2A] px-4 py-4 shadow-inner">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="h-8 w-8 rounded-full bg-red-500 flex-shrink-0" />
-                    <span className="text-sm font-bold text-slate-800">Nova Meta</span>
+                    <span className="text-base font-bold text-slate-800">Nova Meta</span>
                   </div>
                   <div className="flex flex-col items-center mb-4">
                     <div className="relative w-24 h-24">
@@ -108,19 +108,19 @@ export function DemoStep4({ onContinue }: DemoStep4Props) {
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
                         <span className="text-lg font-bold text-slate-800">9,27%</span>
-                        <span className="text-[10px] text-slate-500">da meta</span>
+                        <span className="text-xs text-slate-500">da meta</span>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 text-sm text-slate-700 mb-1">
+                  <div className="flex items-center gap-1 text-base text-slate-700 mb-1">
                     <span className="font-medium">Iphone</span>
                     <ChevronDown size={14} className="text-slate-500" />
                   </div>
-                  <div className="text-sm font-semibold text-slate-800">
+                  <div className="text-base font-semibold text-slate-800">
                     R$ 500,00 → R$ 5.399,00
                   </div>
                 </div>
-                <div className="mt-2 text-[11px] opacity-70 flex justify-end">{STAMP}</div>
+                <div className="mt-2 text-xs opacity-70 flex justify-end">{STAMP}</div>
               </div>
             </div>
           </div>
@@ -134,23 +134,22 @@ export function DemoStep4({ onContinue }: DemoStep4Props) {
           className="space-y-3"
         >
           <SectionHeading number={7}>Alerta de Promoções</SectionHeading>
-          <p className="text-slate-600 text-sm leading-relaxed text-center max-w-md mx-auto mt-3">
+          <p className="text-slate-600 text-base leading-relaxed text-center max-w-md mx-auto mt-3">
             Te ajudamos a achar promoções absurdas e pagar mais barato em tudo. Nossa IA realiza
             buscas automáticas na internet 24 horas por dia.
           </p>
           <div className="space-y-3 mt-4">
             <Bubble from="ai" stamp={STAMP}>
-              <span className="text-sm">
+              <span className="text-base">
                 🏠 Você demonstrou interesse Viagens alguns dias atrás. Encontrei uma promoção:
               </span>
             </Bubble>
             <div className="flex justify-start">
               <div className="max-w-[92%] rounded-2xl rounded-tl-md bg-[#1f2937] text-white px-4 py-4 shadow-sm">
-                <div className="text-sm space-y-2">
-                  <p>
-                    ➕ Pacote Completo Disney 7 dias - Ida e volta + Hospedagem
-                  </p>
-                  <p>por R$ 1.799 no pix 👹👹</p>
+                <div className="text-base space-y-2">
+                  <p>✨✨ Pacote Completo Disney 7 dias -</p>
+                  <p>Ida e volta + Hospedagem</p>
+                  <p>por R$ 1.799 no pix 🚨🚨</p>
                   <p>💳 ou 10x de R$ 179,90</p>
                   <p>🎟️ Use o cupom: DISNEY20</p>
                   <p className="pt-1">
@@ -158,7 +157,7 @@ export function DemoStep4({ onContinue }: DemoStep4Props) {
                     <span className="text-white/70 select-none blur-sm">https://exemplo.com/promo</span>
                   </p>
                 </div>
-                <div className="mt-2 text-[11px] opacity-70 flex justify-end">{STAMP}</div>
+                <div className="mt-2 text-xs opacity-70 flex justify-end">{STAMP}</div>
               </div>
             </div>
           </div>
