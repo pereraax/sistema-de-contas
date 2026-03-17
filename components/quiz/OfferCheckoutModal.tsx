@@ -165,7 +165,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
   useEffect(() => {
     if (step !== 'pix' || !pixData?.subscriptionId || paymentCompleted) return
     const subId = pixData.subscriptionId
-    const check = async () => {
+      const check = async () => {
       try {
         const pid = pixData?.paymentId ? `&paymentId=${encodeURIComponent(String(pixData.paymentId))}` : ''
         const url = `/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(subId)}${pid}&t=${Date.now()}`
@@ -173,6 +173,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
         const data = await res.json().catch(() => ({}))
         if (data?.pago === true) {
           setPaymentCompleted(true)
+            setPixLoading(false)
         }
       } catch {
         // silencioso
@@ -242,7 +243,8 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
       }
 
       if (!res.ok) throw new Error(data.error || `Erro ${res.status} ao processar`)
-      if (data.metodoPagamento === 'PIX' && data.subscriptionId) {
+      const metodo = String(data.metodoPagamento || '').toUpperCase().trim()
+      if (metodo === 'PIX' && data.subscriptionId) {
         const hasQr = !!(data.pixQrCode || data.pixCopyPaste)
         setPixData({
           pixQrCode: data.pixQrCode ?? null,
@@ -251,6 +253,8 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
           paymentId: (data as any).paymentId ?? null,
         })
         setStep('pix')
+        setPixTimeout(false)
+        setPaymentCompleted(false)
         setPixLoading(!hasQr)
         setLoading(false)
         return
