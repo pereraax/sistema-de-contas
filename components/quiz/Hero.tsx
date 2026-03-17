@@ -16,12 +16,21 @@ export function Hero({ onStart }: HeroProps) {
           transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
           className="text-center"
         >
-          <div className="flex justify-center mb-6">
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="text-xs text-slate-500 italic"
+          >
+            A mesma tecnologia usada por gerentes de investimentos.
+          </motion.p>
+
+          <div className="flex justify-center my-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="relative w-full max-w-[280px] sm:max-w-[320px] aspect-square"
+              transition={{ delay: 0.08, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              className="relative w-full max-w-[160px] sm:max-w-[200px] aspect-square"
             >
               <Image
                 src={mascot}
@@ -33,20 +42,11 @@ export function Hero({ onStart }: HeroProps) {
             </motion.div>
           </div>
 
-          <motion.p
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="text-xs text-slate-500 italic"
-          >
-            A mesma tecnologia usada por gerentes de investimentos.
-          </motion.p>
-
           <motion.h1
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.12, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-5 text-[22px] sm:text-2xl font-extrabold leading-tight text-[#0D1B2A]"
+            className="mt-2 text-[22px] sm:text-2xl font-extrabold leading-tight text-[#0D1B2A]"
           >
             Economize{' '}
             <span className="text-[#007A99]">+ de 400 Reais</span> Em{' '}
