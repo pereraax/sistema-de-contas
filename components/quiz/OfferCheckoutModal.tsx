@@ -82,6 +82,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
   const [pixLoading, setPixLoading] = useState(false)
   const [paymentCompleted, setPaymentCompleted] = useState(false)
   const [pixTimeout, setPixTimeout] = useState(false)
+  const [manualCheckLoading, setManualCheckLoading] = useState(false)
 
   const checkAuth = useCallback(async () => {
     if (!open) return
@@ -181,6 +182,27 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     const t = setInterval(check, 1000)
     return () => clearInterval(t)
   }, [step, pixData?.subscriptionId, paymentCompleted])
+
+  const checkPaymentNow = useCallback(async () => {
+    if (!pixData?.subscriptionId || paymentCompleted) return
+    setManualCheckLoading(true)
+    try {
+      const pid = pixData?.paymentId ? `&paymentId=${encodeURIComponent(String(pixData.paymentId))}` : ''
+      const url = `/api/pagamento/status-guest?subscriptionId=${encodeURIComponent(pixData.subscriptionId)}${pid}&t=${Date.now()}`
+      const res = await fetch(url, { cache: 'no-store', credentials: 'same-origin' })
+      const data = await res.json().catch(() => ({}))
+      if (data?.pago === true) {
+        setPaymentCompleted(true)
+        createNotification('Pagamento confirmado!', 'success')
+      } else {
+        createNotification('Ainda não confirmou. Aguarde alguns segundos e toque em "Já paguei" novamente.', 'warning')
+      }
+    } catch {
+      createNotification('Não consegui verificar agora. Tente novamente em instantes.', 'warning')
+    } finally {
+      setManualCheckLoading(false)
+    }
+  }, [pixData?.subscriptionId, pixData?.paymentId, paymentCompleted])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -395,6 +417,21 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                 <p className="text-center text-xs text-slate-500">
                   Após o pagamento, seu acesso será liberado em instantes. Você receberá um e-mail de boas-vindas.
                 </p>
+                <button
+                  type="button"
+                  onClick={checkPaymentNow}
+                  disabled={manualCheckLoading || paymentCompleted}
+                  className="w-full rounded-xl py-3 text-sm font-semibold border border-slate-200 text-slate-800 bg-white hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {manualCheckLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Verificando...
+                    </>
+                  ) : (
+                    'Já paguei'
+                  )}
+                </button>
                 <p className="text-center text-xs mt-2 flex items-center justify-center gap-1.5" style={{ color: SOFT_BLUE }}>
                   <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
                   Verificando pagamento...
