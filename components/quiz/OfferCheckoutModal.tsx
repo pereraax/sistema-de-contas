@@ -209,9 +209,15 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
           metodoPagamento: formData.metodoPagamento,
         }),
       })
-      const data = await res.json().catch(() => ({}))
+      const text = await res.text()
+      let data: { success?: boolean; error?: string; subscriptionId?: string; metodoPagamento?: string; pixQrCode?: string; pixCopyPaste?: string; paymentUrl?: string } = {}
+      try {
+        data = JSON.parse(text)
+      } catch {
+        data = { error: res.ok ? 'Resposta inválida' : `Erro do servidor (${res.status}). Verifique as variáveis ASAAS no Railway.` }
+      }
 
-      if (!res.ok) throw new Error(data.error || 'Erro ao processar')
+      if (!res.ok) throw new Error(data.error || `Erro ${res.status} ao processar`)
       if (data.metodoPagamento === 'PIX' && data.subscriptionId) {
         const hasQr = !!(data.pixQrCode || data.pixCopyPaste)
         setPixData({

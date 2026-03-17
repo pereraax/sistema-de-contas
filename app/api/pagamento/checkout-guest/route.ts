@@ -219,11 +219,15 @@ export async function POST(request: NextRequest) {
       plano: 'anual',
     })
   } catch (error: any) {
-    console.error('❌ [checkout-guest] Erro:', error)
+    const message = error?.message || 'Erro ao processar pagamento.'
+    console.error('❌ [checkout-guest] Erro:', message, error)
+    const isInvalidKey = /inválida|invalid|não está configurada|API key/i.test(message)
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Erro ao processar pagamento.',
+        error: isInvalidKey
+          ? `${message} Verifique no Railway: ASAAS_API_KEY (chave do painel Asaas) e ASAAS_API_URL (produção: https://api.asaas.com/v3).`
+          : message,
       },
       { status: 500 }
     )
