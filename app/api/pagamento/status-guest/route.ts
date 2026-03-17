@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { buscarPagamentosAssinatura, buscarAssinaturaAsaas } from '@/lib/asaas'
 import { confirmarAssinaturaGuest } from '@/lib/pagamento/confirmar-assinatura-guest'
 
+export const dynamic = 'force-dynamic'
+
 const STATUS_PAGO = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']
 
 export async function GET(request: NextRequest) {

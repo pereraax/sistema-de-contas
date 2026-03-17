@@ -6,11 +6,11 @@ FROM node:20-alpine AS base
 # Instalar dependências do sistema
 RUN apk add --no-cache libc6-compat
 
-# Dependências
+# Dependências (npm install tolera melhor lock file no Railway que npm ci)
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
 # Build
 FROM base AS builder

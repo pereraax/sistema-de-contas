@@ -2,14 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { confirmarAssinaturaGuest } from '@/lib/pagamento/confirmar-assinatura-guest'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Webhook Asaas: PAYMENT_RECEIVED.
  * Configurar no Asaas: Integrações > Webhooks > URL: https://plenipay.com/api/pagamento/webhook-asaas
  * Evento: PAYMENT_RECEIVED (e opcionalmente PAYMENT_CONFIRMED).
- * Assim que o PIX é confirmado, o Asaas chama esta URL e a mensagem "Pagamento concluído" aparece na próxima verificação (polling).
+ * Token: no Asaas gere um token e defina ASAAS_WEBHOOK_TOKEN no ambiente (local e produção).
  */
 export async function POST(request: NextRequest) {
   try {
+    const tokenEnv = process.env.ASAAS_WEBHOOK_TOKEN?.trim()
+    if (tokenEnv) {
+      const headerToken = request.headers.get('asaas-access-token')?.trim()
+      if (headerToken !== tokenEnv) {
+        return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
+      }
+    }
+
     const body = await request.json().catch(() => ({}))
     const event = body?.event
     const payment = body?.payment

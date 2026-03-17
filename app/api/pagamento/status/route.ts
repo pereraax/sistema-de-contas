@@ -3,6 +3,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { buscarPagamentosAssinatura } from '@/lib/asaas'
 
+export const dynamic = 'force-dynamic'
+
 // Status do Asaas que indicam pagamento concluído
 const STATUS_PAGO = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']
 
