@@ -51,6 +51,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true })
     }
 
+    console.log('[webhook-asaas] recebido', {
+      event,
+      subscriptionId,
+      paymentId: payment?.id ?? null,
+      status: payment?.status ?? null,
+      value: payment?.value ?? null,
+    })
+
     const { ok } = await confirmarAssinaturaGuest(subscriptionId)
     if (ok) {
       try {

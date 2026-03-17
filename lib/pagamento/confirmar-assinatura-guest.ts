@@ -6,6 +6,14 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { buscarAssinaturaAsaas } from '@/lib/asaas'
 import { sendMail } from '@/lib/mailer'
 
+function maskEmail(email?: string | null) {
+  const e = (email || '').trim()
+  if (!e.includes('@')) return '(sem-email)'
+  const [user, domain] = e.split('@')
+  const safeUser = (user || '').slice(0, 2) + '***'
+  return `${safeUser}@${domain}`
+}
+
 export async function confirmarAssinaturaGuest(subscriptionId: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const subscription = await buscarAssinaturaAsaas(subscriptionId)
@@ -26,6 +34,12 @@ export async function confirmarAssinaturaGuest(subscriptionId: string): Promise<
       .single()
 
     const alreadyActive = profile?.plano_status === 'ativo'
+    console.log('[confirmar-assinatura-guest] ativando plano', {
+      subscriptionId,
+      userId: String(userId).slice(0, 8) + '...',
+      alreadyActive,
+      email: maskEmail(profile?.email),
+    })
 
     await admin
       .from('profiles')
@@ -39,6 +53,10 @@ export async function confirmarAssinaturaGuest(subscriptionId: string): Promise<
 
     if (profile?.email && !alreadyActive) {
       try {
+        console.log('[confirmar-assinatura-guest] enviando email de boas-vindas', {
+          subscriptionId,
+          email: maskEmail(profile.email),
+        })
         const nome = (profile.nome || '').trim() || 'Assinante'
         const siteUrl = 'https://plenipay.com'
         const loginUrl = `${siteUrl}/auth/login`
@@ -60,6 +78,10 @@ export async function confirmarAssinaturaGuest(subscriptionId: string): Promise<
           to: profile.email,
           subject: 'Pagamento concluído – Acesse sua conta no Plenipay',
           html,
+        })
+        console.log('[confirmar-assinatura-guest] email enviado', {
+          subscriptionId,
+          email: maskEmail(profile.email),
         })
       } catch (err: any) {
         console.error('[confirmar-assinatura-guest] Erro ao enviar email:', err?.message)
