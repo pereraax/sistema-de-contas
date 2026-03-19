@@ -27,6 +27,7 @@ function CadastroContent() {
     if (isApp) router.replace('/?platform=app')
   }, [isApp, router])
   const plano = (searchParams?.get('plano') as 'teste' | 'basico' | 'premium') || 'teste'
+  const emailFromUrl = searchParams?.get('email')?.trim() || ''
   const refFromUrl = searchParams?.get('ref') || null
 
   const [loading, setLoading] = useState(false)
@@ -59,6 +60,13 @@ function CadastroContent() {
       setCodigoPreenchidoPeloLink(true)
     }
   }, [refFromUrl])
+
+  // Se o e-mail vier no link (ex.: checkout guest), pré-preenche para reduzir erros.
+  useEffect(() => {
+    if (!emailFromUrl) return
+    setFormData((prev) => ({ ...prev, email: emailFromUrl }))
+    setEmailCadastrado(emailFromUrl)
+  }, [emailFromUrl])
 
   useEffect(() => {
     if (refFromUrl || formData.codigoIndicacao) return

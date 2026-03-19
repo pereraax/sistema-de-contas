@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
 import {
   criarCustomerAsaas,
   criarAssinaturaAsaas,
   buscarPagamentosAssinatura,
   buscarPixQrCode,
 } from '@/lib/asaas'
-import crypto from 'crypto'
 
 // Plano oferta quiz: anual a R$ 29,90
 const PLANO_GUEST = {
   valor: 29.9,
   ciclo: 'YEARLY' as const,
-  descricao: 'Plano Anual',
+  descricao: 'Plano Básico',
   trialDias: 0,
 }
 
@@ -65,113 +63,21 @@ export async function POST(request: NextRequest) {
     }
 
     const billingType = metodoPagamento === 'CREDIT_CARD' ? 'CREDIT_CARD' : metodoPagamento === 'BOLETO' ? 'BOLETO' : 'PIX'
+    // Fluxo novo: NÃO criamos cadastro no Supabase aqui.
+    // Só usamos o e-mail para identificar a compra.
+    const nomeFinal = nomeTrim
+    const emailFinal = emailNorm
+    const cpfFinal = cpfLimpo
+    const phoneFinal = celularLimpo.length >= 10 ? celularLimpo : undefined
 
-    const admin = createAdminClient()
-    if (!admin) {
-      return NextResponse.json(
-        { success: false, error: 'Serviço temporariamente indisponível.' },
-        { status: 503 }
-      )
-    }
-
-    let userId: string
-
-    const { data: profileByEmail } = await admin
-      .from('profiles')
-      .select('id')
-      .eq('email', emailNorm)
-      .maybeSingle()
-
-    if (profileByEmail?.id) {
-      userId = profileByEmail.id
-      await admin
-        .from('profiles')
-        .update({
-          nome: nomeTrim,
-          cpf: cpfLimpo,
-          ...(celularLimpo.length >= 10 && { whatsapp: celularLimpo }),
-        })
-        .eq('id', userId)
-    } else {
-      const { data: usersData } = await admin.auth.admin.listUsers({ perPage: 1000 })
-      const existingAuth = usersData?.users?.find((u) => (u.email ?? '').toLowerCase() === emailNorm)
-      if (existingAuth?.id) {
-        userId = existingAuth.id
-        await admin
-          .from('profiles')
-          .upsert(
-            {
-              id: userId,
-              email: emailNorm,
-              nome: nomeTrim,
-              cpf: cpfLimpo,
-              ...(celularLimpo.length >= 10 && { whatsapp: celularLimpo }),
-            },
-            { onConflict: 'id' }
-          )
-      } else {
-        const tempPassword = crypto.randomBytes(24).toString('hex')
-        const { data: newUser, error: createError } = await admin.auth.admin.createUser({
-          email: emailNorm,
-          password: tempPassword,
-          email_confirm: true,
-          user_metadata: { full_name: nomeTrim },
-        })
-        const createdId = (newUser as any)?.user?.id ?? (newUser as any)?.id
-        if (createError || !createdId) {
-          console.error('[checkout-guest] createUser:', createError)
-          return NextResponse.json(
-            { success: false, error: createError?.message || 'Não foi possível criar sua conta.' },
-            { status: 400 }
-          )
-        }
-        userId = createdId
-        await admin
-          .from('profiles')
-          .upsert(
-            {
-              id: userId,
-              email: emailNorm,
-              nome: nomeTrim,
-              cpf: cpfLimpo,
-              ...(celularLimpo.length >= 10 && { whatsapp: celularLimpo }),
-            },
-            { onConflict: 'id' }
-          )
-      }
-    }
-
-    const { data: profile } = await admin
-      .from('profiles')
-      .select('id, nome, email, cpf, asaas_customer_id')
-      .eq('id', userId)
-      .single()
-
-    if (!profile) {
-      return NextResponse.json(
-        { success: false, error: 'Perfil não encontrado.' },
-        { status: 400 }
-      )
-    }
-
-    const nomeFinal = (profile.nome || nomeTrim).trim()
-    const emailFinal = profile.email || emailNorm
-    const cpfFinal = (profile.cpf || cpfLimpo).replace(/\D/g, '')
-
-    let customerId = profile.asaas_customer_id
-    if (!customerId) {
-      const customer = await criarCustomerAsaas({
-        name: nomeFinal,
-        email: emailFinal,
-        cpfCnpj: cpfFinal,
-        externalReference: userId,
-      })
-      customerId = customer.id
-      await admin
-        .from('profiles')
-        .update({ asaas_customer_id: customerId })
-        .eq('id', userId)
-    }
+    const customer = await criarCustomerAsaas({
+      name: nomeFinal,
+      email: emailFinal,
+      cpfCnpj: cpfFinal,
+      phone: phoneFinal,
+      externalReference: emailFinal,
+    })
+    const customerId = customer.id
 
     const nextDue = getNextDueDate(PLANO_GUEST.ciclo, PLANO_GUEST.trialDias)
     const subscription = await criarAssinaturaAsaas({
@@ -181,7 +87,8 @@ export async function POST(request: NextRequest) {
       nextDueDate: nextDue,
       cycle: PLANO_GUEST.ciclo,
       description: PLANO_GUEST.descricao,
-      externalReference: userId,
+      // externalReference = email (para confirmar pagamento sem depender de cadastro prévio)
+      externalReference: emailFinal,
     })
 
     const subscriptionId = subscription.id
@@ -220,7 +127,7 @@ export async function POST(request: NextRequest) {
       pixCopyPaste,
       paymentUrl,
       metodoPagamento: billingType,
-      plano: 'anual',
+      plano: 'basico',
     })
   } catch (error: any) {
     const message = error?.message || 'Erro ao processar pagamento.'

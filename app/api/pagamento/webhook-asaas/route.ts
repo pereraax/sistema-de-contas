@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
 import { confirmarAssinaturaGuest } from '@/lib/pagamento/confirmar-assinatura-guest'
 
 export const dynamic = 'force-dynamic'
@@ -59,20 +58,8 @@ export async function POST(request: NextRequest) {
       value: payment?.value ?? null,
     })
 
-    const { ok } = await confirmarAssinaturaGuest(subscriptionId)
-    if (ok) {
-      try {
-        const admin = createAdminClient()
-        if (admin) {
-          await admin.from('pagamento_webhook_confirmations').upsert(
-            { subscription_id: subscriptionId, confirmed_at: new Date().toISOString() },
-            { onConflict: 'subscription_id' }
-          )
-        }
-      } catch {
-        // Tabela pode não existir
-      }
-    }
+    // confirmarAssinaturaGuest registra a confirmação por subscriptionId/email e envia o e-mail.
+    await confirmarAssinaturaGuest(subscriptionId)
 
     return NextResponse.json({ received: true })
   } catch (err: any) {

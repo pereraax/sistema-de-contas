@@ -310,6 +310,37 @@ export async function signUp(
 
     logSuccess('✅ Perfil criado', 'SIGNUP')
 
+    // Ativa automaticamente o plano se este e-mail já pagou no checkout guest (Asaas).
+    // Assim o usuário cadastra depois (sem ter conta criada antes do pagamento).
+    if (supabaseAdmin) {
+      try {
+        const emailNorm = email.trim().toLowerCase()
+        const { data: purchaseRow } = await supabaseAdmin
+          .from('pagamento_webhook_confirmations')
+          .select('plano, confirmed_at')
+          .eq('email', emailNorm)
+          .order('confirmed_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (purchaseRow?.plano) {
+          await supabaseAdmin
+            .from('profiles')
+            .update({
+              plano: purchaseRow.plano,
+              plano_status: 'ativo',
+              plano_data_inicio: new Date().toISOString(),
+            })
+            .eq('id', userToUse.id)
+
+          logInfo('✅ Plano ativado automaticamente por pagamento guest', 'SIGNUP')
+        }
+      } catch (e: any) {
+        // Se a migration ainda não estiver aplicada ou o schema mudar, não quebra o signup.
+        logWarn(`⚠️ Não foi possível ativar plano via pagamento guest: ${e?.message || e}`, 'SIGNUP')
+      }
+    }
+
     // Registrar indicação de afiliado se veio por link (ref=)
     if (referredByCode && referredByCode.trim() && supabaseAdmin) {
       try {

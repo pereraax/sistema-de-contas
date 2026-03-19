@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
           .maybeSingle()
         if (cached) {
           return NextResponse.json(
-            { success: true, pago: true, plano: 'premium' },
+            { success: true, pago: true, plano: 'basico' },
             { headers: noCacheHeaders }
           )
         }
@@ -82,19 +82,10 @@ export async function GET(request: NextRequest) {
             { headers: noCacheHeaders }
           )
         }
-        const { ok } = await confirmarAssinaturaGuest(subscriptionId)
-        if (ok && admin) {
-          try {
-            await admin.from('pagamento_webhook_confirmations').upsert(
-              { subscription_id: subscriptionId, confirmed_at: new Date().toISOString() },
-              { onConflict: 'subscription_id' }
-            )
-          } catch {
-            // ignora
-          }
-        }
+        // confirmarAssinaturaGuest já registra cache por subscriptionId/email e envia e-mail.
+        await confirmarAssinaturaGuest(subscriptionId)
         return NextResponse.json(
-          { success: true, pago: true, plano: 'premium', paymentStatus },
+          { success: true, pago: true, plano: 'basico', paymentStatus },
           { headers: noCacheHeaders }
         )
       } catch (err: any) {
@@ -120,20 +111,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, pago: false }, { headers: noCacheHeaders })
     }
 
-    const { ok } = await confirmarAssinaturaGuest(subscriptionId)
-    if (ok && admin) {
-      try {
-        await admin.from('pagamento_webhook_confirmations').upsert(
-          { subscription_id: subscriptionId, confirmed_at: new Date().toISOString() },
-          { onConflict: 'subscription_id' }
-        )
-      } catch {
-        // Tabela pode não existir; ignora
-      }
-    }
+    // confirmarAssinaturaGuest já registra cache por subscriptionId/email e envia e-mail.
+    await confirmarAssinaturaGuest(subscriptionId)
 
     return NextResponse.json(
-      { success: true, pago: true, plano: 'premium' },
+      { success: true, pago: true, plano: 'basico' },
       { headers: noCacheHeaders }
     )
   } catch (error: any) {

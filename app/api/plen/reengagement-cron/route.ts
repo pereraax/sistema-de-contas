@@ -12,7 +12,7 @@ import {
   getMensagemCadastroIgnorado,
   markIgnoredCadastroFollowupSent,
 } from '@/lib/plen/reengagement/ignored-cadastro'
-import { setReengTierSentAt } from '@/lib/plen/state/user-state-manager'
+import { setReengagementSentAt } from '@/lib/plen/state/user-state-manager'
 import { enqueuePlenMessage } from '@/lib/plen/queue/message-queue'
 import { processPlenQueue } from '@/lib/plen/queue/queue-worker'
 
@@ -46,7 +46,9 @@ export async function GET(request: Request) {
       const nome = c.nome?.trim() && c.nome.length >= 2 ? c.nome : 'amigo'
       const msg = getMensagemReengajamentoTier(c.tier, nome)
       await enqueuePlenMessage(c.contact_id, msg, new Date())
-      await setReengTierSentAt(c.contact_id, c.tier)
+      // `plen_user_state` hoje só persiste `reengagement_sent_at` (um timestamp único).
+      // Então marcamos como "reengajamento enviado" sem distinguir o tier.
+      await setReengagementSentAt(c.contact_id)
       sentTiers++
     }
 
