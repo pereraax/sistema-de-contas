@@ -74,15 +74,22 @@ export async function confirmarAssinaturaGuest(subscriptionId: string): Promise<
             <p>Qualquer dúvida, estamos à disposição. Bom uso! 🎉</p>
           </div>
         `
-        await sendMail({
+        // Importante: não bloquear o fluxo do webhook/polling com envio de e-mail.
+        // O pagamento precisa "constar" rapidamente; o e-mail pode chegar alguns segundos depois.
+        void sendMail({
           to: profile.email,
           subject: 'Pagamento concluído – Acesse sua conta no Plenipay',
           html,
         })
-        console.log('[confirmar-assinatura-guest] email enviado', {
-          subscriptionId,
-          email: maskEmail(profile.email),
-        })
+          .then(() => {
+            console.log('[confirmar-assinatura-guest] email enviado', {
+              subscriptionId,
+              email: maskEmail(profile.email),
+            })
+          })
+          .catch((err: any) => {
+            console.error('[confirmar-assinatura-guest] Erro ao enviar email:', err?.message ?? err)
+          })
       } catch (err: any) {
         console.error('[confirmar-assinatura-guest] Erro ao enviar email:', err?.message)
       }

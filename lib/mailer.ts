@@ -130,6 +130,18 @@ function createTransporter(cfg: { host: string; port: number; secure: boolean; a
 }
 
 export async function sendMail({ to, subject, html }: SendMailArgs) {
+  const isProductionLike = process.env.NODE_ENV === 'production' || process.env.RAILWAY || process.env.RENDER
+
+  // Em produção, preferimos Resend quando configurado para reduzir latência do SMTP.
+  // Se Resend falhar por qualquer motivo, fazemos fallback para SMTP.
+  if (isProductionLike && isResendConfigured()) {
+    try {
+      return await sendMailViaResend({ to, subject, html })
+    } catch (err: any) {
+      console.warn('[mailer] Resend falhou, fazendo fallback para SMTP:', err?.message ?? err)
+    }
+  }
+
   // SMTP em primeiro lugar: quem configura SMTP_* usa só SMTP (sem Resend)
   const cfg = getSmtpConfig()
   if (cfg) {
