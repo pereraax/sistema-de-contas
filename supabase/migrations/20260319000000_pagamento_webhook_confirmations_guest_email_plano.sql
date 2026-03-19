@@ -1,4 +1,4 @@
--- Guest checkout (Asaas PIX/cartão): precisamos guardar email/plano para ativar automaticamente no /cadastro
+'-- Guest checkout (Asaas PIX/cartão): precisamos guardar email/plano para ativar automaticamente no /cadastro
 -- Idempotente: alguns ambientes podem não ter aplicado antes a migration base
 -- que cria `pagamento_webhook_confirmations`.
 CREATE TABLE IF NOT EXISTS pagamento_webhook_confirmations (
@@ -15,3 +15,4 @@ ALTER TABLE pagamento_webhook_confirmations
 CREATE INDEX IF NOT EXISTS idx_pagamento_webhook_confirmations_email
   ON pagamento_webhook_confirmations(email);
 
+'

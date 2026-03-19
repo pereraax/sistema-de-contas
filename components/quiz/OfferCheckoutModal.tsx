@@ -19,6 +19,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { createNotification } from '@/components/NotificationBell'
 import logoTipoFundoClaro from '@/assets/fundo claro.png'
+import type { QRCodeToDataURLOptions } from 'qrcode'
 
 const SOFT_BLUE = '#4F7CFF' // Azul mais suave
 const PLANO_ANUAL_VALOR = 29.9
@@ -85,6 +86,9 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
   const [manualCheckLoading, setManualCheckLoading] = useState(false)
   const [manualCheckNote, setManualCheckNote] = useState<string | null>(null)
 
+  // Gera QR em cima do payload (pixCopyPaste) para garantir "escaneabilidade" no app do banco.
+  const [generatedPixQrCode, setGeneratedPixQrCode] = useState<string | null>(null)
+
   const checkAuth = useCallback(async () => {
     if (!open) return
     setLoadingAuth(true)
@@ -124,6 +128,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
       setPixTimeout(false)
       setManualCheckLoading(false)
       setManualCheckNote(null)
+      setGeneratedPixQrCode(null)
     }
   }, [open])
 
@@ -163,6 +168,44 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
       setPixLoading(false)
     }
   }, [step, pixData?.subscriptionId, pixData?.pixQrCode, pixData?.pixCopyPaste])
+
+  // Quando chegarem pixCopyPaste/pixQrCode, preferimos gerar o QR a partir do texto copiado (fonte da verdade).
+  useEffect(() => {
+    if (step !== 'pix') return
+    const payload = (pixData?.pixCopyPaste ?? '').toString().trim()
+    if (!payload) {
+      setGeneratedPixQrCode(null)
+      return
+    }
+
+    let cancelled = false
+    setGeneratedPixQrCode(null)
+
+    const run = async () => {
+      try {
+        const qrcodeMod = await import('qrcode')
+        const QR = qrcodeMod?.default ?? qrcodeMod
+        // Escaneabilidade: mais resolução + margem pequena.
+        const opts: QRCodeToDataURLOptions = {
+          margin: 2,
+          // `width` é mais confiável pra renderizar bem em telas diferentes
+          width: 512,
+          errorCorrectionLevel: 'M',
+          type: 'image/png',
+        } as any
+        const dataUrl = await QR.toDataURL(payload, opts)
+        if (!cancelled) setGeneratedPixQrCode(dataUrl)
+      } catch {
+        // Se falhar, volta a usar a imagem base64/href que o Asaas devolveu.
+        if (!cancelled) setGeneratedPixQrCode(null)
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [step, pixData?.pixCopyPaste])
 
   // Polling status do PIX (guest): verificação imediata + a cada 1s (webhook Asaas deixa instantâneo)
   useEffect(() => {
@@ -407,15 +450,17 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                       <div className="flex justify-center bg-white p-4 rounded-xl border border-slate-200">
                         <img
                           src={
-                            pixData.pixQrCode.startsWith('data:')
-                              ? pixData.pixQrCode
-                              : pixData.pixQrCode.startsWith('http')
+                            generatedPixQrCode
+                              ? generatedPixQrCode
+                              : pixData.pixQrCode.startsWith('data:')
                                 ? pixData.pixQrCode
-                                : `data:image/png;base64,${pixData.pixQrCode}`
+                                : pixData.pixQrCode.startsWith('http')
+                                  ? pixData.pixQrCode
+                                  : `data:image/png;base64,${pixData.pixQrCode}`
                           }
                           alt="QR Code PIX"
                           // QR precisa ser "escaneável" pela câmera do banco; aumentamos o tamanho para reduzir falhas.
-                          className="w-64 h-64 object-contain"
+                          className="w-80 h-80 object-contain"
                         />
                       </div>
                     )}
