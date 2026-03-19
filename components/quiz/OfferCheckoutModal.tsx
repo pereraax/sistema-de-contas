@@ -414,7 +414,8 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                                 : `data:image/png;base64,${pixData.pixQrCode}`
                           }
                           alt="QR Code PIX"
-                          className="w-48 h-48 object-contain"
+                          // QR precisa ser "escaneável" pela câmera do banco; aumentamos o tamanho para reduzir falhas.
+                          className="w-64 h-64 object-contain"
                         />
                       </div>
                     )}
@@ -425,7 +426,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                           <input
                             type="text"
                             readOnly
-                            value={pixData.pixCopyPaste}
+                            value={String(pixData.pixCopyPaste).trim()}
                             className="flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-xs text-slate-600 bg-slate-50"
                           />
                           <button
