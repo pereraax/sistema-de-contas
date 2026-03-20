@@ -431,6 +431,7 @@ export async function buscarPagamentosAssinatura(subscriptionId: string): Promis
   const apiKey = getAsaasApiKeyLazy()
   
   const response = await fetch(`${getResolvedAsaasApiUrl()}/subscriptions/${subscriptionId}/payments`, {
+    cache: 'no-store',
     headers: {
       'access_token': apiKey,
     },
@@ -451,6 +452,7 @@ export async function buscarPagamentoAsaas(paymentId: string): Promise<AsaasResp
   const apiKey = getAsaasApiKeyLazy()
   
   const response = await fetch(`${getResolvedAsaasApiUrl()}/payments/${paymentId}`, {
+    cache: 'no-store',
     headers: {
       'access_token': apiKey,
     },
@@ -471,6 +473,7 @@ export async function buscarStatusPagamentoAsaas(paymentId: string): Promise<{ s
   const apiKey = getAsaasApiKeyLazy()
 
   const response = await fetch(`${getResolvedAsaasApiUrl()}/payments/${paymentId}/status`, {
+    cache: 'no-store',
     headers: {
       access_token: apiKey,
     },
