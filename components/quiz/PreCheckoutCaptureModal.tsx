@@ -56,6 +56,12 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
   const [typing, setTyping] = useState(false)
   const [introTyping, setIntroTyping] = useState(true)
   const [introReady, setIntroReady] = useState(false)
+  const [userStartMessage, setUserStartMessage] = useState<string | null>(null)
+  const [userEmailMessage, setUserEmailMessage] = useState<string | null>(null)
+  const [userPhoneMessage, setUserPhoneMessage] = useState<string | null>(null)
+  const [emailPromptVisible, setEmailPromptVisible] = useState(false)
+  const [phonePromptVisible, setPhonePromptVisible] = useState(false)
+  const [donePromptVisible, setDonePromptVisible] = useState(false)
   const [busy, setBusy] = useState(false)
   const [errorText, setErrorText] = useState<string | null>(null)
 
@@ -85,6 +91,12 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
     setTyping(false)
     setIntroTyping(true)
     setIntroReady(false)
+    setUserStartMessage(null)
+    setUserEmailMessage(null)
+    setUserPhoneMessage(null)
+    setEmailPromptVisible(false)
+    setPhonePromptVisible(false)
+    setDonePromptVisible(false)
     setBusy(false)
     setErrorText(null)
     setEmail('')
@@ -98,7 +110,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
     const introTimer = setTimeout(() => {
       setIntroTyping(false)
       setIntroReady(true)
-    }, 1100)
+    }, 3000)
 
     // Confete automático na entrada da página.
     if (!confettiIntroFired.current) {
@@ -243,9 +255,9 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
               </div>
             </div>
 
-            {/* Assistant bubble */}
-            <div className="flex justify-center">
-              <div className="max-w-[90%] rounded-2xl bg-[#1e4976] text-white px-4 py-3 shadow-sm mx-auto min-h-[56px] flex items-center justify-center">
+            {/* Assistant bubble (lado esquerdo) */}
+            <div className="flex justify-start">
+              <div className="max-w-[90%] rounded-2xl bg-[#1e4976] text-white px-4 py-3 shadow-sm min-h-[56px] flex items-center justify-center">
                 {introTyping ? (
                   <TypingDots />
                 ) : (
@@ -262,11 +274,20 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
                   onClick={() => {
                     if (busy) return
                     setBusy(false)
+                    setUserStartMessage('Quero receber')
                     setTyping(true)
+                    setEmailPromptVisible(false)
+                    setPhonePromptVisible(false)
+                    setDonePromptVisible(false)
+                    setStage('email')
+
+                    setUserEmailMessage(null)
+                    setUserPhoneMessage(null)
+
                     setTimeout(() => {
                       setTyping(false)
-                      setStage('email')
-                    }, 850)
+                      setEmailPromptVisible(true)
+                    }, 3000)
                   }}
                   className="w-full rounded-xl py-3.5 text-sm font-semibold text-white"
                   style={{ backgroundColor: '#4F7CFF' }}
@@ -276,140 +297,181 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
               </div>
             )}
 
-            {typing && stage !== 'done' && (
-              <div className="flex justify-start">
-                <div className="max-w-[85%] rounded-2xl bg-slate-800 text-white px-4 py-3 shadow-sm border border-white/10">
-                  <TypingDots />
-                </div>
-              </div>
-            )}
-
             {stage === 'email' && (
               <>
-                <div className="flex justify-center">
+                {userStartMessage && (
+                  <div className="flex justify-end">
+                    <div className="max-w-[85%] rounded-2xl bg-[#eaf2ff] text-slate-900 px-4 py-3 shadow-sm border border-[#dbeafe]">
+                      {userStartMessage}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-start">
                   <div className="max-w-[85%] rounded-2xl bg-slate-800 text-white px-4 py-3 shadow-sm border border-white/10">
-                    <div className="text-sm leading-relaxed whitespace-pre-line">{assistantAskEmail}</div>
+                    {typing ? (
+                      <TypingDots />
+                    ) : (
+                      emailPromptVisible && (
+                        <div className="text-sm leading-relaxed whitespace-pre-line">{assistantAskEmail}</div>
+                      )
+                    )}
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <label className="block text-sm font-medium text-slate-700">Seu e-mail *</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onBlur={() => setEmailTouched(true)}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="seu@email.com"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:border-[#4F7CFF] focus:outline-none focus:ring-2 focus:ring-[#4F7CFF]/20"
-                  />
-                  {emailTouched && !canContinueEmail && <p className="text-xs text-amber-600">Digite um e-mail válido.</p>}
+                <div className="flex justify-end">
+                  <div className="w-full max-w-[85%] space-y-3 rounded-2xl bg-[#eaf2ff] p-3 border border-[#dbeafe]">
+                    <label className="block text-sm font-medium text-slate-700">Seu e-mail *</label>
+                    <input
+                      type="email"
+                      value={email}
+                      disabled={typing}
+                      onBlur={() => setEmailTouched(true)}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="seu@email.com"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:border-[#4F7CFF] focus:outline-none focus:ring-2 focus:ring-[#4F7CFF]/20 bg-white"
+                    />
+                    {emailTouched && !canContinueEmail && <p className="text-xs text-amber-700">Digite um e-mail válido.</p>}
 
-                  <button
-                    type="button"
-                    disabled={!canContinueEmail || busy}
-                    onClick={() => {
-                      setTyping(true)
-                      setEmailTouched(true)
-                      setTimeout(() => {
-                        setTyping(false)
+                    <button
+                      type="button"
+                      disabled={!canContinueEmail || busy || typing}
+                      onClick={() => {
+                        setUserEmailMessage(email.trim())
+                        setTyping(true)
+                        setPhonePromptVisible(false)
+                        setDonePromptVisible(false)
+
                         fireConfetti('email')
                         setStage('phone')
-                      }, 850)
-                    }}
-                    className="w-full rounded-xl py-3 text-sm font-semibold text-white"
-                    style={{ backgroundColor: '#4F7CFF' }}
-                  >
-                    Confirmar e-mail
-                  </button>
+
+                        setTimeout(() => {
+                          setTyping(false)
+                          setPhonePromptVisible(true)
+                        }, 3000)
+                      }}
+                      className="w-full rounded-xl py-3 text-sm font-semibold text-white"
+                      style={{ backgroundColor: '#4F7CFF' }}
+                    >
+                      Confirmar e-mail
+                    </button>
+                  </div>
                 </div>
               </>
             )}
 
             {stage === 'phone' && (
               <>
-                <div className="flex justify-center">
+                {userEmailMessage && (
+                  <div className="flex justify-end">
+                    <div className="max-w-[85%] rounded-2xl bg-[#eaf2ff] text-slate-900 px-4 py-3 shadow-sm border border-[#dbeafe]">
+                      {userEmailMessage}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-start">
                   <div className="max-w-[85%] rounded-2xl bg-slate-800 text-white px-4 py-3 shadow-sm border border-white/10">
-                    <div className="text-sm leading-relaxed whitespace-pre-line">{assistantAskPhone}</div>
+                    {typing ? <TypingDots /> : phonePromptVisible && <div className="text-sm leading-relaxed whitespace-pre-line">{assistantAskPhone}</div>}
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <label className="block text-sm font-medium text-slate-700">Seu número *</label>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    value={celularFormatted}
-                    onBlur={() => setCelTouched(true)}
-                    onChange={(e) => {
-                      const digits = String(e.target.value || '').replace(/\D/g, '')
-                      const normalized = digits.length === 13 && digits.startsWith('55') ? digits.slice(2) : digits
-                      setCelularDigits(normalized)
-                    }}
-                    placeholder="(00) 00000-0000"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:border-[#4F7CFF] focus:outline-none focus:ring-2 focus:ring-[#4F7CFF]/20"
-                  />
+                <div className="flex justify-end">
+                  <div className="w-full max-w-[85%] space-y-3 rounded-2xl bg-[#eaf2ff] p-3 border border-[#dbeafe]">
+                    <label className="block text-sm font-medium text-slate-700">Seu número *</label>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      value={celularFormatted}
+                      disabled={typing}
+                      onBlur={() => setCelTouched(true)}
+                      onChange={(e) => {
+                        const digits = String(e.target.value || '').replace(/\D/g, '')
+                        const normalized = digits.length === 13 && digits.startsWith('55') ? digits.slice(2) : digits
+                        setCelularDigits(normalized)
+                      }}
+                      placeholder="(00) 00000-0000"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:border-[#4F7CFF] focus:outline-none focus:ring-2 focus:ring-[#4F7CFF]/20 bg-white"
+                    />
 
-                  {celTouched && !canContinuePhone && <p className="text-xs text-amber-600">Digite um número com DDD.</p>}
+                    {celTouched && !canContinuePhone && <p className="text-xs text-amber-700">Digite um número com DDD.</p>}
 
-                  <button
-                    type="button"
-                    disabled={!canContinuePhone || busy}
-                    onClick={() => {
-                      setTyping(true)
-                      setCelTouched(true)
-                      setTimeout(() => {
-                        setTyping(false)
+                    <button
+                      type="button"
+                      disabled={!canContinuePhone || busy || typing}
+                      onClick={() => {
+                        setUserPhoneMessage(celularFormatted)
+                        setTyping(true)
+                        setDonePromptVisible(false)
+
                         fireConfetti('phone')
                         setStage('done')
-                      }, 900)
-                    }}
-                    className="w-full rounded-xl py-3 text-sm font-semibold text-white"
-                    style={{ backgroundColor: '#4F7CFF' }}
-                  >
-                    Confirmar número
-                  </button>
+
+                        setTimeout(() => {
+                          setTyping(false)
+                          setDonePromptVisible(true)
+                        }, 3000)
+                      }}
+                      className="w-full rounded-xl py-3 text-sm font-semibold text-white"
+                      style={{ backgroundColor: '#4F7CFF' }}
+                    >
+                      Confirmar número
+                    </button>
+                  </div>
                 </div>
               </>
             )}
 
             {stage === 'done' && (
               <div className="space-y-4 pt-2">
-                <div className="flex justify-start">
-                  <div className="max-w-[85%] rounded-2xl bg-[#1e4976] text-white px-4 py-3 shadow-sm">
-                    <div className="text-sm leading-relaxed whitespace-pre-line">{assistantDone}</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-center">
-                  <div className="inline-flex h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: '#4F7CFF18' }}>
-                    <CheckCircle className="h-7 w-7 text-[#4F7CFF]" />
-                  </div>
-                </div>
-
-                {errorText && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
-                    {errorText}
+                {userPhoneMessage && (
+                  <div className="flex justify-end">
+                    <div className="max-w-[85%] rounded-2xl bg-[#eaf2ff] text-slate-900 px-4 py-3 shadow-sm border border-[#dbeafe]">
+                      {userPhoneMessage}
+                    </div>
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={handleRegisterAndContinue}
-                  disabled={busy}
-                  className="w-full rounded-xl py-3.5 text-base font-semibold text-white"
-                  style={{ backgroundColor: '#4F7CFF' }}
-                >
-                  {busy ? (
-                    <span className="inline-flex items-center gap-2 justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Criando sua conta...
-                    </span>
-                  ) : (
-                    'Continuar para o checkout'
-                  )}
-                </button>
+                <div className="flex justify-start">
+                  <div className="max-w-[85%] rounded-2xl bg-[#1e4976] text-white px-4 py-3 shadow-sm border border-white/10">
+                    {typing ? <TypingDots /> : donePromptVisible && <div className="text-sm leading-relaxed whitespace-pre-line">{assistantDone}</div>}
+                  </div>
+                </div>
 
-                <p className="text-center text-xs text-slate-500">Em seguida, você vai finalizar o pagamento com PIX.</p>
+                {donePromptVisible && (
+                  <>
+                    <div className="flex items-center justify-center">
+                      <div className="inline-flex h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: '#4F7CFF18' }}>
+                        <CheckCircle className="h-7 w-7 text-[#4F7CFF]" />
+                      </div>
+                    </div>
+
+                    {errorText && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                        {errorText}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleRegisterAndContinue}
+                      disabled={busy}
+                      className="w-full rounded-xl py-3.5 text-base font-semibold text-white"
+                      style={{ backgroundColor: '#4F7CFF' }}
+                    >
+                      {busy ? (
+                        <span className="inline-flex items-center gap-2 justify-center">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Criando sua conta...
+                        </span>
+                      ) : (
+                        'Continuar para o checkout'
+                      )}
+                    </button>
+
+                    <p className="text-center text-xs text-slate-500">Em seguida, você vai finalizar o pagamento com PIX.</p>
+                  </>
+                )}
               </div>
             )}
           </div>
