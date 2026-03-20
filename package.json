@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
-    "dev:auto": "while true; do npm run dev || true; echo 'Reiniciando em 3s...'; sleep 3; done",
+    "dev": "bash scripts/dev.sh",
+    "dev:raw": "next dev -p 3000",
+    "dev:auto": "while true; do npm run dev:raw || true; echo 'Reiniciando em 3s...'; sleep 3; done",
     "dev:webhook": "echo '' && echo '📡 Para testar áudio/API Fácil em local: em outro terminal rode: ngrok http 3000' && echo '   Depois em apifacil.dev coloque a URL: https://SEU-NGROK/api/whatsapp/apifacil/webhook' && echo '   Guia completo: TESTAR-WEBHOOK-LOCAL.md (seção \"Corrigir áudio em local\")' && echo '' && next dev -p 3000",
     "dev:reset": "rm -rf .next && next dev -p 3000",
     "build": "next build",
