@@ -7,10 +7,6 @@ import {
   isLikelyValidBrPixPayload,
 } from '@/lib/pagamento/pix-helpers'
 
-// URLs oficiais (docs Asaas): sandbox = api-sandbox.asaas.com, produção = api.asaas.com
-// Evite sandbox.asaas.com/api/v3 e www.asaas.com — podem gerar comportamento inconsistente.
-const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://api-sandbox.asaas.com/v3'
-
 // IMPORTANTE: Em produção (Railway), as variáveis vêm de process.env (não de .env.local)
 // Ler apenas de process.env para evitar erros durante o build
 function getAsaasApiKey(): string {
@@ -58,6 +54,54 @@ function getAsaasApiKeyLazy(): string {
   return cachedApiKey
 }
 
+/** Sandbox e produção oficiais (docs Asaas). Evite www.asaas.com ou sandbox.asaas.com/api. */
+const DEFAULT_ASAAS_SANDBOX = 'https://api-sandbox.asaas.com/v3'
+const DEFAULT_ASAAS_PRODUCTION = 'https://api.asaas.com/v3'
+
+/**
+ * Chaves: `$aact_hmlg_*` = homologação (sandbox), `$aact_prod_*` = produção.
+ * Se a URL e a chave forem de ambientes diferentes, a API do Asaas falha (checkout 500, sem QR).
+ */
+function computeResolvedAsaasApiUrl(): string {
+  const configured = (process.env.ASAAS_API_URL || '').trim()
+  const fallback = configured || DEFAULT_ASAAS_SANDBOX
+  const apiKey = getAsaasApiKey()
+
+  const isSandboxKey = /_hmlg_/i.test(apiKey)
+  const isProdKey = /_prod_/i.test(apiKey)
+
+  const urlIsProduction =
+    /api\.asaas\.com/i.test(configured) && !/api-sandbox/i.test(configured)
+  const urlIsSandbox = /api-sandbox\.asaas\.com/i.test(configured)
+
+  if (isSandboxKey && urlIsProduction) {
+    console.warn(
+      '[lib/asaas] Chave homologação (hmlg) com ASAAS_API_URL de produção — usando sandbox:',
+      DEFAULT_ASAAS_SANDBOX,
+      '(defina ASAAS_API_URL=https://api-sandbox.asaas.com/v3 no .env)'
+    )
+    return DEFAULT_ASAAS_SANDBOX
+  }
+  if (isProdKey && urlIsSandbox) {
+    console.warn(
+      '[lib/asaas] Chave produção com URL sandbox — usando produção:',
+      DEFAULT_ASAAS_PRODUCTION
+    )
+    return DEFAULT_ASAAS_PRODUCTION
+  }
+
+  return fallback
+}
+
+let asaasResolvedBaseUrl: string | null = null
+
+export function getResolvedAsaasApiUrl(): string {
+  if (asaasResolvedBaseUrl === null) {
+    asaasResolvedBaseUrl = computeResolvedAsaasApiUrl()
+  }
+  return asaasResolvedBaseUrl
+}
+
 export interface AsaasCustomer {
   name: string
   email: string
@@ -98,12 +142,12 @@ export async function criarCustomerAsaas(customer: AsaasCustomer): Promise<Asaas
     email: customer.email,
     hasCpf: !!customer.cpfCnpj,
     cpfLength: customer.cpfCnpj?.length || 0,
-    apiUrl: ASAAS_API_URL,
+    apiUrl: getResolvedAsaasApiUrl(),
     apiKeyLength: apiKey.length,
     apiKeyPrefix: apiKey.substring(0, 20) + '...',
   })
   
-  const response = await fetch(`${ASAAS_API_URL}/customers`, {
+  const response = await fetch(`${getResolvedAsaasApiUrl()}/customers`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -158,7 +202,7 @@ export async function criarCustomerAsaas(customer: AsaasCustomer): Promise<Asaas
 export async function criarAssinaturaAsaas(subscription: AsaasSubscription): Promise<AsaasResponse> {
   const apiKey = getAsaasApiKeyLazy()
   
-  const response = await fetch(`${ASAAS_API_URL}/subscriptions`, {
+  const response = await fetch(`${getResolvedAsaasApiUrl()}/subscriptions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -205,7 +249,7 @@ export async function criarAssinaturaAsaas(subscription: AsaasSubscription): Pro
 export async function buscarAssinaturaAsaas(subscriptionId: string): Promise<AsaasResponse> {
   const apiKey = getAsaasApiKeyLazy()
   
-  const response = await fetch(`${ASAAS_API_URL}/subscriptions/${subscriptionId}`, {
+  const response = await fetch(`${getResolvedAsaasApiUrl()}/subscriptions/${subscriptionId}`, {
     headers: {
       'access_token': apiKey,
     },
@@ -224,7 +268,7 @@ export async function buscarAssinaturaAsaas(subscriptionId: string): Promise<Asa
 export async function cancelarAssinaturaAsaas(subscriptionId: string): Promise<AsaasResponse> {
   const apiKey = getAsaasApiKeyLazy()
   
-  const response = await fetch(`${ASAAS_API_URL}/subscriptions/${subscriptionId}`, {
+  const response = await fetch(`${getResolvedAsaasApiUrl()}/subscriptions/${subscriptionId}`, {
     method: 'DELETE',
     headers: {
       'access_token': apiKey,
@@ -244,7 +288,7 @@ export async function cancelarAssinaturaAsaas(subscriptionId: string): Promise<A
 export async function buscarCustomerAsaas(customerId: string): Promise<AsaasResponse> {
   const apiKey = getAsaasApiKeyLazy()
   
-  const response = await fetch(`${ASAAS_API_URL}/customers/${customerId}`, {
+  const response = await fetch(`${getResolvedAsaasApiUrl()}/customers/${customerId}`, {
     headers: {
       'access_token': apiKey,
     },
@@ -263,7 +307,7 @@ export async function buscarCustomerAsaas(customerId: string): Promise<AsaasResp
 export async function atualizarCustomerAsaas(customerId: string, customer: Partial<AsaasCustomer>): Promise<AsaasResponse> {
   const apiKey = getAsaasApiKeyLazy()
   
-  const response = await fetch(`${ASAAS_API_URL}/customers/${customerId}`, {
+  const response = await fetch(`${getResolvedAsaasApiUrl()}/customers/${customerId}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -286,7 +330,7 @@ export async function atualizarCustomerAsaas(customerId: string, customer: Parti
 export async function buscarPagamentosAssinatura(subscriptionId: string): Promise<any[]> {
   const apiKey = getAsaasApiKeyLazy()
   
-  const response = await fetch(`${ASAAS_API_URL}/subscriptions/${subscriptionId}/payments`, {
+  const response = await fetch(`${getResolvedAsaasApiUrl()}/subscriptions/${subscriptionId}/payments`, {
     headers: {
       'access_token': apiKey,
     },
@@ -306,7 +350,7 @@ export async function buscarPagamentosAssinatura(subscriptionId: string): Promis
 export async function buscarPagamentoAsaas(paymentId: string): Promise<AsaasResponse> {
   const apiKey = getAsaasApiKeyLazy()
   
-  const response = await fetch(`${ASAAS_API_URL}/payments/${paymentId}`, {
+  const response = await fetch(`${getResolvedAsaasApiUrl()}/payments/${paymentId}`, {
     headers: {
       'access_token': apiKey,
     },
@@ -324,7 +368,7 @@ async function buscarPixQrCodeUmaVez(
 ): Promise<{ encodedImage?: string; payload?: string; expirationDate?: string; description?: string }> {
   const apiKey = getAsaasApiKeyLazy()
 
-  const response = await fetch(`${ASAAS_API_URL}/payments/${paymentId}/pixQrCode`, {
+  const response = await fetch(`${getResolvedAsaasApiUrl()}/payments/${paymentId}/pixQrCode`, {
     headers: {
       access_token: apiKey,
     },

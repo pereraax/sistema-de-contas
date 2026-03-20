@@ -133,12 +133,12 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     const message = error?.message || 'Erro ao processar pagamento.'
     console.error('❌ [checkout-guest] Erro:', message, error)
-    const isInvalidKey = /inválida|invalid|não está configurada|API key/i.test(message)
+    const isInvalidKey = /inválida|invalid|não está configurada|API key|401|403/i.test(message)
     return NextResponse.json(
       {
         success: false,
         error: isInvalidKey
-          ? `${message} Verifique no Railway: ASAAS_API_KEY e ASAAS_API_URL (produção: https://api.asaas.com/v3 · sandbox: https://api-sandbox.asaas.com/v3).`
+          ? `${message} Use a mesma “família” de ambiente: chave $aact_hmlg_* → ASAAS_API_URL=https://api-sandbox.asaas.com/v3 · chave $aact_prod_* → https://api.asaas.com/v3`
           : message,
       },
       { status: 500 }
