@@ -61,19 +61,24 @@ function getAsaasApiKeyLazy(): string {
   return cachedApiKey
 }
 
-/** Sandbox e produção oficiais (docs Asaas). Evite www.asaas.com ou sandbox.asaas.com/api. */
+/** Sandbox e produção oficiais (docs Asaas). */
 const DEFAULT_ASAAS_SANDBOX = 'https://api-sandbox.asaas.com/v3'
 const DEFAULT_ASAAS_PRODUCTION = 'https://api.asaas.com/v3'
 
 /**
- * Chaves: `$aact_hmlg_*` = homologação (sandbox), `$aact_prod_*` = produção.
- * Se a URL e a chave forem de ambientes diferentes, a API do Asaas falha (checkout 500, sem QR).
+ * Padrão: **produção** (PIX real no banco). Sandbox só se `ASAAS_API_URL` apontar para api-sandbox
+ * ou `ASAAS_USE_SANDBOX=true` (homologação explícita).
+ *
+ * Chaves: `$aact_prod_*` = produção | `$aact_hmlg_*` = homologação (não paga PIX “de verdade” no app do banco).
  */
 function computeResolvedAsaasApiUrl(): string {
   const configured = (process.env.ASAAS_API_URL || '').trim()
-  const fallback = configured || DEFAULT_ASAAS_SANDBOX
-  const apiKey = getAsaasApiKey()
+  const forceSandbox = process.env.ASAAS_USE_SANDBOX === 'true' || process.env.ASAAS_USE_SANDBOX === '1'
+  const fallback = forceSandbox
+    ? DEFAULT_ASAAS_SANDBOX
+    : configured || DEFAULT_ASAAS_PRODUCTION
 
+  const apiKey = getAsaasApiKey()
   const isSandboxKey = /_hmlg_/i.test(apiKey)
   const isProdKey = /_prod_/i.test(apiKey)
 
@@ -81,20 +86,17 @@ function computeResolvedAsaasApiUrl(): string {
     /api\.asaas\.com/i.test(configured) && !/api-sandbox/i.test(configured)
   const urlIsSandbox = /api-sandbox\.asaas\.com/i.test(configured)
 
-  if (isSandboxKey && urlIsProduction) {
-    console.warn(
-      '[lib/asaas] Chave homologação (hmlg) com ASAAS_API_URL de produção — usando sandbox:',
-      DEFAULT_ASAAS_SANDBOX,
-      '(defina ASAAS_API_URL=https://api-sandbox.asaas.com/v3 no .env)'
-    )
-    return DEFAULT_ASAAS_SANDBOX
-  }
-  if (isProdKey && urlIsSandbox) {
-    console.warn(
-      '[lib/asaas] Chave produção com URL sandbox — usando produção:',
-      DEFAULT_ASAAS_PRODUCTION
-    )
+  // Só corrige mistura óbvia: chave prod com URL sandbox → produção
+  if (isProdKey && (urlIsSandbox || forceSandbox)) {
+    console.warn('[lib/asaas] Chave produção com URL/indicador sandbox — usando API de produção:', DEFAULT_ASAAS_PRODUCTION)
     return DEFAULT_ASAAS_PRODUCTION
+  }
+
+  // hmlg + URL produção: NÃO forçamos sandbox (você pediu PIX real). A API pode retornar 401 até trocar a chave.
+  if (isSandboxKey && urlIsProduction) {
+    console.error(
+      '[lib/asaas] Chave de homologação (hmlg) com URL de produção — troque por $aact_prod_ no painel Asaas (produção) para PIX real, ou defina ASAAS_USE_SANDBOX=true e ASAAS_API_URL=https://api-sandbox.asaas.com/v3 só para testes.'
+    )
   }
 
   return fallback

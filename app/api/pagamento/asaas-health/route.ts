@@ -17,7 +17,7 @@ export async function GET() {
 
   const resolvedUrl = getResolvedAsaasApiUrl()
 
-  const urlMismatchFixed =
+  const hmlgComUrlProd =
     keyLooksSandbox &&
     /api\.asaas\.com/i.test(configuredUrl) &&
     !/api-sandbox/i.test(configuredUrl)
@@ -27,17 +27,21 @@ export async function GET() {
     hasApiKey: Boolean(rawKey),
     keyHint: rawKey
       ? keyLooksSandbox
-        ? 'sandbox (hmlg)'
+        ? 'sandbox (hmlg) — não gera PIX real no banco'
         : keyLooksProduction
-          ? 'production (prod)'
+          ? 'production (prod) — adequado para PIX real'
           : 'desconhecido — confira no painel Asaas'
       : 'AUSENTE — defina ASAAS_API_KEY',
-    configuredUrl: configuredUrl || '(não definido — usa padrão sandbox no código)',
+    configuredUrl: configuredUrl || '(não definido — padrão: API produção)',
     resolvedApiBaseUrl: resolvedUrl,
-    runtimeNote: urlMismatchFixed
-      ? 'Chave hmlg com URL de produção: o app força api-sandbox no servidor. Ajuste ASAAS_API_URL no .env para evitar confusão.'
+    pixRealNoBanco:
+      keyLooksProduction &&
+      /api\.asaas\.com/i.test(resolvedUrl) &&
+      !/api-sandbox/i.test(resolvedUrl),
+    runtimeNote: hmlgComUrlProd
+      ? 'Chave hmlg com URL de produção: troque ASAAS_API_KEY por uma chave $aact_prod_ (painel Asaas produção) ou use sandbox explícito: ASAAS_USE_SANDBOX=true e api-sandbox.'
       : null,
-    doc: 'docs/CHECKOUT-PIX-ASAAS-SIMPLES.md',
+    doc: 'docs/ASAAS-PRODUCAO-PIX.md',
   }
 
   return NextResponse.json(body, { status: rawKey ? 200 : 503 })
