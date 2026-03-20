@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import confetti from 'canvas-confetti'
-import { CheckCircle, Loader2, MessageCircle, X } from 'lucide-react'
+import { CheckCircle, Gift, Loader2, MessageCircle, X } from 'lucide-react'
 import { createNotification } from '@/components/NotificationBell'
 
 type CaptureEmailPhone = {
@@ -176,7 +176,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-stretch justify-center p-0">
+    <div className="fixed inset-0 z-[60]">
       <motion.div
         className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
         initial={{ opacity: 0 }}
@@ -186,10 +186,10 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
       />
 
       <motion.div
-        className="relative w-full h-full overflow-y-auto rounded-none bg-white shadow-2xl"
-        initial={{ opacity: 0, y: 0 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 0 }}
+        className="relative w-full h-full overflow-y-auto rounded-none bg-white"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         transition={{ duration: 0.28 }}
       >
         <button
@@ -201,21 +201,23 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
           <X className="h-5 w-5" />
         </button>
 
-        <div className="p-5 pt-12 pb-8">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[#4F7CFF]/15">
-              <MessageCircle className="h-5 w-5 text-[#4F7CFF]" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-slate-900">Receber o presente</div>
-              <div className="text-xs text-slate-500">Etapa rápida antes do checkout</div>
-            </div>
+        <div className="min-h-full p-5 pt-12 pb-8 flex flex-col items-center text-center">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-3xl bg-[#4F7CFF]/15 mb-4">
+            <Gift className="h-6 w-6 text-[#4F7CFF]" />
           </div>
 
-          <div className="space-y-3">
+          <div className="w-full max-w-md space-y-3">
+            <div className="space-y-1">
+              <div className="text-base sm:text-lg font-semibold text-slate-900">Receber o presente</div>
+              <div className="text-xs sm:text-sm text-slate-500">Etapa rápida antes do checkout</div>
+              <div className="text-xs sm:text-sm text-slate-600">
+                Só para preparar seu acesso com o e-mail e WhatsApp certos (sem pedir login agora).
+              </div>
+            </div>
+
             {/* Assistant bubble */}
             <div className="flex justify-start">
-              <div className="max-w-[85%] rounded-2xl bg-[#1e4976] text-white px-4 py-3 shadow-sm">
+              <div className="max-w-[85%] rounded-2xl bg-[#1e4976] text-white px-4 py-3 shadow-sm mx-auto">
                 <div className="text-sm leading-relaxed whitespace-pre-line">{assistantTextStart}</div>
               </div>
             </div>
@@ -252,7 +254,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
 
             {stage === 'email' && (
               <>
-                <div className="flex justify-start">
+                <div className="flex justify-center">
                   <div className="max-w-[85%] rounded-2xl bg-slate-800 text-white px-4 py-3 shadow-sm border border-white/10">
                     <div className="text-sm leading-relaxed whitespace-pre-line">{assistantAskEmail}</div>
                   </div>
@@ -293,7 +295,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
 
             {stage === 'phone' && (
               <>
-                <div className="flex justify-start">
+                <div className="flex justify-center">
                   <div className="max-w-[85%] rounded-2xl bg-slate-800 text-white px-4 py-3 shadow-sm border border-white/10">
                     <div className="text-sm leading-relaxed whitespace-pre-line">{assistantAskPhone}</div>
                   </div>
