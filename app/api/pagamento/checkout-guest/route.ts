@@ -74,6 +74,12 @@ export async function POST(request: NextRequest) {
     }
 
     const billingType = metodoPagamento === 'CREDIT_CARD' ? 'CREDIT_CARD' : metodoPagamento === 'BOLETO' ? 'BOLETO' : 'PIX'
+
+    if (billingType === 'PIX') {
+      // Evita o caso comum de "localhost funciona mas não paga de verdade":
+      // chave hmlg com URL de produção.
+      assertAsaasPixRealEnvironmentConfigured()
+    }
     // Fluxo novo: NÃO criamos cadastro no Supabase aqui.
     // Só usamos o e-mail para identificar a compra.
     const nomeFinal = nomeTrim
@@ -98,10 +104,6 @@ export async function POST(request: NextRequest) {
 
     // PIX: cobrança avulsa (POST /payments) — QR/copia costuma ser aceito pelos bancos melhor que 1ª parcela de assinatura.
     if (billingType === 'PIX') {
-      // Evita o caso comum de "localhost funciona mas não paga de verdade":
-      // chave hmlg com URL de produção.
-      assertAsaasPixRealEnvironmentConfigured()
-
       const cobranca = await criarCobrancaPixAsaas({
         customer: customerId,
         value: PLANO_GUEST.valor,
