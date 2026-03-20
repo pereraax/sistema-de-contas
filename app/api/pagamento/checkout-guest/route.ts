@@ -5,6 +5,7 @@ import {
   buscarPagamentosAssinatura,
   buscarPixQrCode,
 } from '@/lib/asaas'
+import { selectPendingPixPayment } from '@/lib/pagamento/pix-helpers'
 
 // Plano oferta quiz: anual a R$ 29,90
 const PLANO_GUEST = {
@@ -100,18 +101,18 @@ export async function POST(request: NextRequest) {
 
     // Asaas cria o primeiro pagamento da assinatura de forma assíncrona; é necessário retry com delay
     if (billingType === 'PIX') {
-      const maxAttempts = 5
+      const maxAttempts = 10
       const delayMs = 1500
       let firstPayment: any = null
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         const payments = await buscarPagamentosAssinatura(subscriptionId)
-        firstPayment = payments.find((p: any) => p.status === 'PENDING' || p.status === 'AWAITING_RISK_ANALYSIS')
+        firstPayment = selectPendingPixPayment(payments)
         if (firstPayment) break
         if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, delayMs))
       }
       if (firstPayment) {
-        paymentId = firstPayment.id
-        const pixData = await buscarPixQrCode(firstPayment.id)
+        paymentId = firstPayment.id as string
+        const pixData = await buscarPixQrCode(paymentId)
         pixQrCode = pixData.encodedImage
         pixCopyPaste = pixData.payload
       }
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: isInvalidKey
-          ? `${message} Verifique no Railway: ASAAS_API_KEY (chave do painel Asaas) e ASAAS_API_URL (produção: https://api.asaas.com/v3).`
+          ? `${message} Verifique no Railway: ASAAS_API_KEY e ASAAS_API_URL (produção: https://api.asaas.com/v3 · sandbox: https://api-sandbox.asaas.com/v3).`
           : message,
       },
       { status: 500 }

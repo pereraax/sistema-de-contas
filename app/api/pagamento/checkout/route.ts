@@ -6,6 +6,7 @@ import {
   buscarPagamentosAssinatura,
   buscarPixQrCode,
 } from '@/lib/asaas'
+import { selectPendingPixPayment } from '@/lib/pagamento/pix-helpers'
 
 const PLANOS = {
   basico: { valor: 9.9, ciclo: 'MONTHLY' as const, descricao: 'Plano Básico', trialDias: 7 },
@@ -138,9 +139,9 @@ export async function POST(request: NextRequest) {
 
     if (billingType === 'PIX') {
       const payments = await buscarPagamentosAssinatura(subscriptionId)
-      const firstPayment = payments.find((p: any) => p.status === 'PENDING' || p.status === 'AWAITING_RISK_ANALYSIS')
+      const firstPayment = selectPendingPixPayment(payments)
       if (firstPayment) {
-        const pixData = await buscarPixQrCode(firstPayment.id)
+        const pixData = await buscarPixQrCode(String(firstPayment.id))
         pixQrCode = pixData.encodedImage
         pixCopyPaste = pixData.payload
       }

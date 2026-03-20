@@ -169,10 +169,14 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     }
   }, [step, pixData?.subscriptionId, pixData?.pixQrCode, pixData?.pixCopyPaste])
 
-  // Quando chegarem pixCopyPaste/pixQrCode, preferimos gerar o QR a partir do texto copiado (fonte da verdade).
+  // Só gera QR no cliente se o Asaas não enviar imagem: o PNG oficial do Asaas é a forma mais segura para o banco ler.
   useEffect(() => {
     if (step !== 'pix') return
-    const payload = (pixData?.pixCopyPaste ?? '').toString().trim()
+    if (pixData?.pixQrCode) {
+      setGeneratedPixQrCode(null)
+      return
+    }
+    const payload = (pixData?.pixCopyPaste ?? '').toString().replace(/\s+/g, '').trim()
     if (!payload) {
       setGeneratedPixQrCode(null)
       return
@@ -205,7 +209,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     return () => {
       cancelled = true
     }
-  }, [step, pixData?.pixCopyPaste])
+  }, [step, pixData?.pixCopyPaste, pixData?.pixQrCode])
 
   // Polling status do PIX (guest): verificação imediata + a cada 1s (webhook Asaas deixa instantâneo)
   useEffect(() => {
@@ -446,20 +450,19 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                   </div>
                 ) : (
                   <>
-                    {pixData.pixQrCode && (
+                    {(pixData.pixQrCode || generatedPixQrCode) && (
                       <div className="flex justify-center bg-white p-4 rounded-xl border border-slate-200">
                         <img
                           src={
-                            generatedPixQrCode
-                              ? generatedPixQrCode
-                              : pixData.pixQrCode.startsWith('data:')
+                            pixData.pixQrCode
+                              ? pixData.pixQrCode.startsWith('data:')
                                 ? pixData.pixQrCode
                                 : pixData.pixQrCode.startsWith('http')
                                   ? pixData.pixQrCode
-                                  : `data:image/png;base64,${pixData.pixQrCode}`
+                                  : `data:image/png;base64,${pixData.pixQrCode.replace(/^\s*=+/, '')}`
+                              : (generatedPixQrCode ?? '')
                           }
                           alt="QR Code PIX"
-                          // QR precisa ser "escaneável" pela câmera do banco; aumentamos o tamanho para reduzir falhas.
                           className="w-80 h-80 object-contain"
                         />
                       </div>
@@ -471,14 +474,16 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                           <input
                             type="text"
                             readOnly
-                            value={String(pixData.pixCopyPaste).trim()}
+                            value={String(pixData.pixCopyPaste).replace(/\s+/g, '').trim()}
                             className="flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-xs text-slate-600 bg-slate-50"
                           />
                           <button
                             type="button"
                             onClick={() => {
                               if (pixData.pixCopyPaste) {
-                                navigator.clipboard.writeText(pixData.pixCopyPaste)
+                                navigator.clipboard.writeText(
+                                  String(pixData.pixCopyPaste).replace(/\s+/g, '').trim()
+                                )
                                 setPixCopied(true)
                                 createNotification('Código copiado!', 'success')
                                 setTimeout(() => setPixCopied(false), 2000)

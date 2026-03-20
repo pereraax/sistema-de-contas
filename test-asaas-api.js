@@ -1,6 +1,6 @@
 // Script de teste para verificar a API do Asaas
 const API_KEY = process.env.ASAAS_API_KEY || '$aact_YTU5YTE0M2M2N214MTIxNzIkOWYzNzQ0ZDQ1M2NhYw=='
-const API_URL = process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3'
+const API_URL = process.env.ASAAS_API_URL || 'https://api-sandbox.asaas.com/v3'
 
 console.log('🔍 Testando API do Asaas...')
 console.log('API URL:', API_URL)

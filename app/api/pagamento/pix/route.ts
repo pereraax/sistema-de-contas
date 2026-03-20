@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { buscarPagamentosAssinatura, buscarPixQrCode } from '@/lib/asaas'
+import { selectPendingPixPayment } from '@/lib/pagamento/pix-helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,9 +26,7 @@ export async function GET(request: NextRequest) {
     }
 
     const payments = await buscarPagamentosAssinatura(subscriptionId)
-    const pendingPayment = payments.find(
-      (p: any) => p.status === 'PENDING' || p.status === 'AWAITING_RISK_ANALYSIS'
-    )
+    const pendingPayment = selectPendingPixPayment(payments)
 
     if (!pendingPayment) {
       return NextResponse.json({
@@ -36,7 +35,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const pixData = await buscarPixQrCode(pendingPayment.id)
+    const pixData = await buscarPixQrCode(String(pendingPayment.id))
 
     return NextResponse.json({
       success: true,

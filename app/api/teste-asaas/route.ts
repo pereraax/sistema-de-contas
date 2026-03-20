@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    const apiUrl = process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3'
+    const apiUrl = process.env.ASAAS_API_URL || 'https://api-sandbox.asaas.com/v3'
     
     console.log('🔑 Verificando API Key do Asaas...')
     console.log('📋 Configuração:', {

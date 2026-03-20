@@ -1,7 +1,15 @@
 // lib/asaas.ts
 // Utilitários para integração com Asaas
 
-const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3'
+import {
+  normalizePixCopyPaste,
+  normalizePixEncodedImage,
+  isLikelyValidBrPixPayload,
+} from '@/lib/pagamento/pix-helpers'
+
+// URLs oficiais (docs Asaas): sandbox = api-sandbox.asaas.com, produção = api.asaas.com
+// Evite sandbox.asaas.com/api/v3 e www.asaas.com — podem gerar comportamento inconsistente.
+const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://api-sandbox.asaas.com/v3'
 
 // IMPORTANTE: Em produção (Railway), as variáveis vêm de process.env (não de .env.local)
 // Ler apenas de process.env para evitar erros durante o build
@@ -311,15 +319,14 @@ export async function buscarPagamentoAsaas(paymentId: string): Promise<AsaasResp
   return response.json()
 }
 
-/**
- * Buscar QR Code PIX de um pagamento
- */
-export async function buscarPixQrCode(paymentId: string): Promise<{ encodedImage?: string; payload?: string; expirationDate?: string }> {
+async function buscarPixQrCodeUmaVez(
+  paymentId: string
+): Promise<{ encodedImage?: string; payload?: string; expirationDate?: string; description?: string }> {
   const apiKey = getAsaasApiKeyLazy()
-  
+
   const response = await fetch(`${ASAAS_API_URL}/payments/${paymentId}/pixQrCode`, {
     headers: {
-      'access_token': apiKey,
+      access_token: apiKey,
     },
   })
 
@@ -330,6 +337,64 @@ export async function buscarPixQrCode(paymentId: string): Promise<{ encodedImage
   }
 
   return response.json()
+}
+
+/**
+ * Buscar QR Code PIX de um pagamento.
+ * Reintenta quando o Asaas ainda não preencheu o BR Code completo (banco recusa payload curto/inválido).
+ */
+export async function buscarPixQrCode(paymentId: string): Promise<{
+  encodedImage?: string
+  payload?: string
+  expirationDate?: string
+  description?: string
+}> {
+  const maxAttempts = 8
+  const delayMs = 1200
+  let last: {
+    encodedImage?: string
+    payload?: string
+    expirationDate?: string
+    description?: string
+  } = {}
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const raw = await buscarPixQrCodeUmaVez(paymentId)
+    const payload = normalizePixCopyPaste(raw.payload)
+    const encodedImage = normalizePixEncodedImage(raw.encodedImage)
+    last = {
+      ...raw,
+      payload,
+      encodedImage,
+    }
+
+    if (payload && isLikelyValidBrPixPayload(payload)) {
+      console.log('✅ [lib/asaas] PIX BR Code válido', {
+        attempt,
+        payloadLen: payload.length,
+        hasImage: !!encodedImage,
+      })
+      return last
+    }
+
+    console.warn('⏳ [lib/asaas] PIX ainda sem BR Code completo, aguardando...', {
+      attempt,
+      paymentId,
+      payloadLen: payload?.length ?? 0,
+      prefix: payload?.slice(0, 28),
+      crcOk: payload ? /6304[0-9A-Fa-f]{4}$/.test(payload) : false,
+    })
+
+    if (attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, delayMs))
+    }
+  }
+
+  console.warn('⚠️ [lib/asaas] Retornando PIX sem validação completa do BR Code (última tentativa)', {
+    paymentId,
+    payloadLen: last.payload?.length ?? 0,
+  })
+  return last
 }
 
 

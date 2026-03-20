@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { buscarPagamentosAssinatura, buscarPixQrCode } from '@/lib/asaas'
+import { selectPendingPixPayment } from '@/lib/pagamento/pix-helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,15 +19,11 @@ export async function GET(request: NextRequest) {
     }
 
     let payments = await buscarPagamentosAssinatura(subscriptionId)
-    let pendingPayment = payments.find(
-      (p: any) => p.status === 'PENDING' || p.status === 'AWAITING_RISK_ANALYSIS'
-    )
+    let pendingPayment = selectPendingPixPayment(payments)
     if (!pendingPayment && payments.length === 0) {
       await new Promise((r) => setTimeout(r, 1200))
       payments = await buscarPagamentosAssinatura(subscriptionId)
-      pendingPayment = payments.find(
-        (p: any) => p.status === 'PENDING' || p.status === 'AWAITING_RISK_ANALYSIS'
-      )
+      pendingPayment = selectPendingPixPayment(payments)
     }
 
     if (!pendingPayment) {
@@ -38,7 +35,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const pixData = await buscarPixQrCode(pendingPayment.id)
+    const pixData = await buscarPixQrCode(String(pendingPayment.id))
 
     return NextResponse.json({
       success: true,
