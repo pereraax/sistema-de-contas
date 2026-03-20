@@ -17,6 +17,8 @@ Siga **na ordem**. Na maioria dos casos o problema é **ambiente (URL + chave)**
 
 **Código PIX “curto” ou que começa com `000201` e para no meio:** o Asaas às vezes só completa o BR Code após alguns segundos. O app **continua buscando** até o código ter tamanho e CRC (`6304`) válidos — não usamos mais payload incompleto. Para **pagamento real no app do banco**, use **produção** (`$aact_prod_` + `https://api.asaas.com/v3`).
 
+**Checkout guest (quiz):** o PIX é gerado como **cobrança avulsa** (`POST /v3/payments`), não como primeira parcela de assinatura — costuma ser **mais aceita** pelos apps de banco. O `subscriptionId` retornado ao front é o id da cobrança (`pay_...`). Mesmo assim, em **sandbox** alguns bancos podem recusar; para teste real use **API + chave de produção**.
+
 O código do projeto **corrige isso automaticamente** em muitos casos, mas no **Railway/Render** deixe as duas variáveis **coerentes** para evitar surpresas.
 
 ---

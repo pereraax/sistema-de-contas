@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { buscarPagamentoAsaas, buscarPagamentosAssinatura, buscarAssinaturaAsaas } from '@/lib/asaas'
-import { confirmarAssinaturaGuest } from '@/lib/pagamento/confirmar-assinatura-guest'
+import {
+  confirmarAssinaturaGuest,
+  confirmarPagamentoPixGuest,
+} from '@/lib/pagamento/confirmar-assinatura-guest'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +30,11 @@ function isStatusPago(p: any): boolean {
   if (STATUS_PAGO.some((s) => normaliza(s) === status)) return true
   if (status.includes('RECEIVED') || status.includes('CONFIRM') || status.includes('RECEBID')) return true
   return false
+}
+
+/** Cobrança PIX avulsa guest: usamos o id `pay_...` no lugar de subscription */
+function isAsaasPaymentId(id: string) {
+  return typeof id === 'string' && id.startsWith('pay_')
 }
 
 export async function GET(request: NextRequest) {
@@ -65,14 +73,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Se temos paymentId, checar status direto da cobrança (mais confiável e rápido que listar payments da assinatura)
-    if (paymentId) {
+    const effectivePaymentId = paymentId || (isAsaasPaymentId(subscriptionId) ? subscriptionId : null)
+
+    if (effectivePaymentId) {
       try {
-        const payment = await buscarPagamentoAsaas(paymentId)
+        const payment = await buscarPagamentoAsaas(effectivePaymentId)
         const paymentStatus = normaliza(payment?.status ?? payment?.paymentStatus ?? '')
         const pago = isStatusPago(payment)
         console.log('[status-guest] paymentId check', {
           subscriptionId,
-          paymentId,
+          paymentId: effectivePaymentId,
           paymentStatus,
           pago,
         })
@@ -82,8 +92,11 @@ export async function GET(request: NextRequest) {
             { headers: noCacheHeaders }
           )
         }
-        // confirmarAssinaturaGuest já registra cache por subscriptionId/email e envia e-mail.
-        await confirmarAssinaturaGuest(subscriptionId)
+        if (isAsaasPaymentId(subscriptionId)) {
+          await confirmarPagamentoPixGuest(effectivePaymentId)
+        } else {
+          await confirmarAssinaturaGuest(subscriptionId)
+        }
         return NextResponse.json(
           { success: true, pago: true, plano: 'basico', paymentStatus },
           { headers: noCacheHeaders }
@@ -91,11 +104,17 @@ export async function GET(request: NextRequest) {
       } catch (err: any) {
         console.warn('[status-guest] paymentId check falhou', {
           subscriptionId,
-          paymentId,
+          paymentId: effectivePaymentId,
           error: err?.message ?? String(err),
         })
-        // Se falhar, cai no fluxo por assinatura/pagamentos
+        if (isAsaasPaymentId(subscriptionId)) {
+          return NextResponse.json({ success: true, pago: false }, { headers: noCacheHeaders })
+        }
       }
+    }
+
+    if (isAsaasPaymentId(subscriptionId)) {
+      return NextResponse.json({ success: true, pago: false }, { headers: noCacheHeaders })
     }
 
     const subscription = await buscarAssinaturaAsaas(subscriptionId)

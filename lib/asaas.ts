@@ -250,6 +250,57 @@ export async function criarAssinaturaAsaas(subscription: AsaasSubscription): Pro
   }
 }
 
+export interface AsaasCobrancaPix {
+  customer: string
+  value: number
+  dueDate: string // YYYY-MM-DD
+  description?: string
+  externalReference?: string
+}
+
+/**
+ * Cobrança PIX avulsa (uma vez). QR costuma ser mais compatível com apps de banco
+ * do que a 1ª parcela gerada por assinatura (especialmente em sandbox).
+ */
+export async function criarCobrancaPixAsaas(body: AsaasCobrancaPix): Promise<AsaasResponse> {
+  const apiKey = getAsaasApiKeyLazy()
+
+  const response = await fetch(`${getResolvedAsaasApiUrl()}/payments`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      access_token: apiKey,
+    },
+    body: JSON.stringify({
+      customer: body.customer,
+      billingType: 'PIX',
+      value: body.value,
+      dueDate: body.dueDate,
+      description: body.description,
+      externalReference: body.externalReference,
+    }),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    let error: any = {}
+    try {
+      error = JSON.parse(errorText)
+    } catch {
+      throw new Error(`Erro ao criar cobrança PIX: ${response.status}. ${errorText.slice(0, 200)}`)
+    }
+    throw new Error(error.errors?.[0]?.description || error.message || 'Erro ao criar cobrança PIX')
+  }
+
+  const responseText = await response.text()
+  if (!responseText?.trim()) throw new Error('Resposta vazia ao criar cobrança PIX')
+  try {
+    return JSON.parse(responseText)
+  } catch (e: any) {
+    throw new Error(`Resposta inválida ao criar cobrança PIX: ${e?.message}`)
+  }
+}
+
 /**
  * Buscar uma assinatura no Asaas
  */

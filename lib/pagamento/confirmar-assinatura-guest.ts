@@ -8,7 +8,7 @@
  * 4) quando o usuário cadastrar no `/cadastro`, o signUp ativa automaticamente o plano básico
  */
 import { createAdminClient } from '@/lib/supabase/server'
-import { buscarAssinaturaAsaas } from '@/lib/asaas'
+import { buscarAssinaturaAsaas, buscarPagamentoAsaas, buscarCustomerAsaas } from '@/lib/asaas'
 import { sendMail } from '@/lib/mailer'
 
 function maskEmail(email?: string | null) {
@@ -29,6 +29,133 @@ function baseUrlForLinks() {
 }
 
 const PLANO_GUEST_KEY: 'basico' = 'basico'
+
+/**
+ * Checkout guest só com cobrança PIX avulsa (id `pay_...`, sem assinatura Asaas).
+ */
+export async function confirmarPagamentoPixGuest(
+  paymentId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const payment = await buscarPagamentoAsaas(paymentId)
+    let email: string | null = null
+    const ref = payment?.externalReference
+    if (isEmailLike(ref)) {
+      email = String(ref).trim().toLowerCase()
+    }
+    if (!email && payment?.customer) {
+      try {
+        const cust = await buscarCustomerAsaas(String(payment.customer))
+        const em = cust?.email
+        if (typeof em === 'string' && em.includes('@')) email = em.trim().toLowerCase()
+      } catch {
+        // ignora
+      }
+    }
+    if (!email) {
+      return { ok: false, error: 'Não foi possível obter email da cobrança PIX' }
+    }
+
+    const admin = createAdminClient()
+    if (!admin) return { ok: false, error: 'Admin client indisponível' }
+
+    const nome = 'Assinante'
+    let alreadyActive = false
+
+    try {
+      await admin.from('pagamento_webhook_confirmations').upsert(
+        {
+          subscription_id: paymentId,
+          confirmed_at: new Date().toISOString(),
+          email,
+          plano: PLANO_GUEST_KEY,
+        } as any,
+        { onConflict: 'subscription_id' },
+      )
+    } catch {
+      await admin.from('pagamento_webhook_confirmations').upsert(
+        { subscription_id: paymentId, confirmed_at: new Date().toISOString() },
+        { onConflict: 'subscription_id' },
+      )
+    }
+
+    try {
+      const { data: profileByEmail } = await admin
+        .from('profiles')
+        .select('id, email, nome, plano_status')
+        .eq('email', email)
+        .maybeSingle()
+
+      if (profileByEmail?.id) {
+        const already = profileByEmail.plano_status === 'ativo'
+        alreadyActive = already
+        if (!already) {
+          await admin
+            .from('profiles')
+            .update({
+              plano: PLANO_GUEST_KEY,
+              plano_status: 'ativo',
+              asaas_subscription_id: paymentId,
+              plano_data_inicio: new Date().toISOString(),
+            })
+            .eq('id', profileByEmail.id)
+        }
+      }
+    } catch {
+      // não bloqueia e-mail
+    }
+
+    try {
+      const siteUrl = baseUrlForLinks()
+      const cadastroUrl = `${siteUrl}/cadastro?plano=${PLANO_GUEST_KEY}&email=${encodeURIComponent(email)}`
+
+      const html = `
+        <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
+          <h2 style="color: #0f172a;">Pagamento confirmado – Bem-vindo(a) ao Plenipay!</h2>
+          <p>Olá, <strong>${nome}</strong>!</p>
+          <p>Recebemos seu pagamento com sucesso. Seu acesso será liberado em instantes.</p>
+          <p style="margin: 16px 0;">
+            <a href="${cadastroUrl}" style="display: inline-block; background: #2563eb; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+              Criar/ativar minha conta
+            </a>
+          </p>
+          <p style="color:#64748b; font-size:14px;">
+            Use o e-mail <strong>${email}</strong> para cadastrar/login.
+          </p>
+          <p>Se precisar, fale com a gente no suporte. Bom uso! 🎉</p>
+        </div>
+      `
+
+      void sendMail({
+        to: email,
+        subject: 'Pagamento confirmado – Acesse sua conta no Plenipay',
+        html,
+      })
+        .then(() => {
+          console.log('[confirmar-pagamento-pix-guest] email enviado', {
+            paymentId,
+            email: maskEmail(email),
+          })
+        })
+        .catch((err: any) => {
+          console.error('[confirmar-pagamento-pix-guest] Erro ao enviar email:', err?.message ?? err)
+        })
+    } catch (err: any) {
+      console.error('[confirmar-pagamento-pix-guest] Erro preparando email:', err?.message ?? err)
+    }
+
+    console.log('[confirmar-pagamento-pix-guest] confirmado', {
+      paymentId,
+      email: maskEmail(email),
+      alreadyActive,
+    })
+
+    return { ok: true }
+  } catch (err: any) {
+    console.error('[confirmar-pagamento-pix-guest] Erro:', err?.message ?? err)
+    return { ok: false, error: err?.message ?? err }
+  }
+}
 
 export async function confirmarAssinaturaGuest(
   subscriptionId: string,

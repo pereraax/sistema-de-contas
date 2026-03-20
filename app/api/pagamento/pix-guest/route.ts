@@ -18,6 +18,17 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Cobrança PIX avulsa (checkout guest): o "subscriptionId" enviado pelo front é o id pay_...
+    if (subscriptionId.startsWith('pay_')) {
+      const pixData = await buscarPixQrCode(subscriptionId)
+      return NextResponse.json({
+        success: true,
+        paymentId: subscriptionId,
+        pixQrCode: pixData.encodedImage ?? null,
+        pixCopyPaste: pixData.payload ?? null,
+      })
+    }
+
     let payments = await buscarPagamentosAssinatura(subscriptionId)
     let pendingPayment = selectPendingPixPayment(payments)
     if (!pendingPayment && payments.length === 0) {

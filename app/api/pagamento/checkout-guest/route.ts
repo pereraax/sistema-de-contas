@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   criarCustomerAsaas,
   criarAssinaturaAsaas,
-  buscarPagamentosAssinatura,
+  criarCobrancaPixAsaas,
   buscarPixQrCode,
 } from '@/lib/asaas'
-import { selectPendingPixPayment } from '@/lib/pagamento/pix-helpers'
 
 // Plano oferta quiz: anual a R$ 29,90
 const PLANO_GUEST = {
@@ -20,6 +19,16 @@ function getNextDueDate(cycle: 'YEARLY', trialDias: number): string {
   if (trialDias > 0) d.setDate(d.getDate() + trialDias)
   else d.setFullYear(d.getFullYear() + 1)
   return d.toISOString().slice(0, 10)
+}
+
+/** Data de vencimento da cobrança PIX (hoje no fuso BR) — exigido pelo Asaas */
+function dueDateHojeBr(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
 }
 
 export async function POST(request: NextRequest) {
@@ -80,44 +89,42 @@ export async function POST(request: NextRequest) {
     })
     const customerId = customer.id
 
-    const nextDue = getNextDueDate(PLANO_GUEST.ciclo, PLANO_GUEST.trialDias)
-    const subscription = await criarAssinaturaAsaas({
-      customer: customerId,
-      billingType,
-      value: PLANO_GUEST.valor,
-      nextDueDate: nextDue,
-      cycle: PLANO_GUEST.ciclo,
-      description: PLANO_GUEST.descricao,
-      // externalReference = email (para confirmar pagamento sem depender de cadastro prévio)
-      externalReference: emailFinal,
-    })
-
-    const subscriptionId = subscription.id
-
+    let subscriptionId: string
     let pixQrCode: string | undefined
     let pixCopyPaste: string | undefined
     let paymentUrl: string | undefined
     let paymentId: string | undefined
 
-    // Asaas cria o primeiro pagamento da assinatura de forma assíncrona; é necessário retry com delay
+    // PIX: cobrança avulsa (POST /payments) — QR/copia costuma ser aceito pelos bancos melhor que 1ª parcela de assinatura.
     if (billingType === 'PIX') {
-      const maxAttempts = 10
-      const delayMs = 1500
-      let firstPayment: any = null
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        const payments = await buscarPagamentosAssinatura(subscriptionId)
-        firstPayment = selectPendingPixPayment(payments)
-        if (firstPayment) break
-        if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, delayMs))
+      const cobranca = await criarCobrancaPixAsaas({
+        customer: customerId,
+        value: PLANO_GUEST.valor,
+        dueDate: dueDateHojeBr(),
+        description: `${PLANO_GUEST.descricao} (oferta quiz — acesso anual)`,
+        externalReference: emailFinal,
+      })
+      paymentId = cobranca.id as string
+      subscriptionId = paymentId
+      const pixData = await buscarPixQrCode(paymentId)
+      pixQrCode = pixData.encodedImage
+      pixCopyPaste = pixData.payload
+    } else {
+      const nextDue = getNextDueDate(PLANO_GUEST.ciclo, PLANO_GUEST.trialDias)
+      const subscription = await criarAssinaturaAsaas({
+        customer: customerId,
+        billingType,
+        value: PLANO_GUEST.valor,
+        nextDueDate: nextDue,
+        cycle: PLANO_GUEST.ciclo,
+        description: PLANO_GUEST.descricao,
+        externalReference: emailFinal,
+      })
+      subscriptionId = subscription.id
+
+      if (subscription.invoiceUrl) {
+        paymentUrl = subscription.invoiceUrl
       }
-      if (firstPayment) {
-        paymentId = firstPayment.id as string
-        const pixData = await buscarPixQrCode(paymentId)
-        pixQrCode = pixData.encodedImage
-        pixCopyPaste = pixData.payload
-      }
-    } else if (subscription.invoiceUrl) {
-      paymentUrl = subscription.invoiceUrl
     }
 
     return NextResponse.json({

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { confirmarAssinaturaGuest } from '@/lib/pagamento/confirmar-assinatura-guest'
+import {
+  confirmarAssinaturaGuest,
+  confirmarPagamentoPixGuest,
+} from '@/lib/pagamento/confirmar-assinatura-guest'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,20 +49,22 @@ export async function POST(request: NextRequest) {
         ? payment.subscription
         : payment?.subscription?.id ?? null
 
-    if (!subscriptionId) {
-      return NextResponse.json({ received: true })
-    }
+    const paymentId = payment?.id ?? null
 
     console.log('[webhook-asaas] recebido', {
       event,
       subscriptionId,
-      paymentId: payment?.id ?? null,
+      paymentId,
       status: payment?.status ?? null,
       value: payment?.value ?? null,
     })
 
-    // confirmarAssinaturaGuest registra a confirmação por subscriptionId/email e envia o e-mail.
-    await confirmarAssinaturaGuest(subscriptionId)
+    // Assinatura (cartão/boleto) vs cobrança PIX avulsa (guest quiz — só pay_...)
+    if (subscriptionId) {
+      await confirmarAssinaturaGuest(subscriptionId)
+    } else if (paymentId && typeof paymentId === 'string' && paymentId.startsWith('pay_')) {
+      await confirmarPagamentoPixGuest(paymentId)
+    }
 
     return NextResponse.json({ received: true })
   } catch (err: any) {
