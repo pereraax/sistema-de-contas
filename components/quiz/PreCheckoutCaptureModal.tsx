@@ -54,6 +54,8 @@ function TypingDots() {
 export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreCheckoutCaptureModalProps) {
   const [stage, setStage] = useState<'start' | 'email' | 'phone' | 'done'>('start')
   const [typing, setTyping] = useState(false)
+  const [introTyping, setIntroTyping] = useState(true)
+  const [introReady, setIntroReady] = useState(false)
   const [busy, setBusy] = useState(false)
   const [errorText, setErrorText] = useState<string | null>(null)
 
@@ -65,6 +67,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
 
   const confettiEmailFired = useRef(false)
   const confettiPhoneFired = useRef(false)
+  const confettiIntroFired = useRef(false)
 
   const celularFormatted = useMemo(() => formatarCelularBr(celularDigits), [celularDigits])
 
@@ -80,14 +83,35 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
     if (!open) return
     setStage('start')
     setTyping(false)
+    setIntroTyping(true)
+    setIntroReady(false)
     setBusy(false)
     setErrorText(null)
     setEmail('')
     setEmailTouched(false)
     setCelularDigits('')
     setCelTouched(false)
+    confettiIntroFired.current = false
     confettiEmailFired.current = false
     confettiPhoneFired.current = false
+
+    const introTimer = setTimeout(() => {
+      setIntroTyping(false)
+      setIntroReady(true)
+    }, 1100)
+
+    // Confete automático na entrada da página.
+    if (!confettiIntroFired.current) {
+      confettiIntroFired.current = true
+      confetti({
+        particleCount: 120,
+        spread: 75,
+        origin: { y: 0.15 },
+        colors: ['#4F7CFF', '#1e4976', '#22c55e', '#ffffff'],
+      })
+    }
+
+    return () => clearTimeout(introTimer)
   }, [open])
 
   const fireConfetti = (kind: 'email' | 'phone') => {
@@ -124,10 +148,10 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
   }
 
   const assistantTextStart =
-    'já vou te dar um super presente que você já vai poder utilizar quando acessar a assistente'
-  const assistantAskEmail = 'perfeito agora me diga seu email que vai acessar...'
-  const assistantAskPhone = 'perfeito agora me diga seu número...'
-  const assistantDone = 'pronto, você está registrado, continue para começar a organizar sua vida financeira'
+    'Oi! 🎁 Já vou te dar um super presente para você usar assim que acessar a assistente. Vamos nessa? ✨'
+  const assistantAskEmail = 'Perfeito! 📩 Agora me diga o e-mail que você vai usar para acessar...'
+  const assistantAskPhone = 'Ótimo! 📱 Agora me diga seu número de WhatsApp com DDD...'
+  const assistantDone = 'Pronto! ✅ Você está registrado. Continue para começar a organizar sua vida financeira 🚀'
 
   const canContinueEmail = isEmailLike(email)
   const canContinuePhone = celularDigits.replace(/\D/g, '').length >= 10
@@ -202,27 +226,35 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
         </button>
 
         <div className="min-h-full p-5 pt-12 pb-8 flex flex-col items-center text-center">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-3xl bg-[#4F7CFF]/15 mb-4">
+          <motion.div
+            className="inline-flex h-12 w-12 items-center justify-center rounded-3xl bg-[#4F7CFF]/15 mb-4"
+            animate={{ y: [0, -4, 0], scale: [1, 1.05, 1] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+          >
             <Gift className="h-6 w-6 text-[#4F7CFF]" />
-          </div>
+          </motion.div>
 
           <div className="w-full max-w-md space-y-3">
             <div className="space-y-1">
-              <div className="text-base sm:text-lg font-semibold text-slate-900">Receber o presente</div>
-              <div className="text-xs sm:text-sm text-slate-500">Etapa rápida antes do checkout</div>
+              <div className="text-base sm:text-lg font-semibold text-slate-900">Seu Presente Especial</div>
+              <div className="text-xs sm:text-sm font-medium text-slate-600">Etapa rápida antes do checkout</div>
               <div className="text-xs sm:text-sm text-slate-600">
                 Só para preparar seu acesso com o e-mail e WhatsApp certos (sem pedir login agora).
               </div>
             </div>
 
             {/* Assistant bubble */}
-            <div className="flex justify-start">
-              <div className="max-w-[85%] rounded-2xl bg-[#1e4976] text-white px-4 py-3 shadow-sm mx-auto">
-                <div className="text-sm leading-relaxed whitespace-pre-line">{assistantTextStart}</div>
+            <div className="flex justify-center">
+              <div className="max-w-[90%] rounded-2xl bg-[#1e4976] text-white px-4 py-3 shadow-sm mx-auto min-h-[56px] flex items-center justify-center">
+                {introTyping ? (
+                  <TypingDots />
+                ) : (
+                  <div className="text-sm leading-relaxed whitespace-pre-line">{assistantTextStart}</div>
+                )}
               </div>
             </div>
 
-            {stage === 'start' && (
+            {stage === 'start' && introReady && (
               <div className="flex items-center justify-center pt-1">
                 <button
                   type="button"
