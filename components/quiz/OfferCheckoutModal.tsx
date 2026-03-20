@@ -85,6 +85,8 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
   const [pixTimeout, setPixTimeout] = useState(false)
   const [manualCheckLoading, setManualCheckLoading] = useState(false)
   const [manualCheckNote, setManualCheckNote] = useState<string | null>(null)
+  /** Erro do último checkout (API); mensagem vinda do servidor + dica de diagnóstico */
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
   // Gera QR em cima do payload (pixCopyPaste) para garantir "escaneabilidade" no app do banco.
   const [generatedPixQrCode, setGeneratedPixQrCode] = useState<string | null>(null)
@@ -129,6 +131,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
       setManualCheckLoading(false)
       setManualCheckNote(null)
       setGeneratedPixQrCode(null)
+      setCheckoutError(null)
     }
   }, [open])
 
@@ -286,6 +289,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     }
 
     setLoading(true)
+    setCheckoutError(null)
     try {
       const pixProvider = (process.env.NEXT_PUBLIC_PIX_PROVIDER || '').toLowerCase()
       const checkoutUrl = (formData.metodoPagamento === 'PIX' && pixProvider === 'woovi')
@@ -311,7 +315,9 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
         data = { error: res.ok ? 'Resposta inválida' : `Erro do servidor (${res.status}). Verifique as variáveis ASAAS no Railway.` }
       }
 
-      if (!res.ok) throw new Error(data.error || `Erro ${res.status} ao processar`)
+      if (!res.ok) {
+        throw new Error(data.error || `Erro ${res.status} ao processar o pagamento.`)
+      }
       const metodo = String(data.metodoPagamento || formData.metodoPagamento || '').toUpperCase().trim()
       const isPix = metodo === 'PIX'
       const subId = data.subscriptionId || (data as any).chargeId
@@ -338,7 +344,9 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
       createNotification('Checkout realizado!', 'success')
       onClose()
     } catch (err: any) {
-      createNotification(err.message || 'Erro ao processar pagamento', 'warning')
+      const msg = err.message || 'Erro ao processar pagamento'
+      setCheckoutError(msg)
+      createNotification(msg, 'warning')
     } finally {
       setLoading(false)
     }
@@ -657,6 +665,40 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                     <li>Preencha o WhatsApp para receber o acesso.</li>
                   </ul>
                 </div>
+
+                {checkoutError && (
+                  <div
+                    role="alert"
+                    className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 space-y-2"
+                  >
+                    <p className="font-semibold text-amber-900">Não foi possível iniciar o pagamento</p>
+                    <p className="text-amber-900/90 whitespace-pre-wrap break-words">{checkoutError}</p>
+                    <ul className="list-disc list-inside text-amber-900/85 space-y-1">
+                      <li>
+                        Chave <code className="rounded bg-amber-100/80 px-1">hmlg</code> → URL{' '}
+                        <code className="rounded bg-amber-100/80 px-1">api-sandbox.asaas.com/v3</code>
+                      </li>
+                      <li>
+                        Chave <code className="rounded bg-amber-100/80 px-1">prod</code> → URL{' '}
+                        <code className="rounded bg-amber-100/80 px-1">api.asaas.com/v3</code>
+                      </li>
+                      <li>Depois de mudar o .env, reinicie o servidor (<code className="rounded bg-amber-100/80 px-1">npm run dev</code>).</li>
+                    </ul>
+                    <p className="text-[11px] text-amber-800/90">
+                      Diagnóstico: abra{' '}
+                      <a
+                        href="/api/pagamento/asaas-health"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium underline underline-offset-2"
+                      >
+                        /api/pagamento/asaas-health
+                      </a>{' '}
+                      no navegador. Guia completo no projeto:{' '}
+                      <code className="rounded bg-amber-100/80 px-1">docs/CHECKOUT-PIX-ASAAS-SIMPLES.md</code>
+                    </p>
+                  </div>
+                )}
 
                 <button
                   type="submit"
