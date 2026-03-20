@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -28,6 +28,9 @@ const PLANO_ANUAL_VALOR = 29.9
 type OfferCheckoutModalProps = {
   open: boolean
   onClose: () => void
+  prefillEmail?: string | null
+  prefillCelularDigits?: string | null
+  prefillCelularFormatted?: string | null
 }
 
 function formatarCPF(value: string) {
@@ -60,7 +63,13 @@ function validarCPF(cpf: string): boolean {
   return true
 }
 
-export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
+export function OfferCheckoutModal({
+  open,
+  onClose,
+  prefillEmail,
+  prefillCelularDigits,
+  prefillCelularFormatted,
+}: OfferCheckoutModalProps) {
   const [loading, setLoading] = useState(false)
   const [loadingAuth, setLoadingAuth] = useState(true)
   const [user, setUser] = useState<any>(null)
@@ -89,6 +98,14 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
   /** Erro do último checkout (API); mensagem vinda do servidor + dica de diagnóstico */
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
+  const emailLocked = !!prefillEmail && String(prefillEmail).trim().includes('@')
+  const celularLocked = !!prefillCelularDigits && String(prefillCelularDigits).replace(/\D/g, '').length >= 10
+  const resolvedPrefillCelularFormatted = useMemo(() => {
+    if (prefillCelularFormatted && String(prefillCelularFormatted).trim()) return String(prefillCelularFormatted)
+    if (!prefillCelularDigits) return ''
+    return formatarCelular(String(prefillCelularDigits))
+  }, [prefillCelularDigits, prefillCelularFormatted])
+
   // Gera QR em cima do payload (pixCopyPaste) para garantir "escaneabilidade" no app do banco.
   const [generatedPixQrCode, setGeneratedPixQrCode] = useState<string | null>(null)
 
@@ -110,14 +127,21 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
           cpf: p?.cpf ? formatarCPF(p.cpf) : '',
         }))
       } else {
-        setFormData({ nome: '', email: '', celular: '', cpf: '', cupom: '', metodoPagamento: 'PIX' })
+        setFormData({
+          nome: '',
+          email: emailLocked ? String(prefillEmail || '') : '',
+          celular: celularLocked ? resolvedPrefillCelularFormatted : '',
+          cpf: '',
+          cupom: '',
+          metodoPagamento: 'PIX',
+        })
       }
     } catch (e) {
       console.error(e)
     } finally {
       setLoadingAuth(false)
     }
-  }, [open])
+  }, [open, emailLocked, prefillEmail, celularLocked, resolvedPrefillCelularFormatted])
 
   useEffect(() => {
     checkAuth()
@@ -328,7 +352,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
       createNotification('Preencha seu nome', 'warning')
       return
     }
-    if (!formData.email.trim()) {
+    if (!formData.email.trim() && !emailLocked) {
       createNotification('Preencha seu e-mail', 'warning')
       return
     }
@@ -616,7 +640,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
 
               <form onSubmit={handleSubmit} className="p-4 space-y-4">
                 <p className="text-center text-xs text-slate-500">
-                  Preencha seus dados e pague. O e-mail informado será seu login para acessar a plataforma.
+                  Preencha seus dados e pague. Seu e-mail/WhatsApp foram definidos antes do checkout.
                 </p>
                 <h3 className="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Seus dados
@@ -633,10 +657,14 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">E-mail *</label>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    E-mail {emailLocked ? '' : '*'}
+                  </label>
                   <input
                     type="email"
-                    required
+                    required={!emailLocked}
+                    disabled={emailLocked}
+                    readOnly={emailLocked}
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:border-[#4F7CFF] focus:outline-none focus:ring-2 focus:ring-[#4F7CFF]/20"
@@ -644,9 +672,13 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">Celular (WhatsApp) *</label>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Celular (WhatsApp) {celularLocked ? '' : '*'}
+                  </label>
                   <input
                     type="tel"
+                    disabled={celularLocked}
+                    readOnly={celularLocked}
                     value={formData.celular}
                     onChange={(e) => setFormData({ ...formData, celular: formatarCelular(e.target.value) })}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:border-[#4F7CFF] focus:outline-none focus:ring-2 focus:ring-[#4F7CFF]/20"

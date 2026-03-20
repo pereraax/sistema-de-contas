@@ -191,6 +191,18 @@ export async function signUp(
           }
           
           if (existingUser) {
+            // Caso o usuário tenha sido criado "discretamente" antes do pagamento (sem autenticar),
+            // aqui nós permitimos que ele defina a senha real no `/cadastro`.
+            const origem = (existingUser as any)?.user_metadata?.origem
+            if (origem === 'precheckout_discreet') {
+              try {
+                await supabaseAdmin.auth.admin.updateUserById(existingUser.id, { password })
+                logInfo('✅ Senha atualizada para usuário criado em precheckout', 'SIGNUP')
+              } catch (pwErr: any) {
+                logWarn(`⚠️ Falha ao atualizar senha do usuário precheckout: ${pwErr?.message || pwErr}`, 'SIGNUP')
+                // Mesmo que a senha não atualize, seguimos com o fluxo (evita bloquear o usuário).
+              }
+            }
             logInfo('📧 Usuário não confirmado - usando existente e enviando novo link', 'SIGNUP')
             userToUse = existingUser
             // Marcar que precisa enviar email (usuário existe mas não confirmado)

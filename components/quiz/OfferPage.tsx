@@ -5,6 +5,7 @@ import { Clock, Lock, ChevronLeft, ChevronRight, MessageCircle, Repeat2, Heart, 
 import Link from 'next/link'
 import { useEffect, useState, useCallback } from 'react'
 import { OfferCheckoutModal } from './OfferCheckoutModal'
+import { PreCheckoutCaptureModal } from './PreCheckoutCaptureModal'
 
 type OfferPageProps = {
   onContinue: () => void
@@ -58,6 +59,12 @@ export function OfferPage({ onContinue }: OfferPageProps) {
   const [countdown, setCountdown] = useState(INITIAL_SECONDS)
   const [slideIndex, setSlideIndex] = useState(0)
   const [showCheckout, setShowCheckout] = useState(false)
+  const [captureOpen, setCaptureOpen] = useState(false)
+  const [captureData, setCaptureData] = useState<{
+    email: string
+    celularDigits: string
+    celularFormatted: string
+  } | null>(null)
 
   useEffect(() => {
     if (countdown <= 0) return
@@ -334,12 +341,34 @@ export function OfferPage({ onContinue }: OfferPageProps) {
         >
           <button
             type="button"
-            onClick={() => setShowCheckout(true)}
+            onClick={() => setCaptureOpen(true)}
             className="w-full rounded-2xl py-4 text-base font-bold text-white bg-[#0B4BFF] shadow-lg hover:brightness-110 active:scale-[0.99] transition-all"
           >
             Quero assinar
           </button>
-          <OfferCheckoutModal open={showCheckout} onClose={() => setShowCheckout(false)} />
+          <PreCheckoutCaptureModal
+            open={captureOpen}
+            onClose={() => setCaptureOpen(false)}
+            onContinue={(data) => {
+              setCaptureData({
+                email: data.email,
+                celularDigits: data.celularDigits,
+                celularFormatted: data.celularFormatted,
+              })
+              setCaptureOpen(false)
+              setShowCheckout(true)
+            }}
+          />
+          <OfferCheckoutModal
+            open={showCheckout}
+            onClose={() => {
+              setShowCheckout(false)
+              // Mantemos os dados se o usuário reabrir o checkout em seguida.
+            }}
+            prefillEmail={captureData?.email}
+            prefillCelularDigits={captureData?.celularDigits}
+            prefillCelularFormatted={captureData?.celularFormatted}
+          />
           <p className="mt-4 text-center text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
             Ao assinar, você concorda com nossos{' '}
             <Link href="/termos" className="text-[#0B4BFF] underline hover:no-underline">Termos de Uso</Link>
