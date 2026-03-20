@@ -421,6 +421,27 @@ export async function buscarPagamentoAsaas(paymentId: string): Promise<AsaasResp
   return response.json()
 }
 
+/**
+ * Status oficial da cobrança (endpoint dedicado — costuma refletir PIX pago antes/atualizado que o objeto completo).
+ * GET /v3/payments/{id}/status
+ */
+export async function buscarStatusPagamentoAsaas(paymentId: string): Promise<{ status?: string }> {
+  const apiKey = getAsaasApiKeyLazy()
+
+  const response = await fetch(`${getResolvedAsaasApiUrl()}/payments/${paymentId}/status`, {
+    headers: {
+      access_token: apiKey,
+    },
+  })
+
+  if (!response.ok) {
+    const t = await response.text().catch(() => '')
+    throw new Error(`Erro ao buscar status do pagamento: ${response.status} ${t.slice(0, 120)}`)
+  }
+
+  return response.json()
+}
+
 function extrairPayloadPixQrResponse(raw: Record<string, unknown>): string | undefined {
   const candidates = [
     raw.payload,

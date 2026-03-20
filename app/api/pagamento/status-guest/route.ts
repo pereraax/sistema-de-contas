@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { buscarPagamentoAsaas, buscarPagamentosAssinatura, buscarAssinaturaAsaas } from '@/lib/asaas'
+import {
+  buscarPagamentoAsaas,
+  buscarPagamentosAssinatura,
+  buscarAssinaturaAsaas,
+  buscarStatusPagamentoAsaas,
+} from '@/lib/asaas'
 import {
   confirmarAssinaturaGuest,
   confirmarPagamentoPixGuest,
@@ -16,6 +21,8 @@ const STATUS_PAGO = [
   'RECEBIDO',
   'CONFIRMADO',
   'RECEIVED_IN_CASH_AND_CONFIRMED',
+  /** Cobrança quitada via negativação / recuperação (Asaas enum) */
+  'DUNNING_RECEIVED',
 ]
 
 function normaliza(s: string): string {
@@ -56,11 +63,19 @@ export async function GET(request: NextRequest) {
     const admin = createAdminClient()
     if (admin) {
       try {
-        const { data: cached } = await admin
-          .from('pagamento_webhook_confirmations')
-          .select('subscription_id')
-          .eq('subscription_id', subscriptionId)
-          .maybeSingle()
+        const keys = [subscriptionId, paymentId].filter((k): k is string => Boolean(k && k.trim()))
+        let cached: { subscription_id?: string } | null = null
+        for (const k of keys) {
+          const { data } = await admin
+            .from('pagamento_webhook_confirmations')
+            .select('subscription_id')
+            .eq('subscription_id', k)
+            .maybeSingle()
+          if (data) {
+            cached = data
+            break
+          }
+        }
         if (cached) {
           return NextResponse.json(
             { success: true, pago: true, plano: 'basico' },
@@ -77,13 +92,29 @@ export async function GET(request: NextRequest) {
 
     if (effectivePaymentId) {
       try {
-        const payment = await buscarPagamentoAsaas(effectivePaymentId)
-        const paymentStatus = normaliza(payment?.status ?? payment?.paymentStatus ?? '')
-        const pago = isStatusPago(payment)
+        const [statusRes, payment] = await Promise.all([
+          buscarStatusPagamentoAsaas(effectivePaymentId).catch((e: any) => {
+            console.warn('[status-guest] /payments/.../status falhou', e?.message)
+            return null
+          }),
+          buscarPagamentoAsaas(effectivePaymentId).catch((e: any) => {
+            console.warn('[status-guest] GET payment falhou', e?.message)
+            return null
+          }),
+        ])
+
+        const paymentStatus = normaliza(
+          statusRes?.status ?? payment?.status ?? payment?.paymentStatus ?? ''
+        )
+        const pago =
+          isStatusPago({ status: paymentStatus }) ||
+          (payment != null && isStatusPago(payment))
         console.log('[status-guest] paymentId check', {
           subscriptionId,
           paymentId: effectivePaymentId,
           paymentStatus,
+          statusEndpoint: statusRes?.status ?? null,
+          paymentObjectStatus: payment?.status ?? null,
           pago,
         })
         if (!pago) {

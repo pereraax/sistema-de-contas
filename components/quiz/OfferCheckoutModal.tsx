@@ -288,7 +288,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     check()
     const t = setInterval(check, 1000)
     return () => clearInterval(t)
-  }, [step, pixData?.subscriptionId, paymentCompleted])
+  }, [step, pixData?.subscriptionId, pixData?.paymentId, paymentCompleted])
 
   const checkPaymentNow = useCallback(async () => {
     if (!pixData?.subscriptionId || paymentCompleted) return
