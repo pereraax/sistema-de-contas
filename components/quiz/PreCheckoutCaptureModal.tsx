@@ -115,12 +115,26 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
     // Confete automático na entrada da página.
     if (!confettiIntroFired.current) {
       confettiIntroFired.current = true
-      confetti({
-        particleCount: 120,
-        spread: 75,
-        origin: { y: 0.15 },
-        colors: ['#4F7CFF', '#1e4976', '#22c55e', '#ffffff'],
-      })
+      const introEnd = Date.now() + 1200
+      const introColors = ['#4F7CFF', '#1e4976', '#22c55e', '#ffffff']
+      const introFrame = () => {
+        confetti({
+          particleCount: 7,
+          angle: 58,
+          spread: 60,
+          origin: { x: 0.02, y: 0.98 },
+          colors: introColors,
+        })
+        confetti({
+          particleCount: 7,
+          angle: 122,
+          spread: 60,
+          origin: { x: 0.98, y: 0.98 },
+          colors: introColors,
+        })
+        if (Date.now() < introEnd) requestAnimationFrame(introFrame)
+      }
+      requestAnimationFrame(introFrame)
     }
 
     return () => clearTimeout(introTimer)
@@ -140,16 +154,16 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
     const frame = () => {
       confetti({
         particleCount: 8,
-        angle: 65,
+        angle: 58,
         spread: 55,
-        origin: { x: 0.2, y: 0.9 },
+        origin: { x: 0.02, y: 0.98 },
         colors,
       })
       confetti({
         particleCount: 8,
-        angle: 115,
+        angle: 122,
         spread: 55,
-        origin: { x: 0.8, y: 0.9 },
+        origin: { x: 0.98, y: 0.98 },
         colors,
       })
 
