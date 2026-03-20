@@ -6,6 +6,8 @@ Siga **na ordem**. Na maioria dos casos o problema é **ambiente (URL + chave)**
 
 ## 1) Chave e URL têm que ser do **mesmo** ambiente
 
+(Alinhado à [tabela oficial Asaas](https://docs.asaas.com/docs/sandbox): produção `api.asaas.com`, sandbox `api-sandbox.asaas.com` — nas chamadas REST use o sufixo `/v3`.)
+
 | Sua chave começa com… | URL correta (`ASAAS_API_URL`) |
 |------------------------|-------------------------------|
 | `$aact_hmlg_` (homologação / testes) | `https://api-sandbox.asaas.com/v3` |
