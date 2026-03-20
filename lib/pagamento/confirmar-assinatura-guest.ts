@@ -142,15 +142,21 @@ export async function confirmarPagamentoPixGuest(
         </div>
       `
 
-      await sendMail({
+      // Não bloqueia confirmação/polling do quiz: envio em paralelo.
+      void sendMail({
         to: email,
         subject: 'Pagamento confirmado – Acesse sua conta no Plenipay',
         html,
       })
-      console.log('[confirmar-pagamento-pix-guest] email enviado', {
-        paymentId,
-        email: maskEmail(email),
-      })
+        .then(() => {
+          console.log('[confirmar-pagamento-pix-guest] email enviado', {
+            paymentId,
+            email: maskEmail(email),
+          })
+        })
+        .catch((err: any) => {
+          console.error('[confirmar-pagamento-pix-guest] Erro ao enviar email:', err?.message ?? err)
+        })
     } catch (err: any) {
       console.error('[confirmar-pagamento-pix-guest] Erro preparando email:', err?.message ?? err)
     }
@@ -279,15 +285,21 @@ export async function confirmarAssinaturaGuest(
         </div>
       `
 
-      await sendMail({
+      // Não bloqueia confirmação/polling do quiz: envio em paralelo.
+      void sendMail({
         to: email,
         subject: 'Pagamento confirmado – Acesse sua conta no Plenipay',
         html,
       })
-      console.log('[confirmar-assinatura-guest] email enviado', {
-        subscriptionId,
-        email: maskEmail(email),
-      })
+        .then(() => {
+          console.log('[confirmar-assinatura-guest] email enviado', {
+            subscriptionId,
+            email: maskEmail(email),
+          })
+        })
+        .catch((err: any) => {
+          console.error('[confirmar-assinatura-guest] Erro ao enviar email:', err?.message ?? err)
+        })
     } catch (err: any) {
       console.error('[confirmar-assinatura-guest] Erro preparando/mandando email:', err?.message ?? err)
     }

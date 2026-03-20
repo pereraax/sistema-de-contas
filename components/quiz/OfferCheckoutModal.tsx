@@ -288,11 +288,11 @@ export function OfferCheckoutModal({
     }
   }, [step, pixData?.pixCopyPaste, pixData?.pixQrCode])
 
-  // Polling status do PIX (guest): verificação imediata + a cada 1s (webhook Asaas deixa instantâneo)
+  // Polling status do PIX (guest): verificação imediata + bursts rápidos nos primeiros segundos.
   useEffect(() => {
     if (step !== 'pix' || !pixData?.subscriptionId || paymentCompleted) return
     const subId = pixData.subscriptionId
-      const check = async () => {
+    const check = async () => {
       try {
         const pixProvider = (process.env.NEXT_PUBLIC_PIX_PROVIDER || '').toLowerCase()
         const pid = pixData?.paymentId ? `&paymentId=${encodeURIComponent(String(pixData.paymentId))}` : ''
@@ -309,9 +309,19 @@ export function OfferCheckoutModal({
         // silencioso
       }
     }
-    check()
-    const t = setInterval(check, 1000)
-    return () => clearInterval(t)
+
+    // Primeiras tentativas mais agressivas para reduzir sensação de demora no "Já paguei".
+    void check()
+    const tFast1 = setTimeout(() => void check(), 350)
+    const tFast2 = setTimeout(() => void check(), 900)
+
+    // Polling contínuo (rápido) até confirmar.
+    const t = setInterval(() => void check(), 700)
+    return () => {
+      clearTimeout(tFast1)
+      clearTimeout(tFast2)
+      clearInterval(t)
+    }
   }, [step, pixData?.subscriptionId, pixData?.paymentId, paymentCompleted])
 
   const checkPaymentNow = useCallback(async () => {
