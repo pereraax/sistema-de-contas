@@ -59,7 +59,8 @@ export function OfferPage({ onContinue }: OfferPageProps) {
   const [countdown, setCountdown] = useState(INITIAL_SECONDS)
   const [slideIndex, setSlideIndex] = useState(0)
   const [showCheckout, setShowCheckout] = useState(false)
-  const [captureOpen, setCaptureOpen] = useState(false)
+  // A captura discreta deve aparecer antes da página de oferta/checkout.
+  const [captureOpen, setCaptureOpen] = useState(true)
   const [captureData, setCaptureData] = useState<{
     email: string
     celularDigits: string
@@ -85,6 +86,40 @@ export function OfferPage({ onContinue }: OfferPageProps) {
     const t = setInterval(() => goTo(slideIndex + 1), CAROUSEL_INTERVAL_MS)
     return () => clearInterval(t)
   }, [slideIndex, goTo])
+
+  const handleCaptured = (data: { email: string; celularDigits: string; celularFormatted: string }) => {
+    setCaptureData({
+      email: data.email,
+      celularDigits: data.celularDigits,
+      celularFormatted: data.celularFormatted,
+    })
+    setCaptureOpen(false)
+    setShowCheckout(true)
+  }
+
+  if (captureOpen) {
+    return (
+      <PreCheckoutCaptureModal
+        open={captureOpen}
+        onClose={() => setCaptureOpen(false)}
+        onContinue={(data) => handleCaptured(data)}
+      />
+    )
+  }
+
+  if (showCheckout) {
+    return (
+      <OfferCheckoutModal
+        open={showCheckout}
+        onClose={() => {
+          setShowCheckout(false)
+        }}
+        prefillEmail={captureData?.email}
+        prefillCelularDigits={captureData?.celularDigits}
+        prefillCelularFormatted={captureData?.celularFormatted}
+      />
+    )
+  }
 
   return (
     <section className="relative min-h-screen bg-white pb-10">
@@ -341,34 +376,14 @@ export function OfferPage({ onContinue }: OfferPageProps) {
         >
           <button
             type="button"
-            onClick={() => setCaptureOpen(true)}
+            onClick={() => {
+              if (captureData?.email && captureData?.celularDigits) setShowCheckout(true)
+              else setCaptureOpen(true)
+            }}
             className="w-full rounded-2xl py-4 text-base font-bold text-white bg-[#0B4BFF] shadow-lg hover:brightness-110 active:scale-[0.99] transition-all"
           >
             Quero assinar
           </button>
-          <PreCheckoutCaptureModal
-            open={captureOpen}
-            onClose={() => setCaptureOpen(false)}
-            onContinue={(data) => {
-              setCaptureData({
-                email: data.email,
-                celularDigits: data.celularDigits,
-                celularFormatted: data.celularFormatted,
-              })
-              setCaptureOpen(false)
-              setShowCheckout(true)
-            }}
-          />
-          <OfferCheckoutModal
-            open={showCheckout}
-            onClose={() => {
-              setShowCheckout(false)
-              // Mantemos os dados se o usuário reabrir o checkout em seguida.
-            }}
-            prefillEmail={captureData?.email}
-            prefillCelularDigits={captureData?.celularDigits}
-            prefillCelularFormatted={captureData?.celularFormatted}
-          />
           <p className="mt-4 text-center text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
             Ao assinar, você concorda com nossos{' '}
             <Link href="/termos" className="text-[#0B4BFF] underline hover:no-underline">Termos de Uso</Link>
