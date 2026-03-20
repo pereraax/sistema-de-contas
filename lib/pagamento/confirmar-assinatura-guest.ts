@@ -62,21 +62,37 @@ export async function confirmarPagamentoPixGuest(
     const nome = 'Assinante'
     let alreadyActive = false
 
+    // Cache de confirmação (não deve bloquear o e-mail).
+    // A migration atual pode não ter colunas `email/plano`, então tentamos com mais campos e
+    // caímos para o mínimo sem impedir o fluxo.
     try {
-      await admin.from('pagamento_webhook_confirmations').upsert(
-        {
-          subscription_id: paymentId,
-          confirmed_at: new Date().toISOString(),
-          email,
-          plano: PLANO_GUEST_KEY,
-        } as any,
-        { onConflict: 'subscription_id' },
-      )
-    } catch {
-      await admin.from('pagamento_webhook_confirmations').upsert(
-        { subscription_id: paymentId, confirmed_at: new Date().toISOString() },
-        { onConflict: 'subscription_id' },
-      )
+      try {
+        await admin.from('pagamento_webhook_confirmations').upsert(
+          {
+            subscription_id: paymentId,
+            confirmed_at: new Date().toISOString(),
+            email,
+            plano: PLANO_GUEST_KEY,
+          } as any,
+          { onConflict: 'subscription_id' },
+        )
+      } catch (err: any) {
+        // Fallback para schema minimalista (apenas subscription_id + confirmed_at).
+        console.warn('[confirmar-pagamento-pix-guest] upsert cache fallback', {
+          paymentId,
+          error: err?.message ?? String(err),
+        })
+        await admin.from('pagamento_webhook_confirmations').upsert(
+          { subscription_id: paymentId, confirmed_at: new Date().toISOString() },
+          { onConflict: 'subscription_id' },
+        )
+      }
+    } catch (err: any) {
+      // Não bloqueia envio de e-mail.
+      console.warn('[confirmar-pagamento-pix-guest] Falha ao gravar cache de confirmação', {
+        paymentId,
+        error: err?.message ?? String(err),
+      })
     }
 
     try {

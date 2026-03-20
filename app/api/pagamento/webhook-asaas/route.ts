@@ -59,11 +59,13 @@ export async function POST(request: NextRequest) {
       value: payment?.value ?? null,
     })
 
-    // Assinatura (cartão/boleto) vs cobrança PIX avulsa (guest quiz — só pay_...)
-    if (subscriptionId) {
-      await confirmarAssinaturaGuest(subscriptionId)
-    } else if (paymentId && typeof paymentId === 'string' && paymentId.startsWith('pay_')) {
+    // Assinatura (cartão/boleto) vs cobrança PIX avulsa (guest quiz — só pay_...).
+    // Importante: o payload do Asaas pode vir com `subscription` mesmo em pagamentos PIX.
+    // Para não confundir os fluxos, priorizamos `paymentId` quando for `pay_`.
+    if (paymentId && typeof paymentId === 'string' && paymentId.startsWith('pay_')) {
       await confirmarPagamentoPixGuest(paymentId)
+    } else if (subscriptionId && typeof subscriptionId === 'string') {
+      await confirmarAssinaturaGuest(subscriptionId)
     }
 
     return NextResponse.json({ received: true })

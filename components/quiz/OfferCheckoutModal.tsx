@@ -467,7 +467,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
               </div>
               <h3 className="text-xl font-bold text-slate-800">Pagamento concluído</h3>
               <p className="text-sm text-slate-600">
-                Enviamos um e-mail para você com o link de acesso. Acesse sua conta em <strong>plenipay.com</strong> e utilize todos os benefícios.
+                Você receberá um e-mail para acessar sua assistente financeira. Acesse sua conta em <strong>plenipay.com</strong> e utilize todos os benefícios.
               </p>
               <button
                 type="button"
@@ -565,7 +565,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                   </>
                 )}
                 <p className="text-center text-xs text-slate-500">
-                  Após o pagamento, seu acesso será liberado em instantes. Você receberá um e-mail de boas-vindas.
+                  Após o pagamento, seu acesso será liberado em instantes. Você receberá um e-mail para acessar sua assistente financeira.
                 </p>
                 <button
                   type="button"
