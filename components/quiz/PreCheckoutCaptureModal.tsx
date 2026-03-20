@@ -237,7 +237,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
           <X className="h-5 w-5" />
         </button>
 
-        <div className="min-h-full p-5 pt-12 pb-8 flex flex-col items-center text-center">
+        <div className="min-h-full p-5 pt-12 pb-8 flex flex-col items-center">
           <motion.div
             className="inline-flex h-12 w-12 items-center justify-center rounded-3xl bg-[#4F7CFF]/15 mb-4"
             animate={{ y: [0, -4, 0], scale: [1, 1.05, 1] }}
@@ -247,7 +247,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
           </motion.div>
 
           <div className="w-full max-w-md space-y-3">
-            <div className="space-y-1">
+            <div className="space-y-1 text-left">
               <div className="text-base sm:text-lg font-semibold text-slate-900">Seu Presente Especial</div>
               <div className="text-xs sm:text-sm font-medium text-slate-600">Etapa rápida antes do checkout</div>
               <div className="text-xs sm:text-sm text-slate-600">
@@ -261,7 +261,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
                 {introTyping ? (
                   <TypingDots />
                 ) : (
-                  <div className="text-sm leading-relaxed whitespace-pre-line">{assistantTextStart}</div>
+                  <div className="text-sm leading-relaxed whitespace-pre-line text-left">{assistantTextStart}</div>
                 )}
               </div>
             </div>
@@ -313,7 +313,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
                       <TypingDots />
                     ) : (
                       emailPromptVisible && (
-                        <div className="text-sm leading-relaxed whitespace-pre-line">{assistantAskEmail}</div>
+                        <div className="text-sm leading-relaxed whitespace-pre-line text-left">{assistantAskEmail}</div>
                       )
                     )}
                   </div>
@@ -364,7 +364,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
               <>
                 {userEmailMessage && (
                   <div className="flex justify-end">
-                    <div className="max-w-[85%] rounded-2xl bg-[#eaf2ff] text-slate-900 px-4 py-3 shadow-sm border border-[#dbeafe]">
+                    <div className="max-w-[85%] rounded-2xl bg-[#eaf2ff] text-slate-900 px-4 py-3 shadow-sm border border-[#dbeafe] text-left">
                       {userEmailMessage}
                     </div>
                   </div>
@@ -372,7 +372,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
 
                 <div className="flex justify-start">
                   <div className="max-w-[85%] rounded-2xl bg-slate-800 text-white px-4 py-3 shadow-sm border border-white/10">
-                    {typing ? <TypingDots /> : phonePromptVisible && <div className="text-sm leading-relaxed whitespace-pre-line">{assistantAskPhone}</div>}
+                    {typing ? <TypingDots /> : phonePromptVisible && <div className="text-sm leading-relaxed whitespace-pre-line text-left">{assistantAskPhone}</div>}
                   </div>
                 </div>
 
@@ -426,7 +426,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
               <div className="space-y-4 pt-2">
                 {userPhoneMessage && (
                   <div className="flex justify-end">
-                    <div className="max-w-[85%] rounded-2xl bg-[#eaf2ff] text-slate-900 px-4 py-3 shadow-sm border border-[#dbeafe]">
+                    <div className="max-w-[85%] rounded-2xl bg-[#eaf2ff] text-slate-900 px-4 py-3 shadow-sm border border-[#dbeafe] text-left">
                       {userPhoneMessage}
                     </div>
                   </div>
@@ -434,7 +434,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
 
                 <div className="flex justify-start">
                   <div className="max-w-[85%] rounded-2xl bg-[#1e4976] text-white px-4 py-3 shadow-sm border border-white/10">
-                    {typing ? <TypingDots /> : donePromptVisible && <div className="text-sm leading-relaxed whitespace-pre-line">{assistantDone}</div>}
+                    {typing ? <TypingDots /> : donePromptVisible && <div className="text-sm leading-relaxed whitespace-pre-line text-left">{assistantDone}</div>}
                   </div>
                 </div>
 
@@ -456,8 +456,8 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
                       type="button"
                       onClick={handleRegisterAndContinue}
                       disabled={busy}
-                      className="w-full rounded-xl py-3.5 text-base font-semibold text-white"
-                      style={{ backgroundColor: '#4F7CFF' }}
+                      className="w-full rounded-2xl py-4 text-lg font-bold text-white shadow-lg hover:brightness-110 active:scale-[0.99] transition-all"
+                      style={{ backgroundColor: '#2f6bff' }}
                     >
                       {busy ? (
                         <span className="inline-flex items-center gap-2 justify-center">
@@ -465,7 +465,7 @@ export function PreCheckoutCaptureModal({ open, onClose, onContinue }: PreChecko
                           Criando sua conta...
                         </span>
                       ) : (
-                        'Continuar para o checkout'
+                        'Receber presente'
                       )}
                     </button>
 
