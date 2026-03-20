@@ -5,6 +5,7 @@ import {
   criarAssinaturaAsaas,
   buscarPagamentosAssinatura,
   buscarPixQrCode,
+  assertAsaasPixRealEnvironmentConfigured,
 } from '@/lib/asaas'
 import { selectPendingPixPayment } from '@/lib/pagamento/pix-helpers'
 
@@ -42,6 +43,12 @@ export async function POST(request: NextRequest) {
     }
 
     const billingType = metodoPagamento === 'CREDIT_CARD' ? 'CREDIT_CARD' : metodoPagamento === 'BOLETO' ? 'BOLETO' : 'PIX'
+
+    if (billingType === 'PIX') {
+      // Evita o caso comum de "localhost funciona mas não paga de verdade":
+      // chave hmlg com URL de produção.
+      assertAsaasPixRealEnvironmentConfigured()
+    }
 
     const supabase = await createClient()
     const { data: { user }, error: userError } = await supabase.auth.getUser()

@@ -4,6 +4,7 @@ import {
   criarAssinaturaAsaas,
   criarCobrancaPixAsaas,
   buscarPixQrCode,
+  assertAsaasPixRealEnvironmentConfigured,
 } from '@/lib/asaas'
 
 // Plano oferta quiz: anual a R$ 29,90
@@ -97,6 +98,10 @@ export async function POST(request: NextRequest) {
 
     // PIX: cobrança avulsa (POST /payments) — QR/copia costuma ser aceito pelos bancos melhor que 1ª parcela de assinatura.
     if (billingType === 'PIX') {
+      // Evita o caso comum de "localhost funciona mas não paga de verdade":
+      // chave hmlg com URL de produção.
+      assertAsaasPixRealEnvironmentConfigured()
+
       const cobranca = await criarCobrancaPixAsaas({
         customer: customerId,
         value: PLANO_GUEST.valor,

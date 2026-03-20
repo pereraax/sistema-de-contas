@@ -111,6 +111,46 @@ export function getResolvedAsaasApiUrl(): string {
   return asaasResolvedBaseUrl
 }
 
+function looksLikeSandboxKey(apiKey: string): boolean {
+  return /_hmlg_/i.test(apiKey)
+}
+
+function looksLikeProductionKey(apiKey: string): boolean {
+  return /_prod_/i.test(apiKey)
+}
+
+/**
+ * Se a chave é de homologação (hmlg), mas a URL resolvida está apontando para
+ * produção (`api.asaas.com`), isso normalmente NÃO gera PIX "real" no app do banco.
+ *
+ * A gente não "força sandbox" automaticamente porque você pediu PIX real.
+ * Em vez disso, falha com mensagem clara para corrigir o ambiente.
+ */
+export function isAsaasSandboxKeyWithProductionUrl(): boolean {
+  const apiKey = getAsaasApiKey().trim()
+  const resolvedUrl = getResolvedAsaasApiUrl()
+  const urlIsProduction = /api\.asaas\.com/i.test(resolvedUrl) && !/api-sandbox/i.test(resolvedUrl)
+  return looksLikeSandboxKey(apiKey) && urlIsProduction
+}
+
+export function assertAsaasPixRealEnvironmentConfigured(): void {
+  if (isAsaasSandboxKeyWithProductionUrl()) {
+    const resolvedUrl = getResolvedAsaasApiUrl()
+    const apiKey = getAsaasApiKey().trim()
+    const keyType = looksLikeSandboxKey(apiKey)
+      ? 'homologação (hmlg)'
+      : looksLikeProductionKey(apiKey)
+        ? 'produção (prod)'
+        : 'desconhecida'
+
+    throw new Error(
+      `[lib/asaas] PIX real está configurado de forma inconsistente: chave ${keyType} com URL de produção (${resolvedUrl}). ` +
+        `Troque ASAAS_API_KEY por uma chave $aact_prod_... (Asaas PRODUÇÃO) ou, se for apenas teste, ` +
+        `defina ASAAS_USE_SANDBOX=true + ASAAS_API_URL=https://api-sandbox.asaas.com/v3 e use a chave $aact_hmlg_... .`
+    )
+  }
+}
+
 export interface AsaasCustomer {
   name: string
   email: string
