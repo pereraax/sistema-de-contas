@@ -100,7 +100,19 @@ export async function GET(request: NextRequest) {
         })
 
         const paymentStatus = normaliza(statusRes?.status ?? '')
-        const pago = isStatusPago({ status: paymentStatus })
+        let pago = isStatusPago({ status: paymentStatus })
+
+        // Fallback de segurança: em alguns casos o endpoint /status demora para refletir,
+        // mas o GET /payments/{id} já retorna RECEIVED/CONFIRMED.
+        if (!pago) {
+          const paymentObj = await buscarPagamentoAsaas(effectivePaymentId).catch((e: any) => {
+            console.warn('[status-guest] GET payment fallback falhou', e?.message)
+            return null
+          })
+          if (paymentObj) {
+            pago = isStatusPago(paymentObj)
+          }
+        }
 
         // Debug útil pra comparar com o Asaas (se você mandar logs depois, ajuda muito)
         console.log('[status-guest] paymentId check', {
