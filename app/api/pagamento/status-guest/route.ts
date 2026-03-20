@@ -92,29 +92,22 @@ export async function GET(request: NextRequest) {
 
     if (effectivePaymentId) {
       try {
-        const [statusRes, payment] = await Promise.all([
-          buscarStatusPagamentoAsaas(effectivePaymentId).catch((e: any) => {
-            console.warn('[status-guest] /payments/.../status falhou', e?.message)
-            return null
-          }),
-          buscarPagamentoAsaas(effectivePaymentId).catch((e: any) => {
-            console.warn('[status-guest] GET payment falhou', e?.message)
-            return null
-          }),
-        ])
+        // Otimização: primeiro só o endpoint leve de status.
+        // Evita fazer GET /payments/{id} quando ainda está PENDING, o que reduz latência do "Já paguei".
+        const statusRes = await buscarStatusPagamentoAsaas(effectivePaymentId).catch((e: any) => {
+          console.warn('[status-guest] /payments/.../status falhou', e?.message)
+          return null
+        })
 
-        const paymentStatus = normaliza(
-          statusRes?.status ?? payment?.status ?? payment?.paymentStatus ?? ''
-        )
-        const pago =
-          isStatusPago({ status: paymentStatus }) ||
-          (payment != null && isStatusPago(payment))
+        const paymentStatus = normaliza(statusRes?.status ?? '')
+        const pago = isStatusPago({ status: paymentStatus })
+
+        // Debug útil pra comparar com o Asaas (se você mandar logs depois, ajuda muito)
         console.log('[status-guest] paymentId check', {
           subscriptionId,
           paymentId: effectivePaymentId,
           paymentStatus,
           statusEndpoint: statusRes?.status ?? null,
-          paymentObjectStatus: payment?.status ?? null,
           pago,
         })
         if (!pago) {
@@ -123,11 +116,16 @@ export async function GET(request: NextRequest) {
             { headers: noCacheHeaders }
           )
         }
-        if (isAsaasPaymentId(subscriptionId)) {
+
+        // Agora que é pago: confirma usando o caminho correto.
+        // Se for pay_... (PIX avulso), confirma PIX guest.
+        // Caso contrário, trata como assinatura.
+        if (isAsaasPaymentId(effectivePaymentId)) {
           await confirmarPagamentoPixGuest(effectivePaymentId)
         } else {
           await confirmarAssinaturaGuest(subscriptionId)
         }
+
         return NextResponse.json(
           { success: true, pago: true, plano: 'basico', paymentStatus },
           { headers: noCacheHeaders }
