@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -20,6 +20,7 @@ import { createClient } from '@/lib/supabase/client'
 import { createNotification } from '@/components/NotificationBell'
 import logoTipoFundoClaro from '@/assets/fundo claro.png'
 import type { QRCodeToDataURLOptions } from 'qrcode'
+import { isLikelyValidBrPixPayload } from '@/lib/pagamento/pix-helpers'
 
 const SOFT_BLUE = '#4F7CFF' // Azul mais suave
 const PLANO_ANUAL_VALOR = 29.9
@@ -135,42 +136,91 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
     }
   }, [open])
 
-  // Timeout: se após 40s no step PIX ainda não tiver QR, mostrar opção de voltar
+  const pixPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  /** BR Code completo = banco aceita; antes parávamos no 1º texto (truncado) e o polling não atualizava */
+  const brCodeCompleto = useCallback((s: string | null | undefined) => {
+    const t = String(s || '')
+      .replace(/\s+/g, '')
+      .trim()
+    return t.length > 0 && isLikelyValidBrPixPayload(t)
+  }, [])
+
+  // Timeout: se após 90s no step PIX ainda não tiver BR completo, mostrar opção de voltar
   useEffect(() => {
-    if (step !== 'pix' || pixData?.pixQrCode || pixData?.pixCopyPaste || paymentCompleted) return
-    const t = setTimeout(() => setPixTimeout(true), 40000)
+    if (step !== 'pix' || paymentCompleted) return
+    if (pixData?.pixCopyPaste && brCodeCompleto(pixData.pixCopyPaste)) return
+    const t = setTimeout(() => setPixTimeout(true), 90000)
     return () => clearTimeout(t)
-  }, [step, pixData?.pixQrCode, pixData?.pixCopyPaste, paymentCompleted])
+  }, [step, pixData?.pixCopyPaste, paymentCompleted, brCodeCompleto])
 
-  // Buscar QR Code PIX quando a assinatura foi criada mas o QR não veio na resposta (Asaas pode demorar)
+  // Buscar / atualizar PIX até código copia-e-cola estar completo (merge: fica o payload mais longo)
   useEffect(() => {
-    if (step !== 'pix' || !pixData?.subscriptionId) return
-    const hasQr = pixData.pixQrCode || pixData.pixCopyPaste
-    if (hasQr) return
+    if (step !== 'pix' || !pixData?.subscriptionId || paymentCompleted) return
 
+    const subId = pixData.subscriptionId
     let cancelled = false
-    setPixLoading(true)
+
+    const merge = (
+      prev: NonNullable<typeof pixData>,
+      data: { pixQrCode?: string | null; pixCopyPaste?: string | null; paymentId?: string | null }
+    ) => {
+      const p1 = String(prev.pixCopyPaste || '')
+        .replace(/\s+/g, '')
+        .trim()
+      const p2 = String(data.pixCopyPaste || '')
+        .replace(/\s+/g, '')
+        .trim()
+      const bestPaste =
+        p2.length > p1.length ? data.pixCopyPaste ?? prev.pixCopyPaste : prev.pixCopyPaste ?? data.pixCopyPaste
+      const bestQr = data.pixQrCode || prev.pixQrCode
+      return {
+        ...prev,
+        pixCopyPaste: bestPaste ?? prev.pixCopyPaste,
+        pixQrCode: bestQr ?? prev.pixQrCode,
+        paymentId: data.paymentId ?? prev.paymentId,
+      }
+    }
+
     const fetchQr = async () => {
+      if (cancelled) return
       try {
-        const res = await fetch(`/api/pagamento/pix-guest?subscriptionId=${encodeURIComponent(pixData.subscriptionId)}`)
+        const res = await fetch(`/api/pagamento/pix-guest?subscriptionId=${encodeURIComponent(subId)}`)
         const data = await res.json()
         if (cancelled) return
         if (data.success && (data.pixQrCode || data.pixCopyPaste)) {
-          setPixData((prev) => prev ? { ...prev, pixQrCode: data.pixQrCode ?? undefined, pixCopyPaste: data.pixCopyPaste ?? undefined, paymentId: data.paymentId ?? prev.paymentId } : null)
+          setPixData((prev) => {
+            if (!prev) return null
+            const merged = merge(prev, data)
+            const t = String(merged.pixCopyPaste || '')
+              .replace(/\s+/g, '')
+              .trim()
+            if (t && brCodeCompleto(t) && pixPollRef.current) {
+              clearInterval(pixPollRef.current)
+              pixPollRef.current = null
+            }
+            return merged
+          })
           setPixLoading(false)
         }
       } catch {
         if (!cancelled) setPixLoading(false)
       }
     }
-    fetchQr()
-    const t = setInterval(fetchQr, 2500)
+
+    setPixLoading(true)
+    void fetchQr()
+    pixPollRef.current = setInterval(fetchQr, 2500)
+
     return () => {
       cancelled = true
-      clearInterval(t)
+      if (pixPollRef.current) {
+        clearInterval(pixPollRef.current)
+        pixPollRef.current = null
+      }
       setPixLoading(false)
     }
-  }, [step, pixData?.subscriptionId, pixData?.pixQrCode, pixData?.pixCopyPaste])
+  }, [step, pixData?.subscriptionId, paymentCompleted, brCodeCompleto])
 
   // Só gera QR no cliente se o Asaas não enviar imagem: o PNG oficial do Asaas é a forma mais segura para o banco ler.
   useEffect(() => {
@@ -477,13 +527,19 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                     )}
                     {pixData.pixCopyPaste && (
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Código PIX (copiar e colar)</label>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Código PIX (copiar e colar){' '}
+                          <span className="text-slate-400 font-normal">
+                            ({String(pixData.pixCopyPaste || '').replace(/\s+/g, '').trim().length} caracteres)
+                          </span>
+                        </label>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <textarea
                             readOnly
+                            rows={4}
+                            spellCheck={false}
                             value={String(pixData.pixCopyPaste).replace(/\s+/g, '').trim()}
-                            className="flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-xs text-slate-600 bg-slate-50"
+                            className="flex-1 rounded-lg border border-slate-200 px-3 py-2.5 text-[11px] leading-snug text-slate-700 bg-slate-50 font-mono break-all min-h-[5.5rem]"
                           />
                           <button
                             type="button"
@@ -497,7 +553,7 @@ export function OfferCheckoutModal({ open, onClose }: OfferCheckoutModalProps) {
                                 setTimeout(() => setPixCopied(false), 2000)
                               }
                             }}
-                            className="rounded-lg px-4 py-2.5 flex items-center gap-2 text-sm font-medium text-white shrink-0"
+                            className="rounded-lg px-4 py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-white shrink-0 self-stretch sm:self-auto min-h-[44px]"
                             style={{ backgroundColor: SOFT_BLUE }}
                           >
                             <Copy className="h-4 w-4" />

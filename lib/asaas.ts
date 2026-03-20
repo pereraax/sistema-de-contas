@@ -370,6 +370,21 @@ export async function buscarPagamentoAsaas(paymentId: string): Promise<AsaasResp
   return response.json()
 }
 
+function extrairPayloadPixQrResponse(raw: Record<string, unknown>): string | undefined {
+  const candidates = [
+    raw.payload,
+    raw.copyAndPaste,
+    raw.copyPaste,
+    raw.brCode,
+    raw.pixCopyPaste,
+    raw.emv,
+  ]
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.length > 0) return c
+  }
+  return undefined
+}
+
 async function buscarPixQrCodeUmaVez(
   paymentId: string
 ): Promise<{ encodedImage?: string; payload?: string; expirationDate?: string; description?: string }> {
@@ -387,7 +402,22 @@ async function buscarPixQrCodeUmaVez(
     throw new Error('Erro ao buscar QR Code PIX')
   }
 
-  return response.json()
+  const raw = (await response.json()) as Record<string, unknown>
+  const payload = extrairPayloadPixQrResponse(raw)
+  const encodedImage =
+    typeof raw.encodedImage === 'string'
+      ? raw.encodedImage
+      : typeof raw.qrCodeBase64 === 'string'
+        ? raw.qrCodeBase64
+        : undefined
+
+  return {
+    ...raw,
+    encodedImage,
+    payload,
+    expirationDate: typeof raw.expirationDate === 'string' ? raw.expirationDate : undefined,
+    description: typeof raw.description === 'string' ? raw.description : undefined,
+  }
 }
 
 /**
@@ -400,8 +430,8 @@ export async function buscarPixQrCode(paymentId: string): Promise<{
   expirationDate?: string
   description?: string
 }> {
-  const maxAttempts = 8
-  const delayMs = 1200
+  const maxAttempts = 22
+  const delayMs = 1500
   let last: {
     encodedImage?: string
     payload?: string
@@ -432,7 +462,7 @@ export async function buscarPixQrCode(paymentId: string): Promise<{
       attempt,
       paymentId,
       payloadLen: payload?.length ?? 0,
-      prefix: payload?.slice(0, 28),
+      prefix: payload?.slice(0, 32),
       crcOk: payload ? /6304[0-9A-Fa-f]{4}$/.test(payload) : false,
     })
 
@@ -441,11 +471,11 @@ export async function buscarPixQrCode(paymentId: string): Promise<{
     }
   }
 
-  console.warn('⚠️ [lib/asaas] Retornando PIX sem validação completa do BR Code (última tentativa)', {
-    paymentId,
-    payloadLen: last.payload?.length ?? 0,
-  })
-  return last
+  throw new Error(
+    'O Asaas ainda não devolveu o PIX completo (código copia-e-cola inválido ou incompleto). ' +
+      'Aguarde 1 minuto e tente de novo. Em produção use chave $aact_prod_ e URL https://api.asaas.com/v3. ' +
+      'No painel Asaas verifique se Pix está habilitado para a conta.'
+  )
 }
 
 
