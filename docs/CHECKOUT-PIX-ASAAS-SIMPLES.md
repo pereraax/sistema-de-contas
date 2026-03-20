@@ -15,6 +15,8 @@ Siga **na ordem**. Na maioria dos casos o problema é **ambiente (URL + chave)**
 
 **Erro comum:** chave `hmlg` com URL `https://api.asaas.com/v3` → o checkout quebra (500) e **não aparece QR**.
 
+**Código PIX “curto” ou que começa com `000201` e para no meio:** o Asaas às vezes só completa o BR Code após alguns segundos. O app **continua buscando** até o código ter tamanho e CRC (`6304`) válidos — não usamos mais payload incompleto. Para **pagamento real no app do banco**, use **produção** (`$aact_prod_` + `https://api.asaas.com/v3`).
+
 O código do projeto **corrige isso automaticamente** em muitos casos, mas no **Railway/Render** deixe as duas variáveis **coerentes** para evitar surpresas.
 
 ---
