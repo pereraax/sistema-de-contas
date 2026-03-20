@@ -27,8 +27,9 @@ O código do projeto **corrige isso automaticamente** em muitos casos, mas no **
 Variáveis:
 
 ```env
-ASAAS_API_KEY=$aact_...
 ASAAS_API_URL=https://api-sandbox.asaas.com/v3
+# Chave começa com $ → use aspas duplas ou o valor some no .env
+ASAAS_API_KEY="$aact_hmlg_..."
 ```
 
 (Em produção real, troque para `https://api.asaas.com/v3` + chave `prod`.)

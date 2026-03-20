@@ -19,7 +19,8 @@ Para **testes com chave `hmlg`**, precisa estar assim (já é o esperado no proj
 
 ```env
 ASAAS_API_URL=https://api-sandbox.asaas.com/v3
-ASAAS_API_KEY=$aact_hmlg_...sua_chave_do_painel_sandbox...
+# Obrigatório entre aspas: a chave começa com $
+ASAAS_API_KEY="$aact_hmlg_...sua_chave_do_painel_sandbox..."
 ```
 
 Se mudar qualquer linha, **salve o arquivo**.

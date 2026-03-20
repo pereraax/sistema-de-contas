@@ -8,7 +8,8 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 NODE_ENV=development
 ADMIN_JWT_SECRET=h7Ygdyt5/Ht0KzlMpEpxG3UNvJPldKRdjoAAcj8od5c=
-ASAAS_API_KEY=$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjJiZjU2MDNkLTYzMDUtNGEzZi05MzhhLWM4MzkyNWVjNmJkMTo6JGFhY2hfOGM0NjVlZjUtMGRiMy00YzIwLTkwYzctMTAyOGRhNGNiNjEz
+# Chave Asaas começa com $ → use aspas no .env local
+# ASAAS_API_KEY="$aact_prod_..."
 # Produção: https://api.asaas.com/v3 | Sandbox: https://api-sandbox.asaas.com/v3
 ASAAS_API_URL=https://api.asaas.com/v3
 APIFACIL_INSTANCE_ID=1041

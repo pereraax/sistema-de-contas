@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server'
-import { getResolvedAsaasApiUrl } from '@/lib/asaas'
+import { getAsaasApiKey, getResolvedAsaasApiUrl } from '@/lib/asaas'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * Diagnóstico rápido: chave + URL (sem expor a chave).
+ * Usa a mesma leitura de chave que lib/asaas (.env + fallback .env.local).
  * GET /api/pagamento/asaas-health
  */
 export async function GET() {
-  const rawKey = process.env.ASAAS_API_KEY?.trim() || ''
+  const rawKey = getAsaasApiKey().trim()
   const configuredUrl = (process.env.ASAAS_API_URL || '').trim()
 
   const keyLooksSandbox = /_hmlg_/i.test(rawKey)

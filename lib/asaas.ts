@@ -9,7 +9,10 @@ import {
 
 // IMPORTANTE: Em produção (Railway), as variáveis vêm de process.env (não de .env.local)
 // Ler apenas de process.env para evitar erros durante o build
-function getAsaasApiKey(): string {
+//
+// No .env, valores que começam com $ PRECISAM de aspas (senão o loader interpreta como variável):
+//   ASAAS_API_KEY="$aact_hmlg_..."
+export function getAsaasApiKey(): string {
   let apiKey = process.env.ASAAS_API_KEY
 
   // No ambiente de produção (Railway, etc.), não tentar ler .env.local
@@ -21,9 +24,13 @@ function getAsaasApiKey(): string {
       const path = require('path')
       const envPath = path.join(process.cwd(), '.env.local')
       const envContent = fs.readFileSync(envPath, 'utf8')
-      const match = envContent.match(/^ASAAS_API_KEY=(.+)$/m)
+      const match = envContent.match(/^ASAAS_API_KEY=(.*)$/m)
       if (match) {
-        apiKey = match[1].trim()
+        let v = match[1].trim()
+        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+          v = v.slice(1, -1)
+        }
+        apiKey = v
         console.log('✅ [lib/asaas] API Key carregada diretamente do arquivo .env.local')
       }
     } catch (fileError: any) {
