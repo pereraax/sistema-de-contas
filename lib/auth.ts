@@ -323,11 +323,15 @@ export async function signUp(
           .limit(1)
           .maybeSingle()
 
-        if (purchaseRow?.plano) {
+        // Se o usuário pagou, precisamos ativar o plano mesmo que a linha
+        // da confirmação esteja sem `plano` (ex.: linhas antigas criadas antes
+        // da migration que adicionou/garantiu `email/plano`).
+        if (purchaseRow) {
+          const planoToActivate = (purchaseRow.plano || 'basico') as 'teste' | 'basico' | 'premium'
           await supabaseAdmin
             .from('profiles')
             .update({
-              plano: purchaseRow.plano,
+              plano: planoToActivate,
               plano_status: 'ativo',
               plano_data_inicio: new Date().toISOString(),
             })
